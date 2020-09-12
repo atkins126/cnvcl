@@ -583,19 +583,19 @@ function BigNumberIsUInt64(const Num: TCnBigNumber): Boolean;
 
 procedure BigNumberExtendedEuclideanGcd(A, B: TCnBigNumber; X: TCnBigNumber;
   Y: TCnBigNumber);
-{* 扩展欧几里得辗转相除法求二元一次不定方程 A * X + B * Y = 1 的整数解
+{* 扩展欧几里得辗转相除法求二元一次不定方程 A * X + B * Y = 1 的整数解，调用者需自行保证 A B 互素
    A, B 是已知大数，X, Y 是解出来的结果，注意 X 有可能小于 0，如需要正数，可以再加上 B}
 
 procedure BigNumberExtendedEuclideanGcd2(A, B: TCnBigNumber; X: TCnBigNumber;
   Y: TCnBigNumber);
-{* 扩展欧几里得辗转相除法求二元一次不定方程 A * X - B * Y = 1 的整数解
+{* 扩展欧几里得辗转相除法求二元一次不定方程 A * X - B * Y = 1 的整数解，调用者需自行保证 A B 互素
    A, B 是已知大数，X, Y 是解出来的结果，注意 X 有可能小于 0，如需要正数，可以再加上 B
    X 被称为 A 针对 B 的模反元素，因此本算法也用来算 A 针对 B 的模反元素
    （由于可以视作 -Y，所以本方法与上一方法是等同的 ）}
 
 procedure BigNumberModularInverse(const Res: TCnBigNumber; X, Modulus: TCnBigNumber);
 {* 求 X 针对 Modulus 的模反或叫模逆元 Y，满足 (X * Y) mod M = 1，X 可为负值，Y 求出正值。
-   调用者须自行保证 X、Modulus 互质}
+   调用者须自行保证 X、Modulus 互质，且 Res 不能是 X 或 Modulus}
 
 function BigNumberLegendre(A, P: TCnBigNumber): Integer;
 {* 用二次互反律递归计算勒让德符号 ( A / P) 的值，较快}

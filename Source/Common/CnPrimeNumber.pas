@@ -703,6 +703,9 @@ function CnUInt32GreatestCommonDivisor(A, B: Cardinal): Cardinal;
 function CnInt64GreatestCommonDivisor(A, B: TUInt64): TUInt64;
 {* 求两个 64 位无符号数的最大公约数}
 
+function CnInt64GreatestCommonDivisor2(A, B: Int64): Int64;
+{* 求两个 64 位有符号数的最大公约数}
+
 procedure CnGenerateUInt32DiffieHellmanPrimeRoot(out Prime: Cardinal; out MaxRoot: Cardinal);
 {* 生成 Diffie-Hellman 算法所需的素数与其最大原根，范围为 UInt32}
 
@@ -739,31 +742,44 @@ function CnUInt32ModularInverse(X: Cardinal; Modulus: Cardinal): Cardinal;
 function CnInt64ModularInverse(X: TUInt64; Modulus: TUInt64): TUInt64;
 {* 求 X 针对 M 的模反元素也就是模逆元 Y，满足 (X * Y) mod M = 1，范围为 UInt64，X、M 必须互质}
 
+function CnInt64ModularInverse2(X: Int64; Modulus: Int64): Int64;
+{* 求 X 针对 M 的模反元素也就是模逆元 Y，满足 (X * Y) mod M = 1，范围为 Int64，也就是支持负值，X、M 必须互质}
+
 function CnUInt32ExtendedEuclideanGcd(A, B: Cardinal; out X: Cardinal; out Y: Cardinal): Cardinal;
-{* 扩展欧几里得辗转相除法求二元一次不定方程 A * X + B * Y = 1 的整数解，
-   如果得出 X 小于 0，可加上 B}
+{* 扩展欧几里得辗转相除法求二元一次不定方程 A * X + B * Y = 1 的整数解，调用者需自行保证 A B 互素
+   否则得出的解满足方程右边等于 A B 的最大公约数，如果得出 X 小于 0，可加上 B}
 
 procedure CnUInt32ExtendedEuclideanGcd2(A, B: Cardinal; out X: Cardinal; out Y: Cardinal);
-{* 扩展欧几里得辗转相除法求二元一次不定方程 A * X - B * Y = 1 的整数解，
-   如果得出 X 小于 0，可加上 B}
+{* 扩展欧几里得辗转相除法求二元一次不定方程 A * X - B * Y = 1 的整数解，调用者需自行保证 A B 互素
+   否则得出的解满足方程右边等于 A B 的最大公约数，如果得出 X 小于 0，可加上 B}
 
 function CnInt64ExtendedEuclideanGcd(A, B: TUInt64; out X: TUInt64; out Y: TUInt64): TUInt64;
-{* 扩展欧几里得辗转相除法求二元一次不定方程 A * X + B * Y = 1 的整数解，
-   如果得出 X 小于 0，可加上 B}
+{* 扩展欧几里得辗转相除法求二元一次不定方程 A * X + B * Y = 1 的整数解，范围为 UInt64，调用者需自行保证 A B 互素
+   否则得出的解满足方程右边等于 A B 的最大公约数，如果得出 X 小于 0，可加上 B}
+
+function CnInt64ExtendedEuclideanGcd1(A, B: Int64; out X: Int64; out Y: Int64): Int64;
+{* 扩展欧几里得辗转相除法求二元一次不定方程 A * X + B * Y = 1 的整数解，范围为 Int64，调用者需自行保证 A B 互素
+   否则得出的解满足方程右边等于 A B 的最大公约数，如果得出 X 小于 0，可加上 B}
 
 procedure CnInt64ExtendedEuclideanGcd2(A, B: TUInt64; out X: TUInt64; out Y: TUInt64);
-{* 扩展欧几里得辗转相除法求二元一次不定方程 A * X - B * Y = 1 的整数解，
-   如果得出 X 小于 0，可加上 B}
+{* 扩展欧几里得辗转相除法求二元一次不定方程 A * X - B * Y = 1 的整数解，范围为 UInt64，调用者需自行保证 A B 互素
+   否则得出的解满足方程右边等于 A B 的最大公约数，如果得出 X 小于 0，可加上 B}
 
 function CnInt64Legendre(A, P: Int64): Integer;
-{* 计算勒让德符号 ( A / P) 的值}
+{* 计算勒让德符号 ( A / P) 的值，范围为 Int64}
 
 procedure CnLucasSequenceMod(X, Y, K, N: Int64; out Q, V: Int64);
-{* 计算 IEEE P1363 的规范中说明的 Lucas 序列，
+{* 计算 IEEE P1363 的规范中说明的 Lucas 序列，范围为 Int64
    递归定义为：V0 = 2, V1 = X, and Vk = X * Vk-1 - Y * Vk-2   for k >= 2
    V 返回 Vk mod N，Q 返回 Y ^ (K div 2) mod N }
 
-function ChineseRemainderTheoremInt64(Remainers, Factors: array of TUInt64): TUInt64;
+function CnInt64SquareRoot(X, P: Int64): Int64;
+{*  计算平方剩余，也就是返回 Result^2 mod P = X，范围为 Int64，负值暂不支持}
+
+function ChineseRemainderTheoremInt64(Remainers, Factors: array of TUInt64): TUInt64; overload;
+{* 用中国剩余定理，根据余数与互素的除数求一元线性同余方程组的最小解，暂时只支持 Int64}
+
+function ChineseRemainderTheoremInt64(Remainers, Factors: TCnInt64List): Int64; overload;
 {* 用中国剩余定理，根据余数与互素的除数求一元线性同余方程组的最小解，暂时只支持 Int64}
 
 implementation
@@ -1479,6 +1495,20 @@ begin
     Result := CnInt64GreatestCommonDivisor(B, UInt64Mod(A, B));
 end;
 
+// 求两个 64 位有符号数的最大公约数
+function CnInt64GreatestCommonDivisor2(A, B: Int64): Int64;
+begin
+  if A < 0 then
+    A := -A;
+  if B < 0 then
+    B := -B;
+
+  if B = 0 then
+    Result := A
+  else
+    Result := CnInt64GreatestCommonDivisor2(B, A mod B);
+end;
+
 function PollardRho32(X: Cardinal; C: Cardinal): Cardinal;
 var
   I, K, X0, Y, D: Cardinal;
@@ -1681,6 +1711,21 @@ begin
     Result := Result + Modulus;
 end;
 
+// 求 X 针对 M 的模反元素也就是模逆元 Y，满足 (X * Y) mod M = 1，范围为 Int64，也就是支持负值，X、M 必须互质
+function CnInt64ModularInverse2(X: Int64; Modulus: Int64): Int64;
+var
+  N: Int64;
+begin
+  Result := 0;
+  if CnInt64GreatestCommonDivisor2(X, Modulus) <> 1 then
+    Exit;
+
+  // 转换成不定方程 XY + MN = 1，其中 Y、N 是未知数
+  CnInt64ExtendedEuclideanGcd1(X, Modulus, Result, N);
+  if Result < 0 then
+    Result := Result + Modulus;
+end;
+
 // 扩展欧几里得辗转相除法求二元一次不定方程 A * X + B * Y = 1 的整数解
 function CnUInt32ExtendedEuclideanGcd(A, B: Cardinal; out X: Cardinal; out Y: Cardinal): Cardinal;
 var
@@ -1717,7 +1762,7 @@ begin
   end;
 end;
 
-// 扩展欧几里得辗转相除法求二元一次不定方程 A * X + B * Y = 1 的整数解
+// 扩展欧几里得辗转相除法求二元一次不定方程 A * X + B * Y = 1 的整数解，范围为 UInt64
 function CnInt64ExtendedEuclideanGcd(A, B: TUInt64; out X: TUInt64; out Y: TUInt64): TUInt64;
 var
   R, T: TUInt64;
@@ -1734,6 +1779,30 @@ begin
     T := X;
     X := Y;
     Y := T - UInt64Div(A, B) * Y;
+    Result := R;
+  end;
+end;
+
+// 扩展欧几里得辗转相除法求二元一次不定方程 A * X + B * Y = 1 的整数解，范围为 Int64
+function CnInt64ExtendedEuclideanGcd1(A, B: Int64; out X: Int64; out Y: Int64): Int64;
+var
+  R, T: Int64;
+begin
+  if B = 0 then
+  begin
+    if A < 0 then
+      X := -1
+    else
+      X := 1;
+    Y := 0;
+    Result := A;
+  end
+  else
+  begin
+    R := CnInt64ExtendedEuclideanGcd1(B, A mod B, X, Y);
+    T := X;
+    X := Y;
+    Y := T - (A div B) * Y;
     Result := R;
   end;
 end;
@@ -1815,6 +1884,173 @@ begin
   V := V0;
 end;
 
+// P1363 上的 Lucas 计算，虽然和 SM2 里的说明几乎全都对不上号，但目前结果看起来还靠谱
+// V0 = 2, V1 = X, and Vk = X * Vk-1 - Y * Vk-2   for k >= 2
+// V 返回 Vk mod N，Q 返回 Y ^ (K div 2) mod N
+procedure CalcLucasSequenceMod(X, Y, K, N: Int64; out Q, V: Int64);
+var
+  C, I: Integer;
+  V0, V1, Q0, Q1: Int64;
+begin
+  if K < 0 then
+    raise Exception.Create('Invalid K for Lucas Sequence');
+
+  // V0 = 2, V1 = P, and Vk = P * Vk-1 - Q * Vk-2   for k >= 2
+
+  if K = 0 then
+  begin
+    Q := 1;
+    V := 2;
+    Exit;
+  end
+  else if K = 1 then
+  begin
+    Q := 1;
+    V := X;
+    Exit;
+  end;
+
+  V0 := 2;
+  V1 := X;
+  Q0 := 1;
+  Q1 := 1;
+
+  C := GetUInt64HighBits(K);
+  for I := C downto 0 do
+  begin
+    Q0 := Int64MultipleMod(Q0, Q1, N);
+    if GetUInt64BitSet(K, I) then
+    begin
+      Q1 := Int64MultipleMod(Q0, Y, N);
+      V0 := Int64Mod(Int64MultipleMod(V0, V1, N) - Int64MultipleMod(X, Q0, N), N);
+      V1 := Int64Mod(Int64MultipleMod(V1, V1, N) - Int64MultipleMod(2, Q1, N), N);
+    end
+    else
+    begin
+      Q1 := Q0;
+      V1 := Int64Mod(Int64MultipleMod(V0, V1, N) - Int64MultipleMod(X, Q0, N), N);
+      V0 := Int64Mod(Int64MultipleMod(V0, V0, N) - Int64MultipleMod(2, Q0, N), N);
+    end;
+  end;
+  Q := Q0;
+  V := V0;
+end;
+
+// 封装的对于 P 为 8*u+1 的奇素数，用 Lucas 方法求其模平方根
+function SquareRootModPrimeLucas(X, P: Int64; out Y: Int64): Boolean;
+var
+  G, Z, U, V: Int64;
+
+  function RandomInt64LessThan(HighValue: Int64): Int64;
+  var
+    Hi, Lo: Cardinal;
+  begin
+    Randomize;
+    Hi := Trunc(Random * High(Integer) - 1) + 1;   // Int64 最高位不能是 1，避免负数
+    Randomize;
+    Lo := Trunc(Random * High(Cardinal) - 1) + 1;
+    Result := (Int64(Hi) shl 32) + Lo;
+    Result := Result mod HighValue;
+  end;
+
+begin
+  Result := False;
+  G := X;
+  while True do
+  begin
+    // 随机取 X
+    X := RandomInt64LessThan(P);
+
+    // 再计算 Lucas 序列中的 V，其下标 K 为 (P+1)/2
+    CalcLucasSequenceMod(X, G, (P + 1) shr 1, P, U, V);
+
+    // V 偶则直接右移 1 再 mod P，V 奇则加 P 再右移 1
+    if (V and 1) = 0 then
+      Z := (V shr 1) mod P
+    else
+      Z := (V + P) shr 1;
+    // Z := (V div 2) mod P;
+
+    if Int64MultipleMod(Z, Z, P) = G then
+    begin
+      Y := Z;
+      Result := True;
+      Exit;
+    end
+    else if (U > 1) and (U < P - 1) then
+      Break;
+  end;
+end;
+
+function CnInt64SquareRoot(X, P: Int64): Int64;
+const
+  PT4U3 = 0;
+  PT8U1 = 1;
+  PT8U5 = 2;
+var
+  R, U, Y, Z: Int64;
+  Pt: Integer;
+begin
+  Result := 0;
+  if CnInt64Legendre(X, P) <> 1 then
+    Exit;
+
+  R := P mod 4;
+  if R = 3 then
+  begin
+    Pt := PT4U3;
+    U := P div 4;
+  end
+  else
+  begin
+    R := P mod 8;
+    if R = 1 then
+    begin
+      Pt := PT8U1;
+      U := P div 8;
+    end
+    else if R = 5 then
+    begin
+      Pt := PT8U5;
+      U := P div 8;
+    end
+    else
+      raise Exception.Create('Invalid Prime');
+  end;
+
+  case Pt of
+  PT4U3: // 参考自《SM2椭圆曲线公钥密码算法》附录 B 中的“模素数平方根的求解”一节
+    begin
+      Result := MontgomeryPowerMod(X, U + 1, P);   // 55, 103 得 63
+    end;
+  PT8U1:
+    begin
+      // IEEE P1363 中说的 Lucas 序列
+      if SquareRootModPrimeLucas(X, P, Y) then
+        Result := Y;
+    end;
+  PT8U5: // 参考自《SM2椭圆曲线公钥密码算法》附录 B 中的“模素数平方根的求解”一节
+    begin
+      Z := MontgomeryPowerMod(X, 2 * U + 1, P);
+      if Z = 1 then
+      begin
+        Result := MontgomeryPowerMod(X, U + 1, P);
+      end
+      else
+      begin
+        Z := P - Z;
+        if Z = 1 then
+        begin
+          // y = (2g * (4g)^u) mod p = (2g mod p * (4^u * g^u) mod p) mod p
+          Result := (Int64MultipleMod(X, 2, P) *
+            MontgomeryPowerMod(4, U, P) *
+            MontgomeryPowerMod(X, U, P)) mod P;
+        end;
+      end;
+    end;
+  end;
+end;
+
 function ChineseRemainderTheoremInt64(Remainers, Factors: array of TUInt64): TUInt64;
 var
   I, J: Integer;
@@ -1850,6 +2086,43 @@ begin
   for J := Low(Factors) to High(Factors) do
     G := G * Factors[J];
   Result := UInt64Mod(Sum, G);
+end;
+
+function ChineseRemainderTheoremInt64(Remainers, Factors: TCnInt64List): Int64;
+var
+  I, J: Integer;
+  G, N, Sum: Int64;
+begin
+  Result := 0;
+  if Remainers.Count <> Factors.Count then
+    Exit;
+
+  Sum := 0;
+  for I := 0 to Remainers.Count - 1 do
+  begin
+    // 对于每一个余数和对应除数，找出其他除数的公倍数中除以该除数余 1 的数（涉及到模逆元），
+    // 如 5 7 的公倍数 35n，对 3 余 1 的是 70。3 7 对 5 余 1 的是 21，3 5 对 7 余 1 的是 14
+    // 然后该余数和该模逆元相乘
+    // 所有的乘积加起来，mod 一下全体除数们的最小公倍数，就得到结果了
+    G := 1;
+    for J := 0 to Factors.Count - 1 do
+      if J <> I then
+        G := G * Factors[J];
+
+    // G 此刻是最小公倍数，因为 Factors 互素
+    // 求 X 针对 M 的模反元素也就是模逆元 Y，满足 (X * Y) mod M = 1
+    N := CnInt64ModularInverse2(G, Factors[I]);
+    G := N * G; // 得到乘数
+
+    G := Remainers[I] * G; // 乘数与余数相乘
+    Sum := Sum + G;        // 求和
+  end;
+
+  // 得到 Sum 后，针对全体除数的最小公倍数求余即可
+  G := 1;
+  for J := 0 to Factors.Count - 1 do
+    G := G * Factors[J];
+  Result := Sum mod G;
 end;
 
 end.

@@ -1,6 +1,6 @@
 object FormPolynomial: TFormPolynomial
-  Left = 320
-  Top = 253
+  Left = 241
+  Top = 141
   Width = 955
   Height = 601
   Caption = 'Polynomial Test'
@@ -68,7 +68,7 @@ object FormPolynomial: TFormPolynomial
         object bvl2: TBevel
           Left = 24
           Top = 292
-          Width = 857
+          Width = 865
           Height = 17
           Shape = bsTopLine
         end
@@ -217,6 +217,42 @@ object FormPolynomial: TFormPolynomial
           TabOrder = 16
           OnClick = btnTestExample4Click
         end
+        object btnPolyGcd: TButton
+          Left = 792
+          Top = 312
+          Width = 97
+          Height = 25
+          Caption = 'Test Poly Gcd'
+          TabOrder = 17
+          OnClick = btnPolyGcdClick
+        end
+        object btnGaloisTestGcd: TButton
+          Left = 536
+          Top = 312
+          Width = 113
+          Height = 25
+          Caption = 'Galois Test GCD'
+          TabOrder = 18
+          OnClick = btnGaloisTestGcdClick
+        end
+        object btnTestGaloisMI: TButton
+          Left = 664
+          Top = 312
+          Width = 113
+          Height = 25
+          Caption = 'Galois Test Inverse'
+          TabOrder = 19
+          OnClick = btnTestGaloisMIClick
+        end
+        object btnGF28Test1: TButton
+          Left = 24
+          Top = 360
+          Width = 113
+          Height = 25
+          Caption = 'GF2^8 Test1'
+          TabOrder = 20
+          OnClick = btnGF28Test1Click
+        end
       end
     end
     object tsExtensionEcc: TTabSheet
@@ -237,6 +273,42 @@ object FormPolynomial: TFormPolynomial
           Caption = 'Test 1 Point on Curve'
           TabOrder = 0
           OnClick = btnGaloisOnCurveClick
+        end
+        object btnEccPointAdd: TButton
+          Left = 176
+          Top = 32
+          Width = 113
+          Height = 25
+          Caption = 'Test Point Add 1'
+          TabOrder = 1
+          OnClick = btnEccPointAddClick
+        end
+        object btnTestEccPointAdd2: TButton
+          Left = 312
+          Top = 32
+          Width = 105
+          Height = 25
+          Caption = 'Test Point Add 2'
+          TabOrder = 2
+          OnClick = btnTestEccPointAdd2Click
+        end
+        object btnTestDivPoly: TButton
+          Left = 440
+          Top = 32
+          Width = 177
+          Height = 25
+          Caption = 'Test Ecc Division Polynomial 1'
+          TabOrder = 3
+          OnClick = btnTestDivPolyClick
+        end
+        object btnTestDivPoly2: TButton
+          Left = 640
+          Top = 32
+          Width = 177
+          Height = 25
+          Caption = 'Test Ecc Division Polynomial 2'
+          TabOrder = 4
+          OnClick = btnTestDivPoly2Click
         end
       end
     end
