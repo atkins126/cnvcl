@@ -15,12 +15,19 @@ object FormPolynomial: TFormPolynomial
   OnDestroy = FormDestroy
   PixelsPerInch = 96
   TextHeight = 13
+  object lbl4: TLabel
+    Left = 449
+    Top = 284
+    Width = 5
+    Height = 13
+    Caption = '/'
+  end
   object pgcPoly: TPageControl
     Left = 8
     Top = 8
     Width = 929
     Height = 553
-    ActivePage = tsExtensionEcc
+    ActivePage = tsRationalPolynomial
     TabOrder = 0
     object tsIntegerPolynomial: TTabSheet
       Caption = 'Integer Polynomial'
@@ -253,6 +260,15 @@ object FormPolynomial: TFormPolynomial
           TabOrder = 20
           OnClick = btnGF28Test1Click
         end
+        object btnTestGaloisDiv: TButton
+          Left = 152
+          Top = 360
+          Width = 113
+          Height = 25
+          Caption = 'Test Galois Div'
+          TabOrder = 21
+          OnClick = btnTestGaloisDivClick
+        end
       end
     end
     object tsExtensionEcc: TTabSheet
@@ -309,6 +325,257 @@ object FormPolynomial: TFormPolynomial
           Caption = 'Test Ecc Division Polynomial 2'
           TabOrder = 4
           OnClick = btnTestDivPoly2Click
+        end
+        object btnTestGaloisPoint2: TButton
+          Left = 24
+          Top = 80
+          Width = 129
+          Height = 25
+          Caption = 'Test ? Point on Curve 1'
+          TabOrder = 5
+          OnClick = btnTestGaloisPoint2Click
+        end
+        object btnTestPolyPoint2: TButton
+          Left = 176
+          Top = 80
+          Width = 129
+          Height = 25
+          Caption = 'Test ? Point on Curve 2'
+          TabOrder = 6
+          OnClick = btnTestPolyPoint2Click
+        end
+        object btnTestPolyEccPoint3: TButton
+          Left = 320
+          Top = 80
+          Width = 241
+          Height = 25
+          Caption = 'Test 4 Points on Curve?'
+          TabOrder = 7
+          OnClick = btnTestPolyEccPoint3Click
+        end
+        object btnTestPolyAdd2: TButton
+          Left = 592
+          Top = 80
+          Width = 177
+          Height = 25
+          Caption = 'Test Poly Point Add'
+          TabOrder = 8
+          OnClick = btnTestPolyAdd2Click
+        end
+        object btnTestGaloisPolyMulMod: TButton
+          Left = 784
+          Top = 80
+          Width = 105
+          Height = 25
+          Caption = 'Test Galois MulMod'
+          TabOrder = 9
+          OnClick = btnTestGaloisPolyMulModClick
+        end
+        object btnTestGaloisModularInverse1: TButton
+          Left = 24
+          Top = 128
+          Width = 161
+          Height = 25
+          Caption = 'Test Galois Modular Inverse'
+          TabOrder = 10
+          OnClick = btnTestGaloisModularInverse1Click
+        end
+        object btnTestEuclid2: TButton
+          Left = 192
+          Top = 128
+          Width = 161
+          Height = 25
+          Caption = 'Test Extended Euclid 2'
+          TabOrder = 11
+          OnClick = btnTestEuclid2Click
+        end
+        object btnTestExtendEuclid3: TButton
+          Left = 360
+          Top = 128
+          Width = 161
+          Height = 25
+          Caption = 'Test Extended Euclid 3'
+          TabOrder = 12
+          OnClick = btnTestExtendEuclid3Click
+        end
+        object btnTestEccDivisionPoly3: TButton
+          Left = 528
+          Top = 128
+          Width = 177
+          Height = 25
+          Caption = 'Test Ecc Division Polynomial 3'
+          TabOrder = 13
+          OnClick = btnTestEccDivisionPoly3Click
+        end
+        object mmoTestDivisionPolynomial: TMemo
+          Left = 24
+          Top = 176
+          Width = 849
+          Height = 313
+          ScrollBars = ssBoth
+          TabOrder = 14
+          WordWrap = False
+        end
+        object btnGenerateDivisionPolynomial: TButton
+          Left = 720
+          Top = 128
+          Width = 169
+          Height = 25
+          Caption = 'Generate Division Polynomial'
+          TabOrder = 15
+          OnClick = btnGenerateDivisionPolynomialClick
+        end
+      end
+    end
+    object tsRationalPolynomial: TTabSheet
+      Caption = 'Rational Polynomial'
+      ImageIndex = 2
+      object grpRationalPolynomial: TGroupBox
+        Left = 8
+        Top = 8
+        Width = 905
+        Height = 505
+        Caption = 'Rational Polynomial'
+        TabOrder = 0
+        object bvl3: TBevel
+          Left = 16
+          Top = 72
+          Width = 873
+          Height = 9
+          Shape = bsTopLine
+        end
+        object lbl1: TLabel
+          Left = 425
+          Top = 100
+          Width = 31
+          Height = 21
+          Caption = '/'
+        end
+        object lbl2: TLabel
+          Left = 425
+          Top = 180
+          Width = 5
+          Height = 13
+          Caption = '/'
+        end
+        object lbl3: TLabel
+          Left = 416
+          Top = 208
+          Width = 6
+          Height = 13
+          Caption = '='
+        end
+        object btnRP2Point: TButton
+          Left = 16
+          Top = 24
+          Width = 169
+          Height = 25
+          Caption = 'Calc 2 * Point (x, 1*y£©on Ecc'
+          TabOrder = 0
+          OnClick = btnRP2PointClick
+        end
+        object edtRationalNominator1: TEdit
+          Left = 16
+          Top = 96
+          Width = 385
+          Height = 21
+          TabOrder = 1
+        end
+        object edtRationalDenominator1: TEdit
+          Left = 448
+          Top = 96
+          Width = 385
+          Height = 21
+          TabOrder = 2
+        end
+        object btnRationalPolynomialAdd: TButton
+          Left = 264
+          Top = 136
+          Width = 75
+          Height = 25
+          Caption = 'Add'
+          TabOrder = 3
+          OnClick = btnRationalPolynomialAddClick
+        end
+        object btnRationalPolynomialSub: TButton
+          Left = 352
+          Top = 136
+          Width = 75
+          Height = 25
+          Caption = 'Sub'
+          TabOrder = 4
+          OnClick = btnRationalPolynomialSubClick
+        end
+        object btnRationalPolynomialMul: TButton
+          Left = 440
+          Top = 136
+          Width = 75
+          Height = 25
+          Caption = 'Mul'
+          TabOrder = 5
+          OnClick = btnRationalPolynomialMulClick
+        end
+        object btnRationalPolynomialDiv: TButton
+          Left = 528
+          Top = 136
+          Width = 75
+          Height = 25
+          Caption = 'Div'
+          TabOrder = 6
+          OnClick = btnRationalPolynomialDivClick
+        end
+        object chkRationalPolynomialGalois: TCheckBox
+          Left = 648
+          Top = 140
+          Width = 73
+          Height = 17
+          Caption = 'Galois'
+          TabOrder = 7
+        end
+        object edtRationalPolynomialPrime: TEdit
+          Left = 728
+          Top = 136
+          Width = 105
+          Height = 21
+          TabOrder = 8
+          Text = '97'
+        end
+        object edtRationalNominator2: TEdit
+          Left = 16
+          Top = 176
+          Width = 385
+          Height = 21
+          TabOrder = 9
+        end
+        object edtRationalDenominator2: TEdit
+          Left = 448
+          Top = 176
+          Width = 385
+          Height = 21
+          TabOrder = 10
+        end
+        object btnRationalPolynomialGenerate: TButton
+          Left = 16
+          Top = 136
+          Width = 75
+          Height = 25
+          Caption = 'Generate'
+          TabOrder = 11
+          OnClick = btnRationalPolynomialGenerateClick
+        end
+        object edtRationalResultNominator: TEdit
+          Left = 20
+          Top = 240
+          Width = 385
+          Height = 21
+          TabOrder = 12
+        end
+        object edtRationalResultDenominator: TEdit
+          Left = 452
+          Top = 240
+          Width = 385
+          Height = 21
+          TabOrder = 13
         end
       end
     end

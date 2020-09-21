@@ -70,8 +70,47 @@ type
     {* 返回是否为 1}
     procedure SetOne;
     {* 设为 1}
+    function IsNegOne: Boolean;
+    {* 返回是否为 -1}
+    procedure Negate;
+    {* 所有系数求反}
     property MaxDegree: Integer read GetMaxDegree write SetMaxDegree;
     {* 最高次数，0 开始}
+  end;
+
+  TCnInt64RationalPolynomial = class(TPersistent)
+  {* 整系数分式，分母分子分别为整系数多项式}
+  private
+    FNominator: TCnInt64Polynomial;
+    FDenominator: TCnInt64Polynomial;
+  protected
+    procedure AssignTo(Dest: TPersistent); override;
+  public
+    constructor Create; virtual;
+    destructor Destroy; override;
+
+    function IsInt: Boolean; {$IFDEF SUPPORT_INLINE} inline; {$ENDIF}
+    {* 是否整多项式，也就是判断分母是否是正负 1}
+    function IsZero: Boolean; {$IFDEF SUPPORT_INLINE} inline; {$ENDIF}
+    {* 是否为 0}
+    function IsOne: Boolean; {$IFDEF SUPPORT_INLINE} inline; {$ENDIF}
+    {* 是否为 1}
+    procedure Reciprocal;
+    {* 变成倒数}
+    procedure Neg;
+    {* 变成负的}
+    procedure SetZero;
+    {* 设为 0}
+    procedure SetOne;
+    {* 设为 1}
+
+    function ToString: string; {$IFDEF OBJECT_HAS_TOSTRING} override; {$ENDIF}
+    {* 输出成字符串}
+
+    property Nominator: TCnInt64Polynomial read FNominator;
+    {* 分子式}
+    property Denominator: TCnInt64Polynomial read FDenominator;
+    {* 分母式}
   end;
 
   TCnInt64PolynomialPool = class(TObjectList)
@@ -123,6 +162,9 @@ function Int64PolynomialIsOne(const P: TCnInt64Polynomial): Boolean;
 procedure Int64PolynomialSetOne(const P: TCnInt64Polynomial);
 {* 将一个整系数多项式对象设为 1}
 
+function Int64PolynomialIsNegOne(const P: TCnInt64Polynomial): Boolean;
+{* 判断一个整系数多项式对象是否为 -1}
+
 procedure Int64PolynomialNegate(const P: TCnInt64Polynomial);
 {* 将一个整系数多项式对象所有系数求反}
 
@@ -167,13 +209,13 @@ function Int64PolynomialMul(const Res: TCnInt64Polynomial; P1: TCnInt64Polynomia
 function Int64PolynomialDiv(const Res: TCnInt64Polynomial; const Remain: TCnInt64Polynomial;
   const P: TCnInt64Polynomial; const Divisor: TCnInt64Polynomial): Boolean;
 {* 两个整系数多项式对象相除，商放至 Res 中，余数放在 Remain 中，返回相除是否成功，
-   注意当商式或余式出现无法整除的分数时会抛出异常，无法支持，
+   注意当商式或余式出现无法整除的分数时会返回 False，表示无法支持，调用者务必判断返回值
    Res 或 Remail 可以是 nil，不给出对应结果。P 可以是 Divisor，Res 可以是 P 或 Divisor}
 
 function Int64PolynomialMod(const Res: TCnInt64Polynomial; const P: TCnInt64Polynomial;
   const Divisor: TCnInt64Polynomial): Boolean;
 {* 两个整系数多项式对象求余，余数放至 Res 中，返回求余是否成功，
-   注意当商式或余式出现无法整除的分数时会抛出异常，无法支持，
+   注意当商式或余式出现无法整除的分数时会返回 False，表示无法支持，调用者务必判断返回值，
    Res 可以是 P 或 Divisor，P 可以是 Divisor}
 
 function Int64PolynomialPower(const Res: TCnInt64Polynomial;
@@ -187,17 +229,24 @@ function Int64PolynomialReduce(const P: TCnInt64Polynomial): Integer;
 function Int64PolynomialGreatestCommonDivisor(const Res: TCnInt64Polynomial;
   const P1, P2: TCnInt64Polynomial): Boolean;
 {* 计算两个整系数多项式的最大公因式，返回计算是否成功，Res 可以是 P1 或 P2
-   注意计算可能会因为系数不能整除而失败，即使调用者自行保证 P1 P2 均为首一多项式也不能保证行}
+   注意计算可能会因为系数不能整除而失败，即使调用者自行保证 P1 P2 均为首一多项式也不能保证行
+   如返回 False，调用者可干脆认为互素，最大公因式为 1}
+
+function Int64PolynomialLeastCommonMultiple(const Res: TCnInt64Polynomial;
+  const P1, P2: TCnInt64Polynomial): Boolean;
+{* 计算两个整系数多项式的最小公倍式，返回计算是否成功，Res 可以是 P1 或 P2
+   注意计算可能会因为系数不能整除而失败，即使调用者自行保证 P1 P2 均为首一多项式也不能保证行
+   如返回 False，调用者可干脆认为互素，最小公倍式为两者相乘，自行进行}
 
 function Int64PolynomialCompose(const Res: TCnInt64Polynomial;
   const F, P: TCnInt64Polynomial): Boolean;
-{* 整系数多项式代换，也就是计算 F(P(x))，返回是否计算成功}
+{* 整系数多项式代换，也就是计算 F(P(x))，返回是否计算成功，Res 可以是 F 或 P}
 
-function Int64PolynomialCalcDivisionPolynomial(A, B: Integer; Degree: Integer;
-  outDivisionPolynomial: TCnInt64Polynomial): Boolean;
-{* 递归计算可除多项式，返回是否计算成功，注意 Integer 范围内次数一多就容易溢出
-   规则参考自 F. MORAIN 的文章
-  《COMPUTING THE CARDINALITY OF CM ELLIPTIC CURVES USING TORSION POINTS》}
+function Int64PolynomialGetValue(const F: TCnInt64Polynomial; X: Int64): Int64;
+{* 整系数多项式求值，也就是计算 F(x)，返回计算结果}
+
+procedure Int64PolynomialReduce2(P1, P2: TCnInt64Polynomial);
+{* 针对两个整系数多项式进行约分，也就是缩至互素，用于有理分式约分运算}
 
 // ===================== 有限扩域下的整系数多项式模运算 ========================
 
@@ -257,24 +306,80 @@ function Int64PolynomialGaloisGreatestCommonDivisor(const Res: TCnInt64Polynomia
   const P1, P2: TCnInt64Polynomial; Prime: Int64): Boolean;
 {* 计算两个整系数多项式在 Prime 次方阶有限域上的最大公因式，返回计算是否成功，Res 可以是 P1 或 P2}
 
+function Int64PolynomialGaloisLeastCommonMultiple(const Res: TCnInt64Polynomial;
+  const P1, P2: TCnInt64Polynomial; Prime: Int64): Boolean;
+{* 计算两个整系数多项式在 Prime 次方阶有限域上的最小公倍式，返回计算是否成功，Res 可以是 P1 或 P2}
+
 procedure Int64PolynomialGaloisExtendedEuclideanGcd(A, B: TCnInt64Polynomial;
   X, Y: TCnInt64Polynomial; Prime: Int64);
-{* 扩展欧几里得辗转相除法在 Prime 次方阶有限域上求二元一次不定整系数多项式方程 A * X - B * Y = 1 的解}
+{* 扩展欧几里得辗转相除法在 Prime 次方阶有限域上求二元一次不定整系数多项式方程 A * X + B * Y = 1 的解}
 
 procedure Int64PolynomialGaloisModularInverse(const Res: TCnInt64Polynomial;
-  X, Modulus: TCnInt64Polynomial; Prime: Int64);
+  X, Modulus: TCnInt64Polynomial; Prime: Int64; CheckGcd: Boolean = False);
 {* 求整系数多项式 X 在 Prime 次方阶有限域上针对 Modulus 的模反多项式或叫模逆元多项式 Y，
-   满足 (X * Y) mod M = 1，调用者须自行保证 X、Modulus 互素，且 Res 不能为 X 或 Modulus}
+   满足 (X * Y) mod M = 1，调用者须尽量保证 X、Modulus 互素，且 Res 不能为 X 或 Modulus
+   CheckGcd 参数为 True 时，内部会检查 X、Modulus 是否互素}
 
 function Int64PolynomialGaloisCompose(const Res: TCnInt64Polynomial;
-  const F, P: TCnInt64Polynomial; Prime: Int64): Boolean;
-{* 在 Prime 次方阶有限域上进行整系数多项式代换，也就是计算 F(P(x))，返回是否计算成功}
+  const F, P: TCnInt64Polynomial; Prime: Int64; Primitive: TCnInt64Polynomial = nil): Boolean;
+{* 在 Prime 次方阶有限域上进行整系数多项式代换，也就是计算 F(P(x))，返回是否计算成功，Res 可以是 F 或 P}
+
+function Int64PolynomialGaloisGetValue(const F: TCnInt64Polynomial; X, Prime: Int64): Int64;
+{* 在 Prime 次方阶有限域上进行整系数多项式求值，也就是计算 F(x)，返回计算结果}
 
 function Int64PolynomialGaloisCalcDivisionPolynomial(A, B: Integer; Degree: Integer;
   outDivisionPolynomial: TCnInt64Polynomial; Prime: Int64): Boolean;
 {* 递归计算在 Prime 次方阶有限域上的 N 阶可除多项式，返回是否计算成功
+   注意 Degree 是奇数时，可除多项式是纯 x 的多项式，偶数时，是（x 的多项式）* y 的形式，
+   本结果只给出 x 的多项式部分。
    规则参考自 F. MORAIN 的文章
   《COMPUTING THE CARDINALITY OF CM ELLIPTIC CURVES USING TORSION POINTS》}
+
+procedure Int64PolynomialGaloisReduce2(P1, P2: TCnInt64Polynomial; Prime: Int64);
+{* 在 Prime 次方阶有限域上针对两个整系数多项式进行约分，也就是缩至互素，用于有理分式约分运算}
+
+// ========================== 有理分式常规运算 =================================
+
+function Int64RationalPolynomialEqual(Number1, Number2: TCnInt64RationalPolynomial): Boolean;
+{* 比较两个有理分式是否相等}
+
+function Int64RationalPolynomialCopy(const Dst: TCnInt64RationalPolynomial;
+  const Src: TCnInt64RationalPolynomial): TCnInt64RationalPolynomial;
+{* 有理分式复制}
+
+procedure Int64RationalPolynomialAdd(Number1, Number2: TCnInt64RationalPolynomial;
+  RationalResult: TCnInt64RationalPolynomial);
+{* 有理分式普通加法，三数可以相等}
+
+procedure Int64RationalPolynomialSub(Number1, Number2: TCnInt64RationalPolynomial;
+  RationalResult: TCnInt64RationalPolynomial);
+{* 有理分式普通减法，三数可以相等}
+
+procedure Int64RationalPolynomialMul(Number1, Number2: TCnInt64RationalPolynomial;
+  RationalResult: TCnInt64RationalPolynomial);
+{* 有理分式普通乘法，三数可以相等}
+
+procedure Int64RationalPolynomialDiv(Number1, Number2: TCnInt64RationalPolynomial;
+  RationalResult: TCnInt64RationalPolynomial);
+{* 有理分式普通除法，三数可以相等}
+
+// ====================== 有理分式在有限域上的模运算 ===========================
+
+procedure Int64RationalPolynomialGaloisAdd(Number1, Number2: TCnInt64RationalPolynomial;
+  RationalResult: TCnInt64RationalPolynomial; Prime: Int64);
+{* 有理分式模系数加法，三数可以相等}
+
+procedure Int64RationalPolynomialGaloisSub(Number1, Number2: TCnInt64RationalPolynomial;
+  RationalResult: TCnInt64RationalPolynomial; Prime: Int64);
+{* 有理分式模系数减法，三数可以相等}
+
+procedure Int64RationalPolynomialGaloisMul(Number1, Number2: TCnInt64RationalPolynomial;
+  RationalResult: TCnInt64RationalPolynomial; Prime: Int64);
+{* 有理分式模系数乘法，三数可以相等}
+
+procedure Int64RationalPolynomialGaloisDiv(Number1, Number2: TCnInt64RationalPolynomial;
+  RationalResult: TCnInt64RationalPolynomial; Prime: Int64);
+{* 有理分式模系数除法，三数可以相等}
 
 implementation
 
@@ -329,6 +434,11 @@ begin
   Result := Count - 1;
 end;
 
+function TCnInt64Polynomial.IsNegOne: Boolean;
+begin
+  Result := Int64PolynomialIsNegOne(Self);
+end;
+
 function TCnInt64Polynomial.IsOne: Boolean;
 begin
   Result := Int64PolynomialIsOne(Self);
@@ -337,6 +447,11 @@ end;
 function TCnInt64Polynomial.IsZero: Boolean;
 begin
   Result := Int64PolynomialIsZero(Self);
+end;
+
+procedure TCnInt64Polynomial.Negate;
+begin
+  Int64PolynomialNegate(Self);
 end;
 
 procedure TCnInt64Polynomial.SetCoefficents(LowToHighCoefficients: array of const);
@@ -471,13 +586,28 @@ begin
     end
     else if C > 0 then
     begin
-      if Result = '' then  // 最高项无需加号
-        Result := IntToStr(C) + VarPower(I)
+      if (C = 1) and (I > 0) then  // 非常数项的 1 系数无需显示
+      begin
+        if Result = '' then  // 最高项无需加号
+          Result := VarPower(I)
+        else
+          Result := Result + '+' + VarPower(I);
+      end
       else
-        Result := Result + '+' + IntToStr(C) + VarPower(I);
+      begin
+        if Result = '' then  // 最高项无需加号
+          Result := IntToStr(C) + VarPower(I)
+        else
+          Result := Result + '+' + IntToStr(C) + VarPower(I);
+      end;
     end
     else // 小于 0，要用减号
-      Result := Result + IntToStr(C) + VarPower(I);
+    begin
+      if (C = -1) and (I > 0) then // 非常数项的 -1 无需显示 1，只需减号
+        Result := Result + '-' + VarPower(I)
+      else
+        Result := Result + IntToStr(C) + VarPower(I);
+    end;
   end;
 end;
 
@@ -501,6 +631,11 @@ procedure Int64PolynomialSetOne(const P: TCnInt64Polynomial);
 begin
   P.Clear;
   P.Add(1);
+end;
+
+function Int64PolynomialIsNegOne(const P: TCnInt64Polynomial): Boolean;
+begin
+  Result := (P.MaxDegree = 0) and (P[0] = -1);
 end;
 
 procedure Int64PolynomialNegate(const P: TCnInt64Polynomial);
@@ -552,6 +687,12 @@ function Int64PolynomialEqual(const A, B: TCnInt64Polynomial): Boolean;
 var
   I: Integer;
 begin
+  if A = B then
+  begin
+    Result := True;
+    Exit;
+  end;
+
   Result := A.MaxDegree = B.MaxDegree;
   if Result then
   begin
@@ -751,12 +892,16 @@ begin
 
       // 判断 Divisor[Divisor.MaxDegree] 是否能整除 SubRes[P.MaxDegree - I] 不能则说明超出了整型多项式范围，无法支持，只能出错
       if (SubRes[P.MaxDegree - I] mod Divisor[Divisor.MaxDegree]) <> 0 then
-        raise ECnPolynomialException.Create(SCnErrorDivExactly);
+      begin
+        Result := False;
+        Exit;
+        // raise ECnPolynomialException.Create(SCnErrorDivExactly);
+      end;
 
       Int64PolynomialCopy(MulRes, Divisor);
       Int64PolynomialShiftLeft(MulRes, D - I);                 // 对齐到 SubRes 的最高次
       Int64PolynomialMulWord(MulRes, SubRes[P.MaxDegree - I] div MulRes[MulRes.MaxDegree]); // 除式乘到最高次系数相同
-      DivRes[D - I] := SubRes[P.MaxDegree - I];                  // 商放到 DivRes 位置
+      DivRes[D - I] := SubRes[P.MaxDegree - I];                // 商放到 DivRes 位置
       Int64PolynomialSub(SubRes, SubRes, MulRes);              // 减后结果重新放回 SubRes
     end;
 
@@ -860,9 +1005,11 @@ function Int64PolynomialGreatestCommonDivisor(const Res: TCnInt64Polynomial;
 var
   A, B, C: TCnInt64Polynomial;
 begin
+  Result := False;
   A := nil;
   B := nil;
   C := nil;
+
   try
     A := FLocalInt64PolynomialPool.Obtain;
     B := FLocalInt64PolynomialPool.Obtain;
@@ -882,7 +1029,9 @@ begin
     while not B.IsZero do
     begin
       Int64PolynomialCopy(C, B);        // 备份 B
-      Int64PolynomialMod(B, A, B);      // A mod B 给 B
+      if not Int64PolynomialMod(B, A, B) then   // A mod B 给 B
+        Exit;
+
       // B 要系数约分化简
       Int64PolynomialReduce(B);
       Int64PolynomialCopy(A, C);        // 原始 B 给 A
@@ -894,6 +1043,45 @@ begin
     FLocalInt64PolynomialPool.Recycle(A);
     FLocalInt64PolynomialPool.Recycle(B);
     FLocalInt64PolynomialPool.Recycle(C);
+  end;
+end;
+
+function Int64PolynomialLeastCommonMultiple(const Res: TCnInt64Polynomial;
+  const P1, P2: TCnInt64Polynomial): Boolean;
+var
+  G, M, R: TCnInt64Polynomial;
+begin
+  Result := False;
+  if Int64PolynomialEqual(P1, P2) then
+  begin
+    Int64PolynomialCopy(Res, P1);
+    Result := True;
+    Exit;
+  end;
+
+  G := nil;
+  M := nil;
+  R := nil;
+
+  try
+    G := FLocalInt64PolynomialPool.Obtain;
+    M := FLocalInt64PolynomialPool.Obtain;
+    R := FLocalInt64PolynomialPool.Obtain;
+
+    if not Int64PolynomialMul(M, P1, P2) then
+      Exit;
+
+    if not Int64PolynomialGreatestCommonDivisor(G, P1, P2) then
+      Exit;
+
+    if not Int64PolynomialDiv(Res, R, M, G) then
+      Exit;
+
+    Result := True;
+  finally
+    FLocalInt64PolynomialPool.Recycle(R);
+    FLocalInt64PolynomialPool.Recycle(M);
+    FLocalInt64PolynomialPool.Recycle(G);
   end;
 end;
 
@@ -918,150 +1106,76 @@ begin
 
   X := FLocalInt64PolynomialPool.Obtain;
   T := FLocalInt64PolynomialPool.Obtain;
-  X.SetOne;
-  R.SetZero;
 
-  // 把 F 中的每个系数都和 P 的对应次幂相乘，最后相加
-  for I := 0 to F.MaxDegree do
-  begin
-    Int64PolynomialCopy(T, X);
-    Int64PolynomialMulWord(T, F[I]);
-    Int64PolynomialAdd(R, R, T);
+  try
+    X.SetOne;
+    R.SetZero;
 
-    if I <> F.MaxDegree then
-      Int64PolynomialMul(X, X, P);
-  end;
+    // 把 F 中的每个系数都和 P 的对应次幂相乘，最后相加
+    for I := 0 to F.MaxDegree do
+    begin
+      Int64PolynomialCopy(T, X);
+      Int64PolynomialMulWord(T, F[I]);
+      Int64PolynomialAdd(R, R, T);
 
-  if (Res = F) or (Res = P) then
-  begin
-    Int64PolynomialCopy(Res, R);
-    FLocalInt64PolynomialPool.Recycle(R);
+      if I <> F.MaxDegree then
+        Int64PolynomialMul(X, X, P);
+    end;
+
+    if (Res = F) or (Res = P) then
+    begin
+      Int64PolynomialCopy(Res, R);
+      FLocalInt64PolynomialPool.Recycle(R);
+    end;
+  finally
+    FLocalInt64PolynomialPool.Recycle(X);
+    FLocalInt64PolynomialPool.Recycle(T);
   end;
   Result := True;
 end;
 
-function Int64PolynomialCalcDivisionPolynomial(A, B: Integer; Degree: Integer;
-  outDivisionPolynomial: TCnInt64Polynomial): Boolean;
+function Int64PolynomialGetValue(const F: TCnInt64Polynomial; X: Int64): Int64;
 var
-  N: Integer;
-  D1, D2, D3, Y: TCnInt64Polynomial;
+  I: Integer;
+  T: Int64;
 begin
-  Result := False;
-  if Degree < 0 then
-    Exit
-  else if Degree = 0 then
+  Result := F[0];
+  if (X = 0) or (F.MaxDegree = 0) then    // 只有常数项的情况下，得常数项
+    Exit;
+
+  T := X;
+
+  // 把 F 中的每个系数都和 X 的对应次幂相乘，最后相加
+  for I := 1 to F.MaxDegree do
   begin
-    outDivisionPolynomial.SetCoefficents([0]);  // f0(X) = 0
-    Result := True;
-  end
-  else if (Degree = 1) or (Degree = 2) then
+    Result := Result + F[I] * T;
+    if I <> F.MaxDegree then
+      T := T * X;
+  end;
+end;
+
+procedure Int64PolynomialReduce2(P1, P2: TCnInt64Polynomial);
+var
+  D: TCnInt64Polynomial;
+begin
+  if P1 = P2 then
   begin
-    outDivisionPolynomial.SetCoefficents([1]);  // f1(X) = 1, f2(X) = 1,
-    Result := True;
-  end
-  else if Degree = 3 then   // f3(X) = 3 X4 + 6 a X2 + 12 b X - a^2
-  begin
-    outDivisionPolynomial.SetCoefficents([- A * A,
-      12 * B, 6 * A, 0, 3]);
-    Result := True;
-  end
-  else if Degree = 4 then // f4(X) = 2 X6 + 10 a X4 + 40 b X3 - 10 a2X2 - 8 a b X - 2 a3 - 16 b^2
-  begin
-    outDivisionPolynomial.SetCoefficents([
-      -2 * A * A * A - 16 * B * B,
-      -8 * A * B, -10 * A * A,
-      40 * B, 10 * A, 0, 2]);
-    Result := True;
-  end
-  else
-  begin
-    D1 := nil;
-    D2 := nil;
-    D3 := nil;
-    Y := nil;
+    P1.SetOne;
+    Exit;
+  end;
 
-    try
-      // 开始递归计算
-      N := Degree shr 1;
-      if (Degree and 1) = 0 then // Degree 是偶数
-      begin
-        D1 := FLocalInt64PolynomialPool.Obtain;
-        Int64PolynomialCalcDivisionPolynomial(A, B, N + 2, D1);
+  D := FLocalInt64PolynomialPool.Obtain;
+  try
+    if not Int64PolynomialGreatestCommonDivisor(D, P1, P2) then
+      Exit;
 
-        D2 := FLocalInt64PolynomialPool.Obtain;
-        Int64PolynomialCalcDivisionPolynomial(A, B, N - 1, D2);
-        Int64PolynomialMul(D2, D2, D2);
-
-        Int64PolynomialAdd(D1, D1, D2);   // D1 得到 Fn+2 * Fn-1 ^ 2
-
-        D3 := FLocalInt64PolynomialPool.Obtain;
-        Int64PolynomialCalcDivisionPolynomial(A, B, N - 2, D3);
-
-        Int64PolynomialCalcDivisionPolynomial(A, B, N + 1, D2);
-        Int64PolynomialMul(D2, D2, D2);   // D2 得到 Fn-2 * Fn+1 ^ 2
-
-        Int64PolynomialSub(D1, D1, D2);   // D1 得到 Fn+2 * Fn-1 ^ 2 - Fn-2 * Fn+1 ^ 2
-
-        Int64PolynomialCalcDivisionPolynomial(A, B, N, D2);          // D2 得到 Fn
-        Int64PolynomialCompose(outDivisionPolynomial, D2, D1); // 代入得到 F2n
-      end
-      else // Degree 是奇数
-      begin
-        Y := FLocalInt64PolynomialPool.Obtain;
-        Y.SetCoefficents([4 * B, 4 * A, 0, 4]);
-        Int64PolynomialMul(Y, Y, Y);
-
-        if (N and 1) <> 0 then // N 是奇数
-        begin
-          D1 := FLocalInt64PolynomialPool.Obtain;
-          Int64PolynomialCalcDivisionPolynomial(A, B, N + 2, D1);
-
-          D2 := FLocalInt64PolynomialPool.Obtain;
-          Int64PolynomialCalcDivisionPolynomial(A, B, N, D2);
-          Int64PolynomialPower(D2, D2, 3);
-
-          Int64PolynomialMul(D1, D1, D2);  // D1 得到 Fn+2 * Fn ^ 3
-
-          D3 := FLocalInt64PolynomialPool.Obtain;
-          Int64PolynomialCalcDivisionPolynomial(A, B, N + 1, D3);
-          Int64PolynomialPower(D3, D3, 3); // D3 得到 Fn+1 ^ 3
-
-          Int64PolynomialCalcDivisionPolynomial(A, B, N - 1, D2);
-          Int64PolynomialCompose(D2, D2, Y); // D2 得到 Fn-1(Y)
-
-          Int64PolynomialMul(D2, D2, D3);    // D2 得到 Fn+1 ^ 3 * Fn-1(Y)
-          Int64PolynomialSub(outDivisionPolynomial, D1, D2);
-        end
-        else // N 是偶数
-        begin
-          D1 := FLocalInt64PolynomialPool.Obtain;
-          Int64PolynomialCalcDivisionPolynomial(A, B, N + 2, D1);
-
-          D2 := FLocalInt64PolynomialPool.Obtain;
-          Int64PolynomialCalcDivisionPolynomial(A, B, N, D2);
-          Int64PolynomialPower(D2, D2, 3);
-
-          Int64PolynomialMul(D1, D1, D2);
-          Int64PolynomialMul(D1, D1, Y);   // D1 得到 Y * Fn+2 * Fn ^ 3
-
-          D3 := FLocalInt64PolynomialPool.Obtain;
-          Int64PolynomialCalcDivisionPolynomial(A, B, N + 1, D3);
-          Int64PolynomialPower(D3, D3, 3); // D3 得到 Fn+1 ^ 3
-
-          Int64PolynomialCalcDivisionPolynomial(A, B, N - 1, D2);     // D2 得到 Fn-1
-
-          Int64PolynomialMul(D2, D2, D3);  // D2 得到 Fn+1 ^ 3 * Fn-1
-
-          Int64PolynomialSub(outDivisionPolynomial, D1, D2);
-        end;
-      end;
-    finally
-      FLocalInt64PolynomialPool.Recycle(D1);
-      FLocalInt64PolynomialPool.Recycle(D2);
-      FLocalInt64PolynomialPool.Recycle(D3);
-      FLocalInt64PolynomialPool.Recycle(Y);
+    if not D.IsOne then
+    begin
+      Int64PolynomialDiv(P1, nil, P1, D);
+      Int64PolynomialDiv(P1, nil, P1, D);
     end;
-    Result := True;
+  finally
+    FLocalInt64PolynomialPool.Recycle(D);
   end;
 end;
 
@@ -1188,7 +1302,7 @@ begin
       T := NonNegativeMod(SubRes[P.MaxDegree - I] * K, Prime);
       Int64PolynomialGaloisMulWord(MulRes, T, Prime);          // 除式乘到最高次系数相同
 
-      DivRes[D - I] := SubRes[P.MaxDegree - I];                  // 商放到 DivRes 位置
+      DivRes[D - I] := T;                                      // 对应位的商放到 DivRes 位置
       Int64PolynomialGaloisSub(SubRes, SubRes, MulRes, Prime); // 减求模后结果重新放回 SubRes
     end;
 
@@ -1344,6 +1458,45 @@ begin
   end;
 end;
 
+function Int64PolynomialGaloisLeastCommonMultiple(const Res: TCnInt64Polynomial;
+  const P1, P2: TCnInt64Polynomial; Prime: Int64): Boolean;
+var
+  G, M, R: TCnInt64Polynomial;
+begin
+  Result := False;
+  if Int64PolynomialEqual(P1, P2) then
+  begin
+    Int64PolynomialCopy(Res, P1);
+    Result := True;
+    Exit;
+  end;
+
+  G := nil;
+  M := nil;
+  R := nil;
+
+  try
+    G := FLocalInt64PolynomialPool.Obtain;
+    M := FLocalInt64PolynomialPool.Obtain;
+    R := FLocalInt64PolynomialPool.Obtain;
+
+    if not Int64PolynomialGaloisMul(M, P1, P2, Prime) then
+      Exit;
+
+    if not Int64PolynomialGaloisGreatestCommonDivisor(G, P1, P2, Prime) then
+      Exit;
+
+    if not Int64PolynomialGaloisDiv(Res, R, M, G, Prime) then
+      Exit;
+
+    Result := True;
+  finally
+    FLocalInt64PolynomialPool.Recycle(R);
+    FLocalInt64PolynomialPool.Recycle(M);
+    FLocalInt64PolynomialPool.Recycle(G);
+  end;
+end;
+
 procedure Int64PolynomialGaloisExtendedEuclideanGcd(A, B: TCnInt64Polynomial;
   X, Y: TCnInt64Polynomial; Prime: Int64);
 var
@@ -1385,14 +1538,23 @@ begin
 end;
 
 procedure Int64PolynomialGaloisModularInverse(const Res: TCnInt64Polynomial;
-  X, Modulus: TCnInt64Polynomial; Prime: Int64);
+  X, Modulus: TCnInt64Polynomial; Prime: Int64; CheckGcd: Boolean);
 var
-  X1, Y: TCnInt64Polynomial;
+  X1, Y, G: TCnInt64Polynomial;
 begin
   X1 := nil;
   Y := nil;
+  G := nil;
 
   try
+    if CheckGcd then
+    begin
+      G := FLocalInt64PolynomialPool.Obtain;
+      Int64PolynomialGaloisGreatestCommonDivisor(G, X, Modulus, Prime);
+      if not G.IsOne then
+        raise ECnPolynomialException.Create('Modular Inverse Need GCD = 1');
+    end;
+
     X1 := FLocalInt64PolynomialPool.Obtain;
     Y := FLocalInt64PolynomialPool.Obtain;
 
@@ -1403,11 +1565,12 @@ begin
   finally
     FLocalInt64PolynomialPool.Recycle(X1);
     FLocalInt64PolynomialPool.Recycle(Y);
+    FLocalInt64PolynomialPool.Recycle(G);
   end;
 end;
 
 function Int64PolynomialGaloisCompose(const Res: TCnInt64Polynomial;
-  const F, P: TCnInt64Polynomial; Prime: Int64): Boolean;
+  const F, P: TCnInt64Polynomial; Prime: Int64; Primitive: TCnInt64Polynomial): Boolean;
 var
   I: Integer;
   R, X, T: TCnInt64Polynomial;
@@ -1427,45 +1590,80 @@ begin
 
   X := FLocalInt64PolynomialPool.Obtain;
   T := FLocalInt64PolynomialPool.Obtain;
-  X.SetOne;
-  R.SetZero;
 
-  // 把 F 中的每个系数都和 P 的对应次幂相乘，最后相加
-  for I := 0 to F.MaxDegree do
-  begin
-    Int64PolynomialCopy(T, X);
-    Int64PolynomialGaloisMulWord(T, F[I], Prime);
-    Int64PolynomialGaloisAdd(R, R, T, Prime);
+  try
+    X.SetOne;
+    R.SetZero;
 
-    if I <> F.MaxDegree then
-      Int64PolynomialGaloisMul(X, X, P, Prime);
-  end;
+    // 把 F 中的每个系数都和 P 的对应次幂相乘，最后相加
+    for I := 0 to F.MaxDegree do
+    begin
+      Int64PolynomialCopy(T, X);
+      Int64PolynomialGaloisMulWord(T, F[I], Prime);
+      Int64PolynomialGaloisAdd(R, R, T, Prime);
 
-  if (Res = F) or (Res = P) then
-  begin
-    Int64PolynomialCopy(Res, R);
-    FLocalInt64PolynomialPool.Recycle(R);
+      if I <> F.MaxDegree then
+        Int64PolynomialGaloisMul(X, X, P, Prime);
+    end;
+
+    if Primitive <> nil then
+      Int64PolynomialGaloisMod(R, R, Primitive, Prime);
+
+    if (Res = F) or (Res = P) then
+    begin
+      Int64PolynomialCopy(Res, R);
+      FLocalInt64PolynomialPool.Recycle(R);
+    end;
+  finally
+    FLocalInt64PolynomialPool.Recycle(X);
+    FLocalInt64PolynomialPool.Recycle(T);
   end;
   Result := True;
+end;
+
+function Int64PolynomialGaloisGetValue(const F: TCnInt64Polynomial; X, Prime: Int64): Int64;
+var
+  I: Integer;
+  T: Int64;
+begin
+  Result := NonNegativeMod(F[0], Prime);
+  if (X = 0) or (F.MaxDegree = 0) then    // 只有常数项的情况下，得常数项
+    Exit;
+
+  T := X;
+
+  // 把 F 中的每个系数都和 X 的对应次幂相乘，最后相加
+  for I := 1 to F.MaxDegree do
+  begin
+    Result := NonNegativeMod(Result + NonNegativeMod(F[I] * T, Prime), Prime);
+    if I <> F.MaxDegree then
+      T := NonNegativeMod(T * X, Prime);
+  end;
+  Result := NonNegativeMod(Result, Prime);
 end;
 
 function Int64PolynomialGaloisCalcDivisionPolynomial(A, B: Integer; Degree: Integer;
   outDivisionPolynomial: TCnInt64Polynomial; Prime: Int64): Boolean;
 var
   N: Integer;
+  MI: Int64;
   D1, D2, D3, Y: TCnInt64Polynomial;
 begin
-  Result := False;
   if Degree < 0 then
-    Exit
+    raise ECnPolynomialException.Create('Galois Division Polynomial Invalid Degree')
   else if Degree = 0 then
   begin
     outDivisionPolynomial.SetCoefficents([0]);  // f0(X) = 0
     Result := True;
   end
-  else if (Degree = 1) or (Degree = 2) then
+  else if Degree = 1 then
   begin
-    outDivisionPolynomial.SetCoefficents([1]);  // f1(X) = 1, f2(X) = 1,
+    outDivisionPolynomial.SetCoefficents([1]);  // f1(X) = 1
+    Result := True;
+  end
+  else if Degree = 2 then
+  begin
+    outDivisionPolynomial.SetCoefficents([2]);  // f2(X) = 2
     Result := True;
   end
   else if Degree = 3 then   // f3(X) = 3 X4 + 6 a X2 + 12 b X - a^2
@@ -1475,10 +1673,10 @@ begin
     Int64PolynomialNonNegativeModWord(outDivisionPolynomial, Prime);
     Result := True;
   end
-  else if Degree = 4 then // f4(X) = 2 X6 + 10 a X4 + 40 b X3 - 10 a2X2 - 8 a b X - 2 a3 - 16 b^2
+  else if Degree = 4 then // f4(X) = 4 X6 + 20 a X4 + 80 b X3 - 20 a2X2 - 16 a b X - 4 a3 - 32 b^2
   begin
-    outDivisionPolynomial.SetCoefficents([-2 * A * A * A - 16 * B * B,
-      -8 * A * B, -10 * A * A, 40 * B, 10 * A, 0, 2]);
+    outDivisionPolynomial.SetCoefficents([-4 * A * A * A - 32 * B * B,
+      -16 * A * B, -20 * A * A, 80 * B, 20 * A, 0, 4]);
     Int64PolynomialNonNegativeModWord(outDivisionPolynomial, Prime);
     Result := True;
   end
@@ -1497,27 +1695,30 @@ begin
         D1 := FLocalInt64PolynomialPool.Obtain;
         Int64PolynomialGaloisCalcDivisionPolynomial(A, B, N + 2, D1, Prime);
 
-        D2 := FLocalInt64PolynomialPool.Obtain;
+        D2 := FLocalInt64PolynomialPool.Obtain;        // D1 得到 Fn+2
         Int64PolynomialGaloisCalcDivisionPolynomial(A, B, N - 1, D2, Prime);
         Int64PolynomialGaloisMul(D2, D2, D2, Prime);
 
         Int64PolynomialGaloisAdd(D1, D1, D2, Prime);   // D1 得到 Fn+2 * Fn-1 ^ 2
 
         D3 := FLocalInt64PolynomialPool.Obtain;
-        Int64PolynomialGaloisCalcDivisionPolynomial(A, B, N - 2, D3, Prime);
+        Int64PolynomialGaloisCalcDivisionPolynomial(A, B, N - 2, D3, Prime);  // D3 得到 Fn-2
 
         Int64PolynomialGaloisCalcDivisionPolynomial(A, B, N + 1, D2, Prime);
-        Int64PolynomialGaloisMul(D2, D2, D2, Prime);   // D2 得到 Fn-2 * Fn+1 ^ 2
+        Int64PolynomialGaloisMul(D2, D2, D2, Prime);   // D2 得到 Fn+1 ^ 2
+        Int64PolynomialGaloisMul(D2, D2, D3, Prime);   // D2 得到 Fn-2 * Fn+1 ^ 2
 
         Int64PolynomialGaloisSub(D1, D1, D2, Prime);   // D1 得到 Fn+2 * Fn-1 ^ 2 - Fn-2 * Fn+1 ^ 2
 
-        Int64PolynomialGaloisCalcDivisionPolynomial(A, B, N, D2, Prime);          // D2 得到 Fn
-        Int64PolynomialCompose(outDivisionPolynomial, D2, D1); // 代入得到 F2n
+        Int64PolynomialGaloisCalcDivisionPolynomial(A, B, N, D2, Prime);    // D2 得到 Fn
+        Int64PolynomialGaloisMul(outDivisionPolynomial, D2, D1, Prime);     // 相乘得到 F2n
+        MI := CnInt64ModularInverse(2, Prime);
+        Int64PolynomialGaloisMulWord(outDivisionPolynomial, MI, Prime);     // 再除以 2
       end
       else // Degree 是奇数
       begin
         Y := FLocalInt64PolynomialPool.Obtain;
-        Y.SetCoefficents([4 * B, 4 * A, 0, 4]);
+        Y.SetCoefficents([B, A, 0, 1]);
         Int64PolynomialGaloisMul(Y, Y, Y, Prime);
 
         if (N and 1) <> 0 then // N 是奇数
@@ -1571,6 +1772,31 @@ begin
       FLocalInt64PolynomialPool.Recycle(Y);
     end;
     Result := True;
+  end;
+end;
+
+procedure Int64PolynomialGaloisReduce2(P1, P2: TCnInt64Polynomial; Prime: Int64);
+var
+  D: TCnInt64Polynomial;
+begin
+  if P1 = P2 then
+  begin
+    P1.SetOne;
+    Exit;
+  end;
+
+  D := FLocalInt64PolynomialPool.Obtain;
+  try
+    if not Int64PolynomialGaloisGreatestCommonDivisor(D, P1, P2, Prime) then
+      Exit;
+
+    if not D.IsOne then
+    begin
+      Int64PolynomialGaloisDiv(P1, nil, P1, D, Prime);
+      Int64PolynomialGaloisDiv(P1, nil, P1, D, Prime);
+    end;
+  finally
+    FLocalInt64PolynomialPool.Recycle(D);
   end;
 end;
 
@@ -1650,6 +1876,323 @@ begin
     Enter;
     Add(Poly);
     Leave;
+  end;
+end;
+
+{ TCnInt64RationalPolynomial }
+
+procedure TCnInt64RationalPolynomial.AssignTo(Dest: TPersistent);
+begin
+  if Dest is TCnInt64RationalPolynomial then
+  begin
+    Int64PolynomialCopy(TCnInt64RationalPolynomial(Dest).Nominator, FNominator);
+    Int64PolynomialCopy(TCnInt64RationalPolynomial(Dest).Denominator, FDenominator);
+  end
+  else
+    inherited;
+end;
+
+constructor TCnInt64RationalPolynomial.Create;
+begin
+  inherited;
+  FNominator := TCnInt64Polynomial.Create([0]);
+  FDenominator := TCnInt64Polynomial.Create([1]);
+end;
+
+destructor TCnInt64RationalPolynomial.Destroy;
+begin
+  FDenominator.Free;
+  FNominator.Free;
+  inherited;
+end;
+
+function TCnInt64RationalPolynomial.IsInt: Boolean;
+begin
+  Result := FDenominator.IsOne or FDenominator.IsNegOne;
+end;
+
+function TCnInt64RationalPolynomial.IsOne: Boolean;
+begin
+  Result := not FNominator.IsZero and Int64PolynomialEqual(FNominator, FDenominator);
+end;
+
+function TCnInt64RationalPolynomial.IsZero: Boolean;
+begin
+  Result := not FDenominator.IsZero and FNominator.IsZero;
+end;
+
+procedure TCnInt64RationalPolynomial.Neg;
+begin
+  FNominator.Negate;
+end;
+
+procedure TCnInt64RationalPolynomial.Reciprocal;
+var
+  T: TCnInt64Polynomial;
+begin
+  if FNominator.IsZero then
+    raise EDivByZero.Create(SDivByZero);
+
+  T := FLocalInt64PolynomialPool.Obtain;
+  try
+    Int64PolynomialCopy(T, FDenominator);
+    Int64PolynomialCopy(FDenominator, FNominator);
+    Int64PolynomialCopy(FNominator, T);
+  finally
+    FLocalInt64PolynomialPool.Recycle(T);
+  end;
+end;
+
+procedure TCnInt64RationalPolynomial.SetOne;
+begin
+  FDenominator.SetOne;
+  FNominator.SetOne;
+end;
+
+procedure TCnInt64RationalPolynomial.SetZero;
+begin
+  FDenominator.SetOne;
+  FNominator.SetZero;
+end;
+
+function TCnInt64RationalPolynomial.ToString: string;
+begin
+  if FDenominator.IsOne then
+    Result := FNominator.ToString
+  else
+    Result := FNominator.ToString + ' / ' + FDenominator.ToString;
+end;
+
+function Int64RationalPolynomialEqual(Number1, Number2: TCnInt64RationalPolynomial): Boolean;
+var
+  Res: TCnInt64RationalPolynomial;
+begin
+  if Number1 = Number2 then
+  begin
+    Result := True;
+    Exit;
+  end;
+
+  if Number1.IsInt and Number2.IsInt then
+  begin
+    Result := Int64PolynomialEqual(Number1.Nominator, Number2.Nominator);
+    Exit;
+  end;
+
+  Res := TCnInt64RationalPolynomial.Create;
+  try
+    Int64RationalPolynomialSub(Number1, Number2, Res);
+    Result := Res.IsZero;
+  finally
+    Res.Free;
+  end;
+end;
+
+function Int64RationalPolynomialCopy(const Dst: TCnInt64RationalPolynomial;
+  const Src: TCnInt64RationalPolynomial): TCnInt64RationalPolynomial;
+begin
+  Result := Dst;
+  if Src <> Dst then
+  begin
+    Int64PolynomialCopy(Dst.Nominator, Src.Nominator);
+    Int64PolynomialCopy(Dst.Denominator, Src.Denominator);
+  end;
+end;
+
+procedure Int64RationalPolynomialAdd(Number1, Number2: TCnInt64RationalPolynomial;
+  RationalResult: TCnInt64RationalPolynomial);
+var
+  M, R, F1, F2, D1, D2: TCnInt64Polynomial;
+begin
+  if Number1.IsInt and Number2.IsInt then
+  begin
+    Int64PolynomialAdd(RationalResult.Nominator, Number1.Nominator, Number2.Nominator);
+    RationalResult.Denominator.SetOne;
+    Exit;
+  end
+  else if Number1.IsZero then
+  begin
+    if Number2 <> RationalResult then
+      RationalResult.Assign(Number2);
+  end
+  else if Number2.IsZero then
+  begin
+    if Number1 <> RationalResult then
+      RationalResult.Assign(Number1);
+  end
+  else
+  begin
+    M := nil;
+    R := nil;
+    F1 := nil;
+    F2 := nil;
+    D1 := nil;
+    D2 := nil;
+
+    try
+      // 求分母的最小公倍数
+      M := FLocalInt64PolynomialPool.Obtain;
+      R := FLocalInt64PolynomialPool.Obtain;
+      F1 := FLocalInt64PolynomialPool.Obtain;
+      F2 := FLocalInt64PolynomialPool.Obtain;
+      D1 := FLocalInt64PolynomialPool.Obtain;
+      D2 := FLocalInt64PolynomialPool.Obtain;
+
+      Int64PolynomialCopy(D1, Number1.Denominator);
+      Int64PolynomialCopy(D2, Number2.Denominator);
+
+      if not Int64PolynomialLeastCommonMultiple(M, D1, D2) then
+        Int64PolynomialMul(M, D1, D2);   // 无法求最小公倍式表示系数无法整除，直接相乘
+
+      Int64PolynomialDiv(F1, R, M, D1);
+      Int64PolynomialDiv(F2, R, M, D2);
+
+      Int64PolynomialCopy(RationalResult.Denominator, M);
+      Int64PolynomialMul(R, Number1.Nominator, F1);
+      Int64PolynomialMul(M, Number2.Nominator, F2);
+      Int64PolynomialAdd(RationalResult.Nominator, R, M);
+    finally
+      FLocalInt64PolynomialPool.Recycle(M);
+      FLocalInt64PolynomialPool.Recycle(R);
+      FLocalInt64PolynomialPool.Recycle(F1);
+      FLocalInt64PolynomialPool.Recycle(F2);
+      FLocalInt64PolynomialPool.Recycle(D1);
+      FLocalInt64PolynomialPool.Recycle(D2);
+    end;
+  end;
+end;
+
+procedure Int64RationalPolynomialSub(Number1, Number2: TCnInt64RationalPolynomial;
+  RationalResult: TCnInt64RationalPolynomial);
+begin
+  Number2.Nominator.Negate;
+  Int64RationalPolynomialAdd(Number1, Number2, RationalResult);
+  if RationalResult <> Number2 then
+    Number2.Nominator.Negate;
+end;
+
+procedure Int64RationalPolynomialMul(Number1, Number2: TCnInt64RationalPolynomial;
+  RationalResult: TCnInt64RationalPolynomial);
+begin
+  Int64PolynomialMul(RationalResult.Nominator, Number1.Nominator, Number2.Nominator);
+  Int64PolynomialMul(RationalResult.Denominator, Number1.Denominator, Number2.Denominator);
+end;
+
+procedure Int64RationalPolynomialDiv(Number1, Number2: TCnInt64RationalPolynomial;
+  RationalResult: TCnInt64RationalPolynomial);
+var
+  N: TCnInt64Polynomial;
+begin
+  if Number2.IsZero then
+    raise EDivByZero.Create('Divide by Zero.');
+
+  N := FLocalInt64PolynomialPool.Obtain; // 交叉相乘，必须用中间变量，防止 RationalResult 是 Number1 或 Number 2
+  try
+    Int64PolynomialMul(N, Number1.Nominator, Number2.Denominator);
+    Int64PolynomialMul(RationalResult.Denominator, Number1.Denominator, Number2.Nominator);
+    Int64PolynomialCopy(RationalResult.Nominator, N);
+  finally
+    FLocalInt64PolynomialPool.Recycle(N);
+  end;
+end;
+
+// ====================== 有理分式在有限域上的模运算 ===========================
+
+procedure Int64RationalPolynomialGaloisAdd(Number1, Number2: TCnInt64RationalPolynomial;
+  RationalResult: TCnInt64RationalPolynomial; Prime: Int64);
+var
+  M, R, F1, F2, D1, D2: TCnInt64Polynomial;
+begin
+  if Number1.IsInt and Number2.IsInt then
+  begin
+    Int64PolynomialGaloisAdd(RationalResult.Nominator, Number1.Nominator,
+      Number2.Nominator, Prime);
+    RationalResult.Denominator.SetOne;
+    Exit;
+  end
+  else if Number1.IsZero then
+  begin
+    if Number2 <> RationalResult then
+      RationalResult.Assign(Number2);
+  end
+  else if Number2.IsZero then
+  begin
+    if Number1 <> RationalResult then
+      RationalResult.Assign(Number1);
+  end
+  else
+  begin
+    M := nil;
+    R := nil;
+    F1 := nil;
+    F2 := nil;
+    D1 := nil;
+    D2 := nil;
+
+    try
+      // 求分母的最小公倍数
+      M := FLocalInt64PolynomialPool.Obtain;
+      R := FLocalInt64PolynomialPool.Obtain;
+      F1 := FLocalInt64PolynomialPool.Obtain;
+      F2 := FLocalInt64PolynomialPool.Obtain;
+      D1 := FLocalInt64PolynomialPool.Obtain;
+      D2 := FLocalInt64PolynomialPool.Obtain;
+
+      Int64PolynomialCopy(D1, Number1.Denominator);
+      Int64PolynomialCopy(D2, Number2.Denominator);
+
+      if not Int64PolynomialGaloisLeastCommonMultiple(M, D1, D2, Prime) then
+        Int64PolynomialGaloisMul(M, D1, D2, Prime);   // 无法求最小公倍式表示系数无法整除，直接相乘
+
+      Int64PolynomialGaloisDiv(F1, R, M, D1, Prime);
+      Int64PolynomialGaloisDiv(F2, R, M, D2, Prime);
+
+      Int64PolynomialCopy(RationalResult.Denominator, M);
+      Int64PolynomialGaloisMul(R, Number1.Nominator, F1, Prime);
+      Int64PolynomialGaloisMul(M, Number2.Nominator, F2, Prime);
+      Int64PolynomialGaloisAdd(RationalResult.Nominator, R, M, Prime);
+    finally
+      FLocalInt64PolynomialPool.Recycle(M);
+      FLocalInt64PolynomialPool.Recycle(R);
+      FLocalInt64PolynomialPool.Recycle(F1);
+      FLocalInt64PolynomialPool.Recycle(F2);
+      FLocalInt64PolynomialPool.Recycle(D1);
+      FLocalInt64PolynomialPool.Recycle(D2);
+    end;
+  end;
+end;
+
+procedure Int64RationalPolynomialGaloisSub(Number1, Number2: TCnInt64RationalPolynomial;
+  RationalResult: TCnInt64RationalPolynomial; Prime: Int64);
+begin
+  Number2.Nominator.Negate;
+  Int64RationalPolynomialGaloisAdd(Number1, Number2, RationalResult, Prime);
+  if RationalResult <> Number2 then
+    Number2.Nominator.Negate;
+end;
+
+procedure Int64RationalPolynomialGaloisMul(Number1, Number2: TCnInt64RationalPolynomial;
+  RationalResult: TCnInt64RationalPolynomial; Prime: Int64);
+begin
+  Int64PolynomialGaloisMul(RationalResult.Nominator, Number1.Nominator, Number2.Nominator, Prime);
+  Int64PolynomialGaloisMul(RationalResult.Denominator, Number1.Denominator, Number2.Denominator, Prime);
+end;
+
+procedure Int64RationalPolynomialGaloisDiv(Number1, Number2: TCnInt64RationalPolynomial;
+  RationalResult: TCnInt64RationalPolynomial; Prime: Int64);
+var
+  N: TCnInt64Polynomial;
+begin
+  if Number2.IsZero then
+    raise EDivByZero.Create('Divide by Zero.');
+
+  N := FLocalInt64PolynomialPool.Obtain; // 交叉相乘，必须用中间变量，防止 RationalResult 是 Number1 或 Number 2
+  try
+    Int64PolynomialGaloisMul(N, Number1.Nominator, Number2.Denominator, Prime);
+    Int64PolynomialGaloisMul(RationalResult.Denominator, Number1.Denominator, Number2.Nominator, Prime);
+    Int64PolynomialCopy(RationalResult.Nominator, N);
+  finally
+    FLocalInt64PolynomialPool.Recycle(N);
   end;
 end;
 
