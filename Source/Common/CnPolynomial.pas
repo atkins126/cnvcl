@@ -41,7 +41,8 @@ interface
 {$I CnPack.inc}
 
 uses
-  SysUtils, Classes, SysConst, Math, Contnrs, CnPrimeNumber, CnNativeDecl;
+  SysUtils, Classes, SysConst, Math, Contnrs, CnPrimeNumber, CnNativeDecl,
+  CnMatrix;
 
 type
   ECnPolynomialException = class(Exception);
@@ -103,6 +104,8 @@ type
     {* 设为 0}
     procedure SetOne;
     {* 设为 1}
+    procedure Reduce;
+    {* 约分}
 
     function ToString: string; {$IFDEF OBJECT_HAS_TOSTRING} override; {$ENDIF}
     {* 输出成字符串}
@@ -250,6 +253,9 @@ procedure Int64PolynomialReduce2(P1, P2: TCnInt64Polynomial);
 
 // ===================== 有限扩域下的整系数多项式模运算 ========================
 
+function Int64PolynomialGaloisEqual(const A, B: TCnInt64Polynomial; Prime: Int64): Boolean;
+{* 两个整系数多项式在模 Prime 的条件下是否相等}
+
 function Int64PolynomialGaloisAdd(const Res: TCnInt64Polynomial; const P1: TCnInt64Polynomial;
   const P2: TCnInt64Polynomial; Prime: Int64; Primitive: TCnInt64Polynomial = nil): Boolean;
 {* 两个整系数多项式对象在 Prime 次方阶有限域上相加，结果放至 Res 中，
@@ -327,12 +333,12 @@ function Int64PolynomialGaloisCompose(const Res: TCnInt64Polynomial;
 function Int64PolynomialGaloisGetValue(const F: TCnInt64Polynomial; X, Prime: Int64): Int64;
 {* 在 Prime 次方阶有限域上进行整系数多项式求值，也就是计算 F(x)，返回计算结果}
 
-function Int64PolynomialGaloisCalcDivisionPolynomial(A, B: Integer; Degree: Integer;
+function Int64PolynomialGaloisCalcDivisionPolynomial(A, B: Int64; Degree: Int64;
   outDivisionPolynomial: TCnInt64Polynomial; Prime: Int64): Boolean;
 {* 递归计算在 Prime 次方阶有限域上的 N 阶可除多项式，返回是否计算成功
    注意 Degree 是奇数时，可除多项式是纯 x 的多项式，偶数时，是（x 的多项式）* y 的形式，
    本结果只给出 x 的多项式部分。
-   规则参考自 F. MORAIN 的文章
+   规则参考自 F. MORAIN 的文章并加上除以 2 的推导修正
   《COMPUTING THE CARDINALITY OF CM ELLIPTIC CURVES USING TORSION POINTS》}
 
 procedure Int64PolynomialGaloisReduce2(P1, P2: TCnInt64Polynomial; Prime: Int64);
@@ -379,6 +385,10 @@ procedure Int64RationalPolynomialDiv(R1: TCnInt64RationalPolynomial;
   P1: TCnInt64Polynomial; RationalResult: TCnInt64RationalPolynomial); overload;
 {* 有理分式与整系数多项式的普通除法，RationalResult 可以是 R1}
 
+procedure Int64RationalPolynomialGetValue(const F: TCnInt64RationalPolynomial;
+  X: Int64; outResult: TCnRationalNumber);
+{* 有理分式求值，也就是计算 F(x)，将结果放在 outResult 中}
+
 // ====================== 有理分式在有限域上的模运算 ===========================
 
 procedure Int64RationalPolynomialGaloisAdd(R1, R2: TCnInt64RationalPolynomial;
@@ -412,6 +422,10 @@ procedure Int64RationalPolynomialGaloisMul(R1: TCnInt64RationalPolynomial;
 procedure Int64RationalPolynomialGaloisDiv(R1: TCnInt64RationalPolynomial;
   P1: TCnInt64Polynomial; RationalResult: TCnInt64RationalPolynomial; Prime: Int64); overload;
 {* 有理分式与整系数多项式的模系数除法，RationalResult 可以是 R1}
+
+function Int64RationalPolynomialGaloisGetValue(const F: TCnInt64RationalPolynomial;
+  X: Int64; Prime: Int64): Int64;
+{* 有理分式模系数求值，也就是模计算 F(x)，除法用乘法模逆元表示}
 
 implementation
 
@@ -889,6 +903,7 @@ var
   MulRes: TCnInt64Polynomial; // 容纳除数乘积
   DivRes: TCnInt64Polynomial; // 容纳临时商
   I, D: Integer;
+  T: Int64;
 begin
   if Int64PolynomialIsZero(Divisor) then
     raise ECnPolynomialException.Create(SDivByZero);
@@ -932,8 +947,9 @@ begin
 
       Int64PolynomialCopy(MulRes, Divisor);
       Int64PolynomialShiftLeft(MulRes, D - I);                 // 对齐到 SubRes 的最高次
-      Int64PolynomialMulWord(MulRes, SubRes[P.MaxDegree - I] div MulRes[MulRes.MaxDegree]); // 除式乘到最高次系数相同
-      DivRes[D - I] := SubRes[P.MaxDegree - I];                // 商放到 DivRes 位置
+      T := SubRes[P.MaxDegree - I] div MulRes[MulRes.MaxDegree];
+      Int64PolynomialMulWord(MulRes, T); // 除式乘到最高次系数相同
+      DivRes[D - I] := T;                // 商放到 DivRes 位置
       Int64PolynomialSub(SubRes, SubRes, MulRes);              // 减后结果重新放回 SubRes
     end;
 
@@ -1208,6 +1224,30 @@ begin
     end;
   finally
     FLocalInt64PolynomialPool.Recycle(D);
+  end;
+end;
+
+function Int64PolynomialGaloisEqual(const A, B: TCnInt64Polynomial; Prime: Int64): Boolean;
+var
+  I: Integer;
+begin
+  if A = B then
+  begin
+    Result := True;
+    Exit;
+  end;
+
+  Result := A.MaxDegree = B.MaxDegree;
+  if Result then
+  begin
+    for I := A.MaxDegree downto 0 do
+    begin
+      if NonNegativeMod(A[I], Prime) <> NonNegativeMod(B[I], Prime) then
+      begin
+        Result := False;
+        Exit;
+      end;
+    end;
   end;
 end;
 
@@ -1673,12 +1713,48 @@ begin
   Result := NonNegativeMod(Result, Prime);
 end;
 
-function Int64PolynomialGaloisCalcDivisionPolynomial(A, B: Integer; Degree: Integer;
+{
+  可除多项式分两种，一种是含 x y 的 F，一种是只含 x 的 f，后者对于 y 点坐标需要额外乘个 y
+  由于 Fn 在 n 为偶数时必然含有 y * 的项，所以可以规定 Fn = fn * y （n 为偶），fn = Fn （n 为奇）
+
+  F0 = 0
+  F1 = 1
+  F2 = 2y
+  F3 = 3x^4 + 6Ax^2 + 12Bx - A^2
+  F4 = 4y * (x^6 + 5Ax^4 + 20Bx^3 - 5A^2x^2 - 4ABx - 8B^2 - A^3)
+  F5 = 5x^12 + 62Ax^10 + 380Bx^9 + 105A^2x^8 + 240BAx^7 + (-300A^3 - 240B^2)x^6
+    - 696BA^2x^5 + (-125A^4 - 1920B^2A)x^4 + (-80BA^3 - 1600B^3)x^3 + (-50A^5 - 240B^2A^2)x^2
+    + (100BA^4 - 640B^3A)x + (A^6 - 32B^2A^3 - 256B4)
+  ......
+
+  一般：
+    F2n+1 = Fn+2 * Fn^3 - Fn-1 * Fn+1^3
+    F2n   = (Fn/2y) * (Fn+2 * Fn-1^2 - Fn-2 * Fn+1^2)       // 别看除了 2y，实际上必然有 * y 项
+
+  对应的：
+
+  f0 = 0
+  f1 = 1
+  f2 = 2
+  f3 = 3x^4 + 6Ax^2 + 12Bx - A^2
+  f4 = 4 * (x^6 + 5Ax^4 + 20Bx^3 - 5A^2x^2 - 4ABx - 8B^2 - A^3)
+  f5 = 5x^12 + 62Ax^10 + 380Bx^9 + 105A^2x^8 + 240BAx^7 + (-300A^3 - 240B^2)x^6
+    - 696BA^2x^5 + (-125A^4 - 1920B^2A)x^4 + (-80BA^3 - 1600B^3)x^3 + (-50A^5 - 240B^2A^2)x^2
+    + (100BA^4 - 640B^3A)x + (A^6 - 32B^2A^3 - 256B4)
+  ......
+
+  一般：
+    f2n = fn * (fn+2 * fn-1 ^ 2 - fn-2 * fn+1 ^ 2) / 2
+    f2n+1 = fn+2 * fn^3 - fn-1 * fn+1^3 * (x^3 + Ax + B)^2     //  n为奇
+          = (x^3 + Ax + B)^2 * fn+2 * fn^3 - fn-1 * fn+1^3     //  n为偶
+
+}
+function Int64PolynomialGaloisCalcDivisionPolynomial(A, B: Int64; Degree: Int64;
   outDivisionPolynomial: TCnInt64Polynomial; Prime: Int64): Boolean;
 var
   N: Integer;
   MI: Int64;
-  D1, D2, D3, Y: TCnInt64Polynomial;
+  D1, D2, D3, Y4: TCnInt64Polynomial;
 begin
   if Degree < 0 then
     raise ECnPolynomialException.Create('Galois Division Polynomial Invalid Degree')
@@ -1716,82 +1792,71 @@ begin
     D1 := nil;
     D2 := nil;
     D3 := nil;
-    Y := nil;
+    Y4 := nil;
 
     try
       // 开始递归计算
       N := Degree shr 1;
-      if (Degree and 1) = 0 then // Degree 是偶数
+      if (Degree and 1) = 0 then // Degree 是偶数，计算 fn * (fn+2 * fn-1 ^ 2 - fn-2 * fn+1 ^ 2) / 2
       begin
         D1 := FLocalInt64PolynomialPool.Obtain;
         Int64PolynomialGaloisCalcDivisionPolynomial(A, B, N + 2, D1, Prime);
 
-        D2 := FLocalInt64PolynomialPool.Obtain;        // D1 得到 Fn+2
+        D2 := FLocalInt64PolynomialPool.Obtain;        // D1 得到 fn+2
         Int64PolynomialGaloisCalcDivisionPolynomial(A, B, N - 1, D2, Prime);
-        Int64PolynomialGaloisMul(D2, D2, D2, Prime);
+        Int64PolynomialGaloisMul(D2, D2, D2, Prime);   // D2 得到 fn-1 ^2
 
-        Int64PolynomialGaloisAdd(D1, D1, D2, Prime);   // D1 得到 Fn+2 * Fn-1 ^ 2
+        Int64PolynomialGaloisMul(D1, D1, D2, Prime);   // D1 得到 fn+2 * fn-1 ^ 2
 
         D3 := FLocalInt64PolynomialPool.Obtain;
-        Int64PolynomialGaloisCalcDivisionPolynomial(A, B, N - 2, D3, Prime);  // D3 得到 Fn-2
+        Int64PolynomialGaloisCalcDivisionPolynomial(A, B, N - 2, D3, Prime);  // D3 得到 fn-2
 
         Int64PolynomialGaloisCalcDivisionPolynomial(A, B, N + 1, D2, Prime);
-        Int64PolynomialGaloisMul(D2, D2, D2, Prime);   // D2 得到 Fn+1 ^ 2
-        Int64PolynomialGaloisMul(D2, D2, D3, Prime);   // D2 得到 Fn-2 * Fn+1 ^ 2
+        Int64PolynomialGaloisMul(D2, D2, D2, Prime);   // D2 得到 fn+1^2
+        Int64PolynomialGaloisMul(D2, D2, D3, Prime);   // D2 得到 fn-2 * fn+1^2
 
-        Int64PolynomialGaloisSub(D1, D1, D2, Prime);   // D1 得到 Fn+2 * Fn-1 ^ 2 - Fn-2 * Fn+1 ^ 2
+        Int64PolynomialGaloisSub(D1, D1, D2, Prime);   // D1 得到 fn+2 * fn-1^2 - fn-2 * fn+1^2
 
-        Int64PolynomialGaloisCalcDivisionPolynomial(A, B, N, D2, Prime);    // D2 得到 Fn
-        Int64PolynomialGaloisMul(outDivisionPolynomial, D2, D1, Prime);     // 相乘得到 F2n
+        Int64PolynomialGaloisCalcDivisionPolynomial(A, B, N, D2, Prime);    // D2 得到 fn
+        Int64PolynomialGaloisMul(outDivisionPolynomial, D2, D1, Prime);     // 相乘得到 f2n
         MI := CnInt64ModularInverse(2, Prime);
         Int64PolynomialGaloisMulWord(outDivisionPolynomial, MI, Prime);     // 再除以 2
       end
       else // Degree 是奇数
       begin
-        Y := FLocalInt64PolynomialPool.Obtain;
-        Y.SetCoefficents([B, A, 0, 1]);
-        Int64PolynomialGaloisMul(Y, Y, Y, Prime);
+        Y4 := FLocalInt64PolynomialPool.Obtain;
+        Y4.SetCoefficents([B, A, 0, 1]);
+        Int64PolynomialGaloisMul(Y4, Y4, Y4, Prime);
 
-        if (N and 1) <> 0 then // N 是奇数
+        D1 := FLocalInt64PolynomialPool.Obtain;
+        Int64PolynomialGaloisCalcDivisionPolynomial(A, B, N + 2, D1, Prime); // D1 得到 fn+2
+
+        D2 := FLocalInt64PolynomialPool.Obtain;
+        Int64PolynomialGaloisCalcDivisionPolynomial(A, B, N, D2, Prime);
+        Int64PolynomialGaloisPower(D2, D2, 3, Prime);                        // D2 得到 fn^3
+
+        D3 := FLocalInt64PolynomialPool.Obtain;
+        Int64PolynomialGaloisCalcDivisionPolynomial(A, B, N + 1, D3, Prime);
+        Int64PolynomialGaloisPower(D3, D3, 3, Prime);                        // D3 得到 fn+1^3
+
+        if (N and 1) <> 0 then // N 是奇数，计算 f2n+1 = fn+2 * fn^3 - fn-1 * fn+1^3 * (x^3 + Ax + B)^2
         begin
-          D1 := FLocalInt64PolynomialPool.Obtain;
-          Int64PolynomialGaloisCalcDivisionPolynomial(A, B, N + 2, D1, Prime);
-
-          D2 := FLocalInt64PolynomialPool.Obtain;
-          Int64PolynomialGaloisCalcDivisionPolynomial(A, B, N, D2, Prime);
-          Int64PolynomialGaloisPower(D2, D2, 3, Prime);
-
-          Int64PolynomialGaloisMul(D1, D1, D2, Prime);  // D1 得到 Fn+2 * Fn ^ 3
-
-          D3 := FLocalInt64PolynomialPool.Obtain;
-          Int64PolynomialGaloisCalcDivisionPolynomial(A, B, N + 1, D3, Prime);
-          Int64PolynomialGaloisPower(D3, D3, 3, Prime); // D3 得到 Fn+1 ^ 3
+          Int64PolynomialGaloisMul(D1, D1, D2, Prime);  // D1 得到 fn+2 * fn^3
 
           Int64PolynomialGaloisCalcDivisionPolynomial(A, B, N - 1, D2, Prime);
-          Int64PolynomialGaloisCompose(D2, D2, Y, Prime); // D2 得到 Fn-1(Y)
+          Int64PolynomialGaloisMul(D2, D2, Y4, Prime);     // D2 得到 fn-1 * Y^4
 
-          Int64PolynomialGaloisMul(D2, D2, D3, Prime);    // D2 得到 Fn+1 ^ 3 * Fn-1(Y)
+          Int64PolynomialGaloisMul(D2, D2, D3, Prime);     // D2 得到 fn+1^3 * fn-1 * Y^4
           Int64PolynomialGaloisSub(outDivisionPolynomial, D1, D2, Prime);
         end
-        else // N 是偶数
+        else // N 是偶数，计算 (x^3 + Ax + B)^2 * fn+2 * fn^3 - fn-1 * fn+1^3
         begin
-          D1 := FLocalInt64PolynomialPool.Obtain;
-          Int64PolynomialGaloisCalcDivisionPolynomial(A, B, N + 2, D1, Prime);
-
-          D2 := FLocalInt64PolynomialPool.Obtain;
-          Int64PolynomialGaloisCalcDivisionPolynomial(A, B, N, D2, Prime);
-          Int64PolynomialGaloisPower(D2, D2, 3, Prime);
-
           Int64PolynomialGaloisMul(D1, D1, D2, Prime);
-          Int64PolynomialGaloisMul(D1, D1, Y, Prime);   // D1 得到 Y * Fn+2 * Fn ^ 3
+          Int64PolynomialGaloisMul(D1, D1, Y4, Prime);   // D1 得到 Y^4 * fn+2 * fn^3
 
-          D3 := FLocalInt64PolynomialPool.Obtain;
-          Int64PolynomialGaloisCalcDivisionPolynomial(A, B, N + 1, D3, Prime);
-          Int64PolynomialGaloisPower(D3, D3, 3, Prime); // D3 得到 Fn+1 ^ 3
+          Int64PolynomialGaloisCalcDivisionPolynomial(A, B, N - 1, D2, Prime);  // D2 得到 fn-1
 
-          Int64PolynomialGaloisCalcDivisionPolynomial(A, B, N - 1, D2, Prime);     // D2 得到 Fn-1
-
-          Int64PolynomialGaloisMul(D2, D2, D3, Prime);  // D2 得到 Fn+1 ^ 3 * Fn-1
+          Int64PolynomialGaloisMul(D2, D2, D3, Prime);  // D2 得到 fn-1 * fn+1^3
 
           Int64PolynomialGaloisSub(outDivisionPolynomial, D1, D2, Prime);
         end;
@@ -1800,7 +1865,7 @@ begin
       FLocalInt64PolynomialPool.Recycle(D1);
       FLocalInt64PolynomialPool.Recycle(D2);
       FLocalInt64PolynomialPool.Recycle(D3);
-      FLocalInt64PolynomialPool.Recycle(Y);
+      FLocalInt64PolynomialPool.Recycle(Y4);
     end;
     Result := True;
   end;
@@ -1972,6 +2037,11 @@ begin
   finally
     FLocalInt64PolynomialPool.Recycle(T);
   end;
+end;
+
+procedure TCnInt64RationalPolynomial.Reduce;
+begin
+  Int64PolynomialReduce2(FNominator, FDenominator);
 end;
 
 procedure TCnInt64RationalPolynomial.SetOne;
@@ -2192,6 +2262,14 @@ begin
   end;
 end;
 
+procedure Int64RationalPolynomialGetValue(const F: TCnInt64RationalPolynomial;
+  X: Int64; outResult: TCnRationalNumber);
+begin
+  outResult.Nominator := Int64PolynomialGetValue(F.Nominator, X);
+  outResult.Denominator := Int64PolynomialGetValue(F.Denominator, X);
+  outResult.Reduce;
+end;
+
 // ====================== 有理分式在有限域上的模运算 ===========================
 
 procedure Int64RationalPolynomialGaloisAdd(R1, R2: TCnInt64RationalPolynomial;
@@ -2353,6 +2431,19 @@ begin
     Int64PolynomialGaloisMul(RationalResult.Denominator, R1.Denominator, P1, Prime);
     Int64PolynomialCopy(RationalResult.Nominator, R1.Nominator);
   end;
+end;
+
+function Int64RationalPolynomialGaloisGetValue(const F: TCnInt64RationalPolynomial;
+  X: Int64; Prime: Int64): Int64;
+var
+  N, D:Int64;
+begin
+  D := Int64PolynomialGaloisGetValue(F.Denominator, X, Prime);
+  if D = 0 then
+    raise EDivByZero.Create(SDivByZero);
+
+  N := Int64PolynomialGaloisGetValue(F.Nominator, X, Prime);
+  Result := NonNegativeMod(N * CnInt64ModularInverse2(D, Prime), Prime);
 end;
 
 initialization

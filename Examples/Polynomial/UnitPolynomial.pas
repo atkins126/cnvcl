@@ -77,6 +77,13 @@ type
     btnRationalPolynomialGenerate: TButton;
     edtRationalResultNominator: TEdit;
     edtRationalResultDenominator: TEdit;
+    btnManualOnCurve: TButton;
+    btnCheckDivisionPolynomialZero: TButton;
+    btnCalcSimpleEcc: TButton;
+    mmoEcc: TMemo;
+    bvl4: TBevel;
+    btnCheckRationalAdd: TButton;
+    btnTestPiXPolynomial: TButton;
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
     procedure btnIPCreateClick(Sender: TObject);
@@ -116,6 +123,11 @@ type
     procedure btnRationalPolynomialSubClick(Sender: TObject);
     procedure btnRationalPolynomialMulClick(Sender: TObject);
     procedure btnRationalPolynomialDivClick(Sender: TObject);
+    procedure btnManualOnCurveClick(Sender: TObject);
+    procedure btnCheckDivisionPolynomialZeroClick(Sender: TObject);
+    procedure btnCalcSimpleEccClick(Sender: TObject);
+    procedure btnCheckRationalAddClick(Sender: TObject);
+    procedure btnTestPiXPolynomialClick(Sender: TObject);
   private
     FIP1: TCnInt64Polynomial;
     FIP2: TCnInt64Polynomial;
@@ -933,23 +945,23 @@ begin
   Int64PolynomialGaloisCalcDivisionPolynomial(A, B, 6, DP, P);
   mmoTestDivisionPolynomial.Lines.Add('6: === ' + DP.ToString);
   V := Int64PolynomialGaloisGetValue(DP, X1, P);
-  mmoTestDivisionPolynomial.Lines.Add(IntToStr(V));                                    // 有错，应该得到 25，结果得到 85
+  mmoTestDivisionPolynomial.Lines.Add(IntToStr(V));                                    // 得到 25
   V := Int64PolynomialGaloisGetValue(DP, X2, P);
-  mmoTestDivisionPolynomial.Lines.Add(IntToStr(V));                                    // 有错，应该得到 21，结果得到 36
+  mmoTestDivisionPolynomial.Lines.Add(IntToStr(V));                                    // 得到 21
 
   Int64PolynomialGaloisCalcDivisionPolynomial(A, B, 7, DP, P);
   mmoTestDivisionPolynomial.Lines.Add('7: === ' + DP.ToString);
   V := Int64PolynomialGaloisGetValue(DP, X1, P);
-  mmoTestDivisionPolynomial.Lines.Add(IntToStr(V));                                     // 得到 22
+  mmoTestDivisionPolynomial.Lines.Add(IntToStr(V));                                    // 得到 22
   V := Int64PolynomialGaloisGetValue(DP, X2, P);
-  mmoTestDivisionPolynomial.Lines.Add(IntToStr(V));                                     // 有错，应该得到得到 23，结果得到 69
+  mmoTestDivisionPolynomial.Lines.Add(IntToStr(V));                                    // 得到 23
 
-  Int64PolynomialGaloisCalcDivisionPolynomial(A, B, 8, DP, P); 
+  Int64PolynomialGaloisCalcDivisionPolynomial(A, B, 8, DP, P);
   mmoTestDivisionPolynomial.Lines.Add('8: === ' + DP.ToString);
   V := Int64PolynomialGaloisGetValue(DP, X1, P);
-  mmoTestDivisionPolynomial.Lines.Add(IntToStr(V));                                     // 有错，应该得到 0，
+  mmoTestDivisionPolynomial.Lines.Add(IntToStr(V));                                    // 得到 0，
   V := Int64PolynomialGaloisGetValue(DP, X2, P);
-  mmoTestDivisionPolynomial.Lines.Add(IntToStr(V));                                     // 得到 29 ？
+  mmoTestDivisionPolynomial.Lines.Add(IntToStr(V));                                    // 得到 31
 
   DP.Free;
 end;
@@ -981,14 +993,55 @@ begin
   X.Nominator.SetCoefficents([0, 1]);
   Y.SetOne;
 
-  TCnInt64PolynomialEcc.RationalMultiplePoint(2, X, Y, 2, 1, 13);
+  TCnInt64PolynomialEcc.RationalMultiplePoint(2, X, Y, 1, 1, 23);
   ShowMessage(X.ToString);
   ShowMessage(Y.ToString);
 
-  if TCnInt64PolynomialEcc.IsRationalPointOnCurve(X, Y, 2, 1, 13) then
-    ShowMessage('On Curve')
-  else
-    ShowMessage('NOT On Curve');
+  // 验证 6 19 的二倍点是 13 16
+  ShowMessage(IntToStr(Int64RationalPolynomialGaloisGetValue(X, 6, 23))); // 得到 13 对了
+  ShowMessage(IntToStr(Int64RationalPolynomialGaloisGetValue(Y, 6, 23) * 19 mod 23)); // 得到 16 对了
+
+  X.SetOne;
+  X.Nominator.SetCoefficents([0, 1]);
+  Y.SetOne;
+
+  TCnInt64PolynomialEcc.RationalMultiplePoint(3, X, Y, 1, 1, 23);
+  ShowMessage(X.ToString);
+  ShowMessage(Y.ToString);
+
+  // 验证 6 19 的三倍点是 7 11
+  ShowMessage(IntToStr(Int64RationalPolynomialGaloisGetValue(X, 6, 23))); // 得到 7 对了
+  ShowMessage(IntToStr(Int64RationalPolynomialGaloisGetValue(Y, 6, 23) * 19 mod 23)); // 得到 11 对了
+
+  X.SetOne;
+  X.Nominator.SetCoefficents([0, 1]);
+  Y.SetOne;
+
+  TCnInt64PolynomialEcc.RationalMultiplePoint(4, X, Y, 1, 1, 23);
+  ShowMessage(X.ToString);
+  ShowMessage(Y.ToString);
+
+  // 验证 6 19 的四倍点是 5 19
+  ShowMessage(IntToStr(Int64RationalPolynomialGaloisGetValue(X, 6, 23))); // 得到 5
+  ShowMessage(IntToStr(Int64RationalPolynomialGaloisGetValue(Y, 6, 23) * 19 mod 23)); // 得到 19
+
+  X.SetOne;
+  X.Nominator.SetCoefficents([0, 1]);
+  Y.SetOne;
+
+  TCnInt64PolynomialEcc.RationalMultiplePoint(5, X, Y, 1, 1, 23);
+  ShowMessage(X.ToString);
+  ShowMessage(Y.ToString);
+
+  // 验证 6 19 的五倍点是 12 4
+  ShowMessage(IntToStr(Int64RationalPolynomialGaloisGetValue(X, 6, 23))); // 得到 12
+  ShowMessage(IntToStr(Int64RationalPolynomialGaloisGetValue(Y, 6, 23) * 19 mod 23)); // 得到 4
+
+// 多项式本身不会符合曲线方程，得值代入再模逆后才等于
+//  if TCnInt64PolynomialEcc.IsRationalPointOnCurve(X, Y, 2, 1, 13) then
+//    ShowMessage('On Curve')
+//  else
+//    ShowMessage('NOT On Curve');
 
   X.Free;
   Y.Free;
@@ -1056,6 +1109,409 @@ begin
     Int64RationalPolynomialDiv(FRP1, FRP2, FRP3);
   edtRationalResultNominator.Text := FRP3.Nominator.ToString;
   edtRationalResultDenominator.Text := FRP3.Denominator.ToString;
+end;
+
+procedure TFormPolynomial.btnManualOnCurveClick(Sender: TObject);
+var
+  A, B, Q: Int64;
+  X, Y: TCnInt64RationalPolynomial;
+  P, Y2: TCnInt64Polynomial;
+  RL, RR, T: TCnInt64RationalPolynomial;
+begin
+  // 简单椭圆曲线二倍点用可除多项式手工计算的结果验证，通过
+  X := TCnInt64RationalPolynomial.Create;
+  Y := TCnInt64RationalPolynomial.Create;
+  Y2 := TCnInt64Polynomial.Create;
+  P := TCnInt64Polynomial.Create;
+
+  RL := TCnInt64RationalPolynomial.Create;
+  RR := TCnInt64RationalPolynomial.Create;
+  T := TCnInt64RationalPolynomial.Create;
+
+  A := 1;
+  B := 1;
+  Q := 23;   // 有限域F23上的 Y^2=X^3+X+1  （6，19）* 2 = （13，16）
+
+  // 先求整数域
+  X.Nominator.SetCoefficents([A*A, 4-12*B, 4-6*A, 0, 1]);  //  X4 + (4-6A)X2 + (4- 12B)x + A2
+  X.Denominator.SetCoefficents([4*B, 4*A, 0, 4]);         //        4X3 + 4AX + 4B
+
+  Y.Nominator.SetCoefficents([-A*A*A-8*B*B, -4*A*B, -5*A*A, 20*B, 5*A, 0, 1]); // X6 + 5AX4 + 20BX3 - 5A2X2 - 4ABX - 8B2 - A3
+  Y.Denominator.SetCoefficents([8*B*B, 16*A*B, 8*A*A, 16*B, 16*A, 0, 8]);      //          8(X3+AX+B)(X3+AX+B)
+
+  Y2.SetCoefficents([B, A, 0, 1]);
+  // 验证 Y^2 * (x^3+Ax+B) 是否等于 X3 + AX + B
+
+  Int64RationalPolynomialMul(Y, Y, Y);
+  Int64RationalPolynomialMul(Y, Y2, RL); // 得到 Y^2 (x^3+Ax+B)
+  RL.Reduce;
+  ShowMessage(RL.ToString);
+
+  Int64RationalPolynomialMul(X, X, RR);
+  Int64RationalPolynomialMul(RR, X, RR); // 得到 X^3
+
+  P.SetCoefficents([A]);
+  Int64RationalPolynomialMul(X, P, T);   // T 得到 A * X
+  Int64RationalPolynomialAdd(RR, T, RR); // RR 得到 X^3 + AX
+
+  P.SetCoefficents([B]);
+  Int64RationalPolynomialAdd(RR, P, RR); // RR 得到 X^3 + AX + B
+  RR.Reduce;
+  ShowMessage(RR.ToString);
+
+  // RL/RR 在整数域内有除式不等，换 Fq 看看，原始点（6，19），二倍点公式套上去得到（13，16）
+  X.Nominator.SetCoefficents([A*A, 4-12*B, 4-6*A, 0, 1]);  //  X4 + (4-6A)X2 + (4- 12B)x + A2
+  X.Denominator.SetCoefficents([4*B, 4*A, 0, 4]);          //        4X3 + 4AX + 4B
+  ShowMessage('2*X (X=6) using Division Polynomial is '
+    + IntToStr(Int64RationalPolynomialGaloisGetValue(X, 6, Q))); // 得到 13 对了
+
+  Y.Nominator.SetCoefficents([-A*A*A-8*B*B, -4*A*B, -5*A*A, 20*B, 5*A, 0, 1]); // X6 + 5AX4 + 20BX3 - 5A2X2 - 4ABX - 8B2 - A3
+  Y.Denominator.SetCoefficents([8*B*B, 16*A*B, 8*A*A, 16*B, 16*A, 0, 8]);      //          8(X3+AX+B)(X3+AX+B)
+  ShowMessage('2*Y (X=6) using Division Polynomial is '
+    + IntToStr((Int64RationalPolynomialGaloisGetValue(Y, 6, Q) * 19) mod Q)); // 得到 16 对了
+
+  Y2.SetCoefficents([B, A, 0, 1]);
+  // 验证二倍点公式用一倍点坐标算出来的值 Y^2 * (x^3+Ax+B) 是否等于 X3 + AX + B
+
+  Int64RationalPolynomialGaloisMul(Y, Y, Y, Q);
+  Int64RationalPolynomialGaloisMul(Y, Y2, RL, Q); // 得到 Y^2 (x^3+Ax+B)
+  ShowMessage(RL.ToString);
+
+  Int64RationalPolynomialGaloisMul(X, X, RR, Q);
+  Int64RationalPolynomialGaloisMul(RR, X, RR, Q); // 得到 X^3
+
+  P.SetCoefficents([A]);
+  Int64RationalPolynomialGaloisMul(X, P, T, Q);   // T 得到 A * X
+  Int64RationalPolynomialGaloisAdd(RR, T, RR, Q); // RR 得到 X^3 + AX
+
+  P.SetCoefficents([B]);
+  Int64RationalPolynomialGaloisAdd(RR, P, RR, Q); // RR 得到 X^3 + AX + B
+  ShowMessage(RR.ToString);
+
+  // RL/RR 在 F23 内表达式还是不等，但各自求值看看，居然相等！
+  ShowMessage(IntToStr(Int64RationalPolynomialGaloisGetValue(RL, 6, Q)));  // 3 = 二倍点 Y 坐标平方 16^2 mod 23 = 3
+  ShowMessage(IntToStr(Int64RationalPolynomialGaloisGetValue(RR, 6, Q)));  // 3 = 二倍点 X 坐标 13^3 + 13 + 1 mod 23 = 3
+
+  // 再拿另外一个点 （13，16）的二倍点（5，19）试一试，也对
+  ShowMessage(IntToStr(Int64RationalPolynomialGaloisGetValue(RL, 13, Q)));  // 16 = 二倍点 Y 坐标平方 19^2 mod 23 = 16
+  ShowMessage(IntToStr(Int64RationalPolynomialGaloisGetValue(RR, 13, Q)));  // 16 = 二倍点 X 坐标 5^3 + 5 + 1 mod 23 = 16
+
+  // 如果把 X Y 二倍点公式的模逆多项式求出来，会不会相等？但没有本原多项式，完全没法求逆
+
+  P.Free;
+  T.Free;
+  RL.Free;
+  RR.Free;
+  Y2.Free;
+  Y.Free;
+  X.Free;
+end;
+
+procedure TFormPolynomial.btnCheckDivisionPolynomialZeroClick(
+  Sender: TObject);
+var
+  F: TCnInt64Polynomial;
+  A, B, Q, V: Int64;
+begin
+  // 拿椭圆曲线里 nP = 0 的点的坐标 x y，验证 fn(x) 是否等于 0
+  // 要找 2 3 4 5 6 的例子
+
+  F := TCnInt64Polynomial.Create;
+  // F29 下的 Y^2 = X^3 + 6X + 1，阶为 24，有 2 3 4 的例子，后面也有 6 8 12 24
+
+  A := 6; B := 1; Q := 29;
+  Int64PolynomialGaloisCalcDivisionPolynomial(A, B, 2, F, Q);
+  ShowMessage(F.ToString);
+  V := Int64PolynomialGaloisGetValue(F, 25, Q);  // 25, 0 是二阶点
+  ShowMessage(IntToStr(V));                      // 2 不是 0，正常
+
+  Int64PolynomialGaloisCalcDivisionPolynomial(A, B, 3, F, Q);
+  ShowMessage(F.ToString);
+  V := Int64PolynomialGaloisGetValue(F, 18, Q);  // 18, 5 是三阶点
+  ShowMessage(IntToStr(V));                      // 是 0
+
+  Int64PolynomialGaloisCalcDivisionPolynomial(A, B, 4, F, Q);
+  ShowMessage(F.ToString);
+  V := Int64PolynomialGaloisGetValue(F, 20, Q);  // 20, 1 是四阶点
+  ShowMessage(IntToStr(V));                      // 是 0
+
+  Int64PolynomialGaloisCalcDivisionPolynomial(A, B, 6, F, Q);
+  ShowMessage(F.ToString);
+  V := Int64PolynomialGaloisGetValue(F, 9, Q);   // 9, 28 是六阶点
+  ShowMessage(IntToStr(V));                      // 是 0
+
+  Int64PolynomialGaloisCalcDivisionPolynomial(A, B, 8, F, Q);
+  ShowMessage(F.ToString);
+  V := Int64PolynomialGaloisGetValue(F, 7, Q);   // 7, 26 是八阶点
+  ShowMessage(IntToStr(V));                      // 是 0
+
+  Int64PolynomialGaloisCalcDivisionPolynomial(A, B, 12, F, Q);
+  ShowMessage(F.ToString);
+  V := Int64PolynomialGaloisGetValue(F, 24, Q);  // 24, 22 是十二阶点
+  ShowMessage(IntToStr(V));                      // 是 0
+
+  // F23 下的 Y^2 = X^3 + X + 9，阶为 20，有 2 4 5 的例子，后面也有 10 20
+
+  A := 1; B := 9; Q := 23;
+  Int64PolynomialGaloisCalcDivisionPolynomial(A, B, 2, F, Q);
+  ShowMessage(F.ToString);
+  V := Int64PolynomialGaloisGetValue(F, 8, Q);   // 8, 0 是二阶点
+  ShowMessage(IntToStr(V));                      // 2 不是 0，正常
+
+  Int64PolynomialGaloisCalcDivisionPolynomial(A, B, 4, F, Q);
+  ShowMessage(F.ToString);
+  V := Int64PolynomialGaloisGetValue(F, 5, Q);   // 5, 22 是四阶点
+  ShowMessage(IntToStr(V));                      // 是 0
+
+  Int64PolynomialGaloisCalcDivisionPolynomial(A, B, 5, F, Q);
+  ShowMessage(F.ToString);
+  V := Int64PolynomialGaloisGetValue(F, 3, Q);   // 3, 4 是五阶点
+  ShowMessage(IntToStr(V));                      // 是 0
+
+  Int64PolynomialGaloisCalcDivisionPolynomial(A, B, 10, F, Q);
+  ShowMessage(F.ToString);
+  V := Int64PolynomialGaloisGetValue(F, 16, Q);  // 16, 2 是十阶点
+  ShowMessage(IntToStr(V));                      // 是 0
+
+  Int64PolynomialGaloisCalcDivisionPolynomial(A, B, 20, F, Q);
+  ShowMessage(F.ToString);
+  V := Int64PolynomialGaloisGetValue(F, 6, Q);   // 6, 22 是二十阶点
+  ShowMessage(IntToStr(V));                      // 是 0
+  F.Free;
+end;
+
+procedure TFormPolynomial.btnCalcSimpleEccClick(Sender: TObject);
+var
+  List: TStrings;
+
+  procedure CalcEccPoints(A, B, Q: Int64; AList: TStrings);
+  var
+    Ecc: TCnInt64Ecc;
+    I, J, K: Integer;
+    P, T: TCnInt64EccPoint;
+  begin
+    AList.Clear;
+    Ecc := TCnInt64Ecc.Create(A, B, Q, 0, 0, Q);
+    for J := 0 to Q - 1 do
+    begin
+      P.X := J;
+      for I := 0 to Q - 1 do
+      begin
+        P.Y := I;
+        if Ecc.IsPointOnCurve(P) then
+        begin
+          // 找到一个点，然后验证它乘多少到 0
+          for K := 1 to 2 * Q do
+          begin
+            T := P;
+            Ecc.MultiplePoint(K, T);
+            if (T.X = 0) and (T.Y = 0) then
+            begin
+              AList.Add(Format('(%d, %d) * %d = 0', [P.X, P.Y, K]));
+              Break;
+            end;
+          end;
+        end;
+      end;
+    end;
+  end;
+
+begin
+  List := TStringList.Create;
+  mmoEcc.Clear;
+  CalcEccPoints(6, 1, 29, List); // 有 2 3 4 6 8 12 24 阶点
+  ShowMessage(List.Text);
+  mmoEcc.Lines.AddStrings(List);
+  mmoEcc.Lines.Add('');
+
+  CalcEccPoints(1, 9, 23, List); // 有 2 4 5 10 20 阶点
+  ShowMessage(List.Text);
+  mmoEcc.Lines.AddStrings(List);
+
+  List.Free;
+end;
+
+procedure TFormPolynomial.btnCheckRationalAddClick(Sender: TObject);
+var
+  X, Y, M2X, M2Y, M3X, M3Y: TCnInt64RationalPolynomial;
+begin
+  // 检查一倍点表达式和二倍点表达式相加，结果是否等于三倍点
+  // 一倍点 (x, 1 * y)，二倍点用 RationalMultiplePoint 算
+
+  X := TCnInt64RationalPolynomial.Create;
+  Y := TCnInt64RationalPolynomial.Create;
+  M2X := TCnInt64RationalPolynomial.Create;
+  M2Y := TCnInt64RationalPolynomial.Create;
+  M3X := TCnInt64RationalPolynomial.Create;
+  M3Y := TCnInt64RationalPolynomial.Create;
+
+  X.Denominator.SetOne;
+  X.Nominator.SetCoefficents([0, 1]);
+  Y.Denominator.SetOne;
+  Y.Denominator.SetCoefficents([1]);
+
+  TCnInt64PolynomialEcc.RationalMultiplePoint(2, M2X, M2Y, 6, 1, 29);
+  ShowMessage(M2X.ToString);
+  ShowMessage(M2Y.ToString);
+
+  // 一倍点设为 18, 5
+  ShowMessage(IntToStr(Int64RationalPolynomialGaloisGetValue(M2X, 18, 29))); // 求二倍点的 X 坐标 18，对了
+  ShowMessage(IntToStr(Int64RationalPolynomialGaloisGetValue(M2Y, 18, 29) * 5 mod 29)); // 求二倍点的 Y 坐标 24，对了
+
+  // 计算多项式无法判断两个形式不同的点 X 和 Y 是否相等，必须外界指定
+  TCnInt64PolynomialEcc.RationalPointAddPoint(X, Y, M2X, M2Y, M3X, M3Y, 6, 1, 29, True); // 指定 X 相等，但 Y 不相等
+  ShowMessage(M3X.ToString);  // 多项式返回 0
+  ShowMessage(M3Y.ToString);  // 多项式返回 0
+
+  // 三倍点应该是 0，0
+  ShowMessage(IntToStr(Int64RationalPolynomialGaloisGetValue(M3X, 18, 29))); // 求三倍点的 X 坐标 0
+  ShowMessage(IntToStr(Int64RationalPolynomialGaloisGetValue(M3Y, 18, 29) * 5 mod 29)); // 求三倍点的 Y 坐标 0
+
+  X.Free;
+  Y.Free;
+  M2X.Free;
+  M2Y.Free;
+  M3X.Free;
+  M3Y.Free;
+end;
+
+procedure TFormPolynomial.btnTestPiXPolynomialClick(Sender: TObject);
+var
+  DP, X, Y, Pi1X, Pi1Y, Pi2X, Pi2Y, SX, SY: TCnInt64Polynomial;
+  RX, RY: TCnInt64RationalPolynomial;
+//  Pi2RX, Pi2RY, R2X, R2Y, S2X, S2Y: TCnInt64RationalPolynomial;
+begin
+{
+  对于 F97 上的椭圆曲线 Y2=X3+31X-12 的五阶扭点，注意系数只要针对 97 同余就相等
+  计算 π(x^97, y^97) 与　π(x^97^2, y^97^2) 与 2 * (x, 1*y)
+
+π(x, y) =
+[47 x^11 + 11 x^10 - 16 x^9 + 8 x^8 + 44 x^7 + 8 x^6 + 10 x^5 + 12 x^4 - 40 x^3 + 42 x^2 + 11 x + 26,
+(6 x^11 + 45 x^10 + 34 x^9 + 28 x^8 - 11 x^7 + 3 x^6 - 3 x^5 + 2 x^4 - 39 x^3 -^48 x^2 - x - 9)y].
+
+π^2(x, y) =
+[-17 x^11 + 2 x^10 - 25 x^9 - x^8 + 28 x^7 + 31 x^6 + 25 x^5 - 32 x^4 + 45 x^3 + 26 x^2 + 36 x + 60,
+(34 x^11 + 35 x^10 - 8 x^9 - 11 x^8 - 48 x^7 + 34 x^6 - 8 x^5 - 37 x^4 - 21 x^3 + 40 x^2 + 11 x + 48)y].
+
+2 *(x, y) =
+[22 x^11 + 17 x^10 + 18 x^9 + 40 x^8 + 41 x^7 - 13 x^6 + 30 x^5 + 11 x^4 - 38 x^3 + 7 x^2 + 20 x + 17,
+(-11 x^10 - 17 x^9 - 48 x^8 - 12 x^7 + 17 x^6 + 44 x^5 - 10 x^4 + 8 x^3 + 38 x^2 + 25 x + 24)y].
+
+π^2(x, y) + [2]P =   (就这个不对！如果在 Ring 5 中计算的话，5 阶可除多项式最高 12 次方，所以上述均最高只有 11 次，但和为何冒出了 14 次？)
+[-14 x^14 + 15 x^13 - 20 x^12 - 43 x^11 - 10 x^10 - 27 x^9 + 5 x^7 + 11 x^6 + 45 x^5 - 17 x^4 + 30 x^3 - 2 x^2 + 35 x - 46,
+(-11 x^14 - 35 x^13 - 26 x^12 - 21 x^11 + 25 x^10 + 23 x^9 + 4 x^8 - 24 x^7 + 9 x^6 + 43 x^5 - 47 x^4 + 26 x^3 + 19 x^2 - 40 x - 32)y].
+
+最后和点的 x 坐标和 π的 1 倍点的 x 坐标有最大公因式 <> 1，y 也一样，所以得到 t5 = 1
+
+  用例来源于一个 PPT
+
+  Counting points on elliptic curves over Fq
+           Christiane Peters
+        DIAMANT-Summer School on
+ Elliptic and Hyperelliptic Curve Cryptography
+          September 17, 2008
+}
+
+  DP := TCnInt64Polynomial.Create;
+  Pi1X := TCnInt64Polynomial.Create;
+  Pi1Y := TCnInt64Polynomial.Create;
+  Pi2X := TCnInt64Polynomial.Create;
+  Pi2Y := TCnInt64Polynomial.Create;
+  SX := TCnInt64Polynomial.Create;
+  SY := TCnInt64Polynomial.Create;
+
+  X := TCnInt64Polynomial.Create;
+  Y := TCnInt64Polynomial.Create([-12, 31, 0, 1]);
+
+  Int64PolynomialGaloisCalcDivisionPolynomial(31, -12, 5, DP, 97);
+
+  X.MaxDegree := 1;
+  X[1] := 1;                 // x
+  Int64PolynomialGaloisPower(Pi1X, X, 97, 97, DP);
+  ShowMessage(Pi1X.ToString);               // 得到正确结果，Ring 几内计算就是 mod f几
+
+  Int64PolynomialGaloisPower(Pi1Y, Y, (97 - 1) div 2, 97, DP);
+  ShowMessage(Pi1Y.ToString);               // 得到正确结果，y^q = y^q-1 * y = (x3+Ax+B)^((q-1)/2) * y
+
+  X.MaxDegree := 1;
+  X[1] := 1;                 // x
+  Int64PolynomialGaloisPower(Pi2X, X, 97 * 97, 97, DP);
+  ShowMessage(Pi2X.ToString);         // 得到基本正确的结果，Ring 几内计算就是 mod f几，原用例最后一项常数项可能有错
+
+  Y.SetCoefficents([-12, 31, 0, 1]);
+  Int64PolynomialGaloisPower(Pi2Y, Y, (97 * 97 - 1) div 2, 97, DP);
+  ShowMessage(Pi2Y.ToString);               // 得到正确结果，y^q^2 = y^q^2-1 * y = (x3+Ax+B)^((q^2-1)/2) * y
+
+  RX := TCnInt64RationalPolynomial.Create;
+  RY := TCnInt64RationalPolynomial.Create;
+  TCnInt64PolynomialEcc.RationalMultiplePoint(2, RX, RY, 31, -12, 97);
+  // ShowMessage(RX.ToString);
+  // ShowMessage(RY.ToString);              // 得到 2P 的 X 和 Y 坐标的有理形式
+
+  Int64PolynomialGaloisModularInverse(X, RX.Denominator, DP, 97);
+  Int64PolynomialGaloisMul(X, X, RX.Nominator, 97, DP);
+  ShowMessage(X.ToString);               // 用模逆多项式将 2P 的 X 坐标转换为多项式，得到正确结果
+
+  Int64PolynomialGaloisModularInverse(Y, RY.Denominator, DP, 97);
+  Int64PolynomialGaloisMul(Y, Y, RY.Nominator, 97, DP);
+  ShowMessage(Y.ToString);               // 用模逆多项式将 2P 的 Y 坐标转换为多项式，得到正确结果
+
+  // 不能简单相加，得判断两个 X 是否相等，直接判断模系数等式？
+  if Int64PolynomialGaloisEqual(Pi2X, X, 97) then
+    ShowMessage('π^2 (x) == 2 * P (x)')
+  else
+    ShowMessage('π^2 (x) <> 2 * P (x)');
+
+  // 不能简单相加，得判断两个 Y 是否相等，直接判断模系数等式？
+  if Int64PolynomialGaloisEqual(Pi2Y, Y, 97) then
+    ShowMessage('π^2 (y) == 2 * P (y)')
+  else
+    ShowMessage('π^2 (y) <> 2 * P (y)');
+
+  // 将其相加得到有理点
+//  Pi2RX := TCnInt64RationalPolynomial.Create;
+//  Pi2RY := TCnInt64RationalPolynomial.Create;
+//  R2X := TCnInt64RationalPolynomial.Create;
+//  R2Y := TCnInt64RationalPolynomial.Create;
+//  S2X := TCnInt64RationalPolynomial.Create;
+//  S2Y := TCnInt64RationalPolynomial.Create;
+//
+//  Pi2RX.Denominator.SetOne;
+//  Int64PolynomialCopy(Pi2RX.Nominator, Pi2X);
+//  Pi2RY.Denominator.SetOne;
+//  Int64PolynomialCopy(Pi2RY.Nominator, Pi2Y);
+//  R2X.Denominator.SetOne;
+//  Int64PolynomialCopy(R2X.Nominator, X);
+//  R2Y.Denominator.SetOne;
+//  Int64PolynomialCopy(R2Y.Nominator, Y);
+
+  TCnInt64PolynomialEcc.PointAddPoint1(Pi2X, Pi2Y, X, Y, SX, SY, 31, -12, 97, DP);
+  ShowMessage(SX.ToString);
+  ShowMessage(SY.ToString);                // 将 DP 作为本原多项式直接加，结果不对
+
+//  Int64PolynomialGaloisModularInverse(X, S2X.Denominator, DP, 97);
+//  Int64PolynomialGaloisMul(X, X, S2X.Nominator, 97, DP);
+//  ShowMessage(X.ToString);               // 用模逆多项式将和点的 X 坐标转换为多项式，结果不对
+//
+//  Int64PolynomialGaloisModularInverse(Y, S2Y.Denominator, DP, 97);
+//  Int64PolynomialGaloisMul(Y, Y, S2Y.Nominator, 97, DP);
+//  ShowMessage(Y.ToString);               // 用模逆多项式将和点的 Y 坐标转换为多项式，结果不对
+
+//  Pi2RX.Free;
+//  Pi2RY.Free;
+//  R2X.Free;
+//  R2Y.Free;
+//  S2X.Free;
+//  S2Y.Free;
+  RX.Free;
+  RY.Free;
+  Pi1X.Free;
+  Pi1Y.Free;
+  Pi2X.Free;
+  Pi2Y.Free;
+  DP.Free;
+  X.Free;
+  Y.Free;
 end;
 
 end.

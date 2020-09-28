@@ -447,8 +447,8 @@ object FormPolynomial: TFormPolynomial
         object lbl1: TLabel
           Left = 425
           Top = 100
-          Width = 31
-          Height = 21
+          Width = 5
+          Height = 13
           Caption = '/'
         end
         object lbl2: TLabel
@@ -464,6 +464,13 @@ object FormPolynomial: TFormPolynomial
           Width = 6
           Height = 13
           Caption = '='
+        end
+        object bvl4: TBevel
+          Left = 16
+          Top = 280
+          Width = 873
+          Height = 9
+          Shape = bsTopLine
         end
         object btnRP2Point: TButton
           Left = 16
@@ -576,6 +583,58 @@ object FormPolynomial: TFormPolynomial
           Width = 385
           Height = 21
           TabOrder = 13
+        end
+        object btnManualOnCurve: TButton
+          Left = 224
+          Top = 24
+          Width = 209
+          Height = 25
+          Caption = 'Manual Test OnCurve'
+          TabOrder = 14
+          OnClick = btnManualOnCurveClick
+        end
+        object btnCheckDivisionPolynomialZero: TButton
+          Left = 464
+          Top = 24
+          Width = 225
+          Height = 25
+          Caption = 'Check Division Polynomial Zero'
+          TabOrder = 15
+          OnClick = btnCheckDivisionPolynomialZeroClick
+        end
+        object btnCalcSimpleEcc: TButton
+          Left = 728
+          Top = 24
+          Width = 161
+          Height = 25
+          Caption = 'Calc Simple Ecc Int64'
+          TabOrder = 16
+          OnClick = btnCalcSimpleEccClick
+        end
+        object mmoEcc: TMemo
+          Left = 16
+          Top = 296
+          Width = 225
+          Height = 193
+          TabOrder = 17
+        end
+        object btnCheckRationalAdd: TButton
+          Left = 264
+          Top = 296
+          Width = 209
+          Height = 25
+          Caption = 'Check Rational Polynomial Add'
+          TabOrder = 18
+          OnClick = btnCheckRationalAddClick
+        end
+        object btnTestPiXPolynomial: TButton
+          Left = 504
+          Top = 296
+          Width = 177
+          Height = 25
+          Caption = 'Test Pi^2 + 2P Polynomial in Ring'
+          TabOrder = 19
+          OnClick = btnTestPiXPolynomialClick
         end
       end
     end
