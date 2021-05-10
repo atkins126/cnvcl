@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2020 CnPack 开发组                       }
+{                   (C)Copyright 2001-2021 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -51,6 +51,12 @@ uses
 
 const
   CN_INSPECTOBJECT = WM_USER + $C10; // Cn Inspect Object
+
+  CnCanModifyPropTypes: TTypeKinds =
+    [tkInteger, tkChar, tkEnumeration, tkFloat, tkString, tkSet, tkWChar,
+    tkLString, tkWString, tkInt64];
+
+  SCnCanNotReadValue = '<Can NOT Read Value>';
 
 type
   TCnPropContentType = (pctProps, pctFields, pctEvents, pctMethods, pctCollectionItems, pctMenuItems,
@@ -376,6 +382,9 @@ type
     pnlSearch: TPanel;
     edtSearch: TEdit;
     btnSearch: TSpeedButton;
+    pmSheet: TPopupMenu;
+    Copy1: TMenuItem;
+    CopyAll1: TMenuItem;
     procedure FormCreate(Sender: TObject);
     procedure FormResize(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
@@ -408,6 +417,8 @@ type
     procedure TreeViewDblClick(Sender: TObject);
     procedure btnSearchClick(Sender: TObject);
     procedure edtSearchKeyPress(Sender: TObject; var Key: Char);
+    procedure Copy1Click(Sender: TObject);
+    procedure CopyAll1Click(Sender: TObject);
   private
     FListViewHeaderHeight: Integer;
     FContentTypes: TCnPropContentTypes;
@@ -571,9 +582,6 @@ const
   SCnInputNewValuePrompt = 'Enter a New Value for %s:';
   SCnErrorChangeValue = 'Change Property Value Failed!';
 
-  CnCanModifyPropTypes: TTypeKinds =
-    [tkInteger, tkChar, tkEnumeration, tkFloat, tkString, tkSet, tkWChar,
-    tkLString, tkWString, tkInt64];
 
 var
   FSheetList: TComponentList = nil;
@@ -1008,6 +1016,12 @@ var
   AClass: TClass;
 begin
   Result := '';
+  if not RttiProperty.IsReadable then
+  begin
+    Result := SCnCanNotReadValue;
+    Exit;
+  end;
+
   case RttiProperty.PropertyType.TypeKind of
     tkInteger:
       begin
@@ -1724,68 +1738,76 @@ begin
       PropInfo := PropListPtr^[I];
       if PropInfo^.PropType^^.Kind in tkProperties then
       begin
-        if not IsRefresh then
-          AProp := TCnPropertyObject.Create
-        else
-          AProp := IndexOfProperty(Properties, PropInfoName(PropInfo));
-
-        AProp.PropName := PropInfoName(PropInfo);
-        AProp.PropType := PropInfo^.PropType^^.Kind;
-        AProp.IsObjOrIntf := AProp.PropType in [tkClass, tkInterface];
-
-        // 有写入权限，并且指定类型，才可修改，否则界面上没法整
-        AProp.CanModify := (PropInfo^.SetProc <> nil) and (PropInfo^.PropType^^.Kind
-          in CnCanModifyPropTypes);
-
-        AProp.PropValue := GetPropValue(FObjectInstance, PropInfoName(PropInfo));
-
-        AProp.ObjValue := nil;
-        AProp.IntfValue := nil;
-        if AProp.IsObjOrIntf then
-        begin
-          if AProp.PropType = tkClass then
-            AProp.ObjValue := GetObjectProp(FObjectInstance, PropInfo)
+        try
+          if not IsRefresh then
+            AProp := TCnPropertyObject.Create
           else
-            AProp.IntfValue := IUnknown(GetOrdProp(FObjectInstance, PropInfo));
+            AProp := IndexOfProperty(Properties, PropInfoName(PropInfo));
+
+          AProp.PropName := PropInfoName(PropInfo);
+          AProp.PropType := PropInfo^.PropType^^.Kind;
+          AProp.IsObjOrIntf := AProp.PropType in [tkClass, tkInterface];
+
+          // 有写入权限，并且指定类型，才可修改，否则界面上没法整
+          AProp.CanModify := (PropInfo^.SetProc <> nil) and (PropInfo^.PropType^^.Kind
+            in CnCanModifyPropTypes);
+
+          AProp.PropValue := GetPropValue(FObjectInstance, PropInfoName(PropInfo));
+
+          AProp.ObjValue := nil;
+          AProp.IntfValue := nil;
+          if AProp.IsObjOrIntf then
+          begin
+            if AProp.PropType = tkClass then
+              AProp.ObjValue := GetObjectProp(FObjectInstance, PropInfo)
+            else
+              AProp.IntfValue := IUnknown(GetOrdProp(FObjectInstance, PropInfo));
+          end;
+
+          S := GetPropValueStr(FObjectInstance, PropInfo);
+          if S <> AProp.DisplayValue then
+          begin
+            AProp.DisplayValue := S;
+            AProp.Changed := True;
+          end
+          else
+            AProp.Changed := False;
+
+          if not IsRefresh then
+            Properties.Add(AProp);
+
+          Include(FContentTypes, pctProps);
+        except
+          ;
         end;
-
-        S := GetPropValueStr(FObjectInstance, PropInfo);
-        if S <> AProp.DisplayValue then
-        begin
-          AProp.DisplayValue := S;
-          AProp.Changed := True;
-        end
-        else
-          AProp.Changed := False;
-
-        if not IsRefresh then
-          Properties.Add(AProp);
-
-        Include(FContentTypes, pctProps);
       end;
 
       if PropInfo^.PropType^^.Kind = tkMethod then
       begin
-        if not IsRefresh then
-          AEvent := TCnEventObject.Create
-        else
-          AEvent := IndexOfEvent(FEvents, PropInfoName(PropInfo));
+        try
+          if not IsRefresh then
+            AEvent := TCnEventObject.Create
+          else
+            AEvent := IndexOfEvent(FEvents, PropInfoName(PropInfo));
 
-        AEvent.EventName := PropInfoName(PropInfo);
-        AEvent.EventType := VarToStr(GetPropValue(FObjectInstance, PropInfoName(PropInfo)));
-        S := GetPropValueStr(FObjectInstance, PropInfo);
-        if S <> AEvent.DisplayValue then
-        begin
-          AEvent.DisplayValue := S;
-          AEvent.Changed := True;
-        end
-        else
-          AEvent.Changed := False;
+          AEvent.EventName := PropInfoName(PropInfo);
+          AEvent.EventType := VarToStr(GetPropValue(FObjectInstance, PropInfoName(PropInfo)));
+          S := GetPropValueStr(FObjectInstance, PropInfo);
+          if S <> AEvent.DisplayValue then
+          begin
+            AEvent.DisplayValue := S;
+            AEvent.Changed := True;
+          end
+          else
+            AEvent.Changed := False;
 
-        if not IsRefresh then
-          FEvents.Add(AEvent);
+          if not IsRefresh then
+            FEvents.Add(AEvent);
 
-        Include(FContentTypes, pctEvents);
+          Include(FContentTypes, pctEvents);
+        except
+          ;
+        end;
       end;
     end;
     FreeMem(PropListPtr);
@@ -1820,24 +1842,29 @@ begin
               AProp.CanModify := (RttiProperty.IsWritable) and (RttiProperty.PropertyType.TypeKind
                 in CnCanModifyPropTypes);
 
-              try
-                AProp.PropRttiValue := RttiProperty.GetValue(FObjectInstance);
-              except
-                // Getting Some Property causes Exception. Catch it.
-                AProp.PropRttiValue := nil;
-              end;
+              if RttiProperty.IsReadable then
+              begin
+                try
+                  AProp.PropRttiValue := RttiProperty.GetValue(FObjectInstance)
+                except
+                  // Getting Some Property causes Exception. Catch it.
+                  AProp.PropRttiValue := nil;
+                end;
 
-              AProp.ObjValue := nil;
-              AProp.IntfValue := nil;
-              try
-                if AProp.IsObjOrIntf and RttiProperty.GetValue(FObjectInstance).IsObject then
-                  AProp.ObjValue := RttiProperty.GetValue(FObjectInstance).AsObject
-                else if AProp.IsObjOrIntf and (RttiProperty.GetValue(FObjectInstance).TypeInfo <> nil) and
-                  (RttiProperty.GetValue(FObjectInstance).TypeInfo^.Kind = tkInterface) then
-                  AProp.IntfValue := RttiProperty.GetValue(FObjectInstance).AsInterface;
-              except
-                // Getting Some Property causes Exception. Catch it.;
-              end;
+                AProp.ObjValue := nil;
+                AProp.IntfValue := nil;
+                try
+                  if AProp.IsObjOrIntf and RttiProperty.GetValue(FObjectInstance).IsObject then
+                    AProp.ObjValue := RttiProperty.GetValue(FObjectInstance).AsObject
+                  else if AProp.IsObjOrIntf and (RttiProperty.GetValue(FObjectInstance).TypeInfo <> nil) and
+                    (RttiProperty.GetValue(FObjectInstance).TypeInfo^.Kind = tkInterface) then
+                    AProp.IntfValue := RttiProperty.GetValue(FObjectInstance).AsInterface;
+                except
+                  // Getting Some Property causes Exception. Catch it.;
+                end;
+              end
+              else
+                AProp.PropRttiValue := SCnCanNotReadValue;
 
               S := GetRttiPropValueStr(FObjectInstance, RttiProperty);
               if S <> AProp.DisplayValue then
@@ -3473,6 +3500,54 @@ begin
   begin
     btnSearch.Click;
     edtSearch.SetFocus;
+  end;
+end;
+
+procedure TCnPropSheetForm.Copy1Click(Sender: TObject);
+var
+  LV: TListView;
+begin
+  if pmSheet.PopupComponent is TListView then
+  begin
+    LV := pmSheet.PopupComponent as TListView;
+    if LV.Selected <> nil then
+    begin
+      if LV.Columns.Count = 2 then
+        Clipboard.AsText := LV.Selected.Caption + ' ' + LV.Selected.SubItems[0]
+      else if LV.Columns.Count = 1 then
+        Clipboard.AsText := LV.Selected.Caption
+    end;
+  end;
+end;
+
+procedure TCnPropSheetForm.CopyAll1Click(Sender: TObject);
+var
+  SL: TStringList;
+  LV: TListView;
+  I: Integer;
+begin
+  if pmSheet.PopupComponent is TListView then
+  begin
+    LV := pmSheet.PopupComponent as TListView;
+    if LV.Items.Count = 0 then
+      Exit;
+
+    SL := TStringList.Create;
+    try
+      if LV.Columns.Count = 2 then
+      begin
+        for I := 0 to LV.Items.Count - 1 do
+          SL.Add(LV.Items[I].Caption + ' ' + LV.Items[I].SubItems[0]);
+      end
+      else if LV.Columns.Count = 1 then
+      begin
+        for I := 0 to LV.Items.Count - 1 do
+          SL.Add(LV.Items[I].Caption);
+      end;
+      Clipboard.AsText := SL.Text;
+    finally
+      SL.Free;
+    end;
   end;
 end;
 

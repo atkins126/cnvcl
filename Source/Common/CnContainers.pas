@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2020 CnPack 开发组                       }
+{                   (C)Copyright 2001-2021 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -54,7 +54,9 @@ unit CnContainers;
 * 开发平台：PWinXP + Delphi 7
 * 兼容测试：PWin2000/XP + Delphi 5/6/7
 * 本 地 化：该单元中的字符串均符合本地化处理方式
-* 修改记录：2017.01.17 V1.2
+* 修改记录：2020.11.05 V1.3
+*               将大数池基类抽取至此处
+*           2017.01.17 V1.2
 *               加入 TCnObjectRingBuffer 循环缓冲区实现
 *           2016.12.02 V1.1
 *               加入 TCnObjectStack 实现，允许 Clear 等方法
@@ -68,7 +70,9 @@ interface
 {$I CnPack.inc}
 
 uses
-  Windows, SysUtils, Classes;
+  SysUtils, Classes, Contnrs, SyncObjs;
+
+{$DEFINE MULTI_THREAD} // 数学对象池支持多线程，性能略有下降，如不需要，注释此行即可
 
 type
   TCnQueue = class
@@ -77,7 +81,7 @@ type
     FHead: TObject;
     FTail: TObject;
     FSize: Integer;
-    FLock: TRTLCriticalSection;
+    FLock: TCriticalSection;
     procedure FreeNode(Value: TObject);
     function GetSize: Integer;
   public
@@ -115,7 +119,7 @@ type
     FMultiThread: Boolean;
     FSize: Integer;
     FList: TList;
-    FLock: TRTLCriticalSection;
+    FLock: TCriticalSection;
     // Idx 可以理解为始终指向相邻位置中间的缝，编号从第 0 到第 Size - 1 ( 第 Size 也即等于第 0 )
     // 有元素的情况下，FrontIdx 高后始终是元素，前可能是空，或绕回来的尾巴
     //                 BackIdx 的低前始终是元素，后可能是空，或绕回来的头
@@ -155,6 +159,26 @@ type
     {* 从循环队列缓冲区内的有效元素数量}
   end;
 
+  TCnMathObjectPool = class(TObjectList)
+  {* 数学对象池实现类，允许使用到数学对象池的地方自行继承并创建池}
+  private
+{$IFDEF MULTI_THREAD}
+    FCriticalSection: TCriticalSection;
+{$ENDIF}
+    procedure Enter; {$IFDEF SUPPORT_INLINE} inline; {$ENDIF}
+    procedure Leave; {$IFDEF SUPPORT_INLINE} inline; {$ENDIF}
+  protected
+    function CreateObject: TObject; virtual; abstract;
+    {* 子类必须重载的创建具体对象的方法}
+  public
+    constructor Create; reintroduce;
+
+    destructor Destroy; override;
+
+    function Obtain: TObject;
+    procedure Recycle(Num: TObject);
+  end;
+
 implementation
 
 type
@@ -187,7 +211,7 @@ begin
   FTail := nil;
   FSize := 0;
   if FMultiThread then
-    InitializeCriticalSection(FLock);
+    FLock := TCriticalSection.Create;
 end;
 
 destructor TCnQueue.Destroy;
@@ -195,7 +219,7 @@ begin
   if FHead <> nil then
     FreeNode(FHead);
   if FMultiThread then
-    DeleteCriticalSection(FLock);
+    FLock.Free;
   inherited;
 end;
 
@@ -204,7 +228,8 @@ var
   Tmp: TCnNode;
 begin
   if FMultiThread then
-    EnterCriticalSection(FLock);
+    FLock.Enter;
+
   try
     Result := nil;
     if FHead = nil then
@@ -220,7 +245,7 @@ begin
     FSize := FSize - 1;
   finally
     if FMultiThread then
-      LeaveCriticalSection(FLock);
+      FLock.Leave;
   end;
 end;
 
@@ -229,7 +254,8 @@ var
   Tmp: TCnNode;
 begin
   if FMultiThread then
-    EnterCriticalSection(FLock);
+    FLock.Enter;
+
   try
     if Data = nil then Exit;
     Tmp := TCnNode.Create;
@@ -250,7 +276,7 @@ begin
     FSize := FSize + 1;
   finally
     if FMultiThread then
-      LeaveCriticalSection(FLock);
+      FLock.Leave;
   end;
 end;
 
@@ -318,13 +344,13 @@ begin
   FList.Count := FSize;
 
   if FMultiThread then
-    InitializeCriticalSection(FLock);
+    FLock := TCriticalSection.Create;
 end;
 
 destructor TCnObjectRingBuffer.Destroy;
 begin
   if FMultiThread then
-    DeleteCriticalSection(FLock);
+    FLock.Free;
   FList.Free;
   inherited;
 end;
@@ -352,7 +378,7 @@ function TCnObjectRingBuffer.PopFromBack: TObject;
 begin
   Result := nil;
   if FMultiThread then
-    EnterCriticalSection(FLock);
+    FLock.Enter;
 
   try
     if FCount <= 0 then
@@ -366,7 +392,7 @@ begin
     Dec(FCount);
   finally
     if FMultiThread then
-      LeaveCriticalSection(FLock);
+      FLock.Leave;
   end;
 end;
 
@@ -374,7 +400,7 @@ function TCnObjectRingBuffer.PopFromFront: TObject;
 begin
   Result := nil;
   if FMultiThread then
-    EnterCriticalSection(FLock);
+    FLock.Enter;
 
   try
     if FCount <= 0 then
@@ -389,14 +415,14 @@ begin
     Dec(FCount);
   finally
     if FMultiThread then
-      LeaveCriticalSection(FLock);
+      FLock.Leave;
   end;
 end;
 
 procedure TCnObjectRingBuffer.PushToBack(AObject: TObject);
 begin
   if FMultiThread then
-    EnterCriticalSection(FLock);
+    FLock.Enter;
 
   try
     if not FFullOverwrite and (FCount >= FSize) then
@@ -411,14 +437,14 @@ begin
       Inc(FCount);
   finally
     if FMultiThread then
-      LeaveCriticalSection(FLock);
+      FLock.Leave;
   end;
 end;
 
 procedure TCnObjectRingBuffer.PushToFront(AObject: TObject);
 begin
   if FMultiThread then
-    EnterCriticalSection(FLock);
+    FLock.Enter;
 
   try
     if not FFullOverwrite and (FCount >= FSize) then
@@ -433,7 +459,73 @@ begin
       Inc(FCount);
   finally
     if FMultiThread then
-      LeaveCriticalSection(FLock);
+      FLock.Leave;
+  end;
+end;
+
+{ TCnMathObjectPool }
+
+constructor TCnMathObjectPool.Create;
+begin
+  inherited Create(False);
+{$IFDEF MULTI_THREAD}
+  FCriticalSection := TCriticalSection.Create;
+{$ENDIF}
+end;
+
+destructor TCnMathObjectPool.Destroy;
+var
+  I: Integer;
+begin
+  for I := 0 to Count - 1 do
+    TObject(Items[I]).Free;
+
+{$IFDEF MULTI_THREAD}
+  FCriticalSection.Free;
+{$ENDIF}
+  inherited;
+end;
+
+procedure TCnMathObjectPool.Enter;
+begin
+{$IFDEF MULTI_THREAD}
+  FCriticalSection.Enter;
+{$ENDIF}
+end;
+
+procedure TCnMathObjectPool.Leave;
+begin
+{$IFDEF MULTI_THREAD}
+  FCriticalSection.Leave;
+{$ENDIF}
+end;
+
+function TCnMathObjectPool.Obtain: TObject;
+begin
+  Enter;
+  try
+    if Count = 0 then
+      Result := CreateObject
+    else
+    begin
+      Result := TObject(Items[Count - 1]);
+      Delete(Count - 1);
+    end;
+  finally
+    Leave;
+  end;
+end;
+
+procedure TCnMathObjectPool.Recycle(Num: TObject);
+begin
+  if Num <> nil then
+  begin
+    Enter;
+    try
+      Add(Num);
+    finally
+      Leave;
+    end;
   end;
 end;
 

@@ -71,6 +71,11 @@ type
     seIntPower: TSpinEdit;
     lblIntPower: TLabel;
     btnGetTenCount: TButton;
+    btnCheckPrime2: TButton;
+    btnBNCRT: TButton;
+    btnBNSqrt: TButton;
+    btnBNNextPrime: TButton;
+    btnBNMulKaratsuba: TButton;
     procedure btnGen1Click(Sender: TObject);
     procedure btnGen2Click(Sender: TObject);
     procedure btnDupClick(Sender: TObject);
@@ -117,6 +122,11 @@ type
     procedure btnCheckPrimeClick(Sender: TObject);
     procedure btnIntPowerClick(Sender: TObject);
     procedure btnGetTenCountClick(Sender: TObject);
+    procedure btnCheckPrime2Click(Sender: TObject);
+    procedure btnBNCRTClick(Sender: TObject);
+    procedure btnBNSqrtClick(Sender: TObject);
+    procedure btnBNNextPrimeClick(Sender: TObject);
+    procedure btnBNMulKaratsubaClick(Sender: TObject);
   private
     procedure CalcRandomLength;
     procedure ShowNumbers;
@@ -808,6 +818,84 @@ end;
 procedure TFormBigNumber.btnGetTenCountClick(Sender: TObject);
 begin
   ShowMessage(IntToStr(BigNumberGetTenPrecision(Num1)));
+end;
+
+procedure TFormBigNumber.btnCheckPrime2Click(Sender: TObject);
+var
+  R: TCnBigNumber;
+  T1: Cardinal;
+  S: string;
+  B: Boolean;
+begin
+  R := TCnBigNumber.Create;
+
+  SetLength(S, 6400);
+  FillChar(S[1], Length(S), Ord('9'));
+  S[48] := '8';
+  R.SetDec(S);
+  T1 := GetTickCount;
+  B := BigNumberIsProbablyPrime(R);    // 2 次得400多秒，默认50次得万把秒，三四个小时
+  T1 := GetTickCount - T1;
+
+  if B then
+    ShowMessage('Prime')
+  else
+    ShowMessage('NOT Prime');
+
+  ShowMessage(IntToStr(T1));
+  R.Free;
+end;
+
+procedure TFormBigNumber.btnBNCRTClick(Sender: TObject);
+var
+  R, F: TCnBigNumberList;
+  M: TCnBigNumber;
+begin
+  // 有物不知其数，三三数之剩二，五五数之剩三，七七数之剩二。问物几何？
+  R := TCnBigNumberList.Create;
+  F := TCnBigNumberList.Create;
+
+  F.Add.SetDec('3');
+  F.Add.SetDec('5');
+  F.Add.SetDec('7');
+
+  R.Add.SetDec('2');
+  R.Add.SetDec('3');
+  R.Add.SetDec('2');
+
+  M := TCnBigNumber.Create;
+  if BigNumberChineseRemainderTheorem(M, R, F) then
+    ShowMessage(M.ToDec); // 23
+
+  M.Free;
+  F.Free;
+  R.Free;
+end;
+
+procedure TFormBigNumber.btnBNSqrtClick(Sender: TObject);
+var
+  Res: TCnBigNumber;
+begin
+  Res := BigNumberNew;
+  if BigNumberSqrt(Res, Num1) then
+    ShowResult(Res);
+  BigNumberFree(Res);
+end;
+
+procedure TFormBigNumber.btnBNNextPrimeClick(Sender: TObject);
+begin
+  BigNumberNextPrime(Num2, Num1);
+  ShowNumbers;
+end;
+
+procedure TFormBigNumber.btnBNMulKaratsubaClick(Sender: TObject);
+var
+  Res: TCnBigNumber;
+begin
+  Res := BigNumberNew;
+  if BigNumberMulKaratsuba(Res, Num1, Num2) then
+    ShowResult(Res);
+  BigNumberFree(Res);
 end;
 
 end.

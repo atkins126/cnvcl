@@ -82,6 +82,8 @@ type
     btnDHRand: TButton;
     tsCRT: TTabSheet;
     btnCRTTest: TButton;
+    btnCheckPrime: TButton;
+    btnInt64BSGS: TButton;
     procedure btnGenClick(Sender: TObject);
     procedure btnIsPrimeClick(Sender: TObject);
     procedure btnInt64IsPrimeClick(Sender: TObject);
@@ -107,6 +109,8 @@ type
     procedure btnDHIsPrimitiveRoot64Click(Sender: TObject);
     procedure btnDHRandClick(Sender: TObject);
     procedure btnCRTTestClick(Sender: TObject);
+    procedure btnCheckPrimeClick(Sender: TObject);
+    procedure btnInt64BSGSClick(Sender: TObject);
   private
 
   public
@@ -484,6 +488,86 @@ begin
   R[0] := 2; R[1] := 3; R[2] := 2;
   C := ChineseRemainderTheoremInt64(R, F);
   ShowMessage(IntToStr(C));
+end;
+
+procedure TFormPrime.btnCheckPrimeClick(Sender: TObject);
+var
+  I: Cardinal;
+  K: Int64;
+  M: TUInt64;
+begin
+  I := MaxInt - 1;
+  while not CnUInt32IsPrime(I) do   // < Int32
+    Dec(I);
+  ShowMessage(IntToStr(I));
+  I := Cardinal(MaxInt) + 1;
+  while not CnUInt32IsPrime(I) do  // > Int32
+    Inc(I);
+  ShowMessage(IntToStr(I));
+
+  I := $FFFFFFFF;
+  while not CnUInt32IsPrime(I) do  // < UInt32
+    Dec(I);
+  ShowMessage(IntToStr(I));
+
+  K := $FFFFFFFF;
+  while not CnInt64IsPrime(K) do  // > UInt32
+    Inc(K);
+  ShowMessage(IntToStr(K));
+
+  K := MAX_SIGNED_INT64_IN_TUINT64;  // < Int64
+  while not CnInt64IsPrime(K) do
+    Dec(K);
+  ShowMessage(IntToStr(K));
+
+  M := MAX_SIGNED_INT64_IN_TUINT64;  // > Int64
+  while not CnInt64IsPrime(M) do
+    Inc(M);
+  ShowMessage(UInt64ToStr(M));
+
+  M := MAX_TUINT64;
+  while not CnInt64IsPrime(M) do     // < UInt64
+    Dec(M);
+  ShowMessage(UInt64ToStr(M));
+
+  M := UInt64Sqrt(MAX_SIGNED_INT64_IN_TUINT64);
+  while not CnInt64IsPrime(M) do     // < Sqrt Int64
+    Dec(M);
+  ShowMessage(UInt64ToStr(M));
+
+  M := UInt64Sqrt(MAX_SIGNED_INT64_IN_TUINT64) + 1;
+  while not CnInt64IsPrime(M) do     // > Sqrt Int64
+    Inc(M);
+  ShowMessage(UInt64ToStr(M));
+
+  // 比 Sqrt(2 * Max UInt64) 小的，也就是 MaxUInt32 * 1.4142135
+  M := Trunc(MAX_UINT32 * 1.4142135);
+  while not CnInt64IsPrime(M) do     // < Sqrt 2 * UInt64
+    Dec(M);
+  ShowMessage(UInt64ToStr(M));
+
+  // 比 Sqrt(2 * Max UInt64) 大的，也就是 MaxUInt32 * 1.4142136
+  M := Trunc(MAX_UINT32 * 1.4142136);
+  while not CnInt64IsPrime(M) do     // > Sqrt 2 * UInt64
+    Inc(M);
+  ShowMessage(UInt64ToStr(M));
+end;
+
+procedure TFormPrime.btnInt64BSGSClick(Sender: TObject);
+var
+  A, B, M, R: Int64;
+begin
+  A := 8723;
+  B := 3623;
+  M := 65537;
+
+  R := CnInt64BigStepGiantStep(8723, 3623, 65537);
+  ShowMessage(IntToStr(R));
+
+  if MontgomeryPowerMod(A, R, M) = B then
+    ShowMessage('Verify OK')
+  else
+    ShowMessage('Verify Fail');
 end;
 
 end.

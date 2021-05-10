@@ -528,7 +528,7 @@ object FormBigNumber: TFormBigNumber
         Top = 264
         Width = 129
         Height = 25
-        Caption = 'Check Prime'
+        Caption = 'Check Prime 1'
         TabOrder = 48
         OnClick = btnCheckPrimeClick
       end
@@ -559,6 +559,51 @@ object FormBigNumber: TFormBigNumber
         Caption = '10 Precision'
         TabOrder = 51
         OnClick = btnGetTenCountClick
+      end
+      object btnCheckPrime2: TButton
+        Left = 904
+        Top = 392
+        Width = 129
+        Height = 25
+        Caption = 'Check Prime 2'
+        TabOrder = 52
+        OnClick = btnCheckPrime2Click
+      end
+      object btnBNCRT: TButton
+        Left = 904
+        Top = 440
+        Width = 129
+        Height = 25
+        Caption = 'Chinese Remainder '
+        TabOrder = 53
+        OnClick = btnBNCRTClick
+      end
+      object btnBNSqrt: TButton
+        Left = 904
+        Top = 224
+        Width = 129
+        Height = 25
+        Caption = 'Sqrt'
+        TabOrder = 54
+        OnClick = btnBNSqrtClick
+      end
+      object btnBNNextPrime: TButton
+        Left = 904
+        Top = 184
+        Width = 129
+        Height = 25
+        Caption = 'Next Prime'
+        TabOrder = 55
+        OnClick = btnBNNextPrimeClick
+      end
+      object btnBNMulKaratsuba: TButton
+        Left = 904
+        Top = 488
+        Width = 129
+        Height = 25
+        Caption = 'Mul Karatsuba'
+        TabOrder = 56
+        OnClick = btnBNMulKaratsubaClick
       end
     end
   end

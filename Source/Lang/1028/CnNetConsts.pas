@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2020 CnPack 开发组                       }
+{                   (C)Copyright 2001-2021 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -85,6 +85,18 @@ resourcestring
   SCnDNSComment = 'DNS舱ン';
   SCnDNSTooLong = '才﹃禬';
   SCnDNSInvalidHeadByteFmt = '才﹃ %d  %d 矪獶猭';
+
+  // CnThreadingTCPServer
+  SCnThreadingTCPServerName = '絬祘TCP狝叭竟舱ン';
+  SCnThreadingTCPServerComment = '峨Α絬祘TCP狝叭竟舱ン';
+
+  // CnTCPClient
+  SCnTCPClientName = 'TCPめ狠舱ン';
+  SCnTCPClientComment = 'TCPめ狠舱ン';
+
+  // CnTCPForwarder
+  SCnTCPForwarderName = 'TCP狠锣祇舱ン';
+  SCnTCPForwarderComment = 'TCP狠锣祇舱ン';
 
 implementation
 

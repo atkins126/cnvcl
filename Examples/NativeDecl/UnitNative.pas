@@ -17,12 +17,22 @@ type
     btnStrUInt64: TButton;
     btnMul32: TButton;
     btnHighLowBits: TButton;
+    btnInt64MulMod: TButton;
+    btnUInt64Add: TButton;
+    btnUInt64Mul: TButton;
+    btnGetGT2Power: TButton;
+    btnGetGT2Power64: TButton;
     procedure FormCreate(Sender: TObject);
     procedure btnUInt64DivClick(Sender: TObject);
     procedure btnUInt64ModClick(Sender: TObject);
     procedure btnStrUInt64Click(Sender: TObject);
     procedure btnMul32Click(Sender: TObject);
     procedure btnHighLowBitsClick(Sender: TObject);
+    procedure btnInt64MulModClick(Sender: TObject);
+    procedure btnUInt64AddClick(Sender: TObject);
+    procedure btnUInt64MulClick(Sender: TObject);
+    procedure btnGetGT2PowerClick(Sender: TObject);
+    procedure btnGetGT2Power64Click(Sender: TObject);
   private
     { Private declarations }
   public
@@ -172,6 +182,60 @@ begin                        //    *                          1
   H := GetUInt64HighBits(T2);
   L := GetUInt64LowBits(T2);
   mmoRes.Lines.Add(Format('64: High %d Low %d.', [H, L]));
+end;
+
+procedure TFormNative.btnInt64MulModClick(Sender: TObject);
+var
+  A, B: Int64;
+begin
+  A := 3567798656;
+  B := 3352796231;
+  B := Int64NonNegativeMulMod(A, B, 4294967291);
+  // B := UInt64NonNegativeMulMod(A, B, 4294967291);
+  mmoRes.Lines.Add(IntToStr(B)); // 要等于 1 才对
+end;
+
+procedure TFormNative.btnUInt64AddClick(Sender: TObject);
+var
+  A, B, L, H: TUInt64;
+begin
+  A := MAX_TUINT64;
+  B := MAX_TUINT64;
+
+  UInt64AddUInt64(A, B, L, H);
+  ShowMessage(UInt64ToHex(L));
+  ShowMessage(UInt64ToHex(H));
+end;
+
+procedure TFormNative.btnUInt64MulClick(Sender: TObject);
+var
+  A, B, L, H: TUInt64;
+begin
+  A := $FFFFFFFFFFFFFF3C;
+  B := $FFFFFFFFFFFFFF2E;
+
+  UInt64MulUInt64(A, B, L, H);
+  ShowMessage(UInt64ToHex(L));
+  ShowMessage(UInt64ToHex(H));
+end;
+
+procedure TFormNative.btnGetGT2PowerClick(Sender: TObject);
+var
+  N, R: Cardinal;
+begin
+  N := Trunc(Random(MaxInt) * 2);
+  R := GetUInt32PowerOf2GreaterEqual(N);
+  ShowMessage(UInt64ToStr(N) + ' < ' + UInt64ToStr(R));
+end;
+
+procedure TFormNative.btnGetGT2Power64Click(Sender: TObject);
+var
+  N, R: TUInt64;
+begin
+  N := Trunc(Random(MaxInt) * 2);
+  N := UInt64Mul(N, N);
+  R := GetUInt64PowerOf2GreaterEqual(N);
+  ShowMessage(UInt64ToStr(N) + ' < ' + UInt64ToStr(R));
 end;
 
 end.

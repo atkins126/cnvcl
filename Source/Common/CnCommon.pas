@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2020 CnPack 开发组                       }
+{                   (C)Copyright 2001-2021 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -71,13 +71,16 @@ interface
 {$I CnPack.inc}
 
 uses
-  Windows, Messages, SysUtils, Classes, Graphics, Controls, Forms, Dialogs,
-  ComCtrls, Math, Menus, PsAPI, Registry, ComObj, CnNativeDecl,
+  SysUtils, Classes, TypInfo, IniFiles,
+{$IFDEF MSWINDOWS}
+  Windows, Messages, Graphics, Controls, Forms, Dialogs,
+  ComCtrls, Math, Menus, PsAPI, Registry, ComObj, FileCtrl, ShellAPI, CommDlg,
+  MMSystem, StdCtrls, TLHelp32, ActiveX, ShlObj, CheckLst, MultiMon,
+{$ENDIF}
 {$IFDEF COMPILER6_UP}
   StrUtils, Variants, Types,
 {$ENDIF}
-  FileCtrl, ShellAPI, CommDlg, MMSystem, StdCtrls, TLHelp32, ActiveX, ShlObj,
-  CnConsts, CnIni, CnIniStrUtils, CheckLst, IniFiles, MultiMon, TypInfo;
+  CnConsts, CnNativeDecl, CnIni, CnIniStrUtils;
 
 //------------------------------------------------------------------------------
 // 公共类型定义
@@ -375,6 +378,9 @@ function CompareTextWithPos(const ASubText, AText1, AText2: string;
 function StringReplaceNonAnsi(const S, OldPattern, NewPattern: string;
   Flags: TReplaceFlags): string;
 {* 非 Ansi 方式的字符串替换}
+
+function StringKMP(const Pattern, S: string): Integer;
+{* KMP 匹配算法，返回 S 中第一次出现 Pattern 的位置，位置以 1 开始，未匹配则返回 0}
 
 function Deltree(const Dir: string; DelRoot: Boolean = True;
   DelEmptyDirOnly: Boolean = False): Boolean;
@@ -4028,6 +4034,68 @@ begin
   end;
 end;
 
+// KMP 字符串匹配算法，返回 S 中第一次出现 Pattern 的位置，位置以 1 开始，未匹配则返回 0
+function StringKMP(const Pattern, S: string): Integer;
+var
+  LP, LS, I, J: Integer;
+  N: array of Integer;
+  PS, PP: PChar;
+
+  procedure CalcNext(P: PChar);
+  var
+    II, JJ: Integer;
+  begin
+    N[0] := -1;
+    II := 0;
+    JJ := -1;
+
+    while II < LP do
+    begin
+      if (JJ = -1) or (P[II] = P[JJ]) then
+      begin
+        Inc(II);
+        Inc(JJ);
+        N[II] := JJ;
+      end
+      else
+        JJ := N[JJ];
+    end;
+  end;
+
+begin
+  Result := 0;
+  if (Pattern = '') or (S = '') then
+    Exit;
+
+  LP := Length(Pattern);
+  LS := Length(S);
+  if LS < LP then
+    Exit;
+
+  PS := PChar(S);
+  PP := PChar(Pattern);
+
+  SetLength(N, LP + 1); // 注意 N 的下标从 0 到 LP - 1，但 CalcNext 中会用到 N[LP]
+  CalcNext(PP);
+
+  I := 0;
+  J := 0;
+  while (I < LS) and (J < LP) do
+  begin
+    if (J = -1) or (PS[I] = PP[J]) then
+    begin
+      Inc(I);
+      Inc(J);
+    end
+    else
+      J := N[J];
+  end;
+
+  SetLength(N, 0);
+  if J = LP then
+    Result := I - J + 1;
+end;
+
 // 创建备份文件
 function CreateBakFile(const FileName, Ext: string): Boolean;
 var
@@ -4045,28 +4113,29 @@ end;
 // 删除整个目录
 function Deltree(const Dir: string; DelRoot: Boolean; DelEmptyDirOnly: Boolean): Boolean;
 var
-  sr: TSearchRec;
-  fr: Integer;
+  SR: TSearchRec;
+  FR: Integer;
 begin
   Result := True;
   if not DirectoryExists(Dir) then
     Exit;
-  fr := FindFirst(AddDirSuffix(Dir) + '*.*', faAnyFile, sr);
+
+  FR := FindFirst(AddDirSuffix(Dir) + '*.*', faAnyFile, SR);
   try
-    while fr = 0 do
+    while FR = 0 do
     begin
-      if (sr.Name <> '.') and (sr.Name <> '..') then
+      if (SR.Name <> '.') and (SR.Name <> '..') then
       begin
-        SetFileAttributes(PChar(AddDirSuffix(Dir) + sr.Name), FILE_ATTRIBUTE_NORMAL);
-        if sr.Attr and faDirectory = faDirectory then
-          Result := Deltree(AddDirSuffix(Dir) + sr.Name, True, DelEmptyDirOnly)
+        SetFileAttributes(PChar(AddDirSuffix(Dir) + SR.Name), FILE_ATTRIBUTE_NORMAL);
+        if SR.Attr and faDirectory = faDirectory then
+          Result := Deltree(AddDirSuffix(Dir) + SR.Name, True, DelEmptyDirOnly)
         else if not DelEmptyDirOnly then
-          Result := DeleteFile(AddDirSuffix(Dir) + sr.Name);
+          Result := SysUtils.DeleteFile(AddDirSuffix(Dir) + SR.Name);
       end;
-      fr := FindNext(sr);
+      FR := FindNext(SR);
     end;
   finally
-    FindClose(sr);
+    SysUtils.FindClose(SR);
   end;
 
   if DelRoot then
@@ -4092,7 +4161,7 @@ begin
       fr := FindNext(sr);
     end;
   finally
-    FindClose(sr);
+    SysUtils.FindClose(sr);
   end;
 
   if DelRoot then
@@ -4121,7 +4190,7 @@ begin
     end;
     Fr := FindNext(Sr);
   end;
-  FindClose(Sr);
+  SysUtils.FindClose(Sr);
 end;
 
 // 根据指定类名查找窗体
@@ -4193,7 +4262,7 @@ function FindFile(const Path: string; const FileName: string = '*.*';
         Succ := FindNext(Info);
       end;
     finally
-      FindClose(Info);
+      SysUtils.FindClose(Info);
     end;
 
     if bSub then
@@ -4215,7 +4284,7 @@ function FindFile(const Path: string; const FileName: string = '*.*';
           Succ := FindNext(Info);
         end;
       finally
-        FindClose(Info);
+        SysUtils.FindClose(Info);
       end;
     end;
   end;
@@ -6601,6 +6670,7 @@ begin
         Item.Hint := AItem.Hint;
         Item.Tag := AItem.Tag;
         Item.ShortCut := AItem.ShortCut;
+        Item.Visible := AItem.Visible;
         Item.OnClick := AItem.OnClick;
 
         Item.Checked := AItem.Checked;

@@ -1,6 +1,6 @@
 object FormEcc: TFormEcc
   Left = 346
-  Top = 145
+  Top = 146
   Width = 860
   Height = 598
   Caption = 'ECC Test'
@@ -20,7 +20,7 @@ object FormEcc: TFormEcc
     Top = 16
     Width = 820
     Height = 535
-    ActivePage = tsInt64ECC
+    ActivePage = tsWrapData
     Anchors = [akLeft, akTop, akRight, akBottom]
     TabOrder = 0
     object tsSimpleECC: TTabSheet
@@ -765,6 +765,33 @@ object FormEcc: TFormEcc
           TabOrder = 17
           OnClick = btnInt64SchoofTestClick
         end
+        object btnInt64EccCountOrder: TButton
+          Left = 481
+          Top = 328
+          Width = 75
+          Height = 21
+          Caption = 'Count Order1'
+          TabOrder = 18
+          OnClick = btnInt64EccCountOrderClick
+        end
+        object btnInt64CountOrder1: TButton
+          Left = 481
+          Top = 360
+          Width = 75
+          Height = 21
+          Caption = 'Count Order2'
+          TabOrder = 19
+          OnClick = btnInt64CountOrder1Click
+        end
+        object btnInt64CountEccPoints3: TButton
+          Left = 481
+          Top = 392
+          Width = 75
+          Height = 21
+          Caption = 'Count Order3'
+          TabOrder = 20
+          OnClick = btnInt64CountEccPoints3Click
+        end
       end
     end
     object tsECC: TTabSheet
@@ -1243,31 +1270,39 @@ object FormEcc: TFormEcc
           OnClick = btnBNEccWrapRangeClick
         end
       end
-      object grpAttack: TGroupBox
-        Left = 16
-        Top = 360
-        Width = 780
-        Height = 129
-        Caption = 'Attack'
+      object btnEccSchoof: TButton
+        Left = 210
+        Top = 368
+        Width = 75
+        Height = 21
+        Caption = 'Schoof Test'
         TabOrder = 1
-        object btnSimpleAttack: TButton
-          Left = 16
-          Top = 24
-          Width = 75
-          Height = 25
-          Caption = 'Simple Attack'
-          TabOrder = 0
-          OnClick = btnSimpleAttackClick
-        end
-        object btnTestCRT: TButton
-          Left = 112
-          Top = 24
-          Width = 75
-          Height = 25
-          Caption = 'CRT Sample'
-          TabOrder = 1
-          OnClick = btnTestCRTClick
-        end
+        OnClick = btnEccSchoofClick
+      end
+      object btnSimpleAttack: TButton
+        Left = 16
+        Top = 368
+        Width = 75
+        Height = 21
+        Caption = 'Simple Attack'
+        TabOrder = 2
+        OnClick = btnSimpleAttackClick
+      end
+      object btnTestCRT: TButton
+        Left = 112
+        Top = 368
+        Width = 75
+        Height = 21
+        Caption = 'CRT Sample'
+        TabOrder = 3
+        OnClick = btnTestCRTClick
+      end
+      object mmoBNEccPoints: TMemo
+        Left = 304
+        Top = 368
+        Width = 217
+        Height = 121
+        TabOrder = 4
       end
     end
     object tsLucas: TTabSheet

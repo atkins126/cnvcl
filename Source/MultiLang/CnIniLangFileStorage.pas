@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2020 CnPack 开发组                       }
+{                   (C)Copyright 2001-2021 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -40,7 +40,7 @@ interface
 {$I CnPack.inc}
 
 uses
-  SysUtils, Classes, IniFiles, Dialogs, FileCtrl, CnCommon,
+  SysUtils, Classes, IniFiles, Dialogs, FileCtrl, CnCommon, CnLangCollection,
   CnConsts, CnIniStrUtils, CnWideStrings, CnLangStorage, CnHashLangStorage;
 
 const
@@ -54,15 +54,15 @@ type
   protected
     procedure InternalInit; override;
     procedure CreateCurrentLanguage; override;
-    procedure InitFromAFile(const AFileName: WideString); override;
+    procedure InitFromAFile(const AFileName: TCnLangString); override;
     procedure GetComponentInfo(var AName, Author, Email, Comment: string); override;
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
-    class function GetLanguageFileExt: WideString; override;
+    class function GetLanguageFileExt: TCnLangString; override;
     {* 返回多语言文件的扩展名.INI }
 
-    function IsLanguageFile(const FileName: WideString): Boolean; override;
+    function IsLanguageFile(const FileName: TCnLangString): Boolean; override;
     {* 判断一文件是否合法的语言文件 }
     function LoadCurrentLanguage: Boolean; override;
     {* 从 Ini 文件中载入当前语言条目，为翻译字串做准备 }
@@ -109,7 +109,7 @@ begin
 
 end;
 
-class function TCnCustomIniLangFileStorage.GetLanguageFileExt: WideString;
+class function TCnCustomIniLangFileStorage.GetLanguageFileExt: TCnLangString;
 begin
   Result := '.ini';
 end;
@@ -120,7 +120,7 @@ begin
 
 end;
 
-function TCnCustomIniLangFileStorage.IsLanguageFile(const FileName: WideString): Boolean;
+function TCnCustomIniLangFileStorage.IsLanguageFile(const FileName: TCnLangString): Boolean;
 var
   IniFile: TIniFile;
 begin
@@ -200,7 +200,7 @@ end;
 procedure TCnCustomIniLangFileStorage.SaveCurrentLanguage;
 var
   Sections, List: TStringList;
-  Key, Value, Sec: WideString;
+  Key, Value, Sec: TCnLangString;
   I, EPos: Integer;
 begin
   if Assigned(FIniFile) then
@@ -256,7 +256,7 @@ begin
   end;
 end;
 
-procedure TCnCustomIniLangFileStorage.InitFromAFile(const AFileName: WideString);
+procedure TCnCustomIniLangFileStorage.InitFromAFile(const AFileName: TCnLangString);
 begin
   // 从一语言文件读入语言内容
   if Assigned(FIniFile) then

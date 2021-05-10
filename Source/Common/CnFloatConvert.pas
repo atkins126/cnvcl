@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2020 CnPack 开发组                       }
+{                   (C)Copyright 2001-2021 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -52,7 +52,9 @@ unit CnFloatConvert;
 * 开发平台：WinXP + Delphi 2009
 * 兼容测试：Delphi 2007
 * 本 地 化：该单元中的字符串均符合本地化处理方式
-* 修改记录：2020.06.24
+* 修改记录：2020.11.11
+*               加入两个将 UInt64（不支持 UInt64 的以 Int64 代替）转换为浮点数的函数
+*           2020.06.24
 *               加入六个浮点数解开与拼凑的函数
 *           2009.1.12
 *               创建单元
@@ -127,6 +129,12 @@ procedure CombineFloatDouble(SignNegative: Boolean; Exponent: Integer;
 procedure CombineFloatExtended(SignNegative: Boolean; Exponent: Integer;
   Mantissa: TUInt64; var Value: Extended);
 {* 把符号位、指数、有效数字拼成扩展精度浮点数}
+
+function UInt64ToDouble(U: TUInt64): Double;
+{* 把用 Int64 有符号整型模拟的 64 位无符号整型赋值给 Double}
+
+function UInt64ToExtended(U: TUInt64): Extended;
+{* 把用 Int64 有符号整型模拟的 64 位无符号整型赋值给 Extended}
 
 function SingleIsInfinite(const AValue: Single): Boolean;
 {* 单精度浮点数是否无穷大}
@@ -916,6 +924,50 @@ begin
     PExtendedRec(@Value)^.ExpSign := PExtendedRec(@Value)^.ExpSign or CN_SIGN_EXTENDED_MASK
   else
     PExtendedRec(@Value)^.ExpSign := PExtendedRec(@Value)^.ExpSign and not CN_SIGN_EXTENDED_MASK;
+end;
+
+function UInt64ToDouble(U: TUInt64): Double;
+{$IFNDEF SUPPORT_UINT64}
+var
+  L, H: Cardinal;
+{$ENDIF}
+begin
+{$IFDEF SUPPORT_UINT64}
+  Result := U;
+{$ELSE}
+  if U < 0 then // Int64 小于 0 时，代表的 UInt64 是大于 Int64 的最大值的
+  begin
+    H := Int64Rec(U).Hi;
+    L := Int64Rec(U).Lo;
+    Result := Int64(H) * Int64(MAX_UINT16 + 1); // 拆开两步乘
+    Result := Result * (MAX_UINT16 + 1);
+    Result := Result + L;
+  end
+  else
+    Result := U;
+{$ENDIF}
+end;
+
+function UInt64ToExtended(U: TUInt64): Extended;
+{$IFNDEF SUPPORT_UINT64}
+var
+  L, H: Cardinal;
+{$ENDIF}
+begin
+{$IFDEF SUPPORT_UINT64}
+  Result := U;
+{$ELSE}
+  if U < 0 then // Int64 小于 0 时，代表的 UInt64 是大于 Int64 的最大值的
+  begin
+    H := Int64Rec(U).Hi;
+    L := Int64Rec(U).Lo;
+    Result := Int64(H) * Int64(MAX_UINT16 + 1); // 拆开两步乘
+    Result := Result * (MAX_UINT16 + 1);
+    Result := Result + L;
+  end
+  else
+    Result := U;
+{$ENDIF}
 end;
 
 function SingleIsInfinite(const AValue: Single): Boolean;
