@@ -112,10 +112,16 @@ begin
   FMemo.Lines.Add('');
   FMemo.Lines.Add('123');
   FMemo.Lines.Add('W°¡');
-  FMemo.Lines.Add('ÎÒ³Ô·¹');
-  FMemo.Lines.Add(' a c .');
+  FMemo.Lines.Add('ÎÒ³Ô·¹Ë¯¾õ´ò¶¹¶¹sleep eat hit¶¹¶¹');
+  FMemo.Lines.Add(' a c .¶¹¶¹sleep eat hit¶¹¡¡ËÍ´ï·½Ê½£¬£ó£ì£ì¡£---');
+  FMemo.Lines.Add('');
+  FMemo.Lines.Add(' ³Ôa ·¹');
+  FMemo.Lines.Add('--,.,.¡¡');
+  FMemo.Lines.Add('');
+
   FMemo.OnCaretChange := MemoCaretChange;
   FMemo.OnSelectChange := MemoSelectChange;
+  //FMemo.Font.Name := 'Courier New';
   FMemo.Parent := ts1;
 
   FTextControl := TCnTestVirtualText.Create(Self);
@@ -396,10 +402,10 @@ begin
   S := edtString.Text;
   for I := -1 to 50 do
   begin
-    if MapColumnToCharIndexes(S, I, L, R) then
+    if MapColumnToWideCharIndexes(S, I, L, R) then
       mmoColumnIndex.Lines.Add(Format('Col %d: Left Idx %d, Right Idx %d.', [I, L, R]));
 
-    if MapCharIndexToColumns(S, I, L, R, chkMapAfterEnd.Checked) then
+    if MapWideCharIndexToColumns(S, I, L, R, chkMapAfterEnd.Checked) then
       mmoIndexColumn.Lines.Add(Format('Idx %d: Left Col %d, Right Col %d.', [I, L, R]));
   end;
 end;
