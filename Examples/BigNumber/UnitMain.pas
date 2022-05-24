@@ -76,6 +76,23 @@ type
     btnBNSqrt: TButton;
     btnBNNextPrime: TButton;
     btnBNMulKaratsuba: TButton;
+    btnRoot: TButton;
+    btnIsPerfectPower: TButton;
+    btnComNum: TButton;
+    tsSparseBigNumberList: TTabSheet;
+    btnSBNLTest1: TButton;
+    edtSBNL: TEdit;
+    mmoSBNL: TMemo;
+    chkSparseUseSubMerge: TCheckBox;
+    edtSparseList2: TEdit;
+    btnSparseMerge: TButton;
+    mmoSBNL2: TMemo;
+    mmoSBNL3: TMemo;
+    btnBNAKS: TButton;
+    btnFloatToBigNumber: TButton;
+    btnBigNumberToFloat: TButton;
+    btnBNEuler: TButton;
+    btnMulDivFloat: TButton;
     procedure btnGen1Click(Sender: TObject);
     procedure btnGen2Click(Sender: TObject);
     procedure btnDupClick(Sender: TObject);
@@ -127,6 +144,16 @@ type
     procedure btnBNSqrtClick(Sender: TObject);
     procedure btnBNNextPrimeClick(Sender: TObject);
     procedure btnBNMulKaratsubaClick(Sender: TObject);
+    procedure btnRootClick(Sender: TObject);
+    procedure btnIsPerfectPowerClick(Sender: TObject);
+    procedure btnComNumClick(Sender: TObject);
+    procedure btnSBNLTest1Click(Sender: TObject);
+    procedure btnSparseMergeClick(Sender: TObject);
+    procedure btnBNAKSClick(Sender: TObject);
+    procedure btnFloatToBigNumberClick(Sender: TObject);
+    procedure btnBigNumberToFloatClick(Sender: TObject);
+    procedure btnBNEulerClick(Sender: TObject);
+    procedure btnMulDivFloatClick(Sender: TObject);
   private
     procedure CalcRandomLength;
     procedure ShowNumbers;
@@ -151,6 +178,9 @@ var
   Num1: TCnBigNumber = nil;
   Num2: TCnBigNumber = nil;
   Num3: TCnBigNumber = nil;
+  SpareList1: TCnSparseBigNumberList = nil;
+  SpareList2: TCnSparseBigNumberList = nil;
+  SpareList3: TCnSparseBigNumberList = nil;
   AWord: DWORD;
   RandomLength: Integer = 4096;
 
@@ -163,6 +193,10 @@ begin
   BigNumberClear(Num2);
   BigNumberClear(Num3);
   ShowNumbers;
+
+  SpareList1 := TCnSparseBigNumberList.Create;
+  SpareList2 := TCnSparseBigNumberList.Create;
+  SpareList3 := TCnSparseBigNumberList.Create;
 end;
 
 procedure TFormBigNumber.btnGen1Click(Sender: TObject);
@@ -516,6 +550,10 @@ end;
 
 procedure TFormBigNumber.FormDestroy(Sender: TObject);
 begin
+  SpareList1.Free;
+  SpareList2.Free;
+  SpareList3.Free;
+
   BigNumberFree(Num1);
   BigNumberFree(Num2);
   BigNumberFree(Num3);
@@ -700,7 +738,7 @@ begin
   U := 12345678900987654321;
   Num1.SetUInt64(U);
   ShowMessage(Num1.ToDec);
-  ShowMessage(Num1.GetUInt64.ToString);
+  ShowMessage(Format('%u', [Num1.GetUInt64]));
 {$ENDIF}
   I := -1234567890987654321;
   Num1.SetInt64(I);
@@ -880,6 +918,8 @@ begin
   if BigNumberSqrt(Res, Num1) then
     ShowResult(Res);
   BigNumberFree(Res);
+  if BigNumberSqrt(Num2, Num2) then
+    ShowNumbers;
 end;
 
 procedure TFormBigNumber.btnBNNextPrimeClick(Sender: TObject);
@@ -890,12 +930,171 @@ end;
 
 procedure TFormBigNumber.btnBNMulKaratsubaClick(Sender: TObject);
 var
+  I: Integer;
+  Tick: Cardinal;
   Res: TCnBigNumber;
 begin
   Res := BigNumberNew;
   if BigNumberMulKaratsuba(Res, Num1, Num2) then
     ShowResult(Res);
+
+  Tick := GetTickCount;
+  for I := 0 to 1000 do
+    BigNumberMul(Res, Num1, Num2);
+  ShowMessage(IntToStr(GetTickCount - Tick));
+
+  Tick := GetTickCount;
+  for I := 0 to 1000 do
+    BigNumberMulKaratsuba(Res, Num1, Num2);
+  ShowMessage(IntToStr(GetTickCount - Tick));
+
   BigNumberFree(Res);
+end;
+
+procedure TFormBigNumber.btnRootClick(Sender: TObject);
+var
+  R: TCnBigNumber;
+begin
+  if BigNumberRoot(Num2, Num1, seIntPower.Value) then
+    ShowNumbers;
+
+  // 验证 Num2 的 Power 小于等于 Num1，Num2 + 1 的 Power 大于 Num1
+  R := TCnBigNumber.Create;
+
+  BigNumberPower(R, Num2, seIntPower.Value);
+  if BigNumberCompare(R, Num1) <= 0 then
+    ShowMessage('Verify 1 OK');
+
+  BigNumberCopy(R, Num2);
+  BigNumberAddWord(R, 1);
+  BigNumberPower(R, R, seIntPower.Value);
+
+  if BigNumberCompare(R, Num1) > 0 then
+    ShowMessage('Verify 2 OK');
+
+  R.Free;
+end;
+
+procedure TFormBigNumber.btnIsPerfectPowerClick(Sender: TObject);
+begin
+  if BigNumberIsPerfectPower(Num1) then
+    ShowMessage('Num 1 is Perfect Power.')
+  else
+    ShowMessage('Num 1 is NOT Perfect Power.');
+end;
+
+procedure TFormBigNumber.btnComNumClick(Sender: TObject);
+var
+  I: Integer;
+  List: TCnBigNumberList;
+  P: TCnBigNumber;
+begin
+  List := TCnBigNumberList.Create;
+  try
+    BigNumberFillCombinatorialNumbers(List, 1000);
+    for I := 0 to List.Count - 1 do
+      if List[I] <> nil then
+        mmoResult.Lines.Add(Format('%4.4d  -  ', [I]) + List[I].ToDec)
+      else
+        mmoResult.Lines.Add(Format('%4.4d  -  !!!', [I]));
+
+    mmoResult.Lines.Add('');
+
+    P := TCnBigNumber.FromDec('31');
+    BigNumberFillCombinatorialNumbersMod(List, 29, P);
+    for I := 0 to List.Count - 1 do
+      if List[I] <> nil then
+        mmoResult.Lines.Add(Format('%4.4d  -  ', [I]) + List[I].ToDec)
+      else
+        mmoResult.Lines.Add(Format('%4.4d  -  !!!', [I]));
+    P.Free;
+  finally
+    List.Free;
+  end;
+end;
+
+procedure TFormBigNumber.btnSBNLTest1Click(Sender: TObject);
+var
+  S: array of Int64;
+begin
+  SetLength(S, 9);
+  S[0] := 2;
+  S[1] := -1;
+  S[2] := 3;
+  S[3] := 0;
+  S[4] := 9;
+  S[5] := 0;
+  S[6] := 10;
+  S[8] := 16;
+  SpareList1.SetValues(S);
+  SpareList1.Compact;
+  mmoSBNL.Lines.Text := SpareList1.ToString;
+
+  SpareList1.SafeValue[10].SetWord(666);
+  mmoSBNL.Lines.Text := SpareList1.ToString;
+end;
+
+procedure TFormBigNumber.btnSparseMergeClick(Sender: TObject);
+begin
+  SpareList1.AssignTo(SpareList2);
+
+  // SpareList2.SafeValue[3].SetInt64(18);
+  // SpareList2.SafeValue[7].SetInt64(-64);
+  SpareList2.SafeValue[9].SetInt64(-60);
+//  SpareList2.SafeValue[6].SetInt64(-10);
+  mmoSBNL2.Lines.Text := SpareList2.ToString;
+  SparseBigNumberListMerge(SpareList3, SpareList1, SpareList2,
+    not chkSparseUseSubMerge.Checked);
+  mmoSBNL3.Lines.Text := SpareList3.ToString;
+end;
+
+procedure TFormBigNumber.btnBNAKSClick(Sender: TObject);
+var
+  P: TCnBigNumber;
+  S: string;
+begin
+  S := '39779';
+  if InputQuery('Hint', 'Enter an Integer Value', S) then
+  begin
+    P := TCnBigNumber.FromDec(S);
+    if BigNumberAKSIsPrime(P) then
+      ShowMessage(S + ' Is a Prime')
+    else
+      ShowMessage('NOT Prime');
+    P.Free;
+  end;
+end;
+
+procedure TFormBigNumber.btnFloatToBigNumberClick(Sender: TObject);
+var
+  P: Extended;
+  S: string;
+begin
+  S := '120.3';
+  if InputQuery('Hint', 'Enter a Float Value', S) then
+  begin
+    P := StrToFloat(S);
+    if BigNumberSetFloat(P, Num1) then
+      ShowNumbers;
+  end;
+end;
+
+procedure TFormBigNumber.btnBigNumberToFloatClick(Sender: TObject);
+begin
+  ShowMessage(FloatToStr(BigNumberGetFloat(Num1)));
+end;
+
+procedure TFormBigNumber.btnBNEulerClick(Sender: TObject);
+begin
+  BigNumberEuler(Num1, Num2);
+  ShowNumbers;
+end;
+
+procedure TFormBigNumber.btnMulDivFloatClick(Sender: TObject);
+begin
+  BigNumberMulFloat(Num2, Num1, Pi);
+  BigNumberDivFloat(Num1, Num2, Pi);
+  ShowNumbers;
 end;
 
 end.

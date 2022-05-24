@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2021 CnPack 开发组                       }
+{                   (C)Copyright 2001-2022 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -39,7 +39,7 @@ interface
 
 uses
   SysUtils, Windows, Classes, Messages, Controls, Graphics, StdCtrls, ExtCtrls,
-  Dialogs, SysConst, CnTextControl, CnCommon;
+  Dialogs, SysConst, Forms, Clipbrd, CnTextControl, CnCommon;
 
 type
 {$IFDEF UNICODE}
@@ -137,11 +137,13 @@ type
   end;
 
 type
-  TCnMemo = class(TCnVirtualTextControl)
+  TCnStringsControl = class(TCnVirtualTextControl)
+  {* 有具体字符串列表显示功能的文本组件}
   private
     FStrings: TStringList;
     procedure StringsChange(Sender: TObject);
     function GetLines: TStringList;
+    function GetSelectText: string;
   protected
     procedure DoPaintLine(LineCanvas: TCanvas; LineNumber, HoriCharOffset: Integer;
       LineRect: TRect); override;
@@ -156,7 +158,7 @@ type
 
     function GetPrevColumn(AColumn, ARow: Integer): Integer; override;
 
-    function GetNextColumn(AColumn, ARow: Integer): Integer; override;
+    function GetNextColumn(AColumn, ARow: Integer; ACaretAfterLineEnd: Boolean): Integer; override;
 
     function GetNearestColumn(AColumn, ARow: Integer): Integer; override;
   public
@@ -166,9 +168,42 @@ type
     procedure LoadFromFile(const AFile: string);
     procedure SaveToFile(const AFile: string);
 
+    procedure CopySelectionToClipboard;
+    {* 将选择内容复制到剪贴板}
+
     property Lines: TStringList read GetLines;
+    property SelectText: string read GetSelectText;
   published
 
+  end;
+
+  TCnMemo = class(TCnStringsControl)
+  {* 有字符串编辑功能的文本组件}
+  private
+    FReadOnly: Boolean;
+    FPrevChar: Char;
+    procedure DisableStringsChange;
+    procedure EnableStringsChange;
+    function DeleteText(StartRow, StartCol, EndRow, EndCol: Integer): Boolean;
+    {* 删除起始行列到结束行列间的内容}
+    function InsertTextAt(const Text: string; ARow, ACol: Integer;
+      out DeltaRow, DeltaCol: Integer): Boolean;
+    {* 在指定光标位置处插入文本，并返回计算的光标移动偏移量供调用者移动}
+  protected
+    procedure WMKeyChar(var Message: TMessage); message WM_CHAR;
+    procedure KeyDown(var Key: WORD; Shift: TShiftState); override;
+
+  public
+    procedure DeleteSelection;
+    {* 删除选择区，但不重画}
+    procedure CutSelectionToClipboard;
+    {* 将选择区内容剪切至剪贴板}
+    procedure PasteFromClipboard;
+    {* 从剪贴板粘贴}
+
+    procedure InsertText(const Text: string);
+
+    property ReadOnly: Boolean read FReadOnly write FReadOnly;
   end;
 
 function MapColumnToWideCharIndexes(const S: TCnEditorString; AColumn: Integer;
@@ -187,7 +222,11 @@ function MapWideCharIndexToColumns(const S: TCnEditorString; ACharIndex: Integer
      False 时 LeftColumn 返回末列，RightColumn 未定义
        特别的：空字符串只有当 CharIndex >= 1 时 LeftColumn 返回 1，RightColumn 未定义
      True 时 CharInde 是末字符 + 1 对应 末列与末列 + 1，以空格堆叠过去以此类推
+   特别的，AfterEnd 为 False 且 CharIndex 超大如 MaxInt 时，LeftColumn 返回末列，
+     LeftColumn - 1 为该字符串所占的列宽
    }
+function GetColumnWidthFromWideString(const S: TCnEditorString): Integer;
+{* 返回宽字符串所占的列宽}
 
 implementation
 
@@ -560,7 +599,7 @@ end;
 function MapWideCharIndexToColumns(const S: TCnEditorString; ACharIndex: Integer;
   out LeftColumn, RightColumn: Integer; AfterEnd: Boolean): Boolean;
 var
-  L, I: Integer;
+  L, I, T: Integer;
   C: WideChar;
 begin
   Result := False;
@@ -594,7 +633,9 @@ begin
   begin
     C := S[I];
 
-    LeftColumn := RightColumn;
+    T := RightColumn; // 2 out can NOT direct assign
+    LeftColumn := T;
+
     if WideCharIsWideLength(C) then
       Inc(RightColumn, 2)
     else
@@ -615,16 +656,27 @@ begin
     end
     else
     begin
-      LeftColumn := RightColumn;
+      T := RightColumn;  // 2 out can NOT direct assign
+      LeftColumn := T;
       RightColumn := -1;
     end;
   end;
   Result := True;
 end;
 
-{ TCnMemo }
+function GetColumnWidthFromWideString(const S: TCnEditorString): Integer;
+var
+  R: Integer;
+begin
+  if MapWideCharIndexToColumns(S, MaxInt, Result, R) then
+    Dec(Result)
+  else
+    raise ECnTextControlException.Create(SCnTextControlErrorColumn);
+end;
 
-function TCnMemo.CalcColumnFromPixelOffsetInLine(ARow, VirtualX: Integer;
+{ TCnStringsControl }
+
+function TCnStringsControl.CalcColumnFromPixelOffsetInLine(ARow, VirtualX: Integer;
   out Col: Integer; out LeftHalf, DoubleWidth: Boolean): Boolean;
 var
   I, L, X, OldX, W2, T: Integer;
@@ -730,7 +782,7 @@ begin
   end;
 end;
 
-function TCnMemo.CalcPixelOffsetFromColumnInLine(ARow, ACol: Integer;
+function TCnStringsControl.CalcPixelOffsetFromColumnInLine(ARow, ACol: Integer;
   out Rect: TRect; out DoubleWidth: Boolean): Boolean;
 var
   W, DirectCalc: Boolean;
@@ -838,21 +890,30 @@ begin
   end;
 end;
 
-constructor TCnMemo.Create(AOwner: TComponent);
+procedure TCnStringsControl.CopySelectionToClipboard;
+var
+  S: string;
+begin
+  S := SelectText;
+  if S <> '' then
+    Clipboard.AsText := S;
+end;
+
+constructor TCnStringsControl.Create(AOwner: TComponent);
 begin
   inherited;
   FStrings := TStringList.Create;
   FStrings.OnChange := StringsChange;
 end;
 
-destructor TCnMemo.Destroy;
+destructor TCnStringsControl.Destroy;
 begin
   FStrings.OnChange := nil;
   FStrings.Clear;
   inherited;
 end;
 
-procedure TCnMemo.DoPaintLine(LineCanvas: TCanvas; LineNumber,
+procedure TCnStringsControl.DoPaintLine(LineCanvas: TCanvas; LineNumber,
   HoriCharOffset: Integer; LineRect: TRect);
 var
   S, S1: string;
@@ -875,16 +936,8 @@ begin
       SER := SelectEndRow;
       SEC := SelectEndCol;
 
-      if (SER < SSR) or ((SER = SSR) and (SEC < SSC)) then
-      begin
-        T := SER;
-        SER := SSR;
-        SSR := T;
-
-        T := SEC;
-        SEC := SSC;
-        SSC := T;
-      end;    // 确保 StartRow/Col 在 EndRow/Col 前面
+      MakeOrderSelection(SSR, SSC, SER, SEC);
+      // 确保 StartRow/Col 在 EndRow/Col 前面
 
       // 注意 SSC 与 SRC 是视觉列号也就是 Column，Ansi 下大部分类似于 Ansi 的字符下标
       // 但在 Unicode 环境下不能直接拿来做字符串下标，得转成字符串下标
@@ -1049,7 +1102,7 @@ begin
   end;
 end;
 
-function TCnMemo.GetLastColumnFromLine(LineNumber: Integer): Integer;
+function TCnStringsControl.GetLastColumnFromLine(LineNumber: Integer): Integer;
 var
   R: Integer;
 begin
@@ -1060,12 +1113,12 @@ begin
     MapWideCharIndexToColumns(FStrings[LineNumber], MaxInt, Result, R);
 end;
 
-function TCnMemo.GetLines: TStringList;
+function TCnStringsControl.GetLines: TStringList;
 begin
   Result := FStrings;
 end;
 
-function TCnMemo.GetNearestColumn(AColumn, ARow: Integer): Integer;
+function TCnStringsControl.GetNearestColumn(AColumn, ARow: Integer): Integer;
 var
   L, R: Integer;
 begin
@@ -1079,7 +1132,8 @@ begin
   end;
 end;
 
-function TCnMemo.GetNextColumn(AColumn, ARow: Integer): Integer;
+function TCnStringsControl.GetNextColumn(AColumn, ARow: Integer;
+  ACaretAfterLineEnd: Boolean): Integer;
 var
   L, R: Integer;
 begin
@@ -1090,7 +1144,7 @@ begin
   begin
     if not MapColumnToWideCharIndexes(FStrings[ARow], AColumn, L, R) then
       Exit;
-    if not MapWideCharIndexToColumns(FStrings[ARow], R, L, Result, CaretAfterLineEnd) then
+    if not MapWideCharIndexToColumns(FStrings[ARow], R, L, Result, ACaretAfterLineEnd) then
       Exit;
 
     if Result = -1 then // 超过末列时返回末列
@@ -1098,7 +1152,7 @@ begin
   end;
 end;
 
-function TCnMemo.GetPrevColumn(AColumn, ARow: Integer): Integer;
+function TCnStringsControl.GetPrevColumn(AColumn, ARow: Integer): Integer;
 var
   L, R: Integer;
 begin
@@ -1117,27 +1171,561 @@ begin
   end;
 end;
 
-procedure TCnMemo.LoadFromFile(const AFile: string);
+function TCnStringsControl.GetSelectText: string;
+var
+  SSR, SSC, SER, SEC, I, Line, T, NewValue: Integer;
+  S: string;
+{$IFNDEF UNICODE}
+  WS: WideString;
+{$ENDIF}
+begin
+  Result := '';
+  if HasSelection then
+  begin
+    SSR := SelectStartRow;
+    SSC := SelectStartCol;
+    SER := SelectEndRow;
+    SEC := SelectEndCol;
+
+    MakeOrderSelection(SSR, SSC, SER, SEC);
+    // 确保 StartRow/Col 在 EndRow/Col 前面
+
+    if SSR = SER then
+    begin
+      Line := SSR - 1;
+      if (Line >= 0) and (Line < FStrings.Count) then
+      begin
+        S := FStrings[Line];
+{$IFNDEF UNICODE}
+        WS := WideString(S);
+{$ENDIF}
+
+        if MapColumnToWideCharIndexes(S, SSC, T, NewValue) then
+        begin
+{$IFDEF UNICODE}
+          SSC := NewValue;
+{$ELSE}
+          SSC := CalcAnsiLengthFromWideStringOffset(PWideChar(WS), NewValue - 1) + 1;
+{$ENDIF}
+        end;
+
+        if MapColumnToWideCharIndexes(S, SEC, T, NewValue) then
+        begin
+{$IFDEF UNICODE}
+          SEC := NewValue;
+{$ELSE}
+          SEC := CalcAnsiLengthFromWideStringOffset(PWideChar(WS), NewValue - 1) + 1;
+{$ENDIF}
+        end;
+
+        // 截取 S 的中间
+        Result := Copy(S, SSC, SEC - SSC); 
+      end;
+    end
+    else
+    begin
+      for I := SSR to SER do
+      begin
+        Line := I - 1;
+        if (Line < 0) or (Line >= FStrings.Count) then
+        begin
+          Result := Result + CRLF;
+          Continue;
+        end;
+
+        // S 是当前行内容
+        S := FStrings[Line];
+        if I = SSR then
+        begin
+          // 拿首行，这到尾
+          if MapColumnToWideCharIndexes(S, SSC, T, NewValue) then
+          begin
+{$IFDEF UNICODE}
+            SSC := NewValue;
+{$ELSE}
+            WS := WideString(S);
+            SSC := CalcAnsiLengthFromWideStringOffset(PWideChar(WS), NewValue - 1) + 1;
+{$ENDIF}
+            Result := Copy(S, SSC, MaxInt);
+          end;
+        end
+        else if I = SER then
+        begin
+          // 拿末行，头到这
+          if MapColumnToWideCharIndexes(S, SEC, T, NewValue) then
+          begin
+{$IFDEF UNICODE}
+            SEC := NewValue;
+{$ELSE}
+            WS := WideString(S);
+            SEC := CalcAnsiLengthFromWideStringOffset(PWideChar(WS), NewValue - 1) + 1;
+{$ENDIF}
+            Result := Result + CRLF + Copy(S, 1, SEC - 1);
+          end
+          else
+            Result := Result + CRLF + S; // Column 转换失败说明超过字符串尾巴了，全加上
+        end
+        else // 拿整行
+        begin
+          Result := Result + CRLF + S;
+        end;
+      end;
+    end;
+  end;
+end;
+
+procedure TCnStringsControl.LoadFromFile(const AFile: string);
 begin
   FStrings.LoadFromFile(AFile);
 end;
 
-procedure TCnMemo.SaveToFile(const AFile: string);
+procedure TCnStringsControl.SaveToFile(const AFile: string);
 begin
   FStrings.SaveToFile(AFile);
 end;
 
-procedure TCnMemo.StringsChange(Sender: TObject);
-var
-  R: TRect;
+procedure TCnStringsControl.StringsChange(Sender: TObject);
 begin
-  MaxLineCount := FStrings.Count;
-  ScrollToVisibleCaret;
-
-  if HandleAllocated then
+  if FStrings.Count <> MaxLineCount then
   begin
-    R := ClientRect;
-    InvalidateRect(Handle, @R, False);
+    MaxLineCount := FStrings.Count;
+
+    if HandleAllocated then
+      Invalidate;
+  end;
+end;
+
+{ TCnMemo }
+
+procedure TCnMemo.CutSelectionToClipboard;
+var
+  S: string;
+begin
+  if FReadOnly then
+    Exit;
+
+  S := SelectText;
+  if S <> '' then
+  begin
+    Clipboard.AsText := S;
+    DeleteSelection;
+    Invalidate;
+  end;
+end;
+
+procedure TCnMemo.DeleteSelection;
+begin
+  if not FReadOnly and HasSelection then
+  begin
+    MakeOrderSelection(FSelectStartRow, FSelectStartCol, FSelectEndRow, FSelectEndCol);
+    DeleteText(FSelectStartRow, FSelectStartCol, FSelectEndRow, FSelectEndCol);
+    SetCaretRowCol(FSelectStartRow, FSelectStartCol);
+    SyncSelectionStartEnd(True);
+    ScrollToVisibleCaret;
+    DoSelectChange;
+  end;
+end;
+
+function TCnMemo.DeleteText(StartRow, StartCol, EndRow,
+  EndCol: Integer): Boolean;
+var
+  SSR, SSC, SER, SEC, I, Line, T, NewValue: Integer;
+  S, LastS: string;
+{$IFNDEF UNICODE}
+  WS: WideString;
+{$ENDIF}
+begin
+  Result := False;
+  if (StartRow = EndRow) and (StartCol = EndCol) then
+    Exit;
+
+  SSR := StartRow;
+  SSC := StartCol;
+  SER := EndRow;
+  SEC := EndCol;
+
+  MakeOrderSelection(SSR, SSC, SER, SEC);
+  // 确保 StartRow/Col 在 EndRow/Col 前面
+
+  try
+    FStrings.BeginUpdate;
+    if SSR = SER then
+    begin
+      Line := SSR - 1;
+      if (Line >= 0) and (Line < FStrings.Count) then
+      begin
+        S := FStrings[Line];
+{$IFNDEF UNICODE}
+        WS := WideString(S);
+{$ENDIF}
+
+        if MapColumnToWideCharIndexes(S, SSC, T, NewValue) then
+        begin
+{$IFDEF UNICODE}
+          SSC := NewValue;
+{$ELSE}
+          SSC := CalcAnsiLengthFromWideStringOffset(PWideChar(WS), NewValue - 1) + 1;
+{$ENDIF}
+        end;
+
+        if MapColumnToWideCharIndexes(S, SEC, T, NewValue) then
+        begin
+{$IFDEF UNICODE}
+          SEC := NewValue;
+{$ELSE}
+          SEC := CalcAnsiLengthFromWideStringOffset(PWideChar(WS), NewValue - 1) + 1;
+{$ENDIF}
+        end;
+
+        // 删除 S 的中间，从 SSC 开始，长 SEC - SSC 的字符
+        Delete(S, SSC, SEC - SSC);
+        FStrings[Line] := S;
+        Result := True;
+      end;
+    end
+    else
+    begin
+      LastS := '';
+      for I := SER downto SSR do
+      begin
+        Line := I - 1;
+        if (Line < 0) or (Line >= FStrings.Count) then
+          Continue;
+
+        // S 是当前行内容
+        S := FStrings[Line];
+        if I = SSR then
+        begin
+          // 删首行中，这到尾的内容
+          if MapColumnToWideCharIndexes(S, SSC, T, NewValue) then
+          begin
+{$IFDEF UNICODE}
+            SSC := NewValue;
+{$ELSE}
+            WS := WideString(S);
+            SSC := CalcAnsiLengthFromWideStringOffset(PWideChar(WS), NewValue - 1) + 1;
+{$ENDIF}
+            Delete(S, SSC, MaxInt);
+          end
+          else
+          begin
+            // 如果光标超末尾，则 S 要加上相应的空格到指定 SSC
+            T := GetLastColumnFromLine(SSR);
+            if SSC > T then
+              S := S + StringOfChar(' ', SSC - T);
+          end;
+
+          if LastS <> '' then // 再拼上末行剩下的内容
+            S := S + LastS;
+          FStrings[Line] := S;;
+        end
+        else if I = SER then
+        begin
+          // 删末行中，头到这的内容
+          if MapColumnToWideCharIndexes(S, SEC, T, NewValue) then
+          begin
+{$IFDEF UNICODE}
+            SEC := NewValue;
+{$ELSE}
+            WS := WideString(S);
+            SEC := CalcAnsiLengthFromWideStringOffset(PWideChar(WS), NewValue - 1) + 1;
+{$ENDIF}
+            Delete(S, 1, SEC - 1);
+
+            // 此时末行剩下这部分内容，最后还要拼到首行头上去，末行本身不用改动
+            LastS := S;
+          end;
+          FStrings.Delete(Line); // Column 转换失败表示超过行尾，要全删，删后就不用往上拼了
+        end
+        else // 拿整行
+        begin
+          FStrings.Delete(Line);
+        end;
+      end;
+      Result := True;
+    end;
+  finally
+    FStrings.EndUpdate;
+  end;
+end;
+
+procedure TCnMemo.DisableStringsChange;
+begin
+  FStrings.OnChange := nil;
+end;
+
+procedure TCnMemo.EnableStringsChange;
+begin
+  FStrings.OnChange := StringsChange;
+end;
+
+procedure TCnMemo.InsertText(const Text: string);
+var
+  DR, DC: Integer;
+begin
+  if not UseCaret or FReadOnly then
+    Exit;
+
+  if UseSelection and HasSelection then
+    DeleteSelection;
+
+  InsertTextAt(Text, CaretRow, CaretCol, DR, DC);
+  SetCaretRowCol(CaretRow + DR, CaretCol + DC);
+
+  ScrollToVisibleCaret;
+  Invalidate;
+end;
+
+function TCnMemo.InsertTextAt(const Text: string; ARow, ACol: Integer;
+  out DeltaRow, DeltaCol: Integer): Boolean;
+var
+  SL: TStringList;
+  I, P, T, NewValue, OldCol: Integer;
+  S, LastS: string;
+{$IFNDEF UNICODE}
+  WS: WideString;
+{$ENDIF}
+begin
+  Result := False;
+  if (ARow <= 0) or (ACol <= 0) then
+    Exit;
+
+  if ARow > MaxLineCount then
+    Exit;
+
+  SetCaretRowCol(ARow, ACol);
+
+  // 解析 Text 为多个回车分开的内容
+  S := Text;
+  SL := TStringList.Create;
+  FStrings.BeginUpdate;
+
+  try
+    P := Pos(CRLF, S);
+    if P > 0 then
+    begin
+      // 有回车
+      while P > 0 do
+      begin
+        SL.Add(Copy(S, 1, P - 1));
+        Delete(S, 1, P - 1 + Length(CRLF));
+        P := Pos(CRLF, S);
+      end;
+      SL.Add(S); // 最后一个回车后面的部分
+    end
+    else
+      SL.Add(S); // 没回车，直接加
+
+    if SL.Count = 1 then
+    begin
+      // 单行，拿 ARow 行内容，找插入的 CharIndex
+      S := FStrings[ARow - 1];
+      DeltaRow := 0;
+      DeltaCol := 0;
+
+      // 删首行中，这到尾的内容
+      if MapColumnToWideCharIndexes(S, ACol, T, NewValue) then
+      begin
+{$IFDEF UNICODE}
+        ACol := NewValue;
+{$ELSE}
+        WS := WideString(S);
+        ACol := CalcAnsiLengthFromWideStringOffset(PWideChar(WS), NewValue - 1) + 1;
+{$ENDIF}
+        FStrings[ARow - 1] := Copy(S, 1, ACol - 1) + SL[0] + Copy(S, ACol, MaxInt);
+      end
+      else
+      begin
+        // 如果光标超末尾，则 S 要加上相应的空格到指定 SSC
+        T := GetLastColumnFromLine(ARow);
+        if ACol > T then
+        begin
+          S := S + StringOfChar(' ', ACol - T);
+          Inc(DeltaCol, ACol - T);
+        end;
+        FStrings[ARow - 1] := S + SL[0];
+      end;
+      Inc(DeltaCol, GetColumnWidthFromWideString(SL[0]));
+      Result := True;
+    end
+    else
+    begin
+      DeltaRow := SL.Count - 1;
+      LastS := '';
+      OldCol := ACol;
+
+      P := 0; // 复用 P 作为插行的增量
+      for I := 0 to SL.Count - 1 do
+      begin
+        // 挨个插入 SL[I]
+        if I = 0 then
+        begin
+          // 第 CaretRow 行的 CaretCol 对应的字符前面的内容 + S[0]
+          // 取出首行中，光标前后的内容
+          S := FStrings[ARow - 1];
+          if MapColumnToWideCharIndexes(S, ACol, T, NewValue) then
+          begin
+{$IFDEF UNICODE}
+            ACol := NewValue;
+{$ELSE}
+            WS := WideString(S);
+            ACol := CalcAnsiLengthFromWideStringOffset(PWideChar(WS), NewValue - 1) + 1;
+{$ENDIF}
+            FStrings[ARow - 1] := Copy(S, 1, ACol - 1) + SL[0];
+            LastS := Copy(S, ACol, MaxInt);
+          end
+          else
+          begin
+            // 如果光标超末尾，则 S 要加上相应的空格到指定 SSC
+            T := GetLastColumnFromLine(ARow);
+            if ACol > T then
+              S := S + StringOfChar(' ', ACol - T);
+            FStrings[ARow - 1] := S + SL[0];
+          end;
+        end
+        else if I = SL.Count - 1 then
+        begin
+          // SL[LAST] 拼在原有的 LastS 之前
+          FStrings.Insert(ARow - 1 + I, '');
+          FStrings[ARow - 1 + I] := SL[I] + LastS;
+          DeltaCol := 1 + GetColumnWidthFromWideString(SL[I]) - OldCol;
+          // SL[Last] 在行头，会把光标朝右推 GetColumnWidthFromWideString，所以末尾要加一
+        end
+        else
+        begin
+          FStrings.Insert(ARow + P, SL[I]); // 都在原处插的话，后来的会插到先来的后面，所以需要一个 P 累加
+          Inc(P);
+        end;
+      end;
+    end;
+  finally
+    FStrings.EndUpdate;
+    SL.Free;
+  end;
+end;
+
+procedure TCnMemo.KeyDown(var Key: WORD; Shift: TShiftState);
+var
+  SR, SC, ER, EC, NC: Integer;
+begin
+  inherited;
+
+  if Key = VK_DELETE then
+  begin
+    if FReadOnly then
+      Exit;
+
+    if UseSelection and HasSelection then // 有选择区就删选择区，光标要停留在顺序的 StartRow/Col
+      DeleteSelection
+    else
+    begin
+      // 删光标后的字符，如果后面没字符，则把下一行拼上来并删下一行，如果没下一行就啥都不做
+      SR := CaretRow;
+      SC := CaretCol;
+      ER := CaretRow;
+      EC := CaretCol;
+
+      // 如果 EC 是行尾或超出行尾，则跑下一行
+      if EC >= GetLastColumnFromLine(SR) then
+      begin
+        Inc(ER);
+        EC := 1;
+      end
+      else
+        EC := GetNextColumn(SC, SR, False);
+
+      DeleteText(SR, SC, ER, EC);
+      SetCaretRowCol(SR, SC);
+      SyncSelectionStartEnd(True);
+      ScrollToVisibleCaret;
+      Invalidate;
+    end;
+  end
+  else if Key = VK_BACK then
+  begin
+    if FReadOnly then
+      Exit;
+
+    if UseSelection and HasSelection then // 有选择区就删选择区，光标要停留在顺序的 StartRow/Col
+      DeleteSelection
+    else
+    begin
+      // 删光标前的字符，如果前面没字符，则把当前行往上拼并删当前行，如果没上一行就啥都不做
+      SR := CaretRow;
+      SC := CaretCol;
+      ER := CaretRow;
+      EC := CaretCol;
+      NC := GetPrevColumn(SC, SR);
+      if NC = SC then // 前面没字符了，跑上一行
+      begin
+        if SR = 1 then
+          Exit;
+
+        Dec(SR);
+        SC := GetLastColumnFromLine(SR);
+      end
+      else
+        SC := NC;
+
+      DeleteText(SR, SC, ER, EC);
+      SetCaretRowCol(SR, SC);
+      SyncSelectionStartEnd(True);
+      ScrollToVisibleCaret;
+      Invalidate;
+    end;
+  end;
+end;
+
+procedure TCnMemo.PasteFromClipboard;
+var
+  S: string;
+begin
+  if FReadOnly then
+    Exit;
+
+  S := ClipBoard.AsText;
+  if S <> '' then
+    InsertText(S);
+end;
+
+procedure TCnMemo.WMKeyChar(var Message: TMessage);
+var
+  Key: Word;
+  Ch: Char;
+begin
+  Key := Message.wParam;
+  Ch := Char(Key);
+
+  if FReadOnly then
+    Exit;
+
+  if Ch in [#13, #10] then
+    InsertText(CRLF)
+  else if Ch = #8 then
+  begin
+    // TODO: 处理 Tab
+  end
+  else if Ord(Ch) >= Ord(20) then
+  begin
+{$IFDEF UNICODE}
+    InsertText(string(Ch)); // Unicode 时输入法敲出来的双字节字符直接通过一个 WM_CHAR 发来
+{$ELSE}
+    if Ord(Ch) > 127 then // 非 Unicode 时输入法敲出来的双字节字符会连来两个 WM_CHAR
+    begin
+      if FPrevChar <> #0 then
+      begin
+        InsertText(string(FPrevChar) + string(Ch));
+        FPrevChar := #0;
+      end
+      else
+        FPrevChar := Ch;
+    end
+    else
+    begin
+      InsertText(string(Ch));
+      FPrevChar := #0;
+    end;
+{$ENDIF}
   end;
 end;
 

@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2021 CnPack 开发组                       }
+{                   (C)Copyright 2001-2022 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -28,7 +28,13 @@ unit CnKDF;
 * 开发平台：WinXP + Delphi 5.0
 * 兼容测试：暂未进行
 * 本 地 化：该单元无需本地化处理
-* 修改记录：2020.03.30 V1.0
+* 修改记录：2022.04.26 V1.3
+*               修改 LongWord 与 Integer 地址转换以支持 MacOS64
+*           2022.01.02 V1.2
+*               修正 CnPBKDF2 的一处问题以及在 Unicode 下的兼容性问题
+*           2021.11.25 V1.1
+*               修正 CnSM2KDF 在 Unicode 下的兼容性问题
+*           2020.03.30 V1.0
 *               创建单元，从 CnPemUtils 中独立出来
 ================================================================================
 |</PRE>}
@@ -38,14 +44,16 @@ interface
 {$I CnPack.inc}
 
 uses
-  SysUtils, Classes, CnMD5, CnSHA1, CnSHA2, CnSM3;
+  SysUtils, Classes, CnNativeDecl, CnMD5, CnSHA1, CnSHA2, CnSM3;
 
 type
   TCnKeyDeriveHash = (ckdMd5, ckdSha256, ckdSha1);
 
   TCnPBKDF1KeyHash = (cpdfMd2, cpdfMd5, cpdfSha1);
+  {* PBKDF1 规定的三种 Hash 途径}
 
   TCnPBKDF2KeyHash = (cpdfSha1Hmac, cpdfSha256Hmac);
+  {* PBKDF2 规定的两种 Hash 途径}
 
   ECnKDFException = class(Exception);
 
@@ -65,7 +73,14 @@ function CnPBKDF2(const Password, Salt: AnsiString; Count, DerivedKeyLength: Int
    DerivedKeyLength 是所需的密钥字节数，长度可变，允许超长}
 
 function CnSM2KDF(const Data: AnsiString; DerivedKeyLength: Integer): AnsiString;
-{* SM2 椭圆曲线公钥密码算法中规定的密钥派生函数，DerivedKeyLength 是所需的密钥字节数}
+{* SM2 椭圆曲线公钥密码算法中规定的密钥派生函数，DerivedKeyLength 是所需的密钥字节数，
+  均不支持规范中说的非整字节数，行为可能和下面的 CnSM9KDF 等同，
+  同时似乎也是没有 SharedInfo 的 ANSI-X9.63-KDF}
+
+function CnSM9KDF(Data: Pointer; DataLen: Integer; DerivedKeyLength: Integer): AnsiString;
+{* SM9 标识密码算法中规定的密钥派生函数，DerivedKeyLength 是所需的密钥字节数，
+  均不支持规范中说的非整字节数，行为可能和上面的 CnSM2KDF 等同，
+  同时似乎也是没有 SharedInfo 的 ANSI-X9.63-KDF}
 
 implementation
 
@@ -118,7 +133,7 @@ begin
     end;
 
     KeyLength := KeyLength - SizeOf(TMD5Digest);
-    OutKey := PAnsiChar(Integer(OutKey) + SizeOf(TMD5Digest));
+    OutKey := PAnsiChar(TCnNativeInt(OutKey) + SizeOf(TMD5Digest));
 
     Move(Md5Dig[0], PSMD5[1], SizeOf(TMD5Digest));
     Md5Dig2 := MD5StringA(PSMD5);
@@ -143,7 +158,7 @@ begin
     end;
 
     KeyLength := KeyLength - SizeOf(TSHA256Digest);
-    OutKey := PAnsiChar(Integer(OutKey) + SizeOf(TSHA256Digest));
+    OutKey := PAnsiChar(TCnNativeInt(OutKey) + SizeOf(TSHA256Digest));
 
     Move(Sha256Dig[0], PSSHA256[1], SizeOf(TSHA256Digest));
     Sha256Dig2 := SHA256StringA(PSSHA256);
@@ -237,7 +252,7 @@ var
   S, S1, S256: AnsiString;
 begin
   Result := '';
-  if (Password = '') or (Salt = '') or (Count <= 0) or (DerivedKeyLength <=0) then
+  if {(Password = '') or} (Salt = '') or (Count <= 0) or (DerivedKeyLength <=0) then
     raise ECnKDFException.Create(SCnKDFErrorParam);
 
   case KeyHash of
@@ -257,7 +272,11 @@ begin
   begin
     for I := 1 to D do
     begin
+{$IFDEF UNICODE}
+      S := Salt + AnsiChar(I shr 24) + AnsiChar(I shr 16) + AnsiChar(I shr 8) + AnsiChar(I);
+{$ELSE}
       S := Salt + Chr(I shr 24) + Chr(I shr 16) + Chr(I shr 8) + Chr(I);
+{$ENDIF}
       SHA1Hmac(PAnsiChar(Password), Length(Password), PAnsiChar(S), Length(S), Sha1Dig1);
       T1 := Sha1Dig1;
 
@@ -278,7 +297,11 @@ begin
   begin
     for I := 1 to D do
     begin
+{$IFDEF UNICODE}
+      S := Salt + AnsiChar(I shr 24) + AnsiChar(I shr 16) + AnsiChar(I shr 8) + AnsiChar(I);
+{$ELSE}
       S := Salt + Chr(I shr 24) + Chr(I shr 16) + Chr(I shr 8) + Chr(I);
+{$ENDIF}
       SHA256Hmac(PAnsiChar(Password), Length(Password), PAnsiChar(S), Length(S), Sha256Dig1);
       T256 := Sha256Dig1;
 
@@ -287,7 +310,7 @@ begin
         SHA256Hmac(PAnsiChar(Password), Length(Password), PAnsiChar(@T256[0]), SizeOf(TSHA256Digest), Sha256Dig);
         T256 := Sha256Dig;
         for K := Low(TSHA256Digest) to High(TSHA256Digest) do
-          Sha256Dig1[K] := Sha256Dig1[K] xor T1[K];
+          Sha256Dig1[K] := Sha256Dig1[K] xor T256[K];
       end;
 
       Move(Sha256Dig1[0], S256[1], SizeOf(TSHA256Digest));
@@ -311,12 +334,67 @@ begin
   D := DerivedKeyLength div SizeOf(TSM3Digest) + 1;
   for I := 1 to D do
   begin
+{$IFDEF UNICODE}
+    S := Data + AnsiChar(I shr 24) + AnsiChar(I shr 16) + AnsiChar(I shr 8) + AnsiChar(I);
+{$ELSE}
     S := Data + Chr(I shr 24) + Chr(I shr 16) + Chr(I shr 8) + Chr(I);
+{$ENDIF}
     Dig := SM3StringA(S);
     Move(Dig[0], SDig[1], SizeOf(TSM3Digest));
     Result := Result + SDig;
   end;
   Result := Copy(Result, 1, DerivedKeyLength);
+end;
+
+function CnSM9KDF(Data: Pointer; DataLen: Integer; DerivedKeyLength: Integer): AnsiString;
+var
+  DArr: array of Byte;
+  CT, SCT: Cardinal;
+  I, CeilLen: Integer;
+  IsInt: Boolean;
+  SM3D: TSM3Digest;
+
+  function SwapCardinal(Value: Cardinal): Cardinal;
+  begin
+    Result := ((Value and $000000FF) shl 24) or ((Value and $0000FF00) shl 8)
+      or ((Value and $00FF0000) shr 8) or ((Value and $FF000000) shr 24);
+  end;
+
+begin
+  Result := '';
+  if (Data = nil) or (DataLen <= 0) or (DerivedKeyLength <= 0) then
+    raise ECnKDFException.Create(SCnKDFErrorParam);
+
+  DArr := nil;
+  CT := 1;
+
+  try
+    SetLength(DArr, DataLen + SizeOf(Cardinal));
+    Move(Data^, DArr[0], DataLen);
+
+    IsInt := DerivedKeyLength mod SizeOf(TSM3Digest) = 0;
+    CeilLen := (DerivedKeyLength + SizeOf(TSM3Digest) - 1) div SizeOf(TSM3Digest);
+
+    SetLength(Result, DerivedKeyLength);
+    for I := 1 to CeilLen do
+    begin
+      SCT := SwapCardinal(CT);  // 虽然文档中没说，但要倒序一下
+      Move(SCT, DArr[DataLen], SizeOf(Cardinal));
+      SM3D := SM3(@DArr[0], Length(DArr));
+
+      if (I = CeilLen) and not IsInt then
+      begin
+        // 是最后一个，不整除 32 时只移动一部分
+        Move(SM3D[0], Result[(I - 1) * SizeOf(TSM3Digest) + 1], (DerivedKeyLength mod SizeOf(TSM3Digest)));
+      end
+      else
+        Move(SM3D[0], Result[(I - 1) * SizeOf(TSM3Digest) + 1], SizeOf(TSM3Digest));
+
+      Inc(CT);
+    end;
+  finally
+    SetLength(DArr, 0);
+  end;
 end;
 
 end.

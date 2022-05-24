@@ -261,6 +261,15 @@ object FormRSA: TFormRSA
           TabOrder = 5
         end
       end
+      object btnInt64Sample: TButton
+        Left = 896
+        Top = 24
+        Width = 75
+        Height = 25
+        Caption = 'Int64 Sample'
+        TabOrder = 2
+        OnClick = btnInt64SampleClick
+      end
     end
     object tsRSA: TTabSheet
       Caption = 'Big Number RSA'
@@ -616,7 +625,7 @@ object FormRSA: TFormRSA
         Top = 344
         Width = 967
         Height = 205
-        ActivePage = tsSign
+        ActivePage = tsData
         Anchors = [akLeft, akTop, akRight, akBottom]
         Images = ilCrypt
         MultiLine = True
@@ -789,6 +798,14 @@ object FormRSA: TFormRSA
             TabOrder = 7
             OnClick = btnDePubClick
           end
+          object chkOAEP: TCheckBox
+            Left = 392
+            Top = 42
+            Width = 97
+            Height = 17
+            Caption = 'OAEP Padding'
+            TabOrder = 8
+          end
         end
         object tsSign: TTabSheet
           Hint = 'Sign/Verify File'
@@ -810,7 +827,7 @@ object FormRSA: TFormRSA
             Caption = 'Signature File:'
           end
           object lblSigMethod: TLabel
-            Left = 680
+            Left = 674
             Top = 42
             Width = 94
             Height = 13
@@ -820,13 +837,13 @@ object FormRSA: TFormRSA
           object edtSignFile: TEdit
             Left = 88
             Top = 8
-            Width = 753
+            Width = 747
             Height = 21
             Anchors = [akLeft, akTop, akRight]
             TabOrder = 0
           end
           object btnSignBrowse: TButton
-            Left = 848
+            Left = 842
             Top = 8
             Width = 75
             Height = 21
@@ -847,14 +864,14 @@ object FormRSA: TFormRSA
           object edtSigFile: TEdit
             Left = 88
             Top = 72
-            Width = 753
+            Width = 747
             Height = 21
             Anchors = [akLeft, akTop, akRight]
             ReadOnly = True
             TabOrder = 3
           end
           object btnSignatureBrowse: TButton
-            Left = 848
+            Left = 842
             Top = 72
             Width = 75
             Height = 21
@@ -883,7 +900,7 @@ object FormRSA: TFormRSA
             OnClick = btnPubVerifyClick
           end
           object cbbSig: TComboBox
-            Left = 784
+            Left = 778
             Top = 40
             Width = 65
             Height = 21

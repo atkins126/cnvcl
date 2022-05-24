@@ -51,6 +51,16 @@ type
     mmoIndexColumn: TMemo;
     statMemo: TStatusBar;
     chkMapAfterEnd: TCheckBox;
+    mmoSelection: TMemo;
+    edtMemoInsert: TEdit;
+    btnMemoInsert: TButton;
+    btnMemoInsertCRLF: TButton;
+    btnMemoInsertMulti: TButton;
+    chkMemoReadOnly: TCheckBox;
+    btnMemoSelectRange: TButton;
+    btnMemoCut: TButton;
+    btnMemoCopy: TButton;
+    btnMemoPaste: TButton;
     procedure FormCreate(Sender: TObject);
     procedure chkShowLineNumberClick(Sender: TObject);
     procedure btnChangeFontClick(Sender: TObject);
@@ -66,6 +76,14 @@ type
     procedure chkCaretAfterLineEndClick(Sender: TObject);
     procedure edtStringChange(Sender: TObject);
     procedure chkMapAfterEndClick(Sender: TObject);
+    procedure btnMemoInsertClick(Sender: TObject);
+    procedure btnMemoInsertCRLFClick(Sender: TObject);
+    procedure btnMemoInsertMultiClick(Sender: TObject);
+    procedure chkMemoReadOnlyClick(Sender: TObject);
+    procedure btnMemoSelectRangeClick(Sender: TObject);
+    procedure btnMemoCutClick(Sender: TObject);
+    procedure btnMemoCopyClick(Sender: TObject);
+    procedure btnMemoPasteClick(Sender: TObject);
   private
     { Private declarations }
     FMemo: TCnMemo;
@@ -423,6 +441,7 @@ end;
 procedure TCnMemoForm.MemoSelectChange(Sender: TObject);
 begin
   UpdateMemoStatusBar;
+  mmoSelection.Lines.Text := FMemo.SelectText;
 end;
 
 procedure TCnMemoForm.UpdateMemoStatusBar;
@@ -434,12 +453,55 @@ begin
   else
     statMemo.SimpleText := Format('Line: %d. Col: %d. No Selection %d/%d',
       [FMemo.CaretRow, FMemo.CaretCol, FMemo.SelectStartRow, FMemo.SelectStartCol]);
-
 end;
 
 procedure TCnMemoForm.chkMapAfterEndClick(Sender: TObject);
 begin
   CalcIndexColumnMaps;
+end;
+
+procedure TCnMemoForm.btnMemoInsertClick(Sender: TObject);
+begin
+  FMemo.InsertText(edtMemoInsert.Text);
+end;
+
+procedure TCnMemoForm.btnMemoInsertCRLFClick(Sender: TObject);
+begin
+  FMemo.InsertText(#13#10);
+end;
+
+procedure TCnMemoForm.btnMemoInsertMultiClick(Sender: TObject);
+var
+  S: string;
+begin
+  S := '第一行' + #13#10 + '第二行' + #13#10 + '第三行' + #13#10 + '第四行'
+     + #13#10 + '第五行' + #13#10;
+  FMemo.InsertText(S);
+end;
+
+procedure TCnMemoForm.chkMemoReadOnlyClick(Sender: TObject);
+begin
+  FMemo.ReadOnly := chkMemoReadOnly.Checked;
+end;
+
+procedure TCnMemoForm.btnMemoSelectRangeClick(Sender: TObject);
+begin
+  FMemo.SelectRange(2, 3, 7, 9);
+end;
+
+procedure TCnMemoForm.btnMemoCutClick(Sender: TObject);
+begin
+  FMemo.CutSelectionToClipboard;
+end;
+
+procedure TCnMemoForm.btnMemoCopyClick(Sender: TObject);
+begin
+  FMemo.CopySelectionToClipboard;
+end;
+
+procedure TCnMemoForm.btnMemoPasteClick(Sender: TObject);
+begin
+  FMemo.PasteFromClipboard;
 end;
 
 end.

@@ -20,7 +20,7 @@ object FormEcc: TFormEcc
     Top = 16
     Width = 820
     Height = 535
-    ActivePage = tsWrapData
+    ActivePage = tsSimpleECC
     Anchors = [akLeft, akTop, akRight, akBottom]
     TabOrder = 0
     object tsSimpleECC: TTabSheet
@@ -201,7 +201,7 @@ object FormEcc: TFormEcc
           OnClick = btnTest1Click
         end
         object btnTest0: TButton
-          Left = 135
+          Left = 103
           Top = 28
           Width = 75
           Height = 21
@@ -210,7 +210,7 @@ object FormEcc: TFormEcc
           OnClick = btnTest0Click
         end
         object btnTestOn: TButton
-          Left = 250
+          Left = 186
           Top = 28
           Width = 75
           Height = 21
@@ -219,7 +219,7 @@ object FormEcc: TFormEcc
           OnClick = btnTestOnClick
         end
         object btnTestInverse: TButton
-          Left = 366
+          Left = 270
           Top = 28
           Width = 75
           Height = 21
@@ -228,7 +228,7 @@ object FormEcc: TFormEcc
           OnClick = btnTestInverseClick
         end
         object btnTest2P: TButton
-          Left = 481
+          Left = 353
           Top = 28
           Width = 75
           Height = 21
@@ -237,7 +237,7 @@ object FormEcc: TFormEcc
           OnClick = btnTest2PClick
         end
         object btnTestMul: TButton
-          Left = 596
+          Left = 436
           Top = 28
           Width = 75
           Height = 21
@@ -318,6 +318,24 @@ object FormEcc: TFormEcc
           Height = 21
           TabOrder = 13
           Text = '3'
+        end
+        object btnInt64Affine: TButton
+          Left = 520
+          Top = 28
+          Width = 75
+          Height = 21
+          Caption = 'Test Affine +'
+          TabOrder = 15
+          OnClick = btnInt64AffineClick
+        end
+        object btnTestJacobian: TButton
+          Left = 600
+          Top = 28
+          Width = 81
+          Height = 21
+          Caption = 'Test Jacobian +'
+          TabOrder = 16
+          OnClick = btnTestJacobianClick
         end
       end
       object chtE2311: TChart
@@ -859,25 +877,33 @@ object FormEcc: TFormEcc
         end
         object lblBNEccPrivateKey: TLabel
           Left = 176
-          Top = 304
+          Top = 344
           Width = 42
           Height = 13
           Caption = 'Private: -'
         end
         object lblBNEccPublicKey: TLabel
           Left = 112
-          Top = 304
+          Top = 344
           Width = 40
           Height = 13
           Caption = 'Public:  |'
         end
         object lblBNEccDataPoint: TLabel
           Left = 16
-          Top = 376
+          Top = 416
           Width = 53
           Height = 13
           Caption = 'Data Point:'
           OnClick = lblBNEccDataPointClick
+        end
+        object bvl2: TBevel
+          Left = 424
+          Top = 304
+          Width = 337
+          Height = 17
+          Anchors = [akLeft, akTop, akRight]
+          Shape = bsTopLine
         end
         object edtBNEccA: TEdit
           Left = 104
@@ -1011,7 +1037,7 @@ object FormEcc: TFormEcc
         end
         object btnBNEccNewKey: TButton
           Left = 16
-          Top = 300
+          Top = 340
           Width = 75
           Height = 21
           Caption = 'New Key'
@@ -1020,7 +1046,7 @@ object FormEcc: TFormEcc
         end
         object edtBNEccPublicKey: TEdit
           Left = 16
-          Top = 336
+          Top = 376
           Width = 748
           Height = 21
           Anchors = [akLeft, akTop, akRight]
@@ -1028,7 +1054,7 @@ object FormEcc: TFormEcc
         end
         object edtBNEccPrivateKey: TEdit
           Left = 232
-          Top = 300
+          Top = 340
           Width = 532
           Height = 21
           Anchors = [akLeft, akTop, akRight]
@@ -1036,7 +1062,7 @@ object FormEcc: TFormEcc
         end
         object edtBNEccDataPoint: TEdit
           Left = 80
-          Top = 372
+          Top = 412
           Width = 588
           Height = 21
           Anchors = [akLeft, akTop, akRight]
@@ -1044,7 +1070,7 @@ object FormEcc: TFormEcc
         end
         object btnBNEccCrypt: TButton
           Left = 675
-          Top = 370
+          Top = 410
           Width = 91
           Height = 21
           Anchors = [akRight]
@@ -1069,6 +1095,41 @@ object FormEcc: TFormEcc
           Caption = '? * G'
           TabOrder = 21
           OnClick = btnBNEccCalcClick
+        end
+        object rbBNAddNormal: TRadioButton
+          Left = 16
+          Top = 296
+          Width = 113
+          Height = 17
+          Caption = 'Normal'
+          Checked = True
+          TabOrder = 22
+          TabStop = True
+        end
+        object rbBNAddAffine: TRadioButton
+          Left = 120
+          Top = 296
+          Width = 113
+          Height = 17
+          Caption = 'Affine'
+          TabOrder = 23
+        end
+        object rbBNAddJacobian: TRadioButton
+          Left = 216
+          Top = 296
+          Width = 113
+          Height = 17
+          Caption = 'Jacobian'
+          TabOrder = 24
+        end
+        object btnMulTime: TButton
+          Left = 342
+          Top = 296
+          Width = 75
+          Height = 21
+          Caption = '? * G Time'
+          TabOrder = 25
+          OnClick = btnMulTimeClick
         end
       end
     end
@@ -1303,6 +1364,24 @@ object FormEcc: TFormEcc
         Width = 217
         Height = 121
         TabOrder = 4
+      end
+      object btnBNEccAffineTest: TButton
+        Left = 536
+        Top = 368
+        Width = 75
+        Height = 21
+        Caption = 'Affine Test'
+        TabOrder = 5
+        OnClick = btnBNEccAffineTestClick
+      end
+      object btnBNJacobianTest: TButton
+        Left = 624
+        Top = 368
+        Width = 75
+        Height = 21
+        Caption = 'Jacobian Test'
+        TabOrder = 6
+        OnClick = btnBNJacobianTestClick
       end
     end
     object tsLucas: TTabSheet
@@ -1640,14 +1719,14 @@ object FormEcc: TFormEcc
         TabOrder = 0
         object lblCurveType: TLabel
           Left = 112
-          Top = 32
+          Top = 28
           Width = 58
           Height = 13
           Caption = 'Curve Type:'
         end
         object lblCurveTypeText: TLabel
           Left = 184
-          Top = 32
+          Top = 28
           Width = 46
           Height = 13
           Caption = 'Unknown'
@@ -1817,7 +1896,7 @@ object FormEcc: TFormEcc
           TabOrder = 8
         end
         object btnKeyCheckPublic: TButton
-          Left = 288
+          Left = 512
           Top = 24
           Width = 75
           Height = 25
@@ -1885,7 +1964,7 @@ object FormEcc: TFormEcc
             'SM3')
         end
         object btnKeyGenerate: TButton
-          Left = 392
+          Left = 600
           Top = 24
           Width = 75
           Height = 25
@@ -1901,6 +1980,16 @@ object FormEcc: TFormEcc
           Caption = 'Load Signature to Verify'
           TabOrder = 17
           OnClick = btnKeyLoadSigClick
+        end
+        object cbbCurveTypes: TComboBox
+          Left = 336
+          Top = 24
+          Width = 161
+          Height = 21
+          Style = csDropDownList
+          ItemHeight = 13
+          TabOrder = 18
+          OnChange = cbbCurveTypesChange
         end
       end
     end

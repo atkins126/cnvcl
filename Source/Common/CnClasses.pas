@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2021 CnPack 开发组                       }
+{                   (C)Copyright 2001-2022 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -48,8 +48,8 @@ interface
 {$I CnPack.inc}
 
 uses
-  SysUtils, Classes, TypInfo, SyncObjs,
-  {$IFDEF COMPILER6_UP} RTLConsts, {$ELSE} Consts, {$ENDIF} CnNativeDecl;
+  SysUtils, Classes, TypInfo, SyncObjs, {$IFDEF FPC} RTLConsts, {$ELSE}
+  {$IFDEF COMPILER6_UP} RTLConsts, {$ELSE} Consts, {$ENDIF} {$ENDIF} CnNativeDecl;
 
 type
 
@@ -412,7 +412,11 @@ begin
       for PropIdx := 0 to Count - 1 do
       begin
         PropInfo := PropList^[PropIdx];
+{$IFDEF FPC}
+        case PropInfo^.PropType^.Kind of
+{$ELSE}
         case PropInfo^.PropType^^.Kind of
+{$ENDIF}
           tkInteger, tkChar, tkWChar, tkClass, tkEnumeration, tkSet:
             SetOrdProp(Dest, PropInfo, GetOrdProp(Source, PropInfo));
           tkFloat:
@@ -801,12 +805,12 @@ end;
 
 { TSingletonInterfacedObject }
 
-function TSingletonInterfacedObject._AddRef: Integer;
+function TSingletonInterfacedObject._AddRef: Integer; stdcall;
 begin
   Result := 1;
 end;
 
-function TSingletonInterfacedObject._Release: Integer;
+function TSingletonInterfacedObject._Release: Integer; stdcall;
 begin
   Result := 1;
 end;

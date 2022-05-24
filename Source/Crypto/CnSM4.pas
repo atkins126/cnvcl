@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2021 CnPack 开发组                       }
+{                   (C)Copyright 2001-2022 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -27,9 +27,15 @@ unit CnSM4;
 * 备    注：参考国密算法公开文档 SM4 Encryption alogrithm
 *           并参考移植 goldboar 的 C 代码
 * 开发平台：Windows 7 + Delphi 5.0
-* 兼容测试：PWin9X/2000/XP/7 + Delphi 5/6
+* 兼容测试：PWin9X/2000/XP/7 + Delphi 5/6 + MaxOS 64
 * 本 地 化：该单元中的字符串均符合本地化处理方式
-* 修改记录：2020.03.24 V1.2
+* 修改记录：2022.04.26 V1.5
+*               修改 LongWord 与 Integer 地址转换以支持 MacOS64
+*           2022.04.19 V1.4
+*               使用初始化向量时内部备份，不修改传入的内容
+*           2021.12.12 V1.3
+*               加入 CFB/OFB 模式的支持
+*           2020.03.24 V1.2
 *               增加部分封装函数包括流函数
 *           2019.04.15 V1.1
 *               支持 Win32/Win64/MacOS
@@ -43,7 +49,7 @@ interface
 {$I CnPack.inc}
 
 uses
-  Classes, SysUtils {$IFDEF MSWINDOWS}, Windows {$ENDIF};
+  Classes, SysUtils {$IFDEF MSWINDOWS}, Windows {$ENDIF}, CnNativeDecl;
 
 const
   SM4_KEYSIZE = 16;
@@ -57,7 +63,17 @@ type
   {* SM4 的加密块}
 
   TSM4Iv     = array[0..SM4_BLOCKSIZE - 1] of Byte;
-  {* SM4 的 CBC 的初始化向量}
+  {* SM4 的 CBC/CFB/OFB 等的初始化向量}
+
+procedure SM4Encrypt(Key: PAnsiChar; Input: PAnsiChar; Output: PAnsiChar; Len: Integer);
+{* 原始的 SM4 加密数据块，ECB 模式，将 Input 内的明文内容加密搁到 Output 中
+  调用者自行保证 Key 指向内容至少 16 字节，Input 和 Output 指向内容长相等并且都为 Len 字节
+  且 Len 必须被 16 整除}
+
+procedure SM4Decrypt(Key: PAnsiChar; Input: PAnsiChar; Output: PAnsiChar; Len: Integer);
+{* 原始的 SM4 解密数据块，ECB 模式，将 Input 内的密文内容解密搁到 Output 中
+  调用者自行保证 Key 指向内容至少需 16 字节，Input 和 Output 指向内容长相等并且都为 Len 字节
+  且 Len 必须被 16 整除}
 
 procedure SM4EncryptEcbStr(Key: AnsiString; const Input: AnsiString; Output: PAnsiChar);
 {* SM4-ECB 封装好的针对 AnsiString 的加密方法
@@ -80,7 +96,7 @@ procedure SM4EncryptCbcStr(Key: AnsiString; Iv: PAnsiChar;
 {* SM4-CBC 封装好的针对 AnsiString 的加密方法
  |<PRE>
   Key      16 字节密码，太长则截断，不足则补 #0
-  Iv       16 字节初始化向量，运算过程中会改变，因此调用者需要保存原始数据
+  Iv       不短于 16 字节的初始化向量，太长则超出部分忽略
   Input    input string
   Output   output 输出区，其长度必须大于或等于 (((Length(Input) - 1) div 16) + 1) * 16
  |</PRE>}
@@ -90,7 +106,47 @@ procedure SM4DecryptCbcStr(Key: AnsiString; Iv: PAnsiChar;
 {* SM4-CBC 封装好的针对 AnsiString 的解密方法
  |<PRE>
   Key      16 字节密码，太长则截断，不足则补 #0
-  Iv       16 字节初始化向量，运算过程中会改变，因此调用者需要保存原始数据
+  Iv       不短于 16 字节的初始化向量，太长则超出部分忽略
+  Input    input string
+  Output   output 输出区，其长度必须大于或等于 (((Length(Input) - 1) div 16) + 1) * 16
+ |</PRE>}
+
+procedure SM4EncryptCfbStr(Key: AnsiString; Iv: PAnsiChar;
+  const Input: AnsiString; Output: PAnsiChar);
+{* SM4-CFB 封装好的针对 AnsiString 的加密方法
+ |<PRE>
+  Key      16 字节密码，太长则截断，不足则补 #0
+  Iv       不短于 16 字节的初始化向量，太长则超出部分忽略
+  Input    input string
+  Output   output 输出区，其长度必须大于或等于 (((Length(Input) - 1) div 16) + 1) * 16
+ |</PRE>}
+
+procedure SM4DecryptCfbStr(Key: AnsiString; Iv: PAnsiChar;
+  const Input: AnsiString; Output: PAnsiChar);
+{* SM4-CFB 封装好的针对 AnsiString 的解密方法
+ |<PRE>
+  Key      16 字节密码，太长则截断，不足则补 #0
+  Iv       不短于 16 字节的初始化向量，太长则超出部分忽略
+  Input    input string
+  Output   output 输出区，其长度必须大于或等于 (((Length(Input) - 1) div 16) + 1) * 16
+ |</PRE>}
+
+procedure SM4EncryptOfbStr(Key: AnsiString; Iv: PAnsiChar;
+  const Input: AnsiString; Output: PAnsiChar);
+{* SM4-OFB 封装好的针对 AnsiString 的加密方法
+ |<PRE>
+  Key      16 字节密码，太长则截断，不足则补 #0
+  Iv       不短于 16 字节的初始化向量，太长则超出部分忽略
+  Input    input string
+  Output   output 输出区，其长度必须大于或等于 (((Length(Input) - 1) div 16) + 1) * 16
+ |</PRE>}
+
+procedure SM4DecryptOfbStr(Key: AnsiString; Iv: PAnsiChar;
+  const Input: AnsiString; Output: PAnsiChar);
+{* SM4-OFB 封装好的针对 AnsiString 的解密方法
+ |<PRE>
+  Key      16 字节密码，太长则截断，不足则补 #0
+  Iv       不短于 16 字节的初始化向量，太长则超出部分忽略
   Input    input string
   Output   output 输出区，其长度必须大于或等于 (((Length(Input) - 1) div 16) + 1) * 16
  |</PRE>}
@@ -117,7 +173,7 @@ function SM4EncryptCbcBytes(Key, Iv: TBytes; const Input: TBytes): TBytes;
 {* SM4-CBC 封装好的针对 TBytes 的加密方法
  |<PRE>
   Key      16 字节密码，太长则截断，不足则补 0
-  Iv       16 字节初始化向量，太长则截断，不足则补 0，运算过程中会改变，因此调用者需要保存原始数据
+  Iv       16 字节初始化向量，太长则超出部分忽略，不足则在 Iv 后补 0
   Input    input 明文
   返回值   加密内容
  |</PRE>}
@@ -126,7 +182,43 @@ function SM4DecryptCbcBytes(Key, Iv: TBytes; const Input: TBytes): TBytes;
 {* SM4-CBC 封装好的针对 TBytes 的解密方法
  |<PRE>
   Key      16 字节密码，太长则截断，不足则补 0
-  Iv       16 字节初始化向量，太长则截断，不足则补 0，运算过程中会改变，因此调用者需要保存原始数据
+  Iv       16 字节初始化向量，太长则超出部分忽略，不足则在 Iv 后补 0
+  Input    input 密文
+  返回值   解密内容
+ |</PRE>}
+
+function SM4EncryptCfbBytes(Key, Iv: TBytes; const Input: TBytes): TBytes;
+{* SM4-CFB 封装好的针对 TBytes 的加密方法
+ |<PRE>
+  Key      16 字节密码，太长则截断，不足则补 0
+  Iv       16 字节初始化向量，太长则超出部分忽略，不足则在 Iv 后补 0
+  Input    input 明文
+  返回值   加密内容
+ |</PRE>}
+
+function SM4DecryptCfbBytes(Key, Iv: TBytes; const Input: TBytes): TBytes;
+{* SM4-CFB 封装好的针对 TBytes 的解密方法
+ |<PRE>
+  Key      16 字节密码，太长则截断，不足则补 0
+  Iv       16 字节初始化向量，太长则超出部分忽略，不足则在 Iv 后补 0
+  Input    input 密文
+  返回值   解密内容
+ |</PRE>}
+
+function SM4EncryptOfbBytes(Key, Iv: TBytes; const Input: TBytes): TBytes;
+{* SM4-OFB 封装好的针对 TBytes 的加密方法
+ |<PRE>
+  Key      16 字节密码，太长则截断，不足则补 0
+  Iv       16 字节初始化向量，太长则超出部分忽略，不足则在 Iv 后补 0
+  Input    input 明文
+  返回值   加密内容
+ |</PRE>}
+
+function SM4DecryptOfbBytes(Key, Iv: TBytes; const Input: TBytes): TBytes;
+{* SM4-OFB 封装好的针对 TBytes 的解密方法
+ |<PRE>
+  Key      16 字节密码，太长则截断，不足则补 0
+  Iv       16 字节初始化向量，太长则超出部分忽略，不足则在 Iv 后补 0
   Input    input 密文
   返回值   解密内容
  |</PRE>}
@@ -148,6 +240,22 @@ procedure SM4EncryptStreamCBC(Source: TStream; Count: Cardinal;
 procedure SM4DecryptStreamCBC(Source: TStream; Count: Cardinal;
   const Key: TSM4Key; const InitVector: TSM4Iv; Dest: TStream); overload;
 {* SM4-CBC 流解密，Count 为 0 表示从头解密整个流，否则只解密 Stream 当前位置起 Count 的字节数}
+
+procedure SM4EncryptStreamCFB(Source: TStream; Count: Cardinal;
+  const Key: TSM4Key; const InitVector: TSM4Iv; Dest: TStream); overload;
+{* SM4-CFB 流加密，Count 为 0 表示从头加密整个流，否则只加密 Stream 当前位置起 Count 的字节数}
+
+procedure SM4DecryptStreamCFB(Source: TStream; Count: Cardinal;
+  const Key: TSM4Key; const InitVector: TSM4Iv; Dest: TStream); overload;
+{* SM4-CFB 流解密，Count 为 0 表示从头解密整个流，否则只解密 Stream 当前位置起 Count 的字节数}
+
+procedure SM4EncryptStreamOFB(Source: TStream; Count: Cardinal;
+  const Key: TSM4Key; const InitVector: TSM4Iv; Dest: TStream); overload;
+{* SM4-OFB 流加密，Count 为 0 表示从头加密整个流，否则只加密 Stream 当前位置起 Count 的字节数}
+
+procedure SM4DecryptStreamOFB(Source: TStream; Count: Cardinal;
+  const Key: TSM4Key; const InitVector: TSM4Iv; Dest: TStream); overload;
+{* SM4-OFB 流解密，Count 为 0 表示从头解密整个流，否则只解密 Stream 当前位置起 Count 的字节数}
 
 implementation
 
@@ -179,9 +287,9 @@ const
     ($18, $F0, $7D, $EC, $3A, $DC, $4D, $20, $79, $EE, $5F, $3E, $D7, $CB, $39, $48)
   );
 
-  FK: array[0..3] of LongWord = ($A3B1BAC6, $56AA3350, $677D9197, $B27022DC);
+  FK: array[0..3] of TCnLongWord32 = ($A3B1BAC6, $56AA3350, $677D9197, $B27022DC);
 
-  CK: array[0..SM4_KEYSIZE * 2 - 1] of LongWord = (
+  CK: array[0..SM4_KEYSIZE * 2 - 1] of TCnLongWord32 = (
     $00070E15, $1C232A31, $383F464D, $545B6269,
     $70777E85, $8C939AA1, $A8AFB6BD, $C4CBD2D9,
     $E0E7EEF5, $FC030A11, $181F262D, $343B4249,
@@ -194,7 +302,7 @@ const
 type
   TSM4Context = packed record
     Mode: Integer;              {!<  encrypt/decrypt   }
-    Sk: array[0..SM4_KEYSIZE * 2 - 1] of LongWord;  {!<  SM4 subkeys       }
+    Sk: array[0..SM4_KEYSIZE * 2 - 1] of TCnLongWord32;  {!<  SM4 subkeys       }
   end;
 
 function Min(A, B: Integer): Integer;
@@ -205,16 +313,16 @@ begin
     Result := B;
 end;
 
-procedure GetULongBe(var N: LongWord; B: PAnsiChar; I: Integer);
+procedure GetULongBe(var N: TCnLongWord32; B: PAnsiChar; I: Integer);
 var
-  D: LongWord;
+  D: TCnLongWord32;
 begin
-  D := (LongWord(B[I]) shl 24) or (LongWord(B[I + 1]) shl 16) or
-    (LongWord(B[I + 2]) shl 8) or (LongWord(B[I + 3]));
+  D := (TCnLongWord32(B[I]) shl 24) or (TCnLongWord32(B[I + 1]) shl 16) or
+    (TCnLongWord32(B[I + 2]) shl 8) or (TCnLongWord32(B[I + 3]));
   N := D;
 end;
 
-procedure PutULongBe(N: LongWord; B: PAnsiChar; I: Integer);
+procedure PutULongBe(N: TCnLongWord32; B: PAnsiChar; I: Integer);
 begin
   B[I] := AnsiChar(N shr 24);
   B[I + 1] := AnsiChar(N shr 16);
@@ -222,19 +330,19 @@ begin
   B[I + 3] := AnsiChar(N);
 end;
 
-function SM4Shl(X: LongWord; N: Integer): LongWord;
+function SM4Shl(X: TCnLongWord32; N: Integer): TCnLongWord32;
 begin
   Result := (X and $FFFFFFFF) shl N;
 end;
 
-function ROTL(X: LongWord; N: Integer): LongWord;
+function ROTL(X: TCnLongWord32; N: Integer): TCnLongWord32;
 begin
   Result := SM4Shl(X, N) or (X shr (32 - N));
 end;
 
-procedure Swap(var A: LongWord; var B: LongWord);
+procedure Swap(var A: TCnLongWord32; var B: TCnLongWord32);
 var
-  T: LongWord;
+  T: TCnLongWord32;
 begin
   T := A;
   A := B;
@@ -246,12 +354,12 @@ var
   PTable: Pointer;
 begin
   PTable := @(SboxTable[0][0]);
-  Result := PByte(Integer(PTable) + Inch)^;
+  Result := PByte(TCnNativeInt(PTable) + Inch)^;
 end;
 
-function SM4Lt(Ka: LongWord): LongWord;
+function SM4Lt(Ka: TCnLongWord32): TCnLongWord32;
 var
-  BB: LongWord;
+  BB: TCnLongWord32;
   A: array[0..3] of Byte;
   B: array[0..3] of Byte;
 begin
@@ -267,14 +375,14 @@ begin
     xor (ROTL(BB, 24));
 end;
 
-function SM4F(X0: LongWord; X1: LongWord; X2: LongWord; X3: LongWord; RK: LongWord): LongWord;
+function SM4F(X0: TCnLongWord32; X1: TCnLongWord32; X2: TCnLongWord32; X3: TCnLongWord32; RK: TCnLongWord32): TCnLongWord32;
 begin
   Result := X0 xor SM4Lt(X1 xor X2 xor X3 xor RK);
 end;
 
-function SM4CalciRK(Ka: LongWord): LongWord;
+function SM4CalciRK(Ka: TCnLongWord32): TCnLongWord32;
 var
-  BB: LongWord;
+  BB: TCnLongWord32;
   A: array[0..3] of Byte;
   B: array[0..3] of Byte;
 begin
@@ -288,10 +396,10 @@ begin
 end;
 
 // SK Points to 32 DWord Array; Key Points to 16 Byte Array
-procedure SM4SetKey(SK: PLongWord; Key: PAnsiChar);
+procedure SM4SetKey(SK: PCnLongWord32; Key: PAnsiChar);
 var
-  MK: array[0..3] of LongWord;
-  K: array[0..35] of LongWord;
+  MK: array[0..3] of TCnLongWord32;
+  K: array[0..35] of TCnLongWord32;
   I: Integer;
 begin
   GetULongBe(MK[0], Key, 0);
@@ -306,16 +414,16 @@ begin
 
   for I := 0 to 31 do
   begin
-    K[I + 4] := K[I] xor SM4CalciRK(K[I + 1] xor K[I+2] xor K[I + 3] xor CK[I]);
-    (PLongWord(Integer(SK) + I * SizeOf(LongWord)))^ := K[I + 4];
+    K[I + 4] := K[I] xor SM4CalciRK(K[I + 1] xor K[I + 2] xor K[I + 3] xor CK[I]);
+      (PCnLongWord32(TCnNativeInt(SK) + I * SizeOf(TCnLongWord32)))^ := K[I + 4];
   end;
 end;
 
 // SK Points to 32 DWord Array; Input/Output Points to 16 Byte Array
-procedure SM4OneRound(SK: PLongWord; Input: PAnsiChar; Output: PAnsiChar);
+procedure SM4OneRound(SK: PCnLongWord32; Input: PAnsiChar; Output: PAnsiChar);
 var
   I: Integer;
-  UlBuf: array[0..35] of LongWord;
+  UlBuf: array[0..35] of TCnLongWord32;
 begin
   FillChar(UlBuf[0], SizeOf(UlBuf), 0);
 
@@ -327,7 +435,7 @@ begin
   for I := 0 to 31 do
   begin
     UlBuf[I + 4] := SM4F(UlBuf[I], UlBuf[I + 1], UlBuf[I + 2], UlBuf[I + 3],
-      (PLongWord(Integer(SK) + I * SizeOf(LongWord)))^);
+      (PCnLongWord32(TCnNativeInt(SK) + I * SizeOf(TCnLongWord32)))^);
   end;
 
   PutULongBe(UlBuf[35], Output, 0);
@@ -403,8 +511,10 @@ procedure SM4CryptCbc(var Ctx: TSM4Context; Mode: Integer; Length: Integer;
   Iv: PAnsiChar; Input: PAnsiChar; Output: PAnsiChar);
 var
   I: Integer;
-  EndBuf: array[0..SM4_BLOCKSIZE - 1] of Byte;
+  EndBuf: TSM4Buffer;
+  LocalIv: TSM4Iv;
 begin
+  Move(Iv^, LocalIv[0], SM4_BLOCKSIZE);
   if Mode = SM4_ENCRYPT then
   begin
     while Length > 0 do
@@ -412,11 +522,11 @@ begin
       if Length >= SM4_BLOCKSIZE then
       begin
         for I := 0 to SM4_BLOCKSIZE - 1 do
-          (PByte(Integer(Output) + I))^ := (PByte(Integer(Input) + I))^
-            xor (PByte(Integer(Iv) + I))^;
+          (PByte(TCnNativeInt(Output) + I))^ := (PByte(TCnNativeInt(Input) + I))^
+            xor LocalIv[I];
 
         SM4OneRound(@(Ctx.Sk[0]), Output, Output);
-        Move(Output[0], Iv[0], 16);
+        Move(Output[0], LocalIv[0], SM4_BLOCKSIZE);
       end
       else
       begin
@@ -425,11 +535,11 @@ begin
         Move(Input^, EndBuf[0], Length);
 
         for I := 0 to SM4_BLOCKSIZE - 1 do
-          (PByte(Integer(Output) + I))^ := EndBuf[I]
-            xor (PByte(Integer(Iv) + I))^;
+          (PByte(TCnNativeInt(Output) + I))^ := EndBuf[I]
+            xor LocalIv[I];
 
         SM4OneRound(@(Ctx.Sk[0]), Output, Output);
-        Move(Output[0], Iv[0], 16);
+        Move(Output[0], LocalIv[0], SM4_BLOCKSIZE);
       end;
 
       Inc(Input, SM4_BLOCKSIZE);
@@ -443,14 +553,13 @@ begin
     begin
       if Length >= SM4_BLOCKSIZE then
       begin
-        // CopyMemory(@(Temp[0]), Input, SM4_BLOCKSIZE);
         SM4OneRound(@(Ctx.Sk[0]), Input, Output);
 
-        for I := 0 to 15 do
-          (PByte(Integer(Output) + I))^ := (PByte(Integer(Output) + I))^
-            xor (PByte(Integer(Iv) + I))^;
+        for I := 0 to SM4_BLOCKSIZE - 1 do
+          (PByte(TCnNativeInt(Output) + I))^ := (PByte(TCnNativeInt(Output) + I))^
+            xor LocalIv[I];
 
-        Move(Input^, Iv[0], SM4_BLOCKSIZE);
+        Move(Input^, LocalIv[0], SM4_BLOCKSIZE);
       end
       else
       begin
@@ -459,11 +568,141 @@ begin
         Move(Input^, EndBuf[0], Length);
         SM4OneRound(@(Ctx.Sk[0]), @(EndBuf[0]), Output);
 
-        for I := 0 to 15 do
-          (PByte(Integer(Output) + I))^ := (PByte(Integer(Output) + I))^
-            xor (PByte(Integer(Iv) + I))^;
+        for I := 0 to SM4_BLOCKSIZE - 1 do
+          (PByte(TCnNativeInt(Output) + I))^ := (PByte(TCnNativeInt(Output) + I))^
+            xor LocalIv[I];
 
-        Move(EndBuf[0], Iv[0], SM4_BLOCKSIZE);
+        Move(EndBuf[0], LocalIv[0], SM4_BLOCKSIZE);
+      end;
+
+      Inc(Input, SM4_BLOCKSIZE);
+      Inc(Output, SM4_BLOCKSIZE);
+      Dec(Length, SM4_BLOCKSIZE);
+    end;
+  end;
+end;
+
+procedure SM4CryptCfb(var Ctx: TSM4Context; Mode: Integer; Length: Integer;
+  Iv: PAnsiChar; Input: PAnsiChar; Output: PAnsiChar);
+var
+  I: Integer;
+  LocalIv: TSM4Iv;
+begin
+  Move(Iv^, LocalIv[0], SM4_BLOCKSIZE);
+  if Mode = SM4_ENCRYPT then
+  begin
+    while Length > 0 do
+    begin
+      if Length >= SM4_BLOCKSIZE then
+      begin
+        SM4OneRound(@(Ctx.Sk[0]), @LocalIv[0], Output);  // 先加密 Iv
+
+        for I := 0 to SM4_BLOCKSIZE - 1 do
+          (PByte(TCnNativeInt(Output) + I))^ := (PByte(TCnNativeInt(Input) + I))^
+            xor (PByte(TCnNativeInt(Output) + I))^;  // 加密结果与明文异或作为输出密文
+
+        Move(Output[0], LocalIv[0], SM4_BLOCKSIZE);  // 密文取代 Iv 以备下一轮
+      end
+      else
+      begin
+        SM4OneRound(@(Ctx.Sk[0]), @LocalIv[0], Output);
+
+        for I := 0 to Length - 1 do // 只需异或剩余长度，无需处理完整的 16 字节
+          (PByte(TCnNativeInt(Output) + I))^ := (PByte(TCnNativeInt(Input) + I))^
+            xor (PByte(TCnNativeInt(Output) + I))^;
+      end;
+
+      Inc(Input, SM4_BLOCKSIZE);
+      Inc(Output, SM4_BLOCKSIZE);
+      Dec(Length, SM4_BLOCKSIZE);
+    end;
+  end
+  else if Mode = SM4_DECRYPT then
+  begin
+    while Length > 0 do
+    begin
+      if Length >= SM4_BLOCKSIZE then
+      begin
+        SM4OneRound(@(Ctx.Sk[0]), @LocalIv[0], Output);   // 先加密 Iv
+
+        for I := 0 to SM4_BLOCKSIZE - 1 do
+          (PByte(TCnNativeInt(Output) + I))^ := (PByte(TCnNativeInt(Output) + I))^
+            xor (PByte(TCnNativeInt(Input) + I))^;    // 加密结果与密文异或得到明文
+
+        Move(Input[0], LocalIv[0], SM4_BLOCKSIZE);    // 密文取代 Iv 再拿去下一轮加密
+      end
+      else
+      begin
+        SM4OneRound(@(Ctx.Sk[0]), @LocalIv[0], Output);
+
+        for I := 0 to Length - 1 do
+          (PByte(TCnNativeInt(Output) + I))^ := (PByte(TCnNativeInt(Output) + I))^
+            xor (PByte(TCnNativeInt(Input) + I))^;
+      end;
+
+      Inc(Input, SM4_BLOCKSIZE);
+      Inc(Output, SM4_BLOCKSIZE);
+      Dec(Length, SM4_BLOCKSIZE);
+    end;
+  end;
+end;
+
+procedure SM4CryptOfb(var Ctx: TSM4Context; Mode: Integer; Length: Integer;
+  Iv: PAnsiChar; Input: PAnsiChar; Output: PAnsiChar);
+var
+  I: Integer;
+  LocalIv: TSM4Iv;
+begin
+  Move(Iv^, LocalIv[0], SM4_BLOCKSIZE);
+  if Mode = SM4_ENCRYPT then
+  begin
+    while Length > 0 do
+    begin
+      if Length >= SM4_BLOCKSIZE then
+      begin
+        SM4OneRound(@(Ctx.Sk[0]), @LocalIv[0], Output);  // 先加密 Iv
+
+        Move(Output[0], LocalIv[0], SM4_BLOCKSIZE);  // 加密结果先留存给下一步
+
+        for I := 0 to SM4_BLOCKSIZE - 1 do      // 加密结果与明文异或出密文
+          (PByte(TCnNativeInt(Output) + I))^ := (PByte(TCnNativeInt(Input) + I))^
+            xor (PByte(TCnNativeInt(Output) + I))^;
+      end
+      else
+      begin
+        SM4OneRound(@(Ctx.Sk[0]), @LocalIv[0], Output);  // 先加密 Iv
+
+        for I := 0 to Length - 1 do             // 无需完整 16 字节
+          (PByte(TCnNativeInt(Output) + I))^ := (PByte(TCnNativeInt(Input) + I))^
+            xor (PByte(TCnNativeInt(Output) + I))^;
+      end;
+
+      Inc(Input, SM4_BLOCKSIZE);
+      Inc(Output, SM4_BLOCKSIZE);
+      Dec(Length, SM4_BLOCKSIZE);
+    end;
+  end
+  else if Mode = SM4_DECRYPT then
+  begin
+    while Length > 0 do
+    begin
+      if Length >= SM4_BLOCKSIZE then
+      begin
+        SM4OneRound(@(Ctx.Sk[0]), @LocalIv[0], Output);   // 先加密 Iv
+
+        Move(Output[0], LocalIv[0], SM4_BLOCKSIZE);   // 加密结果先留存给下一步
+
+        for I := 0 to SM4_BLOCKSIZE - 1 do       // 加密内容与密文异或得到明文
+          (PByte(TCnNativeInt(Output) + I))^ := (PByte(TCnNativeInt(Output) + I))^
+            xor (PByte(TCnNativeInt(Input) + I))^;
+      end
+      else
+      begin
+        SM4OneRound(@(Ctx.Sk[0]), @LocalIv[0], Output);   // 先加密 Iv
+
+        for I := 0 to Length - 1 do
+          (PByte(TCnNativeInt(Output) + I))^ := (PByte(TCnNativeInt(Output) + I))^
+            xor (PByte(TCnNativeInt(Input) + I))^;
       end;
 
       Inc(Input, SM4_BLOCKSIZE);
@@ -495,6 +734,50 @@ begin
   end;
 end;
 
+procedure SM4CryptCfbStr(Mode: Integer; Key: AnsiString; Iv: PAnsiChar;
+  const Input: AnsiString; Output: PAnsiChar);
+var
+  Ctx: TSM4Context;
+begin
+  if Length(Key) < SM4_KEYSIZE then
+    while Length(Key) < SM4_KEYSIZE do Key := Key + Chr(0) // 16 bytes at least padding 0.
+  else if Length(Key) > SM4_KEYSIZE then
+    Key := Copy(Key, 1, SM4_KEYSIZE);  // Only keep 16
+
+  if Mode = SM4_ENCRYPT then
+  begin
+    SM4SetKeyEnc(Ctx, @(Key[1]));
+    SM4CryptCfb(Ctx, SM4_ENCRYPT, Length(Input), @(Iv[0]), @(Input[1]), @(Output[0]));
+  end
+  else if Mode = SM4_DECRYPT then
+  begin
+    SM4SetKeyEnc(Ctx, @(Key[1])); // 注意 CFB 的解密也用的是加密！
+    SM4CryptCfb(Ctx, SM4_DECRYPT, Length(Input), @(Iv[0]), @(Input[1]), @(Output[0]));
+  end;
+end;
+
+procedure SM4CryptOfbStr(Mode: Integer; Key: AnsiString; Iv: PAnsiChar;
+  const Input: AnsiString; Output: PAnsiChar);
+var
+  Ctx: TSM4Context;
+begin
+  if Length(Key) < SM4_KEYSIZE then
+    while Length(Key) < SM4_KEYSIZE do Key := Key + Chr(0) // 16 bytes at least padding 0.
+  else if Length(Key) > SM4_KEYSIZE then
+    Key := Copy(Key, 1, SM4_KEYSIZE);  // Only keep 16
+
+  if Mode = SM4_ENCRYPT then
+  begin
+    SM4SetKeyEnc(Ctx, @(Key[1]));
+    SM4CryptOfb(Ctx, SM4_ENCRYPT, Length(Input), @(Iv[0]), @(Input[1]), @(Output[0]));
+  end
+  else if Mode = SM4_DECRYPT then
+  begin
+    SM4SetKeyEnc(Ctx, @(Key[1])); // 注意 OFB 的解密也用的是加密！
+    SM4CryptOfb(Ctx, SM4_DECRYPT, Length(Input), @(Iv[0]), @(Input[1]), @(Output[0]));
+  end;
+end;
+
 procedure SM4EncryptEcbStr(Key: AnsiString; const Input: AnsiString; Output: PAnsiChar);
 begin
   SM4CryptEcbStr(SM4_ENCRYPT, Key, Input, Output);
@@ -515,6 +798,30 @@ procedure SM4DecryptCbcStr(Key: AnsiString; Iv: PAnsiChar;
   const Input: AnsiString; Output: PAnsiChar);
 begin
   SM4CryptCbcStr(SM4_DECRYPT, Key, Iv, Input, Output);
+end;
+
+procedure SM4EncryptCfbStr(Key: AnsiString; Iv: PAnsiChar;
+  const Input: AnsiString; Output: PAnsiChar);
+begin
+  SM4CryptCfbStr(SM4_ENCRYPT, Key, Iv, Input, Output);
+end;
+
+procedure SM4DecryptCfbStr(Key: AnsiString; Iv: PAnsiChar;
+  const Input: AnsiString; Output: PAnsiChar);
+begin
+  SM4CryptCfbStr(SM4_DECRYPT, Key, Iv, Input, Output);
+end;
+
+procedure SM4EncryptOfbStr(Key: AnsiString; Iv: PAnsiChar;
+  const Input: AnsiString; Output: PAnsiChar);
+begin
+  SM4CryptOfbStr(SM4_ENCRYPT, Key, Iv, Input, Output);
+end;
+
+procedure SM4DecryptOfbStr(Key: AnsiString; Iv: PAnsiChar;
+  const Input: AnsiString; Output: PAnsiChar);
+begin
+  SM4CryptOfbStr(SM4_DECRYPT, Key, Iv, Input, Output);
 end;
 
 {$IFDEF TBYTES_DEFINED}
@@ -597,6 +904,92 @@ begin
   end;
 end;
 
+function SM4CryptCfbBytes(Mode: Integer; Key, Iv: TBytes;
+  const Input: TBytes): TBytes;
+var
+  Ctx: TSM4Context;
+  I, Len: Integer;
+begin
+  Len := Length(Input);
+  if Len <= 0 then
+  begin
+    Result := nil;
+    Exit;
+  end;
+  SetLength(Result, (((Len - 1) div 16) + 1) * 16);
+
+  Len := Length(Key);
+  if Len < SM4_KEYSIZE then // Key 长度小于 16 字节补 0
+  begin
+    SetLength(Key, SM4_KEYSIZE);
+    for I := Len to SM4_KEYSIZE - 1 do
+      Key[I] := 0;
+  end;
+  // 长度大于 16 字节时 SM4SetKeyEnc 会自动忽略后面的部分
+
+  Len := Length(Iv);
+  if Len < SM4_BLOCKSIZE then // Iv 长度小于 16 字节补 0
+  begin
+    SetLength(Iv, SM4_BLOCKSIZE);
+    for I := Len to SM4_BLOCKSIZE - 1 do
+      Iv[I] := 0;
+  end;
+
+  if Mode = SM4_ENCRYPT then
+  begin
+    SM4SetKeyEnc(Ctx, @(Key[0]));
+    SM4CryptCfb(Ctx, SM4_ENCRYPT, Length(Input), @(Iv[0]), @(Input[0]), @(Result[0]));
+  end
+  else if Mode = SM4_DECRYPT then
+  begin
+    SM4SetKeyEnc(Ctx, @(Key[0])); // 注意 CFB 的解密也用的是加密！
+    SM4CryptCfb(Ctx, SM4_DECRYPT, Length(Input), @(Iv[0]), @(Input[0]), @(Result[0]));
+  end;
+end;
+
+function SM4CryptOfbBytes(Mode: Integer; Key, Iv: TBytes;
+  const Input: TBytes): TBytes;
+var
+  Ctx: TSM4Context;
+  I, Len: Integer;
+begin
+  Len := Length(Input);
+  if Len <= 0 then
+  begin
+    Result := nil;
+    Exit;
+  end;
+  SetLength(Result, (((Len - 1) div 16) + 1) * 16);
+
+  Len := Length(Key);
+  if Len < SM4_KEYSIZE then // Key 长度小于 16 字节补 0
+  begin
+    SetLength(Key, SM4_KEYSIZE);
+    for I := Len to SM4_KEYSIZE - 1 do
+      Key[I] := 0;
+  end;
+  // 长度大于 16 字节时 SM4SetKeyEnc 会自动忽略后面的部分
+
+  Len := Length(Iv);
+  if Len < SM4_BLOCKSIZE then // Iv 长度小于 16 字节补 0
+  begin
+    SetLength(Iv, SM4_BLOCKSIZE);
+    for I := Len to SM4_BLOCKSIZE - 1 do
+      Iv[I] := 0;
+  end;
+
+  if Mode = SM4_ENCRYPT then
+  begin
+    SM4SetKeyEnc(Ctx, @(Key[0]));
+    SM4CryptOfb(Ctx, SM4_ENCRYPT, Length(Input), @(Iv[0]), @(Input[0]), @(Result[0]));
+  end
+  else if Mode = SM4_DECRYPT then
+  begin
+    SM4SetKeyEnc(Ctx, @(Key[0])); // 注意 OFB 的解密也用的是加密！
+    SM4CryptOfb(Ctx, SM4_DECRYPT, Length(Input), @(Iv[0]), @(Input[0]), @(Result[0]));
+  end;
+end;
+
 function SM4EncryptEcbBytes(Key: TBytes; const Input: TBytes): TBytes;
 begin
   Result := SM4CryptEcbBytes(SM4_ENCRYPT, Key, Input);
@@ -615,6 +1008,26 @@ end;
 function SM4DecryptCbcBytes(Key, Iv: TBytes; const Input: TBytes): TBytes;
 begin
   Result := SM4CryptCbcBytes(SM4_DECRYPT, Key, Iv, Input);
+end;
+
+function SM4EncryptCfbBytes(Key, Iv: TBytes; const Input: TBytes): TBytes;
+begin
+  Result := SM4CryptCfbBytes(SM4_ENCRYPT, Key, Iv, Input);
+end;
+
+function SM4DecryptCfbBytes(Key, Iv: TBytes; const Input: TBytes): TBytes;
+begin
+  Result := SM4CryptCfbBytes(SM4_DECRYPT, Key, Iv, Input);
+end;
+
+function SM4EncryptOfbBytes(Key, Iv: TBytes; const Input: TBytes): TBytes;
+begin
+  Result := SM4CryptOfbBytes(SM4_ENCRYPT, Key, Iv, Input);
+end;
+
+function SM4DecryptOfbBytes(Key, Iv: TBytes; const Input: TBytes): TBytes;
+begin
+  Result := SM4CryptOfbBytes(SM4_DECRYPT, Key, Iv, Input);
 end;
 
 {$ENDIF}
@@ -733,10 +1146,10 @@ begin
     if Done < SizeOf(TempIn) then
       raise EStreamError.Create(SReadError);
 
-    PLongWord(@TempIn[0])^ := PLongWord(@TempIn[0])^ xor PLongWord(@Vector[0])^;
-    PLongWord(@TempIn[4])^ := PLongWord(@TempIn[4])^ xor PLongWord(@Vector[4])^;
-    PLongWord(@TempIn[8])^ := PLongWord(@TempIn[8])^ xor PLongWord(@Vector[8])^;
-    PLongWord(@TempIn[12])^ := PLongWord(@TempIn[12])^ xor PLongWord(@Vector[12])^;
+    PCnLongWord32(@TempIn[0])^ := PCnLongWord32(@TempIn[0])^ xor PCnLongWord32(@Vector[0])^;
+    PCnLongWord32(@TempIn[4])^ := PCnLongWord32(@TempIn[4])^ xor PCnLongWord32(@Vector[4])^;
+    PCnLongWord32(@TempIn[8])^ := PCnLongWord32(@TempIn[8])^ xor PCnLongWord32(@Vector[8])^;
+    PCnLongWord32(@TempIn[12])^ := PCnLongWord32(@TempIn[12])^ xor PCnLongWord32(@Vector[12])^;
 
     SM4OneRound(@(Ctx.Sk[0]), @(TempIn[0]), @(TempOut[0]));
 
@@ -755,10 +1168,10 @@ begin
       raise EStreamError.Create(SReadError);
     FillChar(TempIn[Count], SizeOf(TempIn) - Count, 0);
 
-    PLongWord(@TempIn[0])^ := PLongWord(@TempIn[0])^ xor PLongWord(@Vector[0])^;
-    PLongWord(@TempIn[4])^ := PLongWord(@TempIn[4])^ xor PLongWord(@Vector[4])^;
-    PLongWord(@TempIn[8])^ := PLongWord(@TempIn[8])^ xor PLongWord(@Vector[8])^;
-    PLongWord(@TempIn[12])^ := PLongWord(@TempIn[12])^ xor PLongWord(@Vector[12])^;
+    PCnLongWord32(@TempIn[0])^ := PCnLongWord32(@TempIn[0])^ xor PCnLongWord32(@Vector[0])^;
+    PCnLongWord32(@TempIn[4])^ := PCnLongWord32(@TempIn[4])^ xor PCnLongWord32(@Vector[4])^;
+    PCnLongWord32(@TempIn[8])^ := PCnLongWord32(@TempIn[8])^ xor PCnLongWord32(@Vector[8])^;
+    PCnLongWord32(@TempIn[12])^ := PCnLongWord32(@TempIn[12])^ xor PCnLongWord32(@Vector[12])^;
 
     SM4OneRound(@(Ctx.Sk[0]), @(TempIn[0]), @(TempOut[0]));
 
@@ -801,10 +1214,10 @@ begin
     Move(TempIn[0], Vector2[0], SizeOf(TSM4Iv));
     SM4OneRound(@(Ctx.Sk[0]), @(TempIn[0]), @(TempOut[0]));
 
-    PLongWord(@TempOut[0])^ := PLongWord(@TempOut[0])^ xor PLongWord(@Vector1[0])^;
-    PLongWord(@TempOut[4])^ := PLongWord(@TempOut[4])^ xor PLongWord(@Vector1[4])^;
-    PLongWord(@TempOut[8])^ := PLongWord(@TempOut[8])^ xor PLongWord(@Vector1[8])^;
-    PLongWord(@TempOut[12])^ := PLongWord(@TempOut[12])^ xor PLongWord(@Vector1[12])^;
+    PCnLongWord32(@TempOut[0])^ := PCnLongWord32(@TempOut[0])^ xor PCnLongWord32(@Vector1[0])^;
+    PCnLongWord32(@TempOut[4])^ := PCnLongWord32(@TempOut[4])^ xor PCnLongWord32(@Vector1[4])^;
+    PCnLongWord32(@TempOut[8])^ := PCnLongWord32(@TempOut[8])^ xor PCnLongWord32(@Vector1[8])^;
+    PCnLongWord32(@TempOut[12])^ := PCnLongWord32(@TempOut[12])^ xor PCnLongWord32(@Vector1[12])^;
 
     Done := Dest.Write(TempOut, SizeOf(TempOut));
     if Done < SizeOf(TempOut) then
@@ -813,6 +1226,264 @@ begin
     Vector1 := Vector2;
     Dec(Count, SizeOf(TSM4Buffer));
   end;
+end;
+
+procedure SM4EncryptStreamCFB(Source: TStream; Count: Cardinal;
+  const Key: TSM4Key; const InitVector: TSM4Iv; Dest: TStream); overload;
+var
+  TempIn, TempOut: TSM4Buffer;
+  Vector: TSM4Iv;
+  Done: Cardinal;
+  Ctx: TSM4Context;
+begin
+  if Count = 0 then
+  begin
+    Source.Position := 0;
+    Count := Source.Size;
+  end
+  else
+    Count := Min(Count, Source.Size - Source.Position);
+
+  if Count = 0 then
+    Exit;
+
+  Vector := InitVector;
+  SM4SetKeyEnc(Ctx, @(Key[0]));
+
+  while Count >= SizeOf(TSM4Buffer) do
+  begin
+    Done := Source.Read(TempIn, SizeOf(TempIn));
+    if Done < SizeOf(TempIn) then
+      raise EStreamError.Create(SReadError);
+
+    SM4OneRound(@(Ctx.Sk[0]), @(Vector[0]), @(TempOut[0]));     // Key 先加密 Iv
+
+    PCnLongWord32(@TempOut[0])^ := PCnLongWord32(@TempIn[0])^ xor PCnLongWord32(@TempOut[0])^;  // 加密结果与明文异或
+    PCnLongWord32(@TempOut[4])^ := PCnLongWord32(@TempIn[4])^ xor PCnLongWord32(@TempOut[4])^;
+    PCnLongWord32(@TempOut[8])^ := PCnLongWord32(@TempIn[8])^ xor PCnLongWord32(@TempOut[8])^;
+    PCnLongWord32(@TempOut[12])^ := PCnLongWord32(@TempIn[12])^ xor PCnLongWord32(@TempOut[12])^;
+
+    Done := Dest.Write(TempOut, SizeOf(TempOut));   // 异或的结果写进密文结果
+    if Done < SizeOf(TempOut) then
+      raise EStreamError.Create(SWriteError);
+
+    Move(TempOut[0], Vector[0], SizeOf(TSM4Iv));    // 密文结果取代 Iv 供下一轮加密
+    Dec(Count, SizeOf(TSM4Buffer));
+  end;
+
+  if Count > 0 then
+  begin
+    Done := Source.Read(TempIn, Count);
+    if Done < Count then
+      raise EStreamError.Create(SReadError);
+    SM4OneRound(@(Ctx.Sk[0]), @(Vector[0]), @(TempOut[0]));
+
+    PCnLongWord32(@TempOut[0])^ := PCnLongWord32(@TempIn[0])^ xor PCnLongWord32(@TempOut[0])^;
+    PCnLongWord32(@TempOut[4])^ := PCnLongWord32(@TempIn[4])^ xor PCnLongWord32(@TempOut[4])^;
+    PCnLongWord32(@TempOut[8])^ := PCnLongWord32(@TempIn[8])^ xor PCnLongWord32(@TempOut[8])^;
+    PCnLongWord32(@TempOut[12])^ := PCnLongWord32(@TempIn[12])^ xor PCnLongWord32(@TempOut[12])^;
+
+    Done := Dest.Write(TempOut, Count);  // 最后写入的只包括密文长度的部分，无需整个块
+    if Done < Count then
+      raise EStreamError.Create(SWriteError);
+  end;
+end;
+
+procedure SM4DecryptStreamCFB(Source: TStream; Count: Cardinal;
+  const Key: TSM4Key; const InitVector: TSM4Iv; Dest: TStream); overload;
+var
+  TempIn, TempOut: TSM4Buffer;
+  Vector: TSM4Iv;
+  Done: Cardinal;
+  Ctx: TSM4Context;
+begin
+  if Count = 0 then
+  begin
+    Source.Position := 0;
+    Count := Source.Size;
+  end
+  else
+    Count := Min(Count, Source.Size - Source.Position);
+
+  if Count = 0 then
+    Exit;
+
+  Vector := InitVector;
+  SM4SetKeyEnc(Ctx, @(Key[0]));  // 注意是加密！不是解密！
+
+  while Count >= SizeOf(TSM4Buffer) do
+  begin
+    Done := Source.Read(TempIn, SizeOf(TempIn));             // 密文读入至 TempIn
+    if Done < SizeOf(TempIn) then
+      raise EStreamError(SReadError);
+    SM4OneRound(@(Ctx.Sk[0]), @(Vector[0]), @(TempOut[0])); // Iv 先加密至 TempOut
+
+    // 加密后的内容 TempOut 和密文 TempIn 异或得到明文 TempOut
+    PCnLongWord32(@TempOut[0])^ := PCnLongWord32(@TempOut[0])^ xor PCnLongWord32(@TempIn[0])^;
+    PCnLongWord32(@TempOut[4])^ := PCnLongWord32(@TempOut[4])^ xor PCnLongWord32(@TempIn[4])^;
+    PCnLongWord32(@TempOut[8])^ := PCnLongWord32(@TempOut[8])^ xor PCnLongWord32(@TempIn[8])^;
+    PCnLongWord32(@TempOut[12])^ := PCnLongWord32(@TempOut[12])^ xor PCnLongWord32(@TempIn[12])^;
+
+    Done := Dest.Write(TempOut, SizeOf(TempOut));      // 明文 TempOut 写出去
+    if Done < SizeOf(TempOut) then
+      raise EStreamError(SWriteError);
+    Move(TempIn[0], Vector[0], SizeOf(TSM4Iv));       // 保留密文 TempIn 取代 Iv 作为下一次加密再异或的内容
+    Dec(Count, SizeOf(TSM4Buffer));
+  end;
+
+  if Count > 0 then
+  begin
+    Done := Source.Read(TempIn, Count);
+    if Done < Count then
+      raise EStreamError.Create(SReadError);
+    SM4OneRound(@(Ctx.Sk[0]), @(Vector[0]), @(TempOut[0]));
+
+    PCnLongWord32(@TempOut[0])^ := PCnLongWord32(@TempIn[0])^ xor PCnLongWord32(@TempOut[0])^;
+    PCnLongWord32(@TempOut[4])^ := PCnLongWord32(@TempIn[4])^ xor PCnLongWord32(@TempOut[4])^;
+    PCnLongWord32(@TempOut[8])^ := PCnLongWord32(@TempIn[8])^ xor PCnLongWord32(@TempOut[8])^;
+    PCnLongWord32(@TempOut[12])^ := PCnLongWord32(@TempIn[12])^ xor PCnLongWord32(@TempOut[12])^;
+
+    Done := Dest.Write(TempOut, Count);  // 最后写入的只包括密文长度的部分，无需整个块
+    if Done < Count then
+      raise EStreamError.Create(SWriteError);
+  end;
+end;
+
+procedure SM4EncryptStreamOFB(Source: TStream; Count: Cardinal;
+  const Key: TSM4Key; const InitVector: TSM4Iv; Dest: TStream); overload;
+var
+  TempIn, TempOut: TSM4Buffer;
+  Vector: TSM4Iv;
+  Done: Cardinal;
+  Ctx: TSM4Context;
+begin
+  if Count = 0 then
+  begin
+    Source.Position := 0;
+    Count := Source.Size;
+  end
+  else
+    Count := Min(Count, Source.Size - Source.Position);
+
+  if Count = 0 then
+    Exit;
+
+  Vector := InitVector;
+  SM4SetKeyEnc(Ctx, @(Key[0]));
+
+  while Count >= SizeOf(TSM4Buffer) do
+  begin
+    Done := Source.Read(TempIn, SizeOf(TempIn));
+    if Done < SizeOf(TempIn) then
+      raise EStreamError.Create(SReadError);
+
+    SM4OneRound(@(Ctx.Sk[0]), @(Vector[0]), @(TempOut[0]));     // Key 先加密 Iv
+
+    PCnLongWord32(@TempIn[0])^ := PCnLongWord32(@TempIn[0])^ xor PCnLongWord32(@TempOut[0])^;  // 加密结果与明文异或
+    PCnLongWord32(@TempIn[4])^ := PCnLongWord32(@TempIn[4])^ xor PCnLongWord32(@TempOut[4])^;
+    PCnLongWord32(@TempIn[8])^ := PCnLongWord32(@TempIn[8])^ xor PCnLongWord32(@TempOut[8])^;
+    PCnLongWord32(@TempIn[12])^ := PCnLongWord32(@TempIn[12])^ xor PCnLongWord32(@TempOut[12])^;
+
+    Done := Dest.Write(TempIn, SizeOf(TempIn));   // 异或的结果写进密文结果
+    if Done < SizeOf(TempIn) then
+      raise EStreamError.Create(SWriteError);
+
+    Move(TempOut[0], Vector[0], SizeOf(TSM4Iv));    // 加密结果取代 Iv 供下一轮加密，注意不是异或结果
+    Dec(Count, SizeOf(TSM4Buffer));
+  end;
+
+  if Count > 0 then
+  begin
+    Done := Source.Read(TempIn, Count);
+    if Done < Count then
+      raise EStreamError.Create(SReadError);
+    SM4OneRound(@(Ctx.Sk[0]), @(Vector[0]), @(TempOut[0]));
+
+    PCnLongWord32(@TempIn[0])^ := PCnLongWord32(@TempIn[0])^ xor PCnLongWord32(@TempOut[0])^;
+    PCnLongWord32(@TempIn[4])^ := PCnLongWord32(@TempIn[4])^ xor PCnLongWord32(@TempOut[4])^;
+    PCnLongWord32(@TempIn[8])^ := PCnLongWord32(@TempIn[8])^ xor PCnLongWord32(@TempOut[8])^;
+    PCnLongWord32(@TempIn[12])^ := PCnLongWord32(@TempIn[12])^ xor PCnLongWord32(@TempOut[12])^;
+
+    Done := Dest.Write(TempIn, Count);  // 最后写入的只包括密文长度的部分，无需整个块
+    if Done < Count then
+      raise EStreamError.Create(SWriteError);
+  end;
+end;
+
+procedure SM4DecryptStreamOFB(Source: TStream; Count: Cardinal;
+  const Key: TSM4Key; const InitVector: TSM4Iv; Dest: TStream); overload;
+var
+  TempIn, TempOut: TSM4Buffer;
+  Vector: TSM4Iv;
+  Done: Cardinal;
+  Ctx: TSM4Context;
+begin
+  if Count = 0 then
+  begin
+    Source.Position := 0;
+    Count := Source.Size;
+  end
+  else
+    Count := Min(Count, Source.Size - Source.Position);
+
+  if Count = 0 then
+    Exit;
+
+  Vector := InitVector;
+  SM4SetKeyEnc(Ctx, @(Key[0]));  // 注意是加密！不是解密！
+
+  while Count >= SizeOf(TSM4Buffer) do
+  begin
+    Done := Source.Read(TempIn, SizeOf(TempIn));             // 密文读入至 TempIn
+    if Done < SizeOf(TempIn) then
+      raise EStreamError(SReadError);
+    SM4OneRound(@(Ctx.Sk[0]), @(Vector[0]), @(TempOut[0])); // Iv 先加密至 TempOut
+
+    // 加密后的内容 TempOut 和密文 TempIn 异或得到明文 TempIn
+    PCnLongWord32(@TempIn[0])^ := PCnLongWord32(@TempOut[0])^ xor PCnLongWord32(@TempIn[0])^;
+    PCnLongWord32(@TempIn[4])^ := PCnLongWord32(@TempOut[4])^ xor PCnLongWord32(@TempIn[4])^;
+    PCnLongWord32(@TempIn[8])^ := PCnLongWord32(@TempOut[8])^ xor PCnLongWord32(@TempIn[8])^;
+    PCnLongWord32(@TempIn[12])^ := PCnLongWord32(@TempOut[12])^ xor PCnLongWord32(@TempIn[12])^;
+
+    Done := Dest.Write(TempIn, SizeOf(TempIn));      // 明文 TempIn 写出去
+    if Done < SizeOf(TempIn) then
+      raise EStreamError(SWriteError);
+    Move(TempOut[0], Vector[0], SizeOf(TSM4Iv));       // 保留加密结果 TempOut 取代 Iv 作为下一次加密再异或的内容
+    Dec(Count, SizeOf(TSM4Buffer));
+  end;
+
+  if Count > 0 then
+  begin
+    Done := Source.Read(TempIn, Count);
+    if Done < Count then
+      raise EStreamError.Create(SReadError);
+    SM4OneRound(@(Ctx.Sk[0]), @(Vector[0]), @(TempOut[0]));
+
+    PCnLongWord32(@TempIn[0])^ := PCnLongWord32(@TempIn[0])^ xor PCnLongWord32(@TempOut[0])^;
+    PCnLongWord32(@TempIn[4])^ := PCnLongWord32(@TempIn[4])^ xor PCnLongWord32(@TempOut[4])^;
+    PCnLongWord32(@TempIn[8])^ := PCnLongWord32(@TempIn[8])^ xor PCnLongWord32(@TempOut[8])^;
+    PCnLongWord32(@TempIn[12])^ := PCnLongWord32(@TempIn[12])^ xor PCnLongWord32(@TempOut[12])^;
+
+    Done := Dest.Write(TempOut, Count);  // 最后写入的只包括密文长度的部分，无需整个块
+    if Done < Count then
+      raise EStreamError.Create(SWriteError);
+  end;
+end;
+
+procedure SM4Encrypt(Key: PAnsiChar; Input: PAnsiChar; Output: PAnsiChar; Len: Integer);
+var
+  Ctx: TSM4Context;
+begin
+  SM4SetKeyEnc(Ctx, Key);
+  SM4CryptEcb(Ctx, SM4_ENCRYPT, Len, Input, Output);
+end;
+
+procedure SM4Decrypt(Key: PAnsiChar; Input: PAnsiChar; Output: PAnsiChar; Len: Integer);
+var
+  Ctx: TSM4Context;
+begin
+  SM4SetKeyDec(Ctx, Key);
+  SM4CryptEcb(Ctx, SM4_DECRYPT, Len, Input, Output);
 end;
 
 end.

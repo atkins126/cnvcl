@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2021 CnPack 开发组                       }
+{                   (C)Copyright 2001-2022 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -41,7 +41,7 @@ interface
 uses
   Windows, Messages, SysUtils, Classes, Graphics, Controls, Forms,
   Dialogs, StdCtrls, ComCtrls, ExtCtrls, ActnList, UnitThread, Buttons,
-  ImgList, Menus;
+  ImgList, Menus {$IFDEF TGRAPHIC_SUPPORT_PARTIALTRANSPARENCY}, PNGImage {$ENDIF};
 
 type
   ITest = interface
@@ -120,6 +120,12 @@ type
     btnEvaluateScreen: TButton;
     btnFindComponent: TButton;
     btnFindControl: TButton;
+    btnEvaluateTransBmp: TButton;
+    btnEvaluateImage: TButton;
+    img1: TImage;
+    dlgOpen1: TOpenDialog;
+    btnDrawTransparent: TButton;
+    btnEvaluateSample: TButton;
     procedure Button1Click(Sender: TObject);
     procedure Button2Click(Sender: TObject);
     procedure FormCreate(Sender: TObject);
@@ -167,8 +173,12 @@ type
     procedure btnFindComponentClick(Sender: TObject);
     procedure btnFindControlClick(Sender: TObject);
     procedure FormClick(Sender: TObject);
+    procedure btnEvaluateTransBmpClick(Sender: TObject);
+    procedure btnEvaluateImageClick(Sender: TObject);
+    procedure btnDrawTransparentClick(Sender: TObject);
+    procedure btnEvaluateSampleClick(Sender: TObject);
   private
-    { Private declarations }
+    FComponenet: TComponent;
     FTimeStamp: Boolean;
     FThread: TSendThread;
     FOldWndProc: TWndMethod;
@@ -186,7 +196,8 @@ var
 
 implementation
 
-uses CnDebug;
+uses
+  CnDebug, CnSampleComponent;
 
 {$R *.dfm}
 
@@ -520,10 +531,17 @@ begin
 end;
 
 procedure TFormSend.btnAddrClick(Sender: TObject);
+var
+  I, J: Integer;
 begin
   try
-    raise Exception.Create('Test Address of Exception.');
+    // raise Exception.Create('Test Address of Exception.');
+    I := 0;
+    J := 3;
+    if J / I = 0 then
+      Exit;
   except
+    // 这段代码有问题：StackFromAddress 需要的是 EBP 地址才能跟踪堆栈，给 EIP 或 ExceptAddr 无法跟踪
     if rgMethod.ItemIndex = 1 then
       CnDebugger.TraceStackFromAddress(ExceptAddr)
     else
@@ -560,10 +578,17 @@ var
   R: TRect;
 begin
   Bmp := TBitmap.Create;
+  Bmp.PixelFormat := pf24bit;
   Bmp.Width := 760;
   Bmp.Height := 260;
+
+  Bmp.Canvas.Brush.Style := bsSolid;
   Bmp.Canvas.Brush.Color := clRed;
-  R := Rect(0, 0, Bmp.Width, Bmp.Height);
+  R := Rect(0, 0, Bmp.Width div 2, Bmp.Height div 2);
+  Bmp.Canvas.FillRect(R);
+
+  Bmp.Canvas.Brush.Color := clNavy;
+  R := Rect(Bmp.Width div 2, Bmp.Height div 2, Bmp.Width, Bmp.Height);
   Bmp.Canvas.FillRect(R);
 
   CnDebugger.EvaluateObject(Bmp, True);
@@ -667,6 +692,87 @@ begin
   else
     CnDebugger.LogEnumType<TAnchorKind>;
 {$ENDIF}
+end;
+
+procedure TFormSend.btnEvaluateTransBmpClick(Sender: TObject);
+{$IFDEF TGRAPHIC_SUPPORT_PARTIALTRANSPARENCY}
+var
+  Bmp: TBitmap;
+  Png: TPngImage;
+{$ENDIF}
+begin
+{$IFDEF TGRAPHIC_SUPPORT_PARTIALTRANSPARENCY}
+  ShowMessage('Please Open a Transparent PNG File.');
+  if dlgOpen1.Execute then
+  begin
+    Bmp := TBitmap.Create;
+    Png := TPngImage.Create;
+
+    Png.LoadFromFile(dlgOpen1.FileName);
+    Bmp.Assign(Png);
+
+    CnDebugger.EvaluateObject(Bmp, True);
+    Bmp.Free;
+    Png.Free;
+  end;
+{$ELSE}
+  ShowMessage('Please RUN under Delphi 2009 or Above.');
+{$ENDIF}
+end;
+
+procedure TFormSend.btnEvaluateImageClick(Sender: TObject);
+begin
+  CnDebugger.EvaluateObject(img1.Picture);
+end;
+
+procedure TFormSend.btnDrawTransparentClick(Sender: TObject);
+var
+  Bmp: TBitmap;
+  Y, SW: Integer;
+  R: TRect;
+begin
+  Bmp := TBitmap.Create;
+  Bmp.PixelFormat := pf32Bit;
+{$IFDEF TGRAPHIC_SUPPORT_PARTIALTRANSPARENCY}
+  Bmp.AlphaFormat := afDefined;
+{$ENDIF}
+  Bmp.Transparent := True;      // 3 Very Important !
+
+  Bmp.Width := 400;
+  Bmp.Height := 300;
+
+  // Draw transparent background
+  SW := Bmp.Width * SizeOf(TRGBQuad);
+  for Y := 0 to Bmp.Height - 1 do
+    FillChar(Bmp.ScanLine[Y]^, SW, 0);
+
+  Bmp.Canvas.Brush.Color := clGreen;
+  Bmp.Canvas.Brush.Style := bsSolid;
+
+  R := Rect(Bmp.Width div 3, Bmp.Height div 3, 2 * Bmp.Width div 3, 2 * Bmp.Height div 3);
+  Bmp.Canvas.FillRect(R);
+
+  Bmp.Canvas.Brush.Style := bsClear;
+  Bmp.Canvas.Font.Size := 36;
+  Bmp.Canvas.Font.Style := [fsBold];
+  Bmp.Canvas.Font.Color := clRed;
+  Bmp.Canvas.TextOut(Bmp.Width div 2 - 60, Bmp.Height div 2 - 40, 'Hello!');
+
+  CnDebugger.EvaluateObject(Bmp, True);
+  // Bmp.SaveToFile('C:\CnPack\A64.bmp'); 全黑
+
+  Bmp.Free;
+//{$ELSE}
+//  ShowMessage('Please RUN under Delphi 2009 or Above.');
+//{$ENDIF}
+end;
+
+procedure TFormSend.btnEvaluateSampleClick(Sender: TObject);
+begin
+  if FComponenet = nil then
+    FComponenet := TCnSampleComponent.Create(Self);
+
+  CnDebugger.EvaluateObject(FComponenet);
 end;
 
 end.

@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2021 CnPack 开发组                       }
+{                   (C)Copyright 2001-2022 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -27,10 +27,25 @@ unit CnBigNumber;
 * 备    注：大部分从 Openssl 的 C 代码移植而来，大数池不支持多线程
 *           Word 系列操作函数指大数与 DWORD 进行运算，而 Words 系列操作函数指
 *           大数中间的运算过程。
+*           ======== !!! D5/D6/CB5/CB6 下可能遇上编译器 Bug 无法修复 !!! =======
 * 开发平台：Win 7 + Delphi 5.0
 * 兼容测试：暂未进行
 * 本 地 化：该单元无需本地化处理
-* 修改记录：2021.04.02 V1.8
+* 修改记录：2022.04.26 V2.4
+*               修改 LongWord 与 Integer 地址转换以支持 MacOS64
+*           2021.12.08 V2.3
+*               实现与 Extended 扩展精度浮点数相乘除，增加一批对数函数，完善 AKS
+*           2021.12.04 V2.2
+*               实现与 Extended 扩展精度浮点数互相转换
+*           2021.11.29 V2.2
+*               实现一个稀疏的大数列表类
+*           2021.11.23 V2.1
+*               实现生成组合数的大数
+*           2021.09.20 V2.0
+*               实现大数按位计算
+*           2021.09.05 V1.9
+*               实现完全幂的判断
+*           2021.04.02 V1.8
 *               POSIX 64 的 LongWord 是 64 位，迁移
 *           2020.07.04 V1.7
 *               独立出大数池对象，加入多线程控制
@@ -39,7 +54,7 @@ unit CnBigNumber;
 *           2020.01.16 V1.5
 *               优化乘法与 MulMod 的速度，去除汇编代码
 *           2019.04.16 V1.4
-*               支持 Win32/Win64/MacOS
+*               支持 Win32/Win64/MacOS32
 *           2017.04.04 V1.3
 *               修正几处大数池相关的 Bug，但扩展欧几里得求解法还有问题
 *           2016.09.26 V1.2
@@ -80,9 +95,6 @@ type
   TLongWordArray = array [0..MaxInt div SizeOf(Integer) - 1] of TCnLongWord32;
   PLongWordArray = ^TLongWordArray;
 
-  TInt64Array = array [0..MaxInt div SizeOf(Int64) - 1] of Int64;
-  PInt64Array = ^TInt64Array;
-
 {$IFDEF SUPPORT_UINT64}
   TUInt64Array = array [0..MaxInt div SizeOf(UInt64) - 1] of UInt64;
   PUInt64Array = ^TUInt64Array;
@@ -98,7 +110,7 @@ type
     function GetHexString: string;
     function GetDebugDump: string;
   public
-    D: PLongWord;       // 一个 array[0..Top-1] of LongWord 数组，越往后越代表高位
+    D: PCnLongWord32;       // 一个 array[0..Top-1] of LongWord 数组，越往后越代表高位
     Top: Integer;       // Top 表示数字上限，也即有 Top 个有效 LongWord，D[Top] 值为 0，D[Top - 1] 是最高位有效数所在的 LongWord
     DMax: Integer;      // D 数组已分配的存储上限，单位是 LongWord 个，大于或等于 Top，不参与运算
     Neg: Integer;       // 1 为负，0 为正
@@ -115,8 +127,8 @@ type
     function IsZero: Boolean;
     {* 返回大数是否为 0}
 
-    procedure SetZero;
-    {* 将大数设置为 0}
+    function SetZero: Boolean;
+    {* 将大数设置为 0，返回是否设置成功}
 
     function IsOne: Boolean;
     {* 返回大数是否为 1}
@@ -125,7 +137,7 @@ type
     {* 返回大数是否为 -1}
 
     function SetOne: Boolean;
-    {* 将大数设置为 1}
+    {* 将大数设置为 1，返回是否设置成功}
 
     function IsOdd: Boolean;
     {* 返回大数是否为奇数}
@@ -227,16 +239,27 @@ type
     function ToBinary(const Buf: PAnsiChar): Integer;
     {* 将大数转换成二进制数据放入 Buf 中，Buf 的长度必须大于等于其 BytesCount，
        返回 Buf 写入的长度}
+
     function SetBinary(Buf: PAnsiChar; Len: Integer): Boolean;
-    {* 根据一个二进制块给自身赋值}
+    {* 根据一个二进制块给自身赋值，内部采用复制}
 
     class function FromBinary(Buf: PAnsiChar; Len: Integer): TCnBigNumber;
-    {* 根据一个二进制块产生一个新的大数对象}
+    {* 根据一个二进制块产生一个新的大数对象，其内容为复制}
+
+{$IFDEF TBYTES_DEFINED}
+
+    class function FromBytes(Buf: TBytes): TCnBigNumber;
+    {* 根据一个字节数组产生一个新的大数对象，其内容为复制}
+
+    function ToBytes: TBytes;
+    {* 将大数内容换成字节数组}
+
+{$ENDIF}
 
     function ToString: string; {$IFDEF OBJECT_HAS_TOSTRING} override; {$ENDIF}
     {* 将大数转成字符串}
 
-    function ToHex: string;
+    function ToHex(FixedLen: Integer = 0): string;
     {* 将大数转成十六进制字符串}
 
     function SetHex(const Buf: AnsiString): Boolean;
@@ -279,6 +302,7 @@ type
     function IndexOfValue(ABigNumber: TCnBigNumber): Integer;
     procedure Insert(Index: Integer; ABigNumber: TCnBigNumber);
     procedure RemoveDuplicated;
+    {* 去重，也就是删除并释放重复的大数值对象只留一个}
     property Items[Index: Integer]: TCnBigNumber read GetItem write SetItem; default;
   end;
 
@@ -289,6 +313,67 @@ type
   public
     function Obtain: TCnBigNumber; reintroduce;
     procedure Recycle(Num: TCnBigNumber); reintroduce;
+  end;
+
+  TCnExponentBigNumberPair = class(TObject)
+  {* 指数与大数的组合类，用于稀疏列表}
+  private
+    FExponent: Integer;
+    FValue: TCnBigNumber;
+  public
+    constructor Create; virtual;
+    destructor Destroy; override;
+
+    function ToString: string; {$IFDEF OBJECT_HAS_TOSTRING} override; {$ENDIF}
+    {* 将指数与大数转成字符串}
+
+    property Exponent: Integer read FExponent write FExponent;
+    property Value: TCnBigNumber read FValue;
+  end;
+
+  TCnSparseBigNumberList = class(TObjectList)
+  {* 容纳大数与指数的稀疏对象列表，同时拥有 TCnExponentBigNumberPair 对象们，
+    内部按 Exponent 从小到大排序}
+  private
+    function GetItem(Index: Integer): TCnExponentBigNumberPair;
+    procedure SetItem(Index: Integer; const Value: TCnExponentBigNumberPair);
+    function BinarySearchExponent(AExponent: Integer; var OutIndex: Integer): Boolean;
+    {* 二分法查找 AExponent 的位置，找到返回 True，OutIndex 放置对应列表索引位置
+      如未找到，OutIndex 则返回插入位置供直接 Insert，MaxInt 时供 Add}
+    function InsertByOutIndex(OutIndex: Integer): Integer;
+    {* 根据二分法查找失败场合返回的 OutIndex 实施插入，返回插入后的真实 Index}
+    function GetSafeValue(Exponent: Integer): TCnBigNumber;
+    function GetReadonlyValue(Exponent: Integer): TCnBigNumber;
+    procedure SetSafeValue(Exponent: Integer; const Value: TCnBigNumber);
+  public
+    constructor Create; reintroduce;
+
+    function ToString: string; {$IFDEF OBJECT_HAS_TOSTRING} override; {$ENDIF}
+    {* 将所有元素中的指数与大数转成多行字符串}
+
+    function Top: TCnExponentBigNumberPair;
+    {* 获得最高次对象}
+    function Bottom: TCnExponentBigNumberPair;
+    {* 获得最低次对象}
+
+    // 需要取、增、删、改、压等操作
+    function AddPair(AExponent: Integer; Num: TCnBigNumber): TCnExponentBigNumberPair;
+    {* 添加一个 Pair，内部复制大数}
+    procedure AssignTo(Dest: TCnSparseBigNumberList);
+    {* 复制给另外一份}
+    procedure SetValues(LowToHighList: array of Int64);
+    {* 从低到高设置值}
+    procedure Compact;
+    {* 压缩，也就是删掉所有 0 系数项}
+    procedure Negate;
+    {* 所有系数求反}
+    property SafeValue[Exponent: Integer]: TCnBigNumber read GetSafeValue write SetSafeValue;
+    {* 安全的根据参数 Exponent 获取大数的方法，读时如内部查不到，会插入新建值并返回，
+      写时如内部查不到，则新建插入指定位置后将 Value 复制入此 BigNumber 对象}
+    property ReadonlyValue[Exponent: Integer]: TCnBigNumber read GetReadonlyValue;
+    {* 只读的根据参数 Exponent 获取大数的方法，读时如内部查不到，会返回一固定的零值 TCnBigNumber 对象，切勿修改其值}
+    property Items[Index: Integer]: TCnExponentBigNumberPair read GetItem write SetItem; default;
+    {* 重载的 Items 方法}
   end;
 
 function BigNumberNew: TCnBigNumber;
@@ -333,6 +418,9 @@ function BigNumberGetWordsCount(const Num: TCnBigNumber): Integer;
 
 function BigNumberGetTenPrecision(const Num: TCnBigNumber): Integer;
 {* 返回一个大数对象里的大数有多少个有效十进制位数}
+
+function BigNumberGetTenPrecision2(const Num: TCnBigNumber): Integer;
+{* 粗略返回一个大数对象里的大数有多少个有效十进制位数，可能有 1 位误差但较快}
 
 function BigNumberGetWord(const Num: TCnBigNumber): TCnLongWord32;
 {* 取一个大数对象的首值，也就是低 32 位无符号值}
@@ -415,23 +503,38 @@ function BigNumberWordExpand(const Num: TCnBigNumber; Words: Integer): TCnBigNum
 
 function BigNumberToBinary(const Num: TCnBigNumber; Buf: PAnsiChar): Integer;
 {* 将一个大数转换成二进制数据放入 Buf 中，Buf 的长度必须大于等于其 BytesCount，
-   返回 Buf 写入的长度，注意不处理正负号}
+   返回 Buf 写入的长度，注意不处理正负号。如果 Buf 为 nil，则直接返回所需长度}
 
-function BigNumberWriteBinaryToStream(const Num: TCnBigNumber; Stream: TStream): Integer;
-{* 将一个大数的二进制部分写入流，返回写入的长度}
+function BigNumberWriteBinaryToStream(const Num: TCnBigNumber; Stream: TStream;
+  FixedLen: Integer = 0): Integer;
+{* 将一个大数的二进制部分写入流，返回写入流的长度。
+  FixedLen 表示大数内容不够 FixedLen 字节长度时高位补足 0 以保证 Stream 中输出固定 FixedLen 字节的长度
+  大数长度超过 FixedLen 时按大数实际字节长度写}
 
 function BigNumberFromBinary(Buf: PAnsiChar; Len: Integer): TCnBigNumber;
 {* 将一个二进制块转换成大数对象，注意不处理正负号。其结果不用时必须用 BigNumberFree 释放}
 
+{$IFDEF TBYTES_DEFINED}
+
+function BigNumberFromBytes(Buf: TBytes): TCnBigNumber;
+{* 将一个字节数组内容转换成大数对象，注意不处理正负号。其结果不用时必须用 BigNumberFree 释放}
+
+function BigNumberToBytes(const Num: TCnBigNumber): TBytes;
+{* 将一个大数转换成二进制数据写入字节数组并返回，失败返回 nil}
+
+{$ENDIF}
+
 function BigNumberSetBinary(Buf: PAnsiChar; Len: Integer;
   const Res: TCnBigNumber): Boolean;
-{* 将一个二进制块赋值给指定大数对象，注意不处理正负号}
+{* 将一个二进制块赋值给指定大数对象，注意不处理正负号，内部采用复制}
 
 function BigNumberToString(const Num: TCnBigNumber): string;
-{* 将一个大数对象转成字符串，负以 - 表示}
+{* 将一个大数对象转成十进制字符串，负以 - 表示}
 
-function BigNumberToHex(const Num: TCnBigNumber): string;
-{* 将一个大数对象转成十六进制字符串，负以 - 表示}
+function BigNumberToHex(const Num: TCnBigNumber; FixedLen: Integer = 0): string;
+{* 将一个大数对象转成十六进制字符串，负以 - 表示
+  FixedLen 表示大数内容不够 FixedLen 字节长度时高位补足 0 以保证结果中输出固定 FixedLen 字节的长度（不包括负号）
+  内部大数长度超过 FixedLen 时按大数实际长度写。注意 FixedLen 不是十六进制字符串长度}
 
 function BigNumberSetHex(const Buf: AnsiString; const Res: TCnBigNumber): Boolean;
 {* 将一串十六进制字符串赋值给指定大数对象，负以 - 表示，内部不能包括回车换行}
@@ -448,11 +551,23 @@ function BigNumberSetDec(const Buf: AnsiString; const Res: TCnBigNumber): Boolea
 function BigNumberFromDec(const Buf: AnsiString): TCnBigNumber;
 {* 将一串十进制字符串转换为大数对象，负以 - 表示。其结果不用时必须用 BigNumberFree 释放}
 
+function BigNumberSetFloat(F: Extended; const Res: TCnBigNumber): Boolean;
+{* 将浮点数设置给大数对象，忽略小数部分}
+
+function BigNumberGetFloat(const Num: TCnBigNumber): Extended;
+{* 将大数转换为浮点数，超标时本应抛出异常但目前暂未处理}
+
+function BigNumberFromFloat(F: Extended): TCnBigNumber;
+{* 将浮点数转换为新建的大数对象，其结果不用时必须用 BigNumberFree 释放}
+
 function BigNumberEqual(const Num1: TCnBigNumber; const Num2: TCnBigNumber): Boolean;
 {* 比较两个大数对象是否相等，相等返回 True，不等返回 False}
 
 function BigNumberCompare(const Num1: TCnBigNumber; const Num2: TCnBigNumber): Integer;
 {* 带符号比较两个大数对象，前者大于等于小于后者分别返回 1、0、-1}
+
+function BigNumberCompareInteger(const Num1: TCnBigNumber; const Num2: Integer): Integer;
+{* 带符号比较一个大数对象与一个整数，前者大于等于小于后者分别返回 1、0、-1}
 
 function BigNumberUnsignedCompare(const Num1: TCnBigNumber; const Num2: TCnBigNumber): Integer;
 {* 无符号比较两个大数对象，前者大于等于小于后者分别返回 1、0、-1}
@@ -483,9 +598,21 @@ function BigNumberRandBits(const Num: TCnBigNumber; BitsCount: Integer): Boolean
 function BigNumberRandRange(const Num: TCnBigNumber; const Range: TCnBigNumber): Boolean;
 {* 产生 [0, Range) 之间的随机大数}
 
+function BigNumberAnd(const Res: TCnBigNumber; const Num1: TCnBigNumber;
+  const Num2: TCnBigNumber): Boolean;
+{* 两个大数对象按位与，结果放至 Res 中，返回运算是否成功。Res 可以是 Num1 或 Num2}
+
+function BigNumberOr(const Res: TCnBigNumber; const Num1: TCnBigNumber;
+  const Num2: TCnBigNumber): Boolean;
+{* 两个大数对象按位或，结果放至 Res 中，返回运算是否成功。Res 可以是 Num1 或 Num2}
+
+function BigNumberXor(const Res: TCnBigNumber; const Num1: TCnBigNumber;
+  const Num2: TCnBigNumber): Boolean;
+{* 两个大数对象按位异或，结果放至 Res 中，返回运算是否成功。Res 可以是 Num1 或 Num2}
+
 function BigNumberUnsignedAdd(const Res: TCnBigNumber; const Num1: TCnBigNumber;
   const Num2: TCnBigNumber): Boolean;
-{* 两个大数对象无符号相加，结果放至 Res 中，返回相加是否成功}
+{* 两个大数对象无符号相加，结果放至 Res 中，返回相加是否成功。Res 可以是 Num1 或 Num2}
 
 function BigNumberUnsignedSub(const Res: TCnBigNumber; const Num1: TCnBigNumber;
   const Num2: TCnBigNumber): Boolean;
@@ -515,10 +642,15 @@ function BigNumberShiftRight(const Res: TCnBigNumber; const Num: TCnBigNumber;
 {* 将一大数对象右移 N 位，结果放至 Res 中，返回右移是否成功，Res 可以是 Num}
 
 function BigNumberSqr(const Res: TCnBigNumber; const Num: TCnBigNumber): Boolean;
-{* 计算一大数对象的平方，结果放 Res 中，返回平方计算是否成功}
+{* 计算一大数对象的平方，结果放 Res 中，返回平方计算是否成功，Res 可以是 Num}
 
 function BigNumberSqrt(const Res: TCnBigNumber; const Num: TCnBigNumber): Boolean;
-{* 计算一大数对象的平方根的整数部分，结果放 Res 中，返回平方计算是否成功}
+{* 计算一大数对象的平方根的整数部分，结果放 Res 中，返回平方计算是否成功，Res 可以是 Num}
+
+function BigNumberRoot(const Res: TCnBigNumber; const Num: TCnBigNumber; Exponent: Integer): Boolean;
+{* 计算一大数对象的 Exp 次方根的整数部分，结果放 Res 中，返回根计算是否成功
+  要求 Num 不能为负，Exponent 不能为 0 或负
+  注：FIXME: 因为大数无法进行浮点计算，目前整数运算有偏差，结果偏大，不推荐使用！}
 
 function BigNumberMul(const Res: TCnBigNumber; Num1: TCnBigNumber;
   Num2: TCnBigNumber): Boolean;
@@ -526,7 +658,12 @@ function BigNumberMul(const Res: TCnBigNumber; Num1: TCnBigNumber;
 
 function BigNumberMulKaratsuba(const Res: TCnBigNumber; Num1: TCnBigNumber;
   Num2: TCnBigNumber): Boolean;
-{* 用 Karatsuba 算法计算两大数对象的乘积，结果放 Res 中，返回乘积计算是否成功，Res 可以是 Num1 或 Num2}
+{* 用 Karatsuba 算法计算两大数对象的乘积，结果放 Res 中，返回乘积计算是否成功，Res 可以是 Num1 或 Num2
+  注：好像也没见快到哪里去}
+
+function BigNumberMulFloat(const Res: TCnBigNumber; Num: TCnBigNumber;
+  F: Extended): Boolean;
+{* 计算大数对象与浮点数的乘积，结果取整后放 Res 中，返回乘积计算是否成功，Res 可以是 Num}
 
 function BigNumberDiv(const Res: TCnBigNumber; const Remain: TCnBigNumber;
   const Num: TCnBigNumber; const Divisor: TCnBigNumber): Boolean;
@@ -546,6 +683,18 @@ function BigNumberMulWordNonNegativeMod(const Res: TCnBigNumber;
   const Num: TCnBigNumber; N: Integer; const Divisor: TCnBigNumber): Boolean;
 {* 大数对象乘以 32位有符号整型再非负求余，余数放 Res 中，0 <= Remain < |Divisor|
    Res 始终大于零，返回求余计算是否成功}
+
+function BigNumberAddMod(const Res: TCnBigNumber; const Num1, Num2: TCnBigNumber;
+  const Divisor: TCnBigNumber): Boolean;
+{* 大数对象求和后非负求余，也就是 Res = (Num1 + Num2) mod Divisor 返回求余计算是否成功}
+
+function BigNumberSubMod(const Res: TCnBigNumber; const Num1, Num2: TCnBigNumber;
+  const Divisor: TCnBigNumber): Boolean;
+{* 大数对象求差后非负求余，也就是 Res = (Num1 - Num2) mod Divisor 返回求余计算是否成功}
+
+function BigNumberDivFloat(const Res: TCnBigNumber; Num: TCnBigNumber;
+  F: Extended): Boolean;
+{* 计算大数对象与浮点数的商，结果取整后放 Res 中，返回乘积计算是否成功，Res 可以是 Num}
 
 function BigNumberPower(const Res: TCnBigNumber; const Num: TCnBigNumber;
   Exponent: TCnLongWord32): Boolean;
@@ -567,9 +716,10 @@ function BigNumberUnsignedMulMod(const Res: TCnBigNumber; const A, B, C: TCnBigN
 {* 快速计算 (A * B) mod C，返回计算是否成功，Res 不能是 C。A、B、C 保持不变（如果 Res 不是 A、B 的话）
   注意: 三个参数均会忽略负值，也就是均用正值参与计算}
 
-function BigNumberMulMod(const Res: TCnBigNumber; const A, B, C: TCnBigNumber): Boolean;
+function BigNumberMulMod(const Res: TCnBigNumber; const A, B, C: TCnBigNumber): Boolean; {$IFDEF SUPPORT_DEPRECATED} deprecated; {$ENDIF}
 {* 快速计算 (A * B) mod C，返回计算是否成功，Res 不能是 C。A、B、C 保持不变（如果 Res 不是 A、B 的话）
-  注意: A、B 允许是负值，乘积为负时，结果为 C - 乘积为正的余}
+  注意: A、B 允许是负值，乘积为负时，结果为 C - 乘积为正的余
+  另外该方法因为比下面的 BigNumberDirectMulMod 慢，所以不建议使用}
 
 function BigNumberDirectMulMod(const Res: TCnBigNumber; A, B, C: TCnBigNumber): Boolean;
 {* 普通计算 (A * B) mod C，返回计算是否成功，Res 不能是 C。A、B、C 保持不变（如果 Res 不是 A、B 的话）
@@ -580,6 +730,15 @@ function BigNumberPowerMod(const Res: TCnBigNumber; A, B, C: TCnBigNumber): Bool
 
 function BigNumberMontgomeryPowerMod(const Res: TCnBigNumber; A, B, C: TCnBigNumber): Boolean;
 {* 蒙哥马利法快速计算 (A ^ B) mod C，返回计算是否成功，Res 不能是 A、B、C 之一，性能略差，可以不用}
+
+function BigNumberLog2(const Num: TCnBigNumber): Extended;
+{* 返回大数的 2 为底的对数的扩展精度浮点值，内部用扩展精度浮点实现，超界未处理}
+
+function BigNumberLog10(const Num: TCnBigNumber): Extended;
+{* 返回大数的 10 为底的常用对数的扩展精度浮点值，内部用扩展精度浮点实现，超界未处理}
+
+function BigNumberLogN(const Num: TCnBigNumber): Extended;
+{* 返回大数的 e 为底的自然对数的扩展精度浮点值，内部用扩展精度浮点实现，超界未处理}
 
 function BigNumberIsProbablyPrime(const Num: TCnBigNumber; TestCount: Integer = BN_MILLER_RABIN_DEF_COUNT): Boolean;
 {* 概率性判断一个大数是否素数，TestCount 指 Miller-Rabin 算法的测试次数，越大越精确也越慢}
@@ -625,7 +784,7 @@ procedure BigNumberExtendedEuclideanGcd2(A, B: TCnBigNumber; X: TCnBigNumber;
    X 被称为 A 针对 B 的模反元素，因此本算法也用来算 A 针对 B 的模反元素
    （由于可以视作 -Y，所以本方法与上一方法是等同的 ）}
 
-procedure BigNumberModularInverse(const Res: TCnBigNumber; X, Modulus: TCnBigNumber);
+function BigNumberModularInverse(const Res: TCnBigNumber; X, Modulus: TCnBigNumber): Boolean;
 {* 求 X 针对 Modulus 的模反或叫模逆元 Y，满足 (X * Y) mod M = 1，X 可为负值，Y 求出正值。
    调用者须自行保证 X、Modulus 互质，且 Res 不能是 X 或 Modulus}
 
@@ -649,6 +808,9 @@ function BigNumberLucas(const Res: TCnBigNumber; A, P: TCnBigNumber): Boolean;
 procedure BigNumberFindFactors(Num: TCnBigNumber; Factors: TCnBigNumberList);
 {* 找出大数的质因数列表}
 
+procedure BigNumberEuler(const Res: TCnBigNumber; Num: TCnBigNumber);
+{* 求不大于一 64 位无符号数 Num 的与 Num 互质的正整数的个数，也就是欧拉函数}
+
 function BigNumberLucasSequenceMod(X, Y, K, N: TCnBigNumber; Q, V: TCnBigNumber): Boolean;
 {* 计算 IEEE P1363 的规范中说明的 Lucas 序列，调用者需自行保证 N 为奇素数
    Lucas 序列递归定义为：V0 = 2, V1 = X, and Vk = X * Vk-1 - Y * Vk-2   for k >= 2
@@ -664,8 +826,33 @@ function BigNumberChineseRemainderTheorem(Res: TCnBigNumber;
 {* 用中国剩余定理，根据余数与互素的除数求一元线性同余方程组的最小解，返回求解是否成功
    参数为 Int64 列表}
 
+function BigNumberIsPerfectPower(Num: TCnBigNumber): Boolean;
+{* 判断大数是否是完全幂，大数较大时有一定耗时}
+
+procedure BigNumberFillCombinatorialNumbers(List: TCnBigNumberList; N: Integer);
+{* 计算组合数 C(m, N) 并生成大数对象放至大数数组中，其中 m 从 0 到 N}
+
+procedure BigNumberFillCombinatorialNumbersMod(List: TCnBigNumberList; N: Integer; P: TCnBigNumber);
+{* 计算组合数 C(m, N) mod P 并生成大数对象放至大数数组中，其中 m 从 0 到 N}
+
+function BigNumberAKSIsPrime(N: TCnBigNumber): Boolean;
+{* 用 AKS 算法判断某正整数是否是素数，判断 9223372036854775783 约需 15 秒}
+
 function BigNumberDebugDump(const Num: TCnBigNumber): string;
 {* 打印大数内部信息}
+
+function SparseBigNumberListIsZero(P: TCnSparseBigNumberList): Boolean;
+{* 判断 SparseBigNumberList 是否为 0，注意 nil、0 个项、唯一 1 个项是 0，均作为 0 处理}
+
+function SparseBigNumberListEqual(A, B: TCnSparseBigNumberList): Boolean;
+{* 判断两个 SparseBigNumberList 是否相等，注意 nil、0 个项、唯一 1 个项是 0，均作为 0 处理}
+
+procedure SparseBigNumberListCopy(Dst, Src: TCnSparseBigNumberList);
+{* 将 Src 复制至 Dst}
+
+procedure SparseBigNumberListMerge(Dst, Src1, Src2: TCnSparseBigNumberList; Add: Boolean = True);
+{* 合并两个 SparseBigNumberList 至目标 List 中，指数相同的系数 Add 为 True 时相加，否则相减
+  Dst 可以是 Src1 或 Src2，Src1 和 Src2 可以相等}
 
 var
   CnBigNumberOne: TCnBigNumber = nil;     // 表示 1 的常量
@@ -674,19 +861,25 @@ var
 implementation
 
 uses
-  CnPrimeNumber;
+  CnPrimeNumber, CnBigDecimal, CnFloatConvert;
+
+resourcestring
+  SCN_BN_LOG_RANGE_ERROR = 'Log Range Error';
+  SCN_BN_LEGENDRE_ERROR = 'Legendre: A, P Must > 0';
+  SCN_BN_FLOAT_EXP_RANGE_ERROR = 'Extended Float Exponent Range Error';
 
 const
   Hex: string = '0123456789ABCDEF';
 
-  BN_CTX_POOL_SIZE = 16;
-  BN_CTX_START_FRAMES = 32;
   BN_DEC_CONV = 1000000000;
   BN_DEC_FMT = '%u';
   BN_DEC_FMT2 = '%.9u';
   BN_PRIME_NUMBERS = 2048;
 
   BN_MUL_KARATSUBA = 80;  // 大于等于 80 个 LongWord 的乘法才用 Karatsuba 算法
+  CRLF = #13#10;
+
+  SPARSE_BINARY_SEARCH_THRESHOLD = 4;
 
 {$IFNDEF MSWINDOWS}
   MAXDWORD = TCnLongWord32($FFFFFFFF);
@@ -694,6 +887,7 @@ const
 
 var
   FLocalBigNumberPool: TCnBigNumberPool = nil;
+  FLocalBigBinaryPool: TCnBigBinaryPool = nil;
 
 function BigNumberNew: TCnBigNumber;
 begin
@@ -869,9 +1063,29 @@ begin
   end;
 end;
 
-function BigNumberExpandInternal(const Num: TCnBigNumber; Words: Integer): PLongWord;
+function BigNumberGetTenPrecision2(const Num: TCnBigNumber): Integer;
+const
+  LOG_10_2 = 0.30103;
 var
-  A, B, TmpA: PLongWord;
+  B: Integer;
+begin
+  Result := 0;
+  if Num.IsZero then
+    Exit;
+
+  B := Num.GetBitsCount;
+  if B <= 3 then
+  begin
+    Result := 1;
+    Exit;
+  end;
+
+  Result := Trunc(LOG_10_2 * B) + 1;
+end;
+
+function BigNumberExpandInternal(const Num: TCnBigNumber; Words: Integer): PCnLongWord32;
+var
+  A, B, TmpA: PCnLongWord32;
   I: Integer;
   A0, A1, A2, A3: TCnLongWord32;
 begin
@@ -879,7 +1093,7 @@ begin
   if Words > (MaxInt div (4 * BN_BITS2)) then
     Exit;
 
-  A := PLongWord(GetMemory(SizeOf(MAXDWORD) * Words));
+  A := PCnLongWord32(GetMemory(SizeOf(MAXDWORD) * Words));
   if A = nil then
     Exit;
 
@@ -904,8 +1118,8 @@ begin
       PLongWordArray(TmpA)^[3] := A3;
 
       Dec(I);
-      TmpA := PLongWord(Integer(TmpA) + 4 * SizeOf(TCnLongWord32));
-      B := PLongWord(Integer(B) + 4 * SizeOf(TCnLongWord32));
+      TmpA := PCnLongWord32(TCnNativeInt(TmpA) + 4 * SizeOf(TCnLongWord32));
+      B := PCnLongWord32(TCnNativeInt(B) + 4 * SizeOf(TCnLongWord32));
     end;
 
     case Num.Top and 3 of
@@ -936,7 +1150,7 @@ end;
 
 function BigNumberExpand2(const Num: TCnBigNumber; Words: Integer): TCnBigNumber;
 var
-  P: PLongWord;
+  P: PCnLongWord32;
 begin
   Result := nil;
   if Words > Num.DMax then
@@ -1071,8 +1285,13 @@ begin
   else // W < 0
   begin
     Num.Neg := 1;
-    PInt64Array(Num.D)^[0] := (not W) + 1;
-    Num.Top := 2;
+    W := (not W) + 1;
+    PInt64Array(Num.D)^[0] := W;
+
+    if ((W and $FFFFFFFF00000000) shr 32) = 0 then // 如果 Int64 高 32 位是 0
+      Num.Top := 1
+    else
+      Num.Top := 2;
   end;
   Result := True;
 end;
@@ -1082,7 +1301,13 @@ begin
   if Num.Top > 2 then
     Result := TUInt64(BN_MASK3U)
   else if Num.Top = 2 then
-    Result := TUInt64(PInt64Array(Num.D)^[0])
+  begin
+{$IFDEF SUPPORT_UINT64}
+    Result := TUInt64(PInt64Array(Num.D)^[0]);
+{$ELSE}
+    Result := PInt64Array(Num.D)^[0]; // 在 D5/6 下 Int64转 Int64 出现 C3517 错误！！！
+{$ENDIF}
+  end
   else if Num.Top = 1 then
     Result := TUInt64(PLongWordArray(Num.D)^[0])
   else
@@ -1152,7 +1377,7 @@ end;
 // 调整 Top 保证 D[Top - 1] 指向最高位非 0 处
 procedure BigNumberCorrectTop(const Num: TCnBigNumber);
 var
-  Ftl: PLongWord;
+  Ftl: PCnLongWord32;
   Top: Integer;
 begin
   Top := Num.Top;
@@ -1162,7 +1387,7 @@ begin
     if Ftl^ <> 0 then
       Break;
 
-    Ftl := PLongWord(Integer(Ftl) - SizeOf(TCnLongWord32));
+    Ftl := PCnLongWord32(TCnNativeInt(Ftl) - SizeOf(TCnLongWord32));
     Dec(Top);
   end;
   Num.Top := Top;
@@ -1170,23 +1395,26 @@ end;
 
 function BigNumberToBinary(const Num: TCnBigNumber; Buf: PAnsiChar): Integer;
 var
-  I, N: Integer;
+  I: Integer;
   L: TCnLongWord32;
 begin
-  N := BigNumberGetBytesCount(Num);
-  I := N;
+  Result := BigNumberGetBytesCount(Num);
+  if Buf = nil then
+    Exit;
+
+  I := Result;
   while I > 0 do
   begin
     Dec(I);
     L := PLongWordArray(Num.D)^[I div BN_BYTES];
     Buf^ := AnsiChar(Chr(L shr (8 * (I mod BN_BYTES)) and $FF));
 
-    Buf := PAnsiChar(Integer(Buf) + 1);
+    Buf := PAnsiChar(TCnNativeInt(Buf) + 1);
   end;
-  Result := N;
 end;
 
-function BigNumberWriteBinaryToStream(const Num: TCnBigNumber; Stream: TStream): Integer;
+function BigNumberWriteBinaryToStream(const Num: TCnBigNumber; Stream: TStream;
+  FixedLen: Integer): Integer;
 var
   Buf: array of Byte;
   Len: Integer;
@@ -1195,9 +1423,18 @@ begin
   Len := BigNumberGetBytesCount(Num);
   if (Stream <> nil) and (Len > 0) then
   begin
-    SetLength(Buf, Len);
-    BigNumberToBinary(Num, @Buf[0]);
-    Stream.Write(Buf[0], Len);
+    if FixedLen > Len then
+    begin
+      SetLength(Buf, FixedLen);
+      BigNumberToBinary(Num, @Buf[FixedLen - Len]);
+      Result := Stream.Write(Buf[0], FixedLen);
+    end
+    else
+    begin
+      SetLength(Buf, Len);
+      BigNumberToBinary(Num, @Buf[0]);
+      Result := Stream.Write(Buf[0], Len);
+    end;
     SetLength(Buf, 0);
   end;
 end;
@@ -1214,6 +1451,30 @@ begin
     Result := nil;
   end;
 end;
+
+{$IFDEF TBYTES_DEFINED}
+
+function BigNumberFromBytes(Buf: TBytes): TCnBigNumber;
+begin
+  Result := nil;
+  if (Buf <> nil) and (Length(Buf) > 0) then
+    Result := BigNumberFromBinary(@Buf[0], Length(Buf) - 1);
+end;
+
+function BigNumberToBytes(const Num: TCnBigNumber): TBytes;
+var
+  L: Integer;
+begin
+  Result := nil;
+  L := BigNumberGetBytesCount(Num);
+  if L > 0 then
+  begin
+    SetLength(Result, L);
+    BigNumberToBinary(Num, @Result[0]);
+  end;
+end;
+
+{$ENDIF}
 
 function BigNumberSetBinary(Buf: PAnsiChar; Len: Integer;
   const Res: TCnBigNumber): Boolean;
@@ -1243,7 +1504,7 @@ begin
   while N > 0 do
   begin
     L := (L shl 8) or Ord(Buf^);
-    Buf := PAnsiChar(Integer(Buf) + 1);
+    Buf := PAnsiChar(TCnNativeInt(Buf) + 1);
 
     if M = 0 then
     begin
@@ -1498,6 +1759,19 @@ begin
   Result := 0;
 end;
 
+function BigNumberCompareInteger(const Num1: TCnBigNumber; const Num2: Integer): Integer;
+var
+  T: TCnBigNumber;
+begin
+  T := FLocalBigNumberPool.Obtain;
+  try
+    T.SetInteger(Num2);
+    Result := BigNumberCompare(Num1, T);
+  finally
+    FLocalBigNumberPool.Recycle(T);
+  end;
+end;
+
 function BigNumberUnsignedCompare(const Num1: TCnBigNumber; const Num2: TCnBigNumber): Integer;
 var
   I: Integer;
@@ -1648,11 +1922,17 @@ begin
 
   for I := (Src.Top shr 2) downto 1 do
   begin
-    A0 := B[0]; A1 := B[1]; A2 := B[2]; A3 := B[3];
-    A[0] := A0; A[1] := A1; A[2] := A2; A[3] := A3;
+    A0 := B^[0];
+    A1 := B^[1];
+    A2 := B^[2];
+    A3 := B^[3];
+    A^[0] := A0;
+    A^[1] := A1;
+    A^[2] := A2;
+    A^[3] := A3;
 
-    A := PLongWordArray(Integer(A) + 4 * SizeOf(TCnLongWord32));
-    B := PLongWordArray(Integer(B) + 4 * SizeOf(TCnLongWord32));
+    A := PLongWordArray(TCnNativeInt(A) + 4 * SizeOf(TCnLongWord32));
+    B := PLongWordArray(TCnNativeInt(B) + 4 * SizeOf(TCnLongWord32));
   end;
 
   case Src.Top and 3 of
@@ -1758,7 +2038,7 @@ end;
 
 procedure BigNumberSwap(const Num1: TCnBigNumber; const Num2: TCnBigNumber);
 var
-  TmpD: PLongWord;
+  TmpD: PCnLongWord32;
   TmpTop, TmpDMax, TmpNeg: Integer;
 begin
   TmpD := Num1.D;
@@ -1812,9 +2092,95 @@ begin
   C := TCnLongWord32(T shr BN_BITS2) and BN_MASK2;
 end;
 
+type
+  TCnBitOperation = (boAnd, boOr, boXor);
+
+// N 个 TCnLongWord32 长的数组内容进行位运算，如果 BP 为 nil，表示不够长，作为 0 处理
+procedure BigNumberBitOperation(RP: PLongWordArray; AP: PLongWordArray; BP: PLongWordArray;
+  N: Integer; Op: TCnBitOperation);
+begin
+  if N <= 0 then
+    Exit;
+
+  if BP <> nil then
+  begin
+    while (N and (not 3)) <> 0 do
+    begin
+      case Op of
+        boAnd:
+          begin
+            RP^[0] := TCnLongWord32((Int64(AP^[0]) and Int64(BP^[0])) and BN_MASK2);
+            RP^[1] := TCnLongWord32((Int64(AP^[1]) and Int64(BP^[1])) and BN_MASK2);
+            RP^[2] := TCnLongWord32((Int64(AP^[2]) and Int64(BP^[2])) and BN_MASK2);
+            RP^[3] := TCnLongWord32((Int64(AP^[3]) and Int64(BP^[3])) and BN_MASK2);
+          end;
+        boOr:
+          begin
+            RP^[0] := TCnLongWord32((Int64(AP^[0]) or Int64(BP^[0])) and BN_MASK2);
+            RP^[1] := TCnLongWord32((Int64(AP^[1]) or Int64(BP^[1])) and BN_MASK2);
+            RP^[2] := TCnLongWord32((Int64(AP^[2]) or Int64(BP^[2])) and BN_MASK2);
+            RP^[3] := TCnLongWord32((Int64(AP^[3]) or Int64(BP^[3])) and BN_MASK2);
+          end;
+        boXor:
+          begin
+            RP^[0] := TCnLongWord32((Int64(AP^[0]) xor Int64(BP^[0])) and BN_MASK2);
+            RP^[1] := TCnLongWord32((Int64(AP^[1]) xor Int64(BP^[1])) and BN_MASK2);
+            RP^[2] := TCnLongWord32((Int64(AP^[2]) xor Int64(BP^[2])) and BN_MASK2);
+            RP^[3] := TCnLongWord32((Int64(AP^[3]) xor Int64(BP^[3])) and BN_MASK2);
+          end;
+      end;
+
+      AP := PLongWordArray(TCnNativeInt(AP) + 4 * SizeOf(TCnLongWord32));
+      BP := PLongWordArray(TCnNativeInt(BP) + 4 * SizeOf(TCnLongWord32));
+      RP := PLongWordArray(TCnNativeInt(RP) + 4 * SizeOf(TCnLongWord32));
+
+      Dec(N, 4);
+    end;
+
+    while N <> 0 do
+    begin
+      case Op of
+        boAnd:
+          RP^[0] := TCnLongWord32((Int64(AP^[0]) and Int64(BP^[0])) and BN_MASK2);
+        boOr:
+          RP^[0] := TCnLongWord32((Int64(AP^[0]) or Int64(BP^[0])) and BN_MASK2);
+        boXor:
+          RP^[0] := TCnLongWord32((Int64(AP^[0]) xor Int64(BP^[0])) and BN_MASK2);
+      end;
+
+      AP := PLongWordArray(TCnNativeInt(AP) + SizeOf(TCnLongWord32));
+      BP := PLongWordArray(TCnNativeInt(BP) + SizeOf(TCnLongWord32));
+      RP := PLongWordArray(TCnNativeInt(RP) + SizeOf(TCnLongWord32));
+      Dec(N);
+    end;
+  end
+  else // BP 为 nil，代表数组不够长，当成 0 处理
+  begin
+    if Op = boAnd then
+      FillChar(RP[0], N * SizeOf(TCnLongWord32), 0)
+    else if Op in [boOr, boXor] then
+      Move(AP[0], RP[0], N * SizeOf(TCnLongWord32));
+  end;
+end;
+
 // ============================ 低阶运算定义结束 ===============================
 
 {* Words 系列内部计算函数开始}
+
+procedure BigNumberAndWords(RP: PLongWordArray; AP: PLongWordArray; BP: PLongWordArray; N: Integer);
+begin
+  BigNumberBitOperation(RP, AP, BP, N, boAnd);
+end;
+
+procedure BigNumberOrWords(RP: PLongWordArray; AP: PLongWordArray; BP: PLongWordArray; N: Integer);
+begin
+  BigNumberBitOperation(RP, AP, BP, N, boOr);
+end;
+
+procedure BigNumberXorWords(RP: PLongWordArray; AP: PLongWordArray; BP: PLongWordArray; N: Integer);
+begin
+  BigNumberBitOperation(RP, AP, BP, N, boXor);
+end;
 
 function BigNumberAddWords(RP: PLongWordArray; AP: PLongWordArray; BP: PLongWordArray; N: Integer): TCnLongWord32;
 var
@@ -1827,38 +2193,38 @@ begin
   LL := 0;
   while (N and (not 3)) <> 0 do
   begin
-    LL := LL + Int64(AP[0]) + Int64(BP[0]);
-    RP[0] := TCnLongWord32(LL) and BN_MASK2;
+    LL := LL + Int64(AP^[0]) + Int64(BP^[0]);
+    RP^[0] := TCnLongWord32(LL) and BN_MASK2;
     LL := LL shr BN_BITS2;
 
-    LL := LL + Int64(AP[1]) + Int64(BP[1]);
-    RP[1] := TCnLongWord32(LL) and BN_MASK2;
+    LL := LL + Int64(AP^[1]) + Int64(BP^[1]);
+    RP^[1] := TCnLongWord32(LL) and BN_MASK2;
     LL := LL shr BN_BITS2;
 
-    LL := LL + Int64(AP[2]) + Int64(BP[2]);
-    RP[2] := TCnLongWord32(LL) and BN_MASK2;
+    LL := LL + Int64(AP^[2]) + Int64(BP^[2]);
+    RP^[2] := TCnLongWord32(LL) and BN_MASK2;
     LL := LL shr BN_BITS2;
 
-    LL := LL + Int64(AP[3]) + Int64(BP[3]);
-    RP[3] := TCnLongWord32(LL) and BN_MASK2;
+    LL := LL + Int64(AP^[3]) + Int64(BP^[3]);
+    RP^[3] := TCnLongWord32(LL) and BN_MASK2;
     LL := LL shr BN_BITS2;
 
-    AP := PLongWordArray(Integer(AP) + 4 * SizeOf(TCnLongWord32));
-    BP := PLongWordArray(Integer(BP) + 4 * SizeOf(TCnLongWord32));
-    RP := PLongWordArray(Integer(RP) + 4 * SizeOf(TCnLongWord32));
+    AP := PLongWordArray(TCnNativeInt(AP) + 4 * SizeOf(TCnLongWord32));
+    BP := PLongWordArray(TCnNativeInt(BP) + 4 * SizeOf(TCnLongWord32));
+    RP := PLongWordArray(TCnNativeInt(RP) + 4 * SizeOf(TCnLongWord32));
 
     Dec(N, 4);
   end;
 
   while N <> 0 do
   begin
-    LL := LL + Int64(AP[0]) + Int64(BP[0]);
-    RP[0] := TCnLongWord32(LL) and BN_MASK2;
+    LL := LL + Int64(AP^[0]) + Int64(BP^[0]);
+    RP^[0] := TCnLongWord32(LL) and BN_MASK2;
     LL := LL shr BN_BITS2;
 
-    AP := PLongWordArray(Integer(AP) + SizeOf(TCnLongWord32));
-    BP := PLongWordArray(Integer(BP) + SizeOf(TCnLongWord32));
-    RP := PLongWordArray(Integer(RP) + SizeOf(TCnLongWord32));
+    AP := PLongWordArray(TCnNativeInt(AP) + SizeOf(TCnLongWord32));
+    BP := PLongWordArray(TCnNativeInt(BP) + SizeOf(TCnLongWord32));
+    RP := PLongWordArray(TCnNativeInt(RP) + SizeOf(TCnLongWord32));
     Dec(N);
   end;
   Result := TCnLongWord32(LL);
@@ -1899,9 +2265,9 @@ begin
     if T1 <> T2 then
       if T1 < T2 then C := 1 else C := 0;
 
-    AP := PLongWordArray(Integer(AP) + 4 * SizeOf(TCnLongWord32));
-    BP := PLongWordArray(Integer(BP) + 4 * SizeOf(TCnLongWord32));
-    RP := PLongWordArray(Integer(RP) + 4 * SizeOf(TCnLongWord32));
+    AP := PLongWordArray(TCnNativeInt(AP) + 4 * SizeOf(TCnLongWord32));
+    BP := PLongWordArray(TCnNativeInt(BP) + 4 * SizeOf(TCnLongWord32));
+    RP := PLongWordArray(TCnNativeInt(RP) + 4 * SizeOf(TCnLongWord32));
 
     Dec(N, 4);
   end;
@@ -1914,9 +2280,9 @@ begin
     if T1 <> T2 then
       if T1 < T2 then C := 1 else C := 0;
 
-    AP := PLongWordArray(Integer(AP) + SizeOf(TCnLongWord32));
-    BP := PLongWordArray(Integer(BP) + SizeOf(TCnLongWord32));
-    RP := PLongWordArray(Integer(RP) + SizeOf(TCnLongWord32));
+    AP := PLongWordArray(TCnNativeInt(AP) + SizeOf(TCnLongWord32));
+    BP := PLongWordArray(TCnNativeInt(BP) + SizeOf(TCnLongWord32));
+    RP := PLongWordArray(TCnNativeInt(RP) + SizeOf(TCnLongWord32));
     Dec(N);
   end;
   Result := C;
@@ -1935,16 +2301,16 @@ begin
     MulAdd(RP^[2], AP^[2], W, Result);
     MulAdd(RP^[3], AP^[3], W, Result);
 
-    AP := PLongWordArray(Integer(AP) + 4 * SizeOf(TCnLongWord32));
-    RP := PLongWordArray(Integer(RP) + 4 * SizeOf(TCnLongWord32));
+    AP := PLongWordArray(TCnNativeInt(AP) + 4 * SizeOf(TCnLongWord32));
+    RP := PLongWordArray(TCnNativeInt(RP) + 4 * SizeOf(TCnLongWord32));
     Dec(N, 4);
   end;
 
   while N <> 0 do
   begin
     MulAdd(RP^[0], AP^[0], W, Result);
-    AP := PLongWordArray(Integer(AP) + SizeOf(TCnLongWord32));
-    RP := PLongWordArray(Integer(RP) + SizeOf(TCnLongWord32));
+    AP := PLongWordArray(TCnNativeInt(AP) + SizeOf(TCnLongWord32));
+    RP := PLongWordArray(TCnNativeInt(RP) + SizeOf(TCnLongWord32));
     Dec(N);
   end;
 end;
@@ -1963,8 +2329,8 @@ begin
     Mul(RP^[2], AP^[2], W, Result);
     Mul(RP^[3], AP^[3], W, Result);
 
-    AP := PLongWordArray(Integer(AP) + 4 * SizeOf(TCnLongWord32));
-    RP := PLongWordArray(Integer(RP) + 4 * SizeOf(TCnLongWord32));
+    AP := PLongWordArray(TCnNativeInt(AP) + 4 * SizeOf(TCnLongWord32));
+    RP := PLongWordArray(TCnNativeInt(RP) + 4 * SizeOf(TCnLongWord32));
 
     Dec(N, 4);
   end;
@@ -1973,8 +2339,8 @@ begin
   begin
     Mul(RP^[0], AP^[0], W, Result);
 
-    AP := PLongWordArray(Integer(AP) + SizeOf(TCnLongWord32));
-    RP := PLongWordArray(Integer(RP) + SizeOf(TCnLongWord32));
+    AP := PLongWordArray(TCnNativeInt(AP) + SizeOf(TCnLongWord32));
+    RP := PLongWordArray(TCnNativeInt(RP) + SizeOf(TCnLongWord32));
 
     Dec(N);
   end;
@@ -1992,16 +2358,16 @@ begin
     Sqr(RP^[4], RP^[5], AP^[2]);
     Sqr(RP^[6], RP^[7], AP^[3]);
 
-    AP := PLongWordArray(Integer(AP) + 4 * SizeOf(TCnLongWord32));
-    RP := PLongWordArray(Integer(RP) + 8 * SizeOf(TCnLongWord32));
+    AP := PLongWordArray(TCnNativeInt(AP) + 4 * SizeOf(TCnLongWord32));
+    RP := PLongWordArray(TCnNativeInt(RP) + 8 * SizeOf(TCnLongWord32));
     Dec(N, 4);
   end;
 
   while N <> 0 do
   begin
     Sqr(RP^[0], RP^[1], AP^[0]);
-    AP := PLongWordArray(Integer(AP) + SizeOf(TCnLongWord32));
-    RP := PLongWordArray(Integer(RP) + 2 * SizeOf(TCnLongWord32));
+    AP := PLongWordArray(TCnNativeInt(AP) + SizeOf(TCnLongWord32));
+    RP := PLongWordArray(TCnNativeInt(RP) + 2 * SizeOf(TCnLongWord32));
     Dec(N);
   end;
 end;
@@ -2041,11 +2407,134 @@ end;
 
 {*  Words 系列内部计算函数结束}
 
+function BigNumberAnd(const Res: TCnBigNumber; const Num1: TCnBigNumber;
+  const Num2: TCnBigNumber): Boolean;
+var
+  Max, Min, Dif: Integer;
+  AP, BP, RP: PCnLongWord32;
+  A, B, Tmp: TCnBigNumber;
+begin
+  Result := False;
+
+  A := Num1;
+  B := Num2;
+  if A.Top < B.Top then
+  begin
+    Tmp := A;
+    A := B;
+    B := Tmp;
+  end;
+
+  Max := A.Top;
+  Min := B.Top;
+  Dif := Max - Min;
+
+  if BigNumberWordExpand(Res, Max) = nil then
+    Exit;
+
+  Res.Top := Max;
+  AP := PCnLongWord32(A.D);
+  BP := PCnLongWord32(B.D);
+  RP := PCnLongWord32(Res.D);
+
+  BigNumberAndWords(PLongWordArray(RP), PLongWordArray(AP), PLongWordArray(BP), Min);
+
+  // AP 长的后头还有 Dif 一段没有处理，需要当成和 0 一块运算
+  Inc(AP, Min);
+  Inc(RP, Min);
+  BigNumberAndWords(PLongWordArray(RP), PLongWordArray(AP), nil, Dif);
+
+  BigNumberCorrectTop(Res);
+  Result := True;
+end;
+
+function BigNumberOr(const Res: TCnBigNumber; const Num1: TCnBigNumber;
+  const Num2: TCnBigNumber): Boolean;
+var
+  Max, Min, Dif: Integer;
+  AP, BP, RP: PCnLongWord32;
+  A, B, Tmp: TCnBigNumber;
+begin
+  Result := False;
+
+  A := Num1;
+  B := Num2;
+  if A.Top < B.Top then
+  begin
+    Tmp := A;
+    A := B;
+    B := Tmp;
+  end;
+
+  Max := A.Top;
+  Min := B.Top;
+  Dif := Max - Min;
+
+  if BigNumberWordExpand(Res, Max) = nil then
+    Exit;
+
+  Res.Top := Max;
+  AP := PCnLongWord32(A.D);
+  BP := PCnLongWord32(B.D);
+  RP := PCnLongWord32(Res.D);
+
+  BigNumberOrWords(PLongWordArray(RP), PLongWordArray(AP), PLongWordArray(BP), Min);
+
+  // AP 长的后头还有 Dif 一段没有处理，需要当成和 0 一块运算
+  Inc(AP, Min);
+  Inc(RP, Min);
+  BigNumberOrWords(PLongWordArray(RP), PLongWordArray(AP), nil, Dif);
+
+  BigNumberCorrectTop(Res);
+  Result := True;
+end;
+
+function BigNumberXor(const Res: TCnBigNumber; const Num1: TCnBigNumber;
+  const Num2: TCnBigNumber): Boolean;
+var
+  Max, Min, Dif: Integer;
+  AP, BP, RP: PCnLongWord32;
+  A, B, Tmp: TCnBigNumber;
+begin
+  Result := False;
+
+  A := Num1;
+  B := Num2;
+  if A.Top < B.Top then
+  begin
+    Tmp := A;
+    A := B;
+    B := Tmp;
+  end;
+
+  Max := A.Top;
+  Min := B.Top;
+  Dif := Max - Min;
+
+  if BigNumberWordExpand(Res, Max) = nil then
+    Exit;
+
+  Res.Top := Max;
+  AP := PCnLongWord32(A.D);
+  BP := PCnLongWord32(B.D);
+  RP := PCnLongWord32(Res.D);
+
+  BigNumberXorWords(PLongWordArray(RP), PLongWordArray(AP), PLongWordArray(BP), Min);
+
+  // AP 长的后头还有 Dif 一段没有处理，需要当成和 0 一块运算
+  Inc(AP, Min);
+  Inc(RP, Min);
+  BigNumberXorWords(PLongWordArray(RP), PLongWordArray(AP), nil, Dif);
+
+  BigNumberCorrectTop(Res);
+  Result := True;
+end;
+
 function BigNumberUnsignedAdd(const Res: TCnBigNumber; const Num1: TCnBigNumber;
   const Num2: TCnBigNumber): Boolean;
 var
   Max, Min, Dif: Integer;
-  AP, BP, RP: PLongWord;
+  AP, BP, RP: PCnLongWord32;
   Carry, T1, T2: TCnLongWord32;
   A, B, Tmp: TCnBigNumber;
 begin
@@ -2068,14 +2557,14 @@ begin
     Exit;
 
   Res.Top := Max;
-  AP := PLongWord(A.D);
-  BP := PLongWord(B.D);
-  RP := PLongWord(Res.D);
+  AP := PCnLongWord32(A.D);
+  BP := PCnLongWord32(B.D);
+  RP := PCnLongWord32(Res.D);
 
   Carry := BigNumberAddWords(PLongWordArray(RP), PLongWordArray(AP), PLongWordArray(BP), Min);
 
-  AP := PLongWord(Integer(AP) + Min * SizeOf(TCnLongWord32));
-  RP := PLongWord(Integer(RP) + Min * SizeOf(TCnLongWord32));
+  AP := PCnLongWord32(TCnNativeInt(AP) + Min * SizeOf(TCnLongWord32));
+  RP := PCnLongWord32(TCnNativeInt(RP) + Min * SizeOf(TCnLongWord32));
 
   if Carry <> 0 then
   begin
@@ -2083,11 +2572,11 @@ begin
     begin
       Dec(Dif);
       T1 := AP^;
-      AP := PLongWord(Integer(AP) + SizeOf(TCnLongWord32));
+      AP := PCnLongWord32(TCnNativeInt(AP) + SizeOf(TCnLongWord32));
       T2 := (T1 + 1) and BN_MASK2;
 
       RP^ := T2;
-      RP := PLongWord(Integer(RP) + SizeOf(TCnLongWord32));
+      RP := PCnLongWord32(TCnNativeInt(RP) + SizeOf(TCnLongWord32));
 
       if T2 <> 0 then
       begin
@@ -2109,8 +2598,8 @@ begin
     begin
       Dec(Dif);
       RP^ := AP^;
-      AP := PLongWord(Integer(AP) + SizeOf(TCnLongWord32));
-      RP := PLongWord(Integer(RP) + SizeOf(TCnLongWord32));
+      AP := PCnLongWord32(TCnNativeInt(AP) + SizeOf(TCnLongWord32));
+      RP := PCnLongWord32(TCnNativeInt(RP) + SizeOf(TCnLongWord32));
     end;
   end;
 
@@ -2122,7 +2611,7 @@ function BigNumberUnsignedSub(const Res: TCnBigNumber; const Num1: TCnBigNumber;
   const Num2: TCnBigNumber): Boolean;
 var
   Max, Min, Dif, I: Integer;
-  AP, BP, RP: PLongWord;
+  AP, BP, RP: PCnLongWord32;
   Carry, T1, T2: TCnLongWord32;
 begin
   Result := False;
@@ -2137,17 +2626,17 @@ begin
   if BigNumberWordExpand(Res, Max) = nil then
     Exit;
 
-  AP := PLongWord(Num1.D);
-  BP := PLongWord(Num2.D);
-  RP := PLongWord(Res.D);
+  AP := PCnLongWord32(Num1.D);
+  BP := PCnLongWord32(Num2.D);
+  RP := PCnLongWord32(Res.D);
 
   Carry := 0;
   for I := Min downto 1 do
   begin
     T1 := AP^;
     T2 := BP^;
-    AP := PLongWord(Integer(AP) + SizeOf(TCnLongWord32));
-    BP := PLongWord(Integer(BP) + SizeOf(TCnLongWord32));
+    AP := PCnLongWord32(TCnNativeInt(AP) + SizeOf(TCnLongWord32));
+    BP := PCnLongWord32(TCnNativeInt(BP) + SizeOf(TCnLongWord32));
     if Carry <> 0 then
     begin
       if T1 <= T2 then
@@ -2165,7 +2654,7 @@ begin
       T1 := (T1 - T2) and BN_MASK2;
     end;
     RP^ := T1 and BN_MASK2;
-    RP := PLongWord(Integer(RP) + SizeOf(TCnLongWord32));
+    RP := PCnLongWord32(TCnNativeInt(RP) + SizeOf(TCnLongWord32));
   end;
 
   if Carry <> 0 then
@@ -2177,11 +2666,11 @@ begin
     begin
       Dec(Dif);
       T1 := AP^;
-      AP := PLongWord(Integer(AP) + SizeOf(TCnLongWord32));
+      AP := PCnLongWord32(TCnNativeInt(AP) + SizeOf(TCnLongWord32));
       T2 := (T1 - 1) and BN_MASK2;
 
       RP^ := T2;
-      RP := PLongWord(Integer(RP) + SizeOf(TCnLongWord32));
+      RP := PCnLongWord32(TCnNativeInt(RP) + SizeOf(TCnLongWord32));
       if T1 <> 0 then
         Break;
     end;
@@ -2194,26 +2683,26 @@ begin
       if Dif = 0 then Break;
       Dec(Dif);
       RP^ := AP^;
-      AP := PLongWord(Integer(AP) + SizeOf(TCnLongWord32));
-      RP := PLongWord(Integer(RP) + SizeOf(TCnLongWord32));
+      AP := PCnLongWord32(TCnNativeInt(AP) + SizeOf(TCnLongWord32));
+      RP := PCnLongWord32(TCnNativeInt(RP) + SizeOf(TCnLongWord32));
 
       if Dif = 0 then Break;
       Dec(Dif);
       RP^ := AP^;
-      AP := PLongWord(Integer(AP) + SizeOf(TCnLongWord32));
-      RP := PLongWord(Integer(RP) + SizeOf(TCnLongWord32));
+      AP := PCnLongWord32(TCnNativeInt(AP) + SizeOf(TCnLongWord32));
+      RP := PCnLongWord32(TCnNativeInt(RP) + SizeOf(TCnLongWord32));
 
       if Dif = 0 then Break;
       Dec(Dif);
       RP^ := AP^;
-      AP := PLongWord(Integer(AP) + SizeOf(TCnLongWord32));
-      RP := PLongWord(Integer(RP) + SizeOf(TCnLongWord32));
+      AP := PCnLongWord32(TCnNativeInt(AP) + SizeOf(TCnLongWord32));
+      RP := PCnLongWord32(TCnNativeInt(RP) + SizeOf(TCnLongWord32));
 
       if Dif = 0 then Break;
       Dec(Dif);
       RP^ := AP^;
-      AP := PLongWord(Integer(AP) + SizeOf(TCnLongWord32));
-      RP := PLongWord(Integer(RP) + SizeOf(TCnLongWord32));
+      AP := PCnLongWord32(TCnNativeInt(AP) + SizeOf(TCnLongWord32));
+      RP := PCnLongWord32(TCnNativeInt(RP) + SizeOf(TCnLongWord32));
     end;
   end;
 
@@ -2335,7 +2824,7 @@ end;
 
 function BigNumberShiftLeftOne(const Res: TCnBigNumber; const Num: TCnBigNumber): Boolean;
 var
-  RP, AP: PLongWord;
+  RP, AP: PCnLongWord32;
   I: Integer;
   T, C: TCnLongWord32;
 begin
@@ -2361,9 +2850,9 @@ begin
   for I := 0 to Num.Top - 1 do
   begin
     T := AP^;
-    AP := PLongWord(Integer(AP) + SizeOf(TCnLongWord32));
+    AP := PCnLongWord32(TCnNativeInt(AP) + SizeOf(TCnLongWord32));
     RP^ := ((T shl 1) or C) and BN_MASK2;
-    RP := PLongWord(Integer(RP) + SizeOf(TCnLongWord32));
+    RP := PCnLongWord32(TCnNativeInt(RP) + SizeOf(TCnLongWord32));
 
     if (T and BN_TBIT) <> 0 then
       C := 1
@@ -2381,7 +2870,7 @@ end;
 
 function BigNumberShiftRightOne(const Res: TCnBigNumber; const Num: TCnBigNumber): Boolean;
 var
-  RP, AP: PLongWord;
+  RP, AP: PCnLongWord32;
   I, J: Integer;
   T, C: TCnLongWord32;
 begin
@@ -2467,7 +2956,7 @@ begin
   begin
     for I := Num.Top - 1 downto 0 do
     begin
-      L := F[I];
+      L := F^[I];
       T^[NW + I + 1] := T^[NW + I + 1] or ((L shr RB) and BN_MASK2);
       T^[NW + I] := (L shl LB) and BN_MASK2;
     end;
@@ -2515,7 +3004,7 @@ begin
     end;
   end;
 
-  F := PLongWordArray(Integer(Num.D) + NW * SizeOf(TCnLongWord32));
+  F := PLongWordArray(TCnNativeInt(Num.D) + NW * SizeOf(TCnLongWord32));
   T := PLongWordArray(Res.D);
   J := Num.Top - NW;
   Res.Top := I;
@@ -2525,22 +3014,22 @@ begin
     for I := J downto 1 do
     begin
       T^[0] := F^[0];
-      F := PLongWordArray(Integer(F) + SizeOf(TCnLongWord32));
-      T := PLongWordArray(Integer(T) + SizeOf(TCnLongWord32));
+      F := PLongWordArray(TCnNativeInt(F) + SizeOf(TCnLongWord32));
+      T := PLongWordArray(TCnNativeInt(T) + SizeOf(TCnLongWord32));
     end;
   end
   else
   begin
     L := F^[0];
-    F := PLongWordArray(Integer(F) + SizeOf(TCnLongWord32));
+    F := PLongWordArray(TCnNativeInt(F) + SizeOf(TCnLongWord32));
     for I := J - 1 downto 1 do
     begin
       Tmp := (L shr RB) and BN_MASK2;
       L := F^[0];
       T^[0] := (Tmp or (L shl LB)) and BN_MASK2;
 
-      F := PLongWordArray(Integer(F) + SizeOf(TCnLongWord32));
-      T := PLongWordArray(Integer(T) + SizeOf(TCnLongWord32));
+      F := PLongWordArray(TCnNativeInt(F) + SizeOf(TCnLongWord32));
+      T := PLongWordArray(TCnNativeInt(T) + SizeOf(TCnLongWord32));
     end;
 
     L := (L shr RB) and BN_MASK2;
@@ -2775,18 +3264,19 @@ begin
   end;
 end;
 
-function BigNumberToHex(const Num: TCnBigNumber): string;
+function BigNumberToHex(const Num: TCnBigNumber; FixedLen: Integer): string;
 var
   I, J, V, Z: Integer;
 begin
   Result := '';
   if BigNumberIsZero(Num) then
   begin
-    Result := '0';
+    if FixedLen <= 0 then
+      Result := '0'
+    else
+      Result := StringOfChar('0', FixedLen * 2);
     Exit;
   end;
-  if BigNumberIsNegative(Num) then
-    Result := '-';
 
   Z := 0;
   for I := Num.Top - 1 downto 0 do
@@ -2804,6 +3294,12 @@ begin
       Dec(J, 8);
     end;
   end;
+
+  if FixedLen * 2 > Length(Result) then
+    Result := StringOfChar('0', FixedLen * 2 - Length(Result)) + Result;
+
+  if BigNumberIsNegative(Num) then
+    Result := '-' + Result;
 end;
 
 function BigNumberSetHex(const Buf: AnsiString; const Res: TCnBigNumber): Boolean;
@@ -2827,7 +3323,7 @@ begin
 
   // 求有效长度
   I := 0;
-  while PAnsiChar(Integer(P) + I)^ in ['0'..'9', 'A'..'F', 'a'..'f'] do
+  while PAnsiChar(TCnNativeInt(P) + I)^ in ['0'..'9', 'A'..'F', 'a'..'f'] do
     Inc(I);
 
   BigNumberSetZero(Res);
@@ -2850,7 +3346,7 @@ begin
 
     while True do
     begin
-      C := Ord(PAnsiChar(Integer(P) + J - M)^);
+      C := Ord(PAnsiChar(TCnNativeInt(P) + J - M)^);
       if (C >= Ord('0')) and (C <= Ord('9')) then
         K := C - Ord('0')
       else if (C >= Ord('a')) and (C <= Ord('f')) then
@@ -2895,13 +3391,13 @@ end;
 function BigNumberToDec(const Num: TCnBigNumber): AnsiString;
 var
   I, N, R, Len: Integer;
-  BnData, LP: PLongWord;
+  BnData, LP: PCnLongWord32;
   T: TCnBigNumber;
   P: PAnsiChar;
 
   function BufRemain(Nu: Integer; Pt: PAnsiChar; Res: PAnsiChar): Integer;
   begin
-    Result := Nu + 3 - (Integer(Pt) - Integer(Res));
+    Result := Nu + 3 - (TCnNativeInt(Pt) - TCnNativeInt(Res));
   end;
 
 begin
@@ -2913,7 +3409,7 @@ begin
   BnData := nil;
   T := nil;
   try
-    BnData := PLongWord(GetMemory(((N div 9) + 1) * SizeOf(TCnLongWord32)));
+    BnData := PCnLongWord32(GetMemory(((N div 9) + 1) * SizeOf(TCnLongWord32)));
     if BnData = nil then
       Exit;
 
@@ -2944,9 +3440,9 @@ begin
       while not BigNumberIsZero(T) do
       begin
         LP^ := BigNumberDivWord(T, BN_DEC_CONV);
-        LP := PLongWord(Integer(LP) + SizeOf(TCnLongWord32));
+        LP := PCnLongWord32(TCnNativeInt(LP) + SizeOf(TCnLongWord32));
       end;
-      LP := PLongWord(Integer(LP) - SizeOf(TCnLongWord32));
+      LP := PCnLongWord32(TCnNativeInt(LP) - SizeOf(TCnLongWord32));
 
       R := BufRemain(N, P, @(Result[1]));
 {$IFDEF UNICODE}
@@ -2958,7 +3454,7 @@ begin
         Inc(P);
       while LP <> BnData do
       begin
-        LP := PLongWord(Integer(LP) - SizeOf(TCnLongWord32));
+        LP := PCnLongWord32(TCnNativeInt(LP) - SizeOf(TCnLongWord32));
         R := BufRemain(N, P, @(Result[1]));
 {$IFDEF UNICODE}
         AnsiStrings.AnsiFormatBuf(P^, R, AnsiString(BN_DEC_FMT2), Length(BN_DEC_FMT2), [LP^]);
@@ -3002,7 +3498,7 @@ begin
 
   // 求有效长度
   I := 0;
-  while PAnsiChar(Integer(P) + I)^ in ['0'..'9'] do
+  while PAnsiChar(TCnNativeInt(P) + I)^ in ['0'..'9'] do
     Inc(I);
 
   BigNumberSetZero(Res);
@@ -3051,8 +3547,99 @@ begin
   end;
 end;
 
+function BigNumberSetFloat(F: Extended; const Res: TCnBigNumber): Boolean;
+var
+  N: Boolean;
+  E: Integer;
+  M: TUInt64;
+begin
+  ExtractFloatExtended(F, N, E, M);
+
+  BigNumberSetUInt64UsingInt64(Res, M);
+  Res.SetNegative(N);
+
+  E := E - 63;
+  if E > 0 then
+    Res.ShiftLeft(E)
+  else
+    Res.ShiftRight(-E);
+
+  Result := True;
+end;
+
+function BigNumberGetFloat(const Num: TCnBigNumber): Extended;
+var
+  N: Boolean;
+  E, B, K: Integer;
+  M, T: TUInt64;
+begin
+  Result := 0;
+  if not Num.IsZero then
+  begin
+    N := Num.IsNegative;
+
+    B := Num.GetBitsCount;
+    E := B - 1;
+
+    if E > CN_EXTENDED_MAX_EXPONENT then
+      raise ERangeError.Create(SCN_BN_FLOAT_EXP_RANGE_ERROR);
+
+    if B <= 64 then
+    begin
+      M := PInt64Array(Num.D)^[0];
+
+      if B < 64 then
+        M := M shl (64 - B);
+    end
+    else // 如 Top > 2，则只能取最高 64 位放 M 里，其余的只能舍弃
+    begin
+      // (B - 1) div 64 是高的要读的 64 位的序号，里头有 B mod 64 个位
+      K := (B - 1) div 64;
+{$IFDEF SUPPORT_UINT64}
+      T := TUInt64(PInt64Array(Num.D)^[K]);
+{$ELSE}
+      T := PInt64Array(Num.D)^[K];
+{$ENDIF}
+      K := B mod 64;
+      if K > 0 then // T 里只有低 K 位
+        T := T shl (64 - K);
+
+      M := T; // M 拿到一批高位了
+
+      if K > 0 then // 要补充一批 M 的低位
+      begin
+        K := ((B - 1) div 64) - 1;
+{$IFDEF SUPPORT_UINT64}
+        T := TUInt64(PInt64Array(Num.D)^[K]);
+{$ELSE}
+        T := PInt64Array(Num.D)^[K];
+{$ENDIF}
+        K := 64 - (B mod 64); // 要补充的是 T 的高 K 位
+
+        T := T shr (64 - K);
+        M := M or T;
+      end;
+    end;
+
+    CombineFloatExtended(N, E, M, Result);
+  end;
+end;
+
+function BigNumberFromFloat(F: Extended): TCnBigNumber;
+begin
+  Result := BigNumberNew;
+  if Result = nil then
+    Exit;
+
+  if not BigNumberSetFloat(F, Result) then
+  begin
+    BigNumberFree(Result);
+    Result := nil;
+  end;
+end;
+
 // Tmp should have 2 * N DWORDs
-procedure BigNumberSqrNormal(R: PLongWord; A: PLongWord; N: Integer; Tmp: PLongWord);
+procedure BigNumberSqrNormal(R: PCnLongWord32; A: PCnLongWord32; N: Integer; Tmp: PCnLongWord32);
 var
   I, J, Max: Integer;
   AP, RP: PLongWordArray;
@@ -3060,25 +3647,25 @@ begin
   Max := N * 2;
   AP := PLongWordArray(A);
   RP := PLongWordArray(R);
-  RP[0] := 0;
-  RP[Max - 1] := 0;
+  RP^[0] := 0;
+  RP^[Max - 1] := 0;
 
-  RP := PLongWordArray(Integer(RP) + SizeOf(TCnLongWord32));
+  RP := PLongWordArray(TCnNativeInt(RP) + SizeOf(TCnLongWord32));
   J := N - 1;
 
   if J > 0 then
   begin
-    AP := PLongWordArray(Integer(AP) + SizeOf(TCnLongWord32));
-    RP[J] := BigNumberMulWords(RP, AP, J, PLongWordArray(Integer(AP) - SizeOf(TCnLongWord32))^[0]);
-    RP := PLongWordArray(Integer(RP) + 2 * SizeOf(TCnLongWord32));
+    AP := PLongWordArray(TCnNativeInt(AP) + SizeOf(TCnLongWord32));
+    RP^[J] := BigNumberMulWords(RP, AP, J, PLongWordArray(TCnNativeInt(AP) - SizeOf(TCnLongWord32))^[0]);
+    RP := PLongWordArray(TCnNativeInt(RP) + 2 * SizeOf(TCnLongWord32));
   end;
 
   for I := N - 2 downto 1 do
   begin
     Dec(J);
-    AP := PLongWordArray(Integer(AP) + SizeOf(TCnLongWord32));
-    RP[J] := BigNumberMulAddWords(RP, AP, J, PLongWordArray(Integer(AP) - SizeOf(TCnLongWord32))^[0]);
-    RP := PLongWordArray(Integer(RP) + 2 * SizeOf(TCnLongWord32));
+    AP := PLongWordArray(TCnNativeInt(AP) + SizeOf(TCnLongWord32));
+    RP^[J] := BigNumberMulAddWords(RP, AP, J, PLongWordArray(TCnNativeInt(AP) - SizeOf(TCnLongWord32))^[0]);
+    RP := PLongWordArray(TCnNativeInt(RP) + 2 * SizeOf(TCnLongWord32));
   end;
 
   BigNumberAddWords(PLongWordArray(R), PLongWordArray(R), PLongWordArray(R), Max);
@@ -3226,10 +3813,109 @@ begin
   end;
 end;
 
-procedure BigNumberMulNormal(R: PLongWord; A: PLongWord; NA: Integer; B: PLongWord;
+function BigNumberRoot(const Res: TCnBigNumber; const Num: TCnBigNumber;
+  Exponent: Integer): Boolean;
+var
+  I: Integer;
+  X0, X1, T1, T2, T3: TCnBigBinary;
+  C0, C1: TCnBigNumber;
+  U: TUInt64;
+begin
+  Result := False;
+  if (Exponent <= 0) or Num.IsNegative then
+    Exit;
+
+  if Num.IsOne or Num.IsZero then
+  begin
+    BigNumberCopy(Res, Num);
+    Result := True;
+    Exit;
+  end
+  else if Exponent = 2 then
+    Result := BigNumberSqrt(Res, Num)
+  else if Num.Top <= 2 then
+  begin
+    U := BigNumberGetUInt64UsingInt64(Num);
+    U := UInt64NonNegativeRoot(U, Exponent);
+    BigNumberSetUInt64UsingInt64(Res, U);
+    Result := True;
+    Exit;
+  end
+  else
+  begin
+    // 牛顿迭代法求根
+    I := Num.GetBitsCount + 1;  // 得到大约 Log2 N 的值
+    I := (I div Exponent) + 1;
+
+    X0 := nil;
+    X1 := nil;
+    T1 := nil;
+    T2 := nil;
+    T3 := nil;
+    C0 := nil;
+    C1 := nil;
+
+    // 别的对方没使用，延迟到此处初始化
+    if FLocalBigBinaryPool = nil then
+      FLocalBigBinaryPool := TCnBigBinaryPool.Create;
+
+    try
+      X0 := FLocalBigBinaryPool.Obtain;
+      X1 := FLocalBigBinaryPool.Obtain;
+      T1 := FLocalBigBinaryPool.Obtain;
+      T2 := FLocalBigBinaryPool.Obtain;
+      T3 := FLocalBigBinaryPool.Obtain;
+
+      C0 := FLocalBigNumberPool.Obtain;
+      C1 := FLocalBigNumberPool.Obtain;
+
+      X0.SetOne;
+      X0.ShiftLeft(I);                  // 得到一个较大的 X0 值作为起始值
+
+      repeat
+        // X1 := X0 - (Power(X0, Exponent) - N) / (Exponent * Power(X0, Exponent - 1));
+        BigBinaryCopy(T1, X0);
+        T1.Power(Exponent);
+        T2.SetBigNumber(Num);
+        BigBinarySub(T1, T1, T2);             // 得到 Power(X0, Exponent) - N
+
+        BigBinaryCopy(T2, X0);
+        T2.Power(Exponent - 1);
+        T2.MulWord(Exponent);                // 得到 Exponent * Power(X0, Exponent - 1)
+
+        BigBinaryDiv(T1, T1, T2, 10);            // 得到商，保留一定精度
+        BigBinarySub(X1, X0, T1);            // 算出 X1
+
+        // 得到 X0 和 X1 的整数部分并比较
+        BigBinaryTruncTo(C0, X0);
+        BigBinaryTruncTo(C1, X1);
+        if BigNumberCompare(C0, C1) = 0 then
+        begin
+          // 暂且认为 X0 X1 整数部分不发生变化即认为达到精度了
+          BigNumberCopy(Res, C0);
+          Result := True;
+          Exit;
+        end;
+
+        BigBinaryCopy(X0, X1);
+      until False;
+    finally
+      FLocalBigBinaryPool.Recycle(X1);
+      FLocalBigBinaryPool.Recycle(X0);
+      FLocalBigBinaryPool.Recycle(T3);
+      FLocalBigBinaryPool.Recycle(T2);
+      FLocalBigBinaryPool.Recycle(T1);
+
+      FLocalBigNumberPool.Recycle(C1);
+      FLocalBigNumberPool.Recycle(C0);
+    end;
+  end;
+end;
+
+procedure BigNumberMulNormal(R: PCnLongWord32; A: PCnLongWord32; NA: Integer; B: PCnLongWord32;
   NB: Integer);
 var
-  RR: PLongWord;
+  RR: PCnLongWord32;
   Tmp: Integer;
 begin
   if NA < NB then
@@ -3243,7 +3929,7 @@ begin
     A := RR;
   end;
 
-  RR := PLongWord(Integer(R) + NA * SizeOf(TCnLongWord32));
+  RR := PCnLongWord32(TCnNativeInt(R) + NA * SizeOf(TCnLongWord32));
   if NB <= 0 then
   begin
     BigNumberMulWords(PLongWordArray(R), PLongWordArray(A), NA, 0);
@@ -3257,34 +3943,34 @@ begin
     Dec(NB);
     if NB <=0 then
       Exit;
-    RR := PLongWord(Integer(RR) + SizeOf(TCnLongWord32));
-    R := PLongWord(Integer(R) + SizeOf(TCnLongWord32));
-    B := PLongWord(Integer(B) + SizeOf(TCnLongWord32));
+    RR := PCnLongWord32(TCnNativeInt(RR) + SizeOf(TCnLongWord32));
+    R := PCnLongWord32(TCnNativeInt(R) + SizeOf(TCnLongWord32));
+    B := PCnLongWord32(TCnNativeInt(B) + SizeOf(TCnLongWord32));
 
     RR^ := BigNumberMulAddWords(PLongWordArray(R), PLongWordArray(A), NA, B^);
 
     Dec(NB);
     if NB <=0 then
       Exit;
-    RR := PLongWord(Integer(RR) + SizeOf(TCnLongWord32));
-    R := PLongWord(Integer(R) + SizeOf(TCnLongWord32));
-    B := PLongWord(Integer(B) + SizeOf(TCnLongWord32));
+    RR := PCnLongWord32(TCnNativeInt(RR) + SizeOf(TCnLongWord32));
+    R := PCnLongWord32(TCnNativeInt(R) + SizeOf(TCnLongWord32));
+    B := PCnLongWord32(TCnNativeInt(B) + SizeOf(TCnLongWord32));
     RR^ := BigNumberMulAddWords(PLongWordArray(R), PLongWordArray(A), NA, B^);
 
     Dec(NB);
     if NB <=0 then
       Exit;
-    RR := PLongWord(Integer(RR) + SizeOf(TCnLongWord32));
-    R := PLongWord(Integer(R) + SizeOf(TCnLongWord32));
-    B := PLongWord(Integer(B) + SizeOf(TCnLongWord32));
+    RR := PCnLongWord32(TCnNativeInt(RR) + SizeOf(TCnLongWord32));
+    R := PCnLongWord32(TCnNativeInt(R) + SizeOf(TCnLongWord32));
+    B := PCnLongWord32(TCnNativeInt(B) + SizeOf(TCnLongWord32));
     RR^ := BigNumberMulAddWords(PLongWordArray(R), PLongWordArray(A), NA, B^);
 
     Dec(NB);
     if NB <=0 then
       Exit;
-    RR := PLongWord(Integer(RR) + SizeOf(TCnLongWord32));
-    R := PLongWord(Integer(R) + SizeOf(TCnLongWord32));
-    B := PLongWord(Integer(B) + SizeOf(TCnLongWord32));
+    RR := PCnLongWord32(TCnNativeInt(RR) + SizeOf(TCnLongWord32));
+    R := PCnLongWord32(TCnNativeInt(R) + SizeOf(TCnLongWord32));
+    B := PCnLongWord32(TCnNativeInt(B) + SizeOf(TCnLongWord32));
     RR^ := BigNumberMulAddWords(PLongWordArray(R), PLongWordArray(A), NA, B^);
   end;
 end;
@@ -3405,13 +4091,62 @@ begin
     Result := BigNumberMulKaratsuba(Res, Num1, Num2);
 end;
 
+function BigNumberMulFloat(const Res: TCnBigNumber; Num: TCnBigNumber;
+  F: Extended): Boolean;
+var
+  N: Boolean;
+  E: Integer;
+  M: TUInt64;
+  B: TCnBigNumber;
+begin
+  if F = 0 then
+    Res.SetZero
+  else if (F = 1) or (F = -1) then
+  begin
+    BigNumberCopy(Res, Num);
+    if F = -1 then
+      Res.Negate;
+  end
+  else
+  begin
+    // 解出符号、指数、有效数字进行整数运算
+    ExtractFloatExtended(F, N, E, M);
+    E := E - 63;
+    // 现在的真实值为 M * 2^E 次方，所以要乘以 M，再乘以 2^E
+
+    B := FLocalBigNumberPool.Obtain;
+    try
+      BigNumberSetUInt64UsingInt64(B, M);
+      BigNumberMul(Res, Num, B);
+
+      B.SetWord(1);
+      if E > 0 then
+      begin
+        B.ShiftLeft(E);
+        BigNumberMul(Res, Res, B);
+      end
+      else
+      begin
+        B.ShiftLeft(-E);
+        BigNumberDiv(Res, nil, Res, B);
+      end;
+
+      if N then
+        Res.Negate;
+    finally
+      FLocalBigNumberPool.Recycle(B);
+    end;
+  end;
+  Result := True;
+end;
+
 function BigNumberDiv(const Res: TCnBigNumber; const Remain: TCnBigNumber;
   const Num: TCnBigNumber; const Divisor: TCnBigNumber): Boolean;
 var
   Tmp, SNum, SDiv, SRes: TCnBigNumber;
   I, NormShift, Loop, NumN, DivN, Neg, BackupTop, BackupDMax, BackupNeg: Integer;
   D0, D1, Q, L0, N0, N1, Rem, T2L, T2H: TCnLongWord32;
-  Resp, WNump, BackupD: PLongWord;
+  Resp, WNump, BackupD: PCnLongWord32;
   WNum: TCnBigNumber;
   T2: TUInt64;
 begin
@@ -3474,7 +4209,7 @@ begin
 
     // 注意 WNum 需要使用外部的 D，把池子里拿出来的东西先备份
     WNum.Neg := 0;
-    WNum.D := PLongWord(Integer(SNum.D) + Loop * SizeOf(TCnLongWord32));
+    WNum.D := PCnLongWord32(TCnNativeInt(SNum.D) + Loop * SizeOf(TCnLongWord32));
     WNum.Top := DivN;
     WNum.DMax := SNum.DMax - Loop;
 
@@ -3485,7 +4220,7 @@ begin
       D1 := PLongWordArray(SDiv.D)^[DivN - 2];
     // D0 D1 是 SDiv 的最高俩 DWORD
 
-    WNump := PLongWord(Integer(SNum.D) + (NumN - 1) * SizeOf(TCnLongWord32));
+    WNump := PCnLongWord32(TCnNativeInt(SNum.D) + (NumN - 1) * SizeOf(TCnLongWord32));
 
     if Num.Neg <> Divisor.Neg then
       SRes.Neg := 1
@@ -3496,7 +4231,7 @@ begin
       Exit;
 
     SRes.Top := Loop;
-    Resp := PLongWord(Integer(SRes.D) + (Loop - 1) * SizeOf(TCnLongWord32));
+    Resp := PCnLongWord32(TCnNativeInt(SRes.D) + (Loop - 1) * SizeOf(TCnLongWord32));
 
     if BigNumberWordExpand(Tmp, DivN + 1) = nil then
       Exit;
@@ -3513,14 +4248,14 @@ begin
     if SRes.Top = 0 then
       SRes.Neg := 0
     else
-      Resp := PLongWord(Integer(Resp) - SizeOf(TCnLongWord32));
+      Resp := PCnLongWord32(TCnNativeInt(Resp) - SizeOf(TCnLongWord32));
 
     for I := 0 to Loop - 2 do
     begin
 //    Rem := 0;
       // 用 N0/N1/D0/D1 计算出一个 Q 使 | WNum - SDiv * Q | < SDiv
       N0 := WNump^;
-      N1 := (PLongWord(Integer(WNump) - SizeOf(TCnLongWord32)))^;
+      N1 := (PCnLongWord32(TCnNativeInt(WNump) - SizeOf(TCnLongWord32)))^;
 
       if N0 = D0 then
         Q := BN_MASK2
@@ -3536,7 +4271,7 @@ begin
         while True do
         begin
           if (T2H < Rem) or ((T2H = Rem) and
-             (T2L <= (PLongWord(Integer(WNump) - 2 * SizeOf(TCnLongWord32)))^)) then
+             (T2L <= (PCnLongWord32(TCnNativeInt(WNump) - 2 * SizeOf(TCnLongWord32)))^)) then
              Break;
           Dec(Q);
           Inc(Rem, D0);
@@ -3550,7 +4285,7 @@ begin
 
       L0 := BigNumberMulWords(PLongWordArray(Tmp.D), PLongWordArray(SDiv.D), DivN, Q);
       PLongWordArray(Tmp.D)^[DivN] := L0;
-      WNum.D := PLongWord(Integer(WNum.D) - SizeOf(TCnLongWord32));
+      WNum.D := PCnLongWord32(TCnNativeInt(WNum.D) - SizeOf(TCnLongWord32));
 
       if BigNumberSubWords(PLongWordArray(WNum.D), PLongWordArray(WNum.D),
         PLongWordArray(Tmp.D), DivN + 1) <> 0 then
@@ -3562,8 +4297,8 @@ begin
       end;
 
       Resp^ := Q;
-      WNump := PLongWord(Integer(WNump) - SizeOf(TCnLongWord32));
-      Resp := PLongWord(Integer(Resp) - SizeOf(TCnLongWord32));
+      WNump := PCnLongWord32(TCnNativeInt(WNump) - SizeOf(TCnLongWord32));
+      Resp := PCnLongWord32(TCnNativeInt(Resp) - SizeOf(TCnLongWord32));
     end;
 
     BigNumberCorrectTop(SNum);
@@ -3632,6 +4367,50 @@ begin
   finally
     FLocalBigNumberPool.Recycle(T);
   end;
+end;
+
+function BigNumberAddMod(const Res: TCnBigNumber; const Num1, Num2: TCnBigNumber;
+  const Divisor: TCnBigNumber): Boolean;
+var
+  T: TCnBigNumber;
+begin
+  Result := False;
+  T := FLocalBigNumberPool.Obtain;
+  try
+    if not BigNumberAdd(T, Num1, Num2) then
+      Exit;
+
+    Result := BigNumberNonNegativeMod(Res, T, Divisor);
+  finally
+    FLocalBigNumberPool.Recycle(T);
+  end;
+end;
+
+function BigNumberSubMod(const Res: TCnBigNumber; const Num1, Num2: TCnBigNumber;
+  const Divisor: TCnBigNumber): Boolean;
+var
+  T: TCnBigNumber;
+begin
+  Result := False;
+  T := FLocalBigNumberPool.Obtain;
+  try
+    if not BigNumberSub(T, Num1, Num2) then
+      Exit;
+
+    Result := BigNumberNonNegativeMod(Res, T, Divisor);
+  finally
+    FLocalBigNumberPool.Recycle(T);
+  end;
+end;
+
+function BigNumberDivFloat(const Res: TCnBigNumber; Num: TCnBigNumber;
+  F: Extended): Boolean;
+begin
+  Result := False;
+  if F = 0 then
+     Exit;
+
+  Result := BigNumberMulFloat(Res, Num, 1 / F);
 end;
 
 function BigNumberPower(const Res: TCnBigNumber; const Num: TCnBigNumber;
@@ -4176,17 +4955,17 @@ begin
     begin
       if BigNumberIsBitSet(BB, 0) then
       begin
-        if not BigNumberMulMod(T, AA, T, C) then
+        if not BigNumberDirectMulMod(T, AA, T, C) then
           Exit;
       end;
-      if not BigNumberMulMod(AA, AA, AA, C) then
+      if not BigNumberDirectMulMod(AA, AA, AA, C) then
         Exit;
 
       if not BigNumberShiftRightOne(BB, BB) then
         Exit;
     end;
 
-    if not BigNumberMulMod(Res, AA, T, C) then
+    if not BigNumberDirectMulMod(Res, AA, T, C) then
       Exit;
   finally
     FLocalBigNumberPool.Recycle(T);
@@ -4194,6 +4973,54 @@ begin
     FLocalBigNumberPool.Recycle(BB);
   end;
   Result := True;
+end;
+
+procedure CheckLog(const Num: TCnBigNumber);
+begin
+  if Num.IsZero or Num.IsNegative then
+    raise ERangeError.Create(SCN_BN_LOG_RANGE_ERROR);
+end;
+
+function BigNumberLog2(const Num: TCnBigNumber): Extended;
+var
+  F: Extended;
+begin
+  CheckLog(Num);
+  if Num.IsOne then
+    Result := 0
+  else
+  begin
+    F := BigNumberGetFloat(Num);
+    Result := Log2(F);
+  end;
+end;
+
+function BigNumberLog10(const Num: TCnBigNumber): Extended;
+var
+  F: Extended;
+begin
+  CheckLog(Num);
+  if Num.IsOne then
+    Result := 0
+  else
+  begin
+    F := BigNumberGetFloat(Num);
+    Result := Log10(F);
+  end;
+end;
+
+function BigNumberLogN(const Num: TCnBigNumber): Extended;
+var
+  F: Extended;
+begin
+  CheckLog(Num);
+  if Num.IsOne then
+    Result := 0
+  else
+  begin
+    F := BigNumberGetFloat(Num);
+    Result := Ln(F);
+  end;
 end;
 
 function BigNumberFermatCheckComposite(const A, B, C: TCnBigNumber; T: Integer): Boolean;
@@ -4621,11 +5448,12 @@ begin
 end;
 
 // 求 X 针对 Modulus 的模反或叫模逆元 Y，满足 (X * Y) mod M = 1，X 可为负值，Y 求出正值。调用者须自行保证 X、Modulus 互质
-procedure BigNumberModularInverse(const Res: TCnBigNumber; X, Modulus: TCnBigNumber);
+function BigNumberModularInverse(const Res: TCnBigNumber; X, Modulus: TCnBigNumber): Boolean;
 var
   Neg: Boolean;
   X1, Y: TCnBigNumber;
 begin
+  Result := False;
   Neg := False;
 
   X1 := nil;
@@ -4635,7 +5463,7 @@ begin
     X1 := FLocalBigNumberPool.Obtain;
     Y := FLocalBigNumberPool.Obtain;
 
-    BigNumberCopy(X1, X);
+    if BigNumberCopy(X1, X) = nil then Exit;
     if BigNumberIsNegative(X1) then
     begin
       BigNumberSetNegative(X1, False);
@@ -4650,7 +5478,9 @@ begin
       BigNumberSetNegative(Res, not BigNumberIsNegative(Res));
 
     if BigNumberIsNegative(Res) then
-      BigNumberAdd(Res, Res, Modulus);
+      if not BigNumberAdd(Res, Res, Modulus) then Exit;
+
+    Result := True;
   finally
     FLocalBigNumberPool.Recycle(X1);
     FLocalBigNumberPool.Recycle(Y);
@@ -4677,7 +5507,7 @@ var
   AA, Q: TCnBigNumber;
 begin
   if A.IsZero or A.IsNegative or P.IsZero or P.IsNegative then
-    raise Exception.Create('A, P Must > 0');
+    raise Exception.Create(SCN_BN_LEGENDRE_ERROR);
 
   if A.IsOne then
   begin
@@ -4730,7 +5560,7 @@ var
   R, Res: TCnBigNumber;
 begin
   if A.IsZero or A.IsNegative or P.IsZero or P.IsNegative then
-    raise Exception.Create('A, P Must > 0');
+    raise Exception.Create(SCN_BN_LEGENDRE_ERROR);
 
   R := FLocalBigNumberPool.Obtain;
   Res := FLocalBigNumberPool.Obtain;
@@ -4994,20 +5824,31 @@ end;
 // 找出大数的质因数列表
 procedure BigNumberFindFactors(Num: TCnBigNumber; Factors: TCnBigNumberList);
 var
-  P, R, S, D: TCnBigNumber;
+  P, R, S, D, T: TCnBigNumber;
 begin
+  if Num.IsZero or Num.IsNegative or Num.IsOne then
+    Exit;
+
   if BigNumberIsProbablyPrime(Num) then
   begin
     Factors.Add(BigNumberDuplicate(Num));
     Exit;
   end;
 
-  P := FLocalBigNumberPool.Obtain;
-  R := FLocalBigNumberPool.Obtain;
-  S := FLocalBigNumberPool.Obtain;
-  D := FLocalBigNumberPool.Obtain;
+  P := nil;
+  R := nil;
+  S := nil;
+  D := nil;
+  T := nil;
+
   try
-    P := BigNumberCopy(P, Num);
+    P := FLocalBigNumberPool.Obtain;
+    R := FLocalBigNumberPool.Obtain;
+    S := FLocalBigNumberPool.Obtain;
+    D := FLocalBigNumberPool.Obtain;
+    T := FLocalBigNumberPool.Obtain;
+
+    BigNumberCopy(P, Num);
 
     while BigNumberCompare(P, Num) >= 0 do
     begin
@@ -5019,14 +5860,49 @@ begin
     end;
 
     BigNumberFindFactors(P, Factors);
-    D := FLocalBigNumberPool.Obtain;
-    BigNumberDiv(D, R, Num, P);
-    BigNumberFindFactors(D, Factors);
+    T := FLocalBigNumberPool.Obtain;
+    BigNumberDiv(T, R, Num, P);
+    BigNumberFindFactors(T, Factors);
   finally
+    FLocalBigNumberPool.Remove(T);
     FLocalBigNumberPool.Recycle(D);
     FLocalBigNumberPool.Recycle(S);
     FLocalBigNumberPool.Recycle(R);
     FLocalBigNumberPool.Recycle(P);
+  end;
+end;
+
+procedure BigNumberEuler(const Res: TCnBigNumber; Num: TCnBigNumber);
+var
+  F: TCnBigNumberList;
+  T: TCnBigNumber;
+  I: Integer;
+begin
+  // 先求 Num 的不重复的质因数，再利用公式 Num * (1- 1/p1) * (1- 1/p2) ……
+  F := nil;
+  T := nil;
+
+  try
+    F := TCnBigNumberList.Create;
+    BigNumberFindFactors(Num, F);
+
+    // 手工去重
+    F.RemoveDuplicated;
+
+    BigNumberCopy(Res, Num);
+    for I := 0 to F.Count - 1 do
+      BigNumberDiv(Res, nil, Res, F[I]);
+
+    T := FLocalBigNumberPool.Obtain;
+    for I := 0 to F.Count - 1 do
+    begin
+      BigNumberCopy(T, F[I]);
+      T.SubWord(1);
+      BigNumberMul(Res, Res, T);
+    end;
+  finally
+    FLocalBigNumberPool.Recycle(T);
+    F.Free;
   end;
 end;
 
@@ -5235,6 +6111,207 @@ begin
   end;
 end;
 
+function BigNumberIsPerfectPower(Num: TCnBigNumber): Boolean;
+var
+  LG2, I: Integer;
+  T: TCnBigNumber;
+begin
+  Result := False;
+  if Num.IsNegative or Num.IsWord(2) or Num.IsWord(3) then
+    Exit;
+
+  if Num.IsZero or Num.IsOne then
+  begin
+    Result := True;
+    Exit;
+  end;
+
+  LG2 := Num.GetBitsCount;
+  T := FLocalBigNumberPool.Obtain;
+
+  try
+    for I := 2 to LG2 do
+    begin
+      // 求 Num 的 I 次方根的整数部分
+      BigNumberRoot(T, Num, I);
+      // 整数部分再求幂
+      BigNumberPower(T, T, I);
+
+      // 判断是否相等
+      if BigNumberCompare(T, Num) = 0 then
+      begin
+        Result := True;
+        Exit;
+      end;
+    end;
+  finally
+    FLocalBigNumberPool.Recycle(T);
+  end;
+end;
+
+procedure BigNumberFillCombinatorialNumbers(List: TCnBigNumberList; N: Integer);
+var
+  M, MC: Integer;
+  C, T: TCnBigNumber;
+begin
+  if (N < 0) or (List = nil) then
+    Exit;
+
+  List.Clear;
+  List.Add.SetOne;
+  if N = 0 then
+    Exit;
+
+  MC := N div 2;
+
+  List.Count := N + 1;    // C(n, m) m 从 0 到 n，一共 n+1 个
+  C := TCnBigNumber.Create;
+  C.SetOne;
+  List[N] := C;
+
+  C := FLocalBigNumberPool.Obtain;
+  C.SetOne;
+  try
+    for M := 0 to MC - 1 do
+    begin
+      T := TCnBigNumber.Create;
+      BigNumberCopy(T, C);
+      BigNumberMulWord(T, N - M);
+      BigNumberDivWord(T, M + 1);
+
+      List[M + 1] := T;
+      if M + 1 <> N - M - 1 then
+        List[N - M - 1] := BigNumberDuplicate(T);
+      BigNumberCopy(C, T);
+    end;
+  finally
+    FLocalBigNumberPool.Recycle(C);
+  end;
+end;
+
+procedure BigNumberFillCombinatorialNumbersMod(List: TCnBigNumberList; N: Integer; P: TCnBigNumber);
+var
+  I: Integer;
+begin
+  if (P = nil) or (N < 0) then
+    Exit;
+
+  BigNumberFillCombinatorialNumbers(List, N);
+  for I := 0 to List.Count - 1 do
+    BigNumberNonNegativeMod(List[I], List[I], P);
+end;
+
+function BigNumberAKSIsPrime(N: TCnBigNumber): Boolean;
+var
+  NR: Boolean;
+  R, T, C, Q: TCnBigNumber;
+  K, LG22: Integer;
+  LG2: Extended;
+  BK: TCnBigNumber;
+begin
+  Result := False;
+  if N.IsNegative or N.IsZero or N.IsOne then
+    Exit;
+  if BigNumberIsPerfectPower(N) then // 如果是完全幂则是合数
+    Exit;
+
+  R := nil;
+  T := nil;
+  C := nil;
+  Q := nil;
+  BK := nil;
+
+  try
+    // 找出最小的 R 满足 欧拉(R) > (Log二底(N))^2。
+    NR := True;
+
+    R := FLocalBigNumberPool.Obtain;
+    R.SetOne;
+    LG2 := BigNumberLog2(N);
+    // LG2 := GetUInt64HighBits(N); // 整数会有误差
+    LG22 := Trunc(LG2 * LG2);
+
+    T := FLocalBigNumberPool.Obtain;
+    BK := FLocalBigNumberPool.Obtain;
+    // 找出最小的 R
+    while NR do
+    begin
+      R.AddWord(1);
+      NR := False;
+
+      K := 1;
+      while not NR and (K <= LG22) do
+      begin
+        BK.SetWord(K);
+        BigNumberPowerMod(T, N, BK, R);
+        NR := T.IsZero or T.IsOne;
+        Inc(K);
+      end;
+    end;
+
+    // 得到 R，如果某些比 R 小的 T 和 N 不互素，则是合数
+    BigNumberCopy(T, R);
+    C := FLocalBigNumberPool.Obtain;
+
+    while BigNumberCompare(T, CnBigNumberOne) > 0 do
+    begin
+      BigNumberGcd(C, T, N);
+      if (BigNumberCompare(C, CnBigNumberOne) > 0) and (BigNumberCompare(C, N) < 0) then
+        Exit;
+
+      T.SubWord(1);
+    end;
+
+    if BigNumberCompare(N, R) <= 0 then
+    begin
+      Result := True;
+      Exit;
+    end;
+
+    Q := FLocalBigNumberPool.Obtain;
+    BigNumberEuler(Q, R);
+    BigNumberSqrt(Q, Q);
+    BigNumberMulFloat(C, Q, LG2);
+    // 此处应该用小数计算，因为整数会产生较大误差
+    // C := Trunc(Sqrt(Q) * LG2);
+
+    // 先在环 (X^R-1, N) 上提前计算 (X+Y)^N - (X^N + Y)，
+    // 也就是 (X+Y)^N - (X^N + Y) 展开后针对 X^R-1 求余，且系数都针对 N 取模
+    // 根据二项式定理 (X+Y)^N 展开后各项系数 mod N 后，就变成了 X^N+Y^N，其余项余数均为 0
+    // 再 mod X^R - 1 后根据加法求模规则得到的是 X^(N-R) + Y^N
+    // X^N + Y 对 X^R-1 取模则是 X^(N-R) + Y
+    // 一减，得到的结果其实是 Y^N - Y
+
+    // 从 1 到 欧拉(R)平方根 * (Log二底(N)) 的整数部分作为 Y，计算 Y^N - Y mod N 是否是 0
+
+    T.SetOne;
+    while BigNumberCompare(T, C) <= 0 do
+    begin
+      if not BigNumberPowerMod(R, T, N, N) then // 复用 R
+        Exit;
+
+      if not BigNumberSub(R, R, T) then
+        Exit;
+
+      if not BigNumberMod(R, R, N) then
+        Exit;
+
+      if not R.IsZero then
+        Exit;
+
+      T.AddWord(1);
+    end;
+
+    Result := True;
+  finally
+    FLocalBigNumberPool.Recycle(R);
+    FLocalBigNumberPool.Recycle(T);
+    FLocalBigNumberPool.Recycle(C);
+    FLocalBigNumberPool.Recycle(Q);
+    FLocalBigNumberPool.Recycle(BK);
+  end;
+end;
+
 // 打印大数内部信息
 function BigNumberDebugDump(const Num: TCnBigNumber): string;
 var
@@ -5248,6 +6325,216 @@ begin
   if (Num.D <> nil) and (Num.Top > 0) then
     for I := 0 to Num.Top do
       Result := Result + Format(' $%8.8x', [PLongWordArray(Num.D)^[I]]);
+end;
+
+function SparseBigNumberListIsZero(P: TCnSparseBigNumberList): Boolean;
+begin
+  Result := (P = nil) or (P.Count = 0) or
+    ((P.Count = 1) and (P[0].Exponent = 0) and (P[0].Value.IsZero));
+end;
+
+function SparseBigNumberListEqual(A, B: TCnSparseBigNumberList): Boolean;
+var
+  I: Integer;
+begin
+  Result := False;
+  if A = B then
+  begin
+    Result := True;
+    Exit;
+  end;
+
+  if (A = nil) and (B <> nil)then // 一个是 nil，需要判断另外一个是不是 0
+  begin
+    if (B.Count = 0) or ((B.Count = 1) and (B[0].Exponent = 0) and B[0].Value.IsZero) then
+    begin
+      Result := True;
+      Exit;
+    end;
+  end
+  else if (B = nil) and (A <> nil) then
+  begin
+    if (A.Count = 0) or ((A.Count = 1) and (A[0].Exponent = 0) and A[0].Value.IsZero) then
+    begin
+      Result := True;
+      Exit;
+    end;
+  end;
+
+  if A.Count <> B.Count then
+    Exit;
+
+  for I := A.Count - 1 downto 0 do
+  begin
+    if (A[I].Exponent <> B[I].Exponent) or not BigNumberEqual(A[I].Value, B[I].Value) then
+      Exit;
+  end;
+  Result := True;
+end;
+
+procedure SparseBigNumberListCopy(Dst, Src: TCnSparseBigNumberList);
+var
+  I: Integer;
+  Pair: TCnExponentBigNumberPair;
+begin
+  if (Dst <> Src) and (Dst <> nil) then
+  begin
+    Dst.Clear;
+    for I := 0 to Src.Count - 1 do
+    begin
+      Pair := TCnExponentBigNumberPair.Create;
+      Pair.Exponent := Src[I].Exponent;
+      BigNumberCopy(Pair.Value, Src[I].Value);
+      Dst.Add(Pair);
+    end;
+  end;
+end;
+
+procedure SparseBigNumberListMerge(Dst, Src1, Src2: TCnSparseBigNumberList; Add: Boolean);
+var
+  I, J, K: Integer;
+  P1, P2: TCnExponentBigNumberPair;
+begin
+  if Src1 = nil then                   // 只要有一个是 nil，Dst 就被塞为另一个
+  begin
+    SparseBigNumberListCopy(Dst, Src2);
+    if not Add then  // Src2 是被减数
+      Dst.Negate;
+  end
+  else if Src2 = nil then
+    SparseBigNumberListCopy(Dst, Src1)
+  else if Src1 = Src2 then // 如果 Src1 和 Src2 是同一个，合并，支持 Dst 也是同一个的情形
+  begin
+    Dst.Count := Src1.Count;
+    for I := 0 to Src1.Count - 1 do
+    begin
+      if Dst[I] = nil then
+        Dst[I] := TCnExponentBigNumberPair.Create;
+      Dst[I].Exponent := Src1[I].Exponent;
+      if Add then
+        BigNumberAdd(Dst[I].Value, Src1[I].Value, Src2[I].Value)
+      else
+        BigNumberSub(Dst[I].Value, Src1[I].Value, Src2[I].Value);
+    end;
+  end
+  else // Src1 和 Src2 不是同一个，要归并
+  begin
+    if (Dst <> Src1) and (Dst <> Src2) then // 但 Dst 不是 Src1 或 Src2，也就是仨各异
+    begin
+      I := 0;
+      J := 0;
+      K := 0;
+
+      Dst.Count := Src1.Count + Src2.Count;
+
+      while (I < Src1.Count) and (J < Src2.Count) do
+      begin
+        P1 := Src1[I];
+        P2 := Src2[J];
+
+        if P1.Exponent = P2.Exponent then
+        begin
+          // 相等，并起来塞到 Dst 里
+          if Dst[K] = nil then
+            Dst[K] := TCnExponentBigNumberPair.Create;
+          Dst[K].Exponent := P1.Exponent;
+
+          if Add then
+            BigNumberAdd(Dst[K].Value, P1.Value, P2.Value)
+          else
+            BigNumberSub(Dst[K].Value, P1.Value, P2.Value);
+
+          Inc(I);
+          Inc(J);
+          Inc(K);
+        end
+        else if P1.Exponent < P2.Exponent then
+        begin
+          // P1 小，把 P1 搁 Dst[K] 里
+          if Dst[K] = nil then
+            Dst[K] := TCnExponentBigNumberPair.Create;
+          Dst[K].Exponent := P1.Exponent;
+
+          BigNumberCopy(Dst[K].Value, P1.Value);
+          Inc(I);
+          Inc(K);
+        end
+        else // P2 小，把 P2 搁 Dst[K] 里
+        begin
+          if Dst[K] = nil then
+            Dst[K] := TCnExponentBigNumberPair.Create;
+          Dst[K].Exponent := P2.Exponent;
+
+          BigNumberCopy(Dst[K].Value, P2.Value);
+          if not Add then
+            Dst[K].Value.Negate;
+          Inc(J);
+          Inc(K);
+        end;
+      end;
+
+      if (I = Src1.Count) and (J = Src2.Count) then
+      begin
+        Dst.Compact;
+        Exit;
+      end;
+
+      // 剩下哪个有，就全加到 Dst 里 K 开始的位置去
+      if I = Src1.Count then
+      begin
+        for I := J to Src2.Count - 1 do
+        begin
+          if K >= Dst.Count then
+            Dst.Add(TCnExponentBigNumberPair.Create)
+          else if Dst[K] = nil then
+            Dst[K] := TCnExponentBigNumberPair.Create;
+
+          Dst[K].Exponent := Src2[I].Exponent;
+          BigNumberCopy(Dst[K].Value, Src2[I].Value);
+          Inc(K);
+        end;
+      end
+      else if J = Src2.Count then
+      begin
+        for J := I to Src1.Count - 1 do
+        begin
+          if K >= Dst.Count then
+            Dst.Add(TCnExponentBigNumberPair.Create)
+          else if Dst[K] = nil then
+            Dst[K] := TCnExponentBigNumberPair.Create;
+
+          Dst[K].Exponent := Src1[J].Exponent;
+          BigNumberCopy(Dst[K].Value, Src1[J].Value);
+          Inc(K);
+        end;
+      end;
+      Dst.Compact;
+    end
+    else if Dst = Src1 then // Dst 是 Src1，且 Src1 和 Src2 不同
+    begin
+      // 遍历 Src2，加塞到 Src1 中
+      for I := 0 to Src2.Count - 1 do
+      begin
+        P2 := Src2[I];
+        if Add then
+          BigNumberAdd(Dst.SafeValue[P2.Exponent], Dst.SafeValue[P2.Exponent], P2.Value)
+        else
+          BigNumberSub(Dst.SafeValue[P2.Exponent], Dst.SafeValue[P2.Exponent], P2.Value);
+      end;
+    end
+    else if Dst = Src2 then // Dst 是 Src2，且 Src1 和 Src2 不同
+    begin
+      // 遍历 Src1，加塞到 Src2 中
+      for I := 0 to Src1.Count - 1 do
+      begin
+        P1 := Src1[I];
+        if Add then
+          BigNumberAdd(Dst.SafeValue[P1.Exponent], Dst.SafeValue[P1.Exponent], P1.Value)
+        else
+          BigNumberSub(Dst.SafeValue[P1.Exponent], Dst.SafeValue[P1.Exponent], P1.Value);
+      end;
+    end;
+  end;
 end;
 
 { TCnBigNumber }
@@ -5300,6 +6587,20 @@ class function TCnBigNumber.FromBinary(Buf: PAnsiChar;
 begin
   Result := BigNumberFromBinary(Buf, Len);
 end;
+
+{$IFDEF TBYTES_DEFINED}
+
+class function TCnBigNumber.FromBytes(Buf: TBytes): TCnBigNumber;
+begin
+  Result := BigNumberFromBytes(Buf);
+end;
+
+function TCnBigNumber.ToBytes: TBytes;
+begin
+  Result := BigNumberToBytes(Self);
+end;
+
+{$ENDIF}
 
 class function TCnBigNumber.FromDec(const Buf: AnsiString): TCnBigNumber;
 begin
@@ -5429,9 +6730,9 @@ end;
 
 {$ENDIF}
 
-procedure TCnBigNumber.SetZero;
+function TCnBigNumber.SetZero: Boolean;
 begin
-  BigNumberSetZero(Self);
+  Result := BigNumberSetZero(Self);
 end;
 
 function TCnBigNumber.SubWord(W: TCnLongWord32): Boolean;
@@ -5449,9 +6750,9 @@ begin
   Result := string(BigNumberToDec(Self));
 end;
 
-function TCnBigNumber.ToHex: string;
+function TCnBigNumber.ToHex(FixedLen: Integer): string;
 begin
-  Result := BigNumberToHex(Self);
+  Result := BigNumberToHex(Self, FixedLen);
 end;
 
 function TCnBigNumber.ToString: string;
@@ -5620,6 +6921,292 @@ begin
   inherited Recycle(Num);
 end;
 
+{ TCnExponentBigNumberPair }
+
+constructor TCnExponentBigNumberPair.Create;
+begin
+  inherited;
+  FValue := TCnBigNumber.Create;
+  FValue.SetZero;
+end;
+
+destructor TCnExponentBigNumberPair.Destroy;
+begin
+  FValue.Free;
+  inherited;
+end;
+
+function TCnExponentBigNumberPair.ToString: string;
+begin
+  Result := '^' + IntToStr(FExponent) + ' ' + FValue.ToDec;
+end;
+
+{ TCnSparseBigNumberList }
+
+function TCnSparseBigNumberList.AddPair(AExponent: Integer;
+  Num: TCnBigNumber): TCnExponentBigNumberPair;
+begin
+  Result := TCnExponentBigNumberPair.Create;
+  Result.Exponent := AExponent;
+  BigNumberCopy(Result.Value, Num);
+  Add(Result);
+end;
+
+procedure TCnSparseBigNumberList.AssignTo(Dest: TCnSparseBigNumberList);
+begin
+  SparseBigNumberListCopy(Dest, Self);
+end;
+
+function TCnSparseBigNumberList.BinarySearchExponent(AExponent: Integer;
+  var OutIndex: Integer): Boolean;
+var
+  I, Start,Stop, Mid: Integer;
+  Pair: TCnExponentBigNumberPair;
+  BreakFromStart: Boolean;
+begin
+  Result := False;
+  if Count = 0 then
+  begin
+    OutIndex := MaxInt;
+  end
+  else if Count <= SPARSE_BINARY_SEARCH_THRESHOLD then
+  begin
+    // 数量少，直接搜
+    for I := 0 to Count - 1 do
+    begin
+      Pair := Items[I];
+      if Pair.Exponent = AExponent then
+      begin
+        Result := True;
+        OutIndex := I;
+        Exit;
+      end
+      else if Pair.Exponent > AExponent then
+      begin
+        OutIndex := I;
+        Exit;
+      end;
+    end;
+    // AExponent 比最后一个 Pair 的还大
+    OutIndex := MaxInt;
+  end
+  else
+  begin
+    Pair := Top;
+    if Pair.Exponent < AExponent then      // AExponent 比最后一个 Pair 的还大
+    begin
+      OutIndex := MaxInt;
+      Exit;
+    end
+    else if Pair.Exponent = AExponent then // AExponent 正好是最后一个 Pair
+    begin
+      OutIndex := Count - 1;
+      Result := True;
+      Exit;
+    end
+    else
+    begin
+      Pair := Bottom;
+      if Pair.Exponent > AExponent then    // AExponent 比第一个 Pair 的还小
+      begin
+        OutIndex := 0;
+        Exit;
+      end
+      else if Pair.Exponent = AExponent then // AExponent 正好是第一个 Pair
+      begin
+        OutIndex := 0;
+        Result := True;
+        Exit;
+      end
+    end;
+
+    // 开始真正的二分查找
+    Start := 0;
+    Stop := Count - 1;
+    Mid := 0;
+    BreakFromStart := False;
+
+    while Start <= Stop do
+    begin
+      Mid := (Start + Stop) div 2;
+
+      Pair := Items[Mid];
+      if Pair.Exponent = AExponent then
+      begin
+        Result := True;
+        OutIndex := Mid;
+        Exit;
+      end
+      else if Pair.Exponent < AExponent then
+      begin
+        Start := Mid + 1; // 如果最后一次是从这退出，则插入位置为 Mid + 1
+        BreakFromStart := True;
+      end
+      else if Pair.Exponent > AExponent then
+      begin
+        Stop := Mid - 1;  // 如果最后一次是从这退出，则插入位置为 Mid - 1
+        BreakFromStart := False;
+      end;
+    end;
+
+    if BreakFromStart then
+      OutIndex := Mid + 1
+    else
+      OutIndex := Mid;
+    Result := False;
+  end;
+end;
+
+function TCnSparseBigNumberList.Bottom: TCnExponentBigNumberPair;
+begin
+  Result := nil;
+  if Count > 0 then
+    Result := Items[0];
+end;
+
+procedure TCnSparseBigNumberList.Compact;
+var
+  I: Integer;
+begin
+  for I := Count - 1 downto 0 do
+    if (Items[I] = nil) or Items[I].Value.IsZero then
+      Delete(I);
+end;
+
+constructor TCnSparseBigNumberList.Create;
+begin
+  inherited Create(True);
+end;
+
+function TCnSparseBigNumberList.GetItem(Index: Integer): TCnExponentBigNumberPair;
+begin
+  Result := TCnExponentBigNumberPair(inherited GetItem(Index));
+end;
+
+function TCnSparseBigNumberList.GetReadonlyValue(Exponent: Integer): TCnBigNumber;
+var
+  OutIndex: Integer;
+begin
+  if not BinarySearchExponent(Exponent, OutIndex) then
+    Result := CnBigNumberZero
+  else
+    Result := Items[OutIndex].Value;
+end;
+
+function TCnSparseBigNumberList.GetSafeValue(Exponent: Integer): TCnBigNumber;
+var
+  OutIndex: Integer;
+begin
+  if not BinarySearchExponent(Exponent, OutIndex) then
+  begin
+    // 未找到，要插入
+    OutIndex := InsertByOutIndex(OutIndex);
+    Items[OutIndex].Exponent := Exponent;
+  end;
+  Result := Items[OutIndex].Value;
+end;
+
+function TCnSparseBigNumberList.InsertByOutIndex(
+  OutIndex: Integer): Integer;
+var
+  Pair: TCnExponentBigNumberPair;
+begin
+  if OutIndex < 0 then
+    OutIndex := 0;
+
+  Pair := TCnExponentBigNumberPair.Create;
+  if OutIndex >= Count then
+  begin
+    Add(Pair);
+    Result := Count - 1;
+  end
+  else
+  begin
+    Insert(OutIndex, Pair);
+    Result := OutIndex;
+  end;
+end;
+
+procedure TCnSparseBigNumberList.Negate;
+var
+  I: Integer;
+begin
+  for I := Count - 1 downto 0 do
+    if (Items[I] <> nil) then
+      Items[I].Value.Negate;
+end;
+
+procedure TCnSparseBigNumberList.SetItem(Index: Integer;
+  const Value: TCnExponentBigNumberPair);
+begin
+  inherited SetItem(Index, Value);
+end;
+
+procedure TCnSparseBigNumberList.SetSafeValue(Exponent: Integer;
+  const Value: TCnBigNumber);
+var
+  OutIndex: Integer;
+begin
+  if not BinarySearchExponent(Exponent, OutIndex) then
+  begin
+    // 未找到，如果 Value 无或 0，则要插入
+    if (Value <> nil) and not Value.IsZero then
+    begin
+      OutIndex := InsertByOutIndex(OutIndex);
+      Items[OutIndex].Exponent := Exponent;
+    end
+    else // 未找到且是 0，不动
+      Exit;
+  end;
+
+  // 找到了或者插入了，赋值
+  if (Value <> nil) and not Value.IsZero then
+    BigNumberCopy(Items[OutIndex].Value, Value)
+  else
+    Items[OutIndex].Value.SetZero;
+end;
+
+procedure TCnSparseBigNumberList.SetValues(LowToHighList: array of Int64);
+var
+  I: Integer;
+  Pair: TCnExponentBigNumberPair;
+begin
+  Clear;
+  for I := Low(LowToHighList) to High(LowToHighList) do
+  begin
+    Pair := TCnExponentBigNumberPair.Create;
+    Pair.Exponent := I;
+    Pair.Value.SetInt64(LowToHighList[I]);
+    Add(Pair);
+  end;
+end;
+
+function TCnSparseBigNumberList.Top: TCnExponentBigNumberPair;
+begin
+  Result := nil;
+  if Count > 0 then
+    Result := Items[Count - 1];
+end;
+
+function TCnSparseBigNumberList.ToString: string;
+var
+  I: Integer;
+  IsFirst: Boolean;
+begin
+  Result := '';
+  IsFirst := True;
+  for I := Count - 1 downto 0 do
+  begin
+    if IsFirst then
+    begin
+      Result := Items[I].ToString;
+      IsFirst := False;
+    end
+    else
+      Result := Result + CRLF + Items[I].ToString;
+  end;
+end;
+
 initialization
   FLocalBigNumberPool := TCnBigNumberPool.Create;
 
@@ -5635,6 +7222,7 @@ finalization
   CnBigNumberOne.Free;
   CnBigNumberZero.Free;
   FLocalBigNumberPool.Free;
+  FLocalBigBinaryPool.Free;
 
 end.
 

@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2021 CnPack 开发组                       }
+{                   (C)Copyright 2001-2022 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -294,7 +294,7 @@ type
     procedure DoFreeNode(Node: TCnHashNode); virtual;
   public
     constructor Create(ACapacity: Integer = CN_HASH_MAP_DEFAULT_CAPACITY;
-      ALoadFactor: Real = CN_HASH_MAP_DEFAULT_LOADFACTOR); virtual;
+      ALoadFactor: Double = CN_HASH_MAP_DEFAULT_LOADFACTOR); virtual;
     destructor Destroy; override;
 
     procedure Add(Key: TObject; Value: TObject); overload;
@@ -984,7 +984,7 @@ begin
   until Node = nil;
 end;
 
-constructor TCnHashMap.Create(ACapacity: Integer; ALoadFactor: Real);
+constructor TCnHashMap.Create(ACapacity: Integer; ALoadFactor: Double);
 begin
   if ACapacity <= 0 then
     ACapacity := CN_HASH_MAP_DEFAULT_CAPACITY;

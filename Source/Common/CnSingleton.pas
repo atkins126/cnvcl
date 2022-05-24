@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2021 CnPack 开发组                       }
+{                   (C)Copyright 2001-2022 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -153,18 +153,18 @@ begin
     if _SingletonList.Find(GetClassBaseOffsetStr, i) then
     begin
       tmpSingletonInfo := PCnSingletonInfo(_SingletonList.Objects[i]);
-      tmpSingleton := tmpSingletonInfo.Instance;
+      tmpSingleton := tmpSingletonInfo^.Instance;
     end;
     if tmpSingleton = nil then
     begin
       New(tmpSingletonInfo);
       tmpSingleton := inherited NewInstance;
-      tmpSingletonInfo.Instance := tmpSingleton;
-      tmpSingletonInfo.RefCount := 0;
+      tmpSingletonInfo^.Instance := tmpSingleton;
+      tmpSingletonInfo^.RefCount := 0;
       _SingletonList.AddObject(GetClassBaseOffsetStr, TObject(tmpSingletonInfo));
     end;
     if tmpSingletonInfo <> nil then
-      Inc(tmpSingletonInfo.RefCount);
+      Inc(tmpSingletonInfo^.RefCount);
     Result := tmpSingleton;
   finally
     Unlock;
@@ -225,7 +225,7 @@ begin
   begin
     if Assigned(Objects[i]) then
     begin
-      tmpSingleton := PCnSingletonInfo(Objects[i]).Instance;
+      tmpSingleton := PCnSingletonInfo(Objects[i])^.Instance;
       if tmpSingleton <> nil then
         FreeAndNil(tmpSingleton);
     end;

@@ -179,6 +179,8 @@ type
     bvlLoadPEM: TBevel;
     lblKeyHash: TLabel;
     cbbLoadKeyHash: TComboBox;
+    chkOAEP: TCheckBox;
+    btnInt64Sample: TButton;
     procedure btnGenerateRSAClick(Sender: TObject);
     procedure btnRSAEnClick(Sender: TObject);
     procedure btnRSADeClick(Sender: TObject);
@@ -222,6 +224,7 @@ type
     procedure btnDHBCKClick(Sender: TObject);
     procedure btnDHRandClick(Sender: TObject);
     procedure btnFastSqrtClick(Sender: TObject);
+    procedure btnInt64SampleClick(Sender: TObject);
   private
     FPrivKeyProduct, FPrivKeyExponent, FPubKeyProduct, FPubKeyExponent, FR: TUInt64;
     FBNR: TCnBigNumber;
@@ -251,9 +254,11 @@ var
     I: Integer;
   begin
     I := 0;
-    while (A shr I) <> 0 do
+    while A <> 0 do
+    begin
+      A := A shr 1;
       Inc(I);
-
+    end;
     Result := I;
   end;
 
@@ -272,7 +277,6 @@ begin
     lblInt64MBits.Caption := 'n Bits: ' + IntToStr(GetInt64BitCount(FPrivKeyProduct));
   end;
 end;
-
 
 procedure TFormRSA.btnRSAEnClick(Sender: TObject);
 var
@@ -649,10 +653,17 @@ begin
 end;
 
 procedure TFormRSA.btnPubCryptClick(Sender: TObject);
+var
+  R: Boolean;
 begin
   if dlgSaveFile.Execute then
   begin
-    if CnRSAEncryptFile(edtFile1.Text, dlgSaveFile.FileName, FPublicKey) then
+    if chkOAEP.Checked then
+      R := CnRSAEncryptFile(edtFile1.Text, dlgSaveFile.FileName, FPublicKey, cpmOAEP)
+    else
+      R := CnRSAEncryptFile(edtFile1.Text, dlgSaveFile.FileName, FPublicKey);
+
+    if R then
     begin
       ShowMessage('RSA Public Key Encrypt File Success.');
       if Trim(edtFile2.Text) = '' then
@@ -662,10 +673,16 @@ begin
 end;
 
 procedure TFormRSA.btnDePrivateClick(Sender: TObject);
+var
+  R: Boolean;
 begin
   if dlgSaveFile.Execute then
   begin
-    if CnRSADecryptFile(edtFile2.Text, dlgSaveFile.FileName, FPrivateKey) then
+    if chkOAEP.Checked then
+      R := CnRSADecryptFile(edtFile2.Text, dlgSaveFile.FileName, FPrivateKey, cpmOAEP)
+    else
+      R := CnRSADecryptFile(edtFile2.Text, dlgSaveFile.FileName, FPrivateKey);
+    if R then
       ShowMessage('RSA Private Key Decrypt File Success.');
   end;
 end;
@@ -906,6 +923,21 @@ begin
     T := StrToInt64(edtFastSqrt.Text);
     ShowMessage('Integer Sqrt of Int64 ' + UInt64ToStr(T) + ' is ' + UInt64ToStr(FastSqrt64(T)))
   end;
+end;
+
+procedure TFormRSA.btnInt64SampleClick(Sender: TObject);
+var
+  R: TUInt64;
+begin
+  FPrivKeyProduct := StrToUInt64('14979008342806052453');
+  FPrivKeyExponent := 9033985129783743113;
+  FPubKeyProduct := StrToUInt64('14979008342806052453');;
+  FPubKeyExponent := 65537;
+
+  if CnInt64RSAEncrypt(12345678987654321, FPrivKeyProduct, FPrivKeyExponent, R) then
+    edtRes.Text := Format('%u', [R]);
+  if CnInt64RSADecrypt(R, FPubKeyProduct, FPubKeyExponent, R) then
+    edtDataBack.Text := Format('%u', [R]);
 end;
 
 end.

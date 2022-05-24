@@ -8,6 +8,7 @@
       ..\..\Source\Common\CnAntiCheater.obj 
       ..\..\Source\Crypto\CnBase64.obj 
       ..\..\Source\Crypto\CnBerUtils.obj 
+      ..\..\Source\Common\CnBigDecimal.obj 
       ..\..\Source\Crypto\CnBigNumber.obj 
       ..\..\Source\Common\CnBigRational.obj 
       ..\..\Source\Common\CnBinaryDiffPatch.obj 
@@ -18,7 +19,7 @@
       ..\..\Source\Crypto\CnCertificateAuthority.obj 
       ..\..\Source\Common\CnClasses.obj 
       ..\..\Source\Common\CnCommon.obj 
-      ..\..\Source\Common\CnComplex.obj 
+      ..\..\Source\Crypto\CnComplex.obj 
       ..\..\Source\Common\CnCompUtils.obj 
       ..\..\Source\Common\CnConsts.obj 
       ..\..\Source\Common\CnContainers.obj 
@@ -40,6 +41,7 @@
       ..\..\Source\Common\CnIniStrUtils.obj 
       ..\..\Source\Crypto\CnKDF.obj 
       ..\..\Source\Common\CnLinkedList.obj 
+      ..\..\Source\Common\CnLockFree.obj 
       ..\..\Source\Common\CnMatrix.obj 
       ..\..\Source\Crypto\CnMD5.obj 
       ..\..\Source\Common\CnMethodHook.obj 
@@ -60,6 +62,7 @@
       ..\..\Source\Crypto\CnSM2.obj 
       ..\..\Source\Crypto\CnSM3.obj 
       ..\..\Source\Crypto\CnSM4.obj 
+      ..\..\Source\Crypto\CnSM9.obj 
       ..\..\Source\Common\CnSQLite.obj 
       ..\..\Source\Common\CnStrDiff.obj 
       ..\..\Source\Common\CnStream.obj 
@@ -108,6 +111,7 @@
       ..\..\Source\Graphics\CnSpin.obj 
       ..\..\Source\Graphics\CnSplitter.obj 
       ..\..\Source\Graphics\CnTabSet.obj 
+      ..\..\Source\Graphics\CnTextControl.obj 
       ..\..\Source\Graphics\CnValidateImage.obj 
       ..\..\Source\Graphics\CnWaterEffect.obj 
       ..\..\Source\Graphics\CnWaterImage.obj 
@@ -199,7 +203,7 @@
     <SPARELIBS value="Vcl50.lib Vclx50.lib vclado50.lib Vclmid50.bpi wininet.lib ws2_32.lib"/>
     <PACKAGES value="vcl50.bpi Vclx50.bpi Vcldb50.bpi VclSmp50.bpi vclado50.bpi Vclmid50.bpi"/>
     <PATHCPP value=".;"/>
-    <PATHPAS value=".;..\..\Source\Common;..\..\Source\DbReport;..\..\Source\Graphics;..\..\Source\MultiLang;..\..\Source\NetComm;..\..\Source\NonVisual"/>
+    <PATHPAS value=".;..\..\Source\Common;..\..\Source\Crypto;..\..\Source\DbReport;..\..\Source\Graphics;..\..\Source\MultiLang;..\..\Source\NetComm;..\..\Source\NonVisual"/>
     <PATHRC value=".;"/>
     <PATHASM value=".;"/>
     <DEBUGLIBPATH value="$(BCB)\lib\debug"/>
@@ -208,13 +212,13 @@
     <USERDEFINES value="_DEBUG"/>
     <SYSDEFINES value="_RTLDLL;NO_STRICT;USEPACKAGES"/>
     <MAINSOURCE value="CnPack_CB5.cpp"/>
-    <INCLUDEPATH value="..\..\Source\NonVisual;..\..\Source\NetComm;..\..\Source\MultiLang;..\..\Source\Graphics;..\..\Source\Common;..\..\Source\DbReport;$(BCB)\include;$(BCB)\include\vcl"/>
-    <LIBPATH value="..\..\Source\NonVisual;..\..\Source\NetComm;..\..\Source\MultiLang;..\..\Source\Graphics;..\..\Source\Common;..\..\Source\DbReport;$(BCB)\lib\obj;$(BCB)\lib"/>
+    <INCLUDEPATH value="..\..\Source\NonVisual;..\..\Source\NetComm;..\..\Source\MultiLang;..\..\Source\Graphics;..\..\Source\Common;..\..\Source\Crypto;..\..\Source\DbReport;$(BCB)\include;$(BCB)\include\vcl"/>
+    <LIBPATH value="..\..\Source\NonVisual;..\..\Source\NetComm;..\..\Source\MultiLang;..\..\Source\Graphics;..\..\Source\Common;..\..\Source\Crypto;..\..\Source\DbReport;$(BCB)\lib\obj;$(BCB)\lib\psdk;$(BCB)\lib"/>
     <WARNINGS value="-w-par"/>
   </MACROS>
   <OPTIONS>
     <IDLCFLAGS value="-I..\..\Source\NonVisual -I..\..\Source\NetComm -I..\..\Source\MultiLang 
-      -I..\..\Source\Graphics -I..\..\Source\Common -I..\..\Source\DbReport -I$(BCB)\include 
+      -I..\..\Source\Graphics -I..\..\Source\Common -I..\..\Source\Crypto -I..\..\Source\DbReport -I$(BCB)\include 
       -I$(BCB)\include\vcl -src_suffix cpp -D_DEBUG -boa"/>
     <CFLAG1 value="-Od -H=$(BCB)\lib\vcl50.csm -Hc -Vx -Ve -X- -r- -a8 -b- -k -y -v -vi- -c 
       -tWM"/>

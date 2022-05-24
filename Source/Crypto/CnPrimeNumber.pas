@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2021 CnPack 开发组                       }
+{                   (C)Copyright 2001-2022 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -36,7 +36,9 @@ unit CnPrimeNumber;
 * 开发平台：WinXP + Delphi 5.0
 * 兼容测试：暂未进行
 * 本 地 化：该单元无需本地化处理
-* 修改记录：2018.08.30 V1.5
+* 修改记录：2021.11.20 V1.6
+*               实现 AKS 精确素性判断算法。
+*           2018.08.30 V1.5
 *               修正 Random 精度不够导致 Int64 生成素数末尾可能连续出现 $FF 的问题
 *               增加 UInt32/64 生成 Diffie-Hellman 密钥交换算法的素数与原根的函数，
 *               增加辗转相除法求最大公约数以及 PollardRho 算法分解质因数以及求欧拉
@@ -59,7 +61,7 @@ interface
 {$I CnPack.inc}
 
 uses
-  SysUtils, Classes, CnNativeDecl
+  SysUtils, Classes, Math, CnNativeDecl, CnContainers
   {$IFDEF MSWINDOWS}, CnClasses {$ENDIF}
   {$IFDEF MACOS}, System.Generics.Collections {$ENDIF};
 
@@ -674,6 +676,9 @@ const
   CN_MAX_PRIME_LESS_THAN_SQRT_INT64 = 3037000493;
   CN_MIN_PRIME_MORE_THAN_SQRT_INT64 = 3037000507;
 
+function CnPickRandomSmallPrime: Integer;
+{* 从 CN_PRIME_NUMBERS_SQRT_UINT32 数组中随机挑选一个素数}
+
 function CnUInt32IsPrime(N: Cardinal): Boolean;
 {* 快速判断一 32 位无符号整数是否是素数}
 
@@ -681,10 +686,13 @@ function CnInt64IsPrime(N: TUInt64): Boolean;
 {* 概率性判断一 64 位无符号整数是否是素数}
 
 function AddMod(A, B, C: TUInt64): TUInt64;
-{* 想办法计算 (A + B) mod C，不能直接算，容易溢出}
+{* 想办法计算全是正值的 (A + B) mod C，不能直接算，容易溢出}
 
 function MultipleMod(A, B, C: TUInt64): TUInt64;
-{* 快速计算 (A * B) mod C，不能直接算，容易溢出}
+{* 快速计算全是正值的 (A * B) mod C，不能直接算，容易溢出}
+
+function Int64AddMod(A, B, C: Int64): Int64;
+{* 封装的 Int64 的支持 A、B 为负数的 (A + B) mod C，但 C 仍要求正数否则结果不靠谱}
 
 function Int64MultipleMod(A, B, C: Int64): Int64;
 {* 封装的 Int64 的支持 A、B 为负数的乘积取模，但 C 仍要求正数否则结果不靠谱}
@@ -730,6 +738,15 @@ function CnInt64GreatestCommonDivisor(A, B: TUInt64): TUInt64;
 function CnInt64GreatestCommonDivisor2(A, B: Int64): Int64;
 {* 求两个 64 位有符号数的最大公约数}
 
+function CnUInt32LeastCommonMultiple(A, B: Cardinal): Cardinal;
+{* 求两个 32 位无符号数的最小公倍数，不考虑溢出的情况}
+
+function CnInt64LeastCommonMultiple(A, B: TUInt64): TUInt64;
+{* 求两个 64 位无符号数的最小公倍数，不考虑溢出的情况}
+
+function CnInt64LeastCommonMultiple2(A, B: Int64): Int64;
+{* 求两个 64 位有符号数的最小公倍数，不考虑溢出的情况}
+
 procedure CnGenerateUInt32DiffieHellmanPrimeRoot(out Prime: Cardinal; out MaxRoot: Cardinal);
 {* 生成 Diffie-Hellman 算法所需的素数与其最大原根，范围为 UInt32}
 
@@ -761,10 +778,10 @@ function CnEulerInt64(Num: TUInt64): TUInt64;
 {* 求不大于一 64 位无符号数 Num 的与 Num 互质的正整数的个数，也就是欧拉函数}
 
 function CnUInt32ModularInverse(X: Cardinal; Modulus: Cardinal): Cardinal;
-{* 求 X 针对 M 的模反元素也就是模逆元 Y，满足 (X * Y) mod M = 1，范围为 UInt32，X、M 必须互质}
+{* 求 X 针对 M 的模反元素也就是模逆元 Y，满足 (X * Y) mod M = 1，范围为 UInt32，X、M 必须互质，否则返回 0}
 
 function CnInt64ModularInverse(X: TUInt64; Modulus: TUInt64): TUInt64;
-{* 求 X 针对 M 的模反元素也就是模逆元 Y，满足 (X * Y) mod M = 1，范围为 UInt64，X、M 必须互质}
+{* 求 X 针对 M 的模反元素也就是模逆元 Y，满足 (X * Y) mod M = 1，范围为 UInt64，X、M 必须互质，否则返回 0}
 
 function CnInt64ModularInverse2(X: Int64; Modulus: Int64): Int64;
 {* 求 X 针对 M 的模反元素也就是模逆元 Y，满足 (X * Y) mod M = 1，范围为 Int64，也就是支持负值，X、M 必须互质}
@@ -809,48 +826,41 @@ function ChineseRemainderTheoremInt64(Remainers, Factors: TCnInt64List): Int64; 
 function CnInt64BigStepGiantStep(A, B, M: Int64): Int64;
 {* 大步小步算法求离散对数问题 A^X mod M = B 的解 X，要求 A 和 M 互素}
 
+function CnInt64IsPerfectPower(N: Int64): Boolean;
+{* 判断整数 N 是否是完全幂，也就是是否是某整数的整数次幂，要求 N > 0}
+
+procedure CnInt64FillCombinatorialNumbers(List: TCnInt64List; N: Integer);
+{* 计算组合数 C(m, N) 放至 Int64 数组中，其中 m 从 0 到 N，
+  N 为 61 时逼近 Int64 上限，62 溢出}
+
+procedure CnUInt64FillCombinatorialNumbers(List: TCnInt64List; N: Integer);
+{* 计算组合数 C(m, N) 并以 UInt64 格式放至 Int64 数组中，
+  其中 m 从 0 到 N，N 为 62 时逼近 UInt64 上限，63 溢出}
+
+procedure CnInt64FillCombinatorialNumbersMod(List: TCnInt64List; N: Integer; P: Int64);
+{* 计算组合数 C(m, N) mod P 放至 Int64 数组中，其中 m 从 0 到 N，如果 P 不是素数导致内部不互素，则相应值会被置 0}
+
+procedure CnUInt64FillCombinatorialNumbersMod(List: TCnInt64List; N: Integer; P: TUInt64);
+{* 计算组合数 C(m, N) mod P 放至 Int64 数组中，其中 m 从 0 到 N，如果 P 不是素数导致内部不互素，则相应值会被置 0}
+
+function CnInt64AKSIsPrime(N: Int64): Boolean;
+{* 用 AKS 算法判断某正整数是否是素数，判断 9223372036854775783 约需 10 秒钟}
+
 implementation
 
 uses
-  CnHashMap;
+  CnHashMap, CnPolynomial, CnBigNumber, CnRandom;
 
-{$IFDEF MACOS}
-
-// MACOS 下的 TCnUInt32/64List 没有 IgnoreDuplicated 功能，需要手工去重
-
-type
-  TCnInternalList<T> = class(TList<T>)
-  public
-    procedure RemoveDuplictedElements;
-  end;
-
-{ TCnInternalList<T> }
-
-procedure TCnInternalList<T>.RemoveDuplictedElements;
+function CnPickRandomSmallPrime: Integer;
 var
-  I, J: Integer;
-  V: NativeInt;
-  Dup: Boolean;
+  D: Integer;
 begin
-  for I := Count - 1 downto 0 do
-  begin
-    V := ItemValue(Items[I]);
-    Dup := False;
-    for J := 0 to I - 1 do
-    begin
-      if V = ItemValue(Items[J]) then
-      begin
-        Dup := True;
-        Break;
-      end;
-    end;
-
-    if Dup then
-      Delete(I);
-  end;
+  Randomize;
+  D := Random(High(CN_PRIME_NUMBERS_SQRT_UINT32)) + 1;
+  Result := CN_PRIME_NUMBERS_SQRT_UINT32[D];
 end;
+{* 从 CN_PRIME_NUMBERS_SQRT_UINT32 数组中随机挑选一个素数}
 
-{$ENDIF}
 
 // 直接 Random * High(TUint64) 可能会精度不够导致 Lo 全 FF，因此分开处理
 function RandomUInt64: TUInt64;
@@ -897,7 +907,7 @@ begin
   else
   begin
     // 以现成的素数数组来除
-    if N < 2 then            //0、1 不是
+    if N < 2 then            // 0、1 不是
       Exit
     else if N = 2 then       // 2 是
     begin
@@ -978,6 +988,28 @@ begin
 
     B := B shr 1;
   end;
+end;
+
+// 封装的 Int64 的支持 A、B 为负数的 (A + B) mod C，但 C 仍要求正数否则结果不靠谱}
+function Int64AddMod(A, B, C: Int64): Int64;
+var
+  T: Int64;
+begin
+  if (A > 0) and (B > 0) then // 都正，按 UInt64 处理
+    Result := AddMod(A, B, C)
+  else if (A < 0) and (B < 0) then // 都负，按 UInt64 处理后用 C 减
+    Result := C - AddMod(-A, -B, C)
+  else if ((A > 0) and (B < 0)) or ((A < 0) and (B > 0)) then
+  begin
+    // 异号，相加不会溢出
+    T := A + B;
+    if T >= 0 then
+      Result := UInt64Mod(T, C)
+    else
+      Result := C - UInt64Mod(-T, C)
+  end
+  else
+    Result := 0;
 end;
 
 // 封装的 Int64 的支持 A、B 为负数的乘积取模，但 C 仍要求正数否则结果不靠谱
@@ -1539,6 +1571,30 @@ begin
     Result := CnInt64GreatestCommonDivisor2(B, A mod B);
 end;
 
+function CnUInt32LeastCommonMultiple(A, B: Cardinal): Cardinal;
+var
+  D: Cardinal;
+begin
+  D := CnUInt32GreatestCommonDivisor(A, B);
+  Result := (A div D) * B;
+end;
+
+function CnInt64LeastCommonMultiple(A, B: TUInt64): TUInt64;
+var
+  D: TUInt64;
+begin
+  D := CnInt64GreatestCommonDivisor(A, B);
+  Result := UInt64Mul(UInt64Div(A, D), B);
+end;
+
+function CnInt64LeastCommonMultiple2(A, B: Int64): Int64;
+var
+  D: Int64;
+begin
+  D := CnInt64GreatestCommonDivisor2(A, B);
+  Result := (A div D) * B;
+end;
+
 function PollardRho32(X: Cardinal; C: Cardinal): Cardinal;
 var
   I, K, X0, Y, D: Cardinal;
@@ -1669,7 +1725,7 @@ begin
     CnUInt32FindFactors(Num, F);
 {$IFNDEF MSWINDOWS}
     // 手工去重
-    TCnInternalList<LongWord>(F).RemoveDuplictedElements;
+    TCnInternalList<TCnLongWord32>(F).RemoveDuplictedElements;
 {$ENDIF}
 
     Result := Num;
@@ -1970,19 +2026,6 @@ end;
 function SquareRootModPrimeLucas(X, P: Int64; out Y: Int64): Boolean;
 var
   G, Z, U, V: Int64;
-
-  function RandomInt64LessThan(HighValue: Int64): Int64;
-  var
-    Hi, Lo: Cardinal;
-  begin
-    Randomize;
-    Hi := Trunc(Random * High(Integer) - 1) + 1;   // Int64 最高位不能是 1，避免负数
-    Randomize;
-    Lo := Trunc(Random * High(Cardinal) - 1) + 1;
-    Result := (Int64(Hi) shl 32) + Lo;
-    Result := Result mod HighValue;
-  end;
-
 begin
   Result := False;
   G := X;
@@ -2191,6 +2234,228 @@ begin
   finally
     Map.Free;
   end;
+end;
+
+function CnInt64IsPerfectPower(N: Int64): Boolean;
+var
+  LG2, I: Integer;
+  A: Int64;
+begin
+  Result := False;
+  if (N < 0) or (N = 2) or (N = 3) then
+    Exit;
+
+  if (N = 0) or (N = 1) then
+  begin
+    Result := True;
+    Exit;
+  end;
+
+  LG2 := GetUInt64HighBits(N); // 比 LOG2(N) 略大
+  for I := 2 to LG2 do
+  begin
+    // 求 N 的 I 次方根的整数部分
+    A := Trunc(Power(N, 1.0 / I));
+    // 整数部分再求幂
+    A := Int64NonNegativPower(A, I);
+
+    // 判断是否相等
+    if A = N then
+    begin
+      Result := True;
+      Exit;
+    end;
+  end;
+end;
+
+procedure CnInt64FillCombinatorialNumbers(List: TCnInt64List; N: Integer);
+var
+  M: Integer;
+  C, MC: Int64;
+begin
+  if (N < 0) or (List = nil) then
+    Exit;
+
+  List.Clear;
+  List.Add(1);
+  if N = 0 then
+    Exit;
+
+  MC := N div 2;
+
+  List.Count := N + 1;    // C(n, m) m 从 0 到 n，一共 n+1 个
+  List[N] := 1;
+  C := 1;
+
+  for M := 0 to MC - 1 do
+  begin
+    C := C * (N - M) div (M + 1);
+    List[M + 1] := C;
+    List[N - M - 1] := C;
+  end;
+end;
+
+procedure CnUInt64FillCombinatorialNumbers(List: TCnInt64List; N: Integer);
+var
+  M: Integer;
+  C, MC: TUInt64;
+begin
+  if (N < 0) or (List = nil) then
+    Exit;
+
+  List.Clear;
+  List.Add(1);
+  if N = 0 then
+    Exit;
+
+  MC := N div 2;
+
+  List.Count := N + 1;    // C(n, m) m 从 0 到 n，一共 n+1 个
+  List[N] := 1;
+  C := 1;
+
+  for M := 0 to MC - 1 do
+  begin
+    C := UInt64Div(C * (N - M), (M + 1));
+    List[M + 1] := C;
+    List[N - M - 1] := C;
+  end;
+end;
+
+procedure CnInt64FillCombinatorialNumbersMod(List: TCnInt64List; N: Integer; P: Int64);
+var
+  M: Integer;
+  C, MC: Int64;
+  Inv: Int64;
+begin
+  if (N < 0) or (List = nil) then
+    Exit;
+
+  List.Clear;
+  List.Add(1);
+  if N = 0 then
+    Exit;
+
+  MC := N div 2;
+
+  List.Count := N + 1;    // C(n, m) m 从 0 到 n，一共 n+1 个
+  List[N] := 1;
+  C := 1;
+
+  for M := 0 to MC - 1 do
+  begin
+    Inv := CnInt64ModularInverse2(M + 1, P);
+    C := Int64NonNegativeMulMod(Int64NonNegativeMulMod(C, N - M, P), Inv, P);
+    // C := C * (N - M) div (M + 1);  // 改成乘以 M + 1 的逆元
+    List[M + 1] := C;
+    List[N - M - 1] := C;
+  end;
+end;
+
+procedure CnUInt64FillCombinatorialNumbersMod(List: TCnInt64List; N: Integer; P: TUInt64);
+var
+  M: Integer;
+  C, MC: TUInt64;
+  Inv: TUInt64;
+begin
+  if (N < 0) or (List = nil) then
+    Exit;
+
+  List.Clear;
+  List.Add(1);
+  if N = 0 then
+    Exit;
+
+  MC := N div 2;
+
+  List.Count := N + 1;    // C(n, m) m 从 0 到 n，一共 n+1 个
+  List[N] := 1;
+  C := 1;
+
+  for M := 0 to MC - 1 do
+  begin
+    Inv := CnInt64ModularInverse(M + 1, P);
+    C := UInt64NonNegativeMulMod(UInt64NonNegativeMulMod(C, N - M, P), Inv, P);
+    // C := UInt64Div(C * (N - M), (M + 1));  // 改成乘以 M + 1 的逆元
+    List[M + 1] := C;
+    List[N - M - 1] := C;
+  end;
+end;
+
+function CnInt64AKSIsPrime(N: Int64): Boolean;
+var
+  NR: Boolean;
+  R, T, C: Int64;
+  K, LG22: Integer;
+  LG2, Q: Extended;
+begin
+  Result := False;
+  if N <= 1 then
+    Exit;
+  if CnInt64IsPerfectPower(N) then // 如果是完全幂则是合数
+    Exit;
+
+  // 找出最小的 R 满足 欧拉(R) > (Log二底(N))^2。
+  NR := True;
+  R := 1;
+  LG2 := Log2(N);
+  // LG2 := GetUInt64HighBits(N); // 整数会有误差
+  LG22 := Trunc(LG2 * LG2);
+
+  // 找出最小的 R
+  while NR do
+  begin
+    Inc(R);
+    NR := False;
+
+    K := 1;
+    while not NR and (K <= LG22) do
+    begin
+      T := MontgomeryPowerMod(N, K, R);  // 非负 Int64 可以使用 TUInt64 版本的 MontgomeryPowerMod
+      NR := (T = 0) or (T = 1);
+      Inc(K);
+    end;
+  end;
+
+  // 得到 R，如果某些比 R 小的 T 和 N 不互素，则是合数
+  T := R;
+  while T > 1 do
+  begin
+    C := CnInt64GreatestCommonDivisor(T, N);
+    if (C > 1) and (C < N) then
+      Exit;
+
+    Dec(T);
+  end;
+
+  if N <= R then
+  begin
+    Result := True;
+    Exit;
+  end;
+
+  Q := CnEulerInt64(R);
+  // 此处应该用小数计算，因为整数会产生较大误差
+  C := Trunc(Sqrt(Q) * LG2);
+
+  // 先在环 (X^R-1, N) 上提前计算 (X+Y)^N - (X^N + Y)，
+  // 也就是 (X+Y)^N - (X^N + Y) 展开后针对 X^R-1 求余，且系数都针对 N 取模
+  // 根据二项式定理 (X+Y)^N 展开后各项系数 mod N 后，就变成了 X^N+Y^N，其余项余数均为 0
+  // 再 mod X^R - 1 后根据加法求模规则得到的是 X^(N-R) + Y^N
+  // X^N + Y 对 X^R-1 取模则是 X^(N-R) + Y
+  // 一减，得到的结果其实是 Y^N - Y
+
+  // 从 1 到 欧拉(R)平方根 * (Log二底(N)) 的整数部分作为 Y，计算 Y^N - Y mod N 是否是 0
+  T := 1;
+  while T <= C do
+  begin
+    if Int64NonNegativeMod(MontgomeryPowerMod(T, N, N) - T, N) <> 0 then
+      Exit;
+
+    Inc(T);
+  end;
+
+  Result := True;
 end;
 
 end.

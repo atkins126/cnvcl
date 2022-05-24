@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2021 CnPack 开发组                       }
+{                   (C)Copyright 2001-2022 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -23,12 +23,14 @@ unit CnGraphUtils;
 ================================================================================
 * 软件名称：开发包基础库
 * 单元名称：公共图像过程库单元
-* 单元作者：CnPack开发组
-* 备    注：
+* 单元作者：CnPack 开发组
+* 备    注：加入 GDI+ 支持后不再支持低版本 Windows
 * 开发平台：PWin98SE + Delphi 5.0
 * 兼容测试：PWin9X/2000/XP + Delphi 5/6
 * 本 地 化：该单元中的字符串均符合本地化处理方式
-* 修改记录：2002.10.20 V1.0
+* 修改记录：2021.09.28 V1.1
+*               加入一个平滑拉伸绘制位图的函数，使用 GDI+
+*           2002.10.20 V1.0
 *               创建单元
 ================================================================================
 |</PRE>}
@@ -38,8 +40,8 @@ interface
 {$I CnPack.inc}
 
 uses
-  Windows, Graphics, Math, Controls;
-
+  Windows, Graphics, Math, Classes, Controls
+  {$IFDEF SUPPORT_GDIPLUS}, WinApi.GDIPOBJ, WinApi.GDIPAPI {$ENDIF};
 
 //==============================================================================
 // 扩展的颜色格式转换函数
@@ -56,18 +58,18 @@ function HSLToRGB(H, S, L: Double): TColor;
 {* HSL 颜色转换为 RGB 颜色
  |<PRE>
    H, S, L: Double   - 分别为色调、饱和度、亮度分量，为"0"到"1"之间的小数
-   Result: TColor    - 返回RGB颜色值
+   Result: TColor    - 返回 RGB 颜色值
  |</PRE>}
 function HSLRangeToRGB(H, S, L: Integer): TColor;
 {* HSL 颜色转换为 RGB 颜色
  |<PRE>
    H, S, L: Integer  - 分别为色调、饱和度、亮度分量，0..240
-   Result: TColor    - 返回RGB颜色值
+   Result: TColor    - 返回 RGB 颜色值
  |</PRE>}
 procedure RGBToHSL(Color: TColor; out H, S, L: Double);
 {* RGB 颜色转换为 HSL 颜色
  |<PRE>
-  Color: TColor         - RGB颜色值
+  Color: TColor         - RGB 颜色值
   H, S, L: Integer      - 输出分别为色调、饱和度、亮度分量，为"0"到"1"之间的小数
  |</PRE>}
 procedure RGBToHSLRange(Color: TColor; out H, S, L: Integer);
@@ -96,16 +98,16 @@ function AdjustLighteness(Color: TColor; Added: Double): TColor;
 //------------------------------------------------------------------------------
 
 function CMYToRGB(const C, M, Y: Byte): TColor;
-{* CMY颜色转换为RGB颜色
+{* CMY 颜色转换为 RGB 颜色
  |<PRE>
-  C, M, Y: Byte         - 分别为Cyan青、Magenta品红、Yellow黄分量，0..255
+  C, M, Y: Byte         - 分别为 Cyan 青、Magenta 品红、Yellow 黄分量，0..255
   Result: TColor        - 返回RGB颜色值
  |</PRE>}
 procedure RGBToCMY(const RGB: TColor; out C, M, Y: Byte);
-{* RGB颜色转换为CMY颜色
+{* RGB 颜色转换为 CMY 颜色
  |<PRE>
- |<BR> Color: TColor　　　RGB颜色值
- |<BR> C, M, Y: Byte　　　输出分别为Cyan青、Magenta品红、Yellow黄分量，0..255
+ |<BR> Color: TColor　　　RGB 颜色值
+ |<BR> C, M, Y: Byte　　　输出分别为 Cyan 青、Magenta 品红、Yellow 黄分量，0..255
  |</PRE>}
 
 //------------------------------------------------------------------------------
@@ -113,15 +115,15 @@ procedure RGBToCMY(const RGB: TColor; out C, M, Y: Byte);
 //------------------------------------------------------------------------------
 
 function CMYKToRGB(const C, M, Y, K: Byte): TColor;
-{* CMYK颜色转换为RGB颜色
+{* CMYK 颜色转换为 RGB 颜色
  |<PRE>
-   C, M, Y, K: Byte     - 分别为Cyan青、Magenta品红、Yellow黄、Black黑分量，0..255
-   Result: TColor       - 返回RGB颜色值
+   C, M, Y, K: Byte     - 分别为 Cyan 青、Magenta 品红、Yellow 黄、Black 黑分量，0..255
+   Result: TColor       - 返回 RGB 颜色值
  |</PRE>}
 procedure RGBToCMYK(const RGB: TColor; out C, M, Y, K: Byte);
-{* RGB颜色转换为CMY颜色
+{* RGB 颜色转换为 CMY 颜色
  |<PRE>
-   Color: TColor        - RGB颜色值
+   Color: TColor        - RGB 颜色值
    C, M, Y, K: Byte     - 输出分别为Cyan青、Magenta品红、Yellow黄、Black黑分量，0..255
  |</PRE>}
 
@@ -132,7 +134,7 @@ procedure RGBToCMYK(const RGB: TColor; out C, M, Y, K: Byte);
 function Gray(Intensity: Byte): TColor;
 {* 返回一个灰度 RGB 颜色值}
 function Intensity(Color: TColor): Byte;
-{* 计算RGB颜色值的灰度值}
+{* 计算 RGB 颜色值的灰度值}
 function RandomColor: TColor;
 {* 返回一个随机 RGB 颜色值}
 procedure DeRGB(Color: TColor; var r, g, b: Byte);
@@ -143,12 +145,142 @@ procedure DeRGB(Color: TColor; var r, g, b: Byte);
 //==============================================================================
 
 function CreateEmptyBmp24(Width, Height: Integer; Color: TColor): TBitmap;
-{* 创建一个以 Color 为背景色，指定大小的 24位位图 }
+{* 创建一个以 Color 为背景色，指定大小的 24 位位图 }
 
 function DrawBmpToIcon(Bmp: TBitmap; Icon: TIcon): Boolean;
 {* 将 Bitmap 的内容放到 Icon 里}
 
+procedure StretchDrawBmp(Src, Dst: TBitmap; Smooth: Boolean = True);
+{* 将位图 Src 拉伸绘制至 Dst，支持 GDI+ 时可以使用平滑拉伸}
+
+{$IFNDEF SUPPORT_GDIPLUS}
+
+procedure CnStartUpGdiPlus;
+{* 由于 DLL 中不允许跟着单元来初始化/释放 GDI+，所以输出给宿主调用，初始化 GDI+}
+procedure CnShutDownGdiPlus;
+{* 由于 DLL 中不允许跟着单元来初始化/释放 GDI+，所以输出给宿主调用，释放 GDI+}
+
+{$ENDIF}
+
 implementation
+
+{$IFNDEF SUPPORT_GDIPLUS}
+{$IFNDEF BCB5OR6}
+
+//==============================================================================
+// 编译器不支持 GDI+ 时手工定义 GDI+ 相关函数
+//==============================================================================
+
+const
+  WINGDIPDLL = 'gdiplus.dll';
+  SmoothingModeInvalid     = -1;
+  SmoothingModeDefault     = 0;
+  SmoothingModeHighSpeed   = 1;
+  SmoothingModeHighQuality = 2;
+  SmoothingModeNone        = 3;
+  SmoothingModeAntiAlias   = 4;
+
+type
+  GpGraphics = Pointer;
+  {* GDI+ 绘图参数类，用 GdipCreateFromHDC 等创建，用 GdipDeleteGraphics 释放}
+
+  GpImage = Pointer;
+  {* GDI+ 图像基类，和子类一起用 GdipCreateBitmapFromHBITMAP 等创建，用 GdipDisposeImage 释放}
+
+  GpBitmap = Pointer;
+  {* GDI+ GpImage 的子类，代表位图}
+
+  TStatus = (
+    Ok,
+    GenericError,
+    InvalidParameter,
+    OutOfMemory,
+    ObjectBusy,
+    InsufficientBuffer,
+    NotImplemented,
+    Win32Error,
+    WrongState,
+    Aborted,
+    FileNotFound,
+    ValueOverflow,
+    AccessDenied,
+    UnknownImageFormat,
+    FontFamilyNotFound,
+    FontStyleNotFound,
+    NotTrueTypeFont,
+    UnsupportedGdiplusVersion,
+    GdiplusNotInitialized,
+    PropertyNotFound,
+    PropertyNotSupported
+  );
+
+  GpStatus = TStatus;
+
+  TSmoothingMode = Integer;
+  {* 使用 const 中的 SmoothingMode* 值}
+
+  TDebugEventLevel = (DebugEventLevelFatal, DebugEventLevelWarning);
+
+  DebugEventProc = procedure(Level: TDebugEventLevel; Message: PChar); stdcall;
+  NotificationHookProc = function(out Token: ULONG): TStatus; stdcall;
+  NotificationUnhookProc = procedure(Token: ULONG); stdcall;
+
+  GdiplusStartupInput = record
+    GdiplusVersion          : Cardinal;       // Must be 1
+    DebugEventCallback      : DebugEventProc;
+    SuppressBackgroundThread: BOOL;
+    SuppressExternalCodecs  : BOOL;
+  end;
+  TGdiplusStartupInput = GdiplusStartupInput;
+  PGdiplusStartupInput = ^TGdiplusStartupInput;
+
+  GdiplusStartupOutput = record
+    NotificationHook  : NotificationHookProc;
+    NotificationUnhook: NotificationUnhookProc;
+  end;
+  TGdiplusStartupOutput = GdiplusStartupOutput;
+  PGdiplusStartupOutput = ^TGdiplusStartupOutput;
+
+var
+  GdiPlusInit: Boolean = False;
+  StartupInput: TGDIPlusStartupInput;
+  GdiplusToken: ULONG;
+
+function GdiplusStartup(out Token: ULONG; Input: PGdiplusStartupInput;
+  Output: PGdiplusStartupOutput): GPSTATUS; stdcall;
+  external WINGDIPDLL name 'GdiplusStartup' {$IFDEF SUPPORT_EXTERNAL_DELAYED} delayed {$ENDIF};
+
+procedure GdiplusShutdown(Token: ULONG); stdcall;
+  external WINGDIPDLL name 'GdiplusShutdown' {$IFDEF SUPPORT_EXTERNAL_DELAYED} delayed {$ENDIF};
+
+function GdipCreateFromHDC(hdc: HDC; out Graphic: GPGRAPHICS): GPSTATUS; stdcall;
+  external WINGDIPDLL name 'GdipCreateFromHDC' {$IFDEF SUPPORT_EXTERNAL_DELAYED} delayed {$ENDIF};
+
+function GdipDeleteGraphics(Graphic: GPGRAPHICS): GPSTATUS; stdcall;
+  external WINGDIPDLL name 'GdipDeleteGraphics' {$IFDEF SUPPORT_EXTERNAL_DELAYED} delayed {$ENDIF};
+
+function GdipSetSmoothingMode(Graphic: GPGRAPHICS; Sm: TSmoothingMode): GPSTATUS; stdcall;
+  external WINGDIPDLL name 'GdipSetSmoothingMode' {$IFDEF SUPPORT_EXTERNAL_DELAYED} delayed {$ENDIF};
+
+function GdipGetSmoothingMode(Graphic: GPGRAPHICS; var Sm: TSmoothingMode): GPSTATUS; stdcall;
+  external WINGDIPDLL name 'GdipGetSmoothingMode' {$IFDEF SUPPORT_EXTERNAL_DELAYED} delayed {$ENDIF};
+
+function GdipCreateBitmapFromHBITMAP(hbm: HBITMAP; hpal: HPALETTE; out Bitmap: GPBITMAP): GPSTATUS; stdcall;
+  external WINGDIPDLL name 'GdipCreateBitmapFromHBITMAP' {$IFDEF SUPPORT_EXTERNAL_DELAYED} delayed {$ENDIF};
+
+function GdipDisposeImage(Image: GPIMAGE): GPSTATUS; stdcall;
+  external WINGDIPDLL name 'GdipDisposeImage' {$IFDEF SUPPORT_EXTERNAL_DELAYED} delayed {$ENDIF};
+
+function GdipDrawImageRect(Graphic: GPGRAPHICS; Image: GPIMAGE; x: Single;
+  y: Single; Width: Single; Height: Single): GPSTATUS; stdcall;
+  external WINGDIPDLL name 'GdipDrawImageRect' {$IFDEF SUPPORT_EXTERNAL_DELAYED} delayed {$ENDIF};
+
+function GdipDrawImageRectI(Graphic: GPGRAPHICS; Image: GPIMAGE; x: Integer;
+  y: Integer; Width: Integer; Height: Integer): GPSTATUS; stdcall;
+  external WINGDIPDLL name 'GdipDrawImageRectI' {$IFDEF SUPPORT_EXTERNAL_DELAYED} delayed {$ENDIF};
+
+{$ENDIF}
+{$ENDIF}
 
 //==============================================================================
 // 扩展的颜色格式转换函数
@@ -161,7 +293,7 @@ implementation
 // Grahame Marsh 12 October 1997
 //------------------------------------------------------------------------------
 
-// HSL颜色转换为 RGB 色
+// HSL 颜色转换为 RGB 色
 function HSLToRGB(H, S, L: Double): TColor;
 var
   M1, M2: Double;
@@ -327,7 +459,7 @@ end;
 // 算法提供：CnPack开发组 铁男
 //------------------------------------------------------------------------------
 
-// CMY颜色转换为RGB
+// CMY 颜色转换为 RGB
 function CMYToRGB(const C, M, Y: Byte): TColor;
 var
   r, g, b: Byte;
@@ -338,7 +470,7 @@ begin
   Result := RGB(r, g, b);
 end;
 
-// RGB颜色转换为CMY
+// RGB 颜色转换为 CMY
 procedure RGBToCMY(const RGB: TColor; out C, M, Y: Byte);
 var
   r, g, b: Byte;
@@ -388,7 +520,7 @@ end;
 // 计算颜色亮度值
 // 算法来源：Graphic32
 // 算法修改：周劲羽
-function Intensity(Color: TColor): Byte;
+function Intensity(Color: TColor): Byte; assembler;
 asm
 // 输入:  RGB --> EAX
 // 输出:  (R * 61 + G * 174 + B * 20) / 256 --> AL
@@ -411,7 +543,7 @@ begin
   Result := HSLToRGB(Random, 0.75 + Random * 0.25, 0.3 + Random * 0.25);
 end;
 
-// 取颜色RGB分量
+// 取颜色 RGB 分量
 procedure DeRGB(Color: TColor; var r, g, b: Byte);
 begin
   Color := ColorToRGB(Color);
@@ -424,7 +556,7 @@ end;
 // 扩展的位图处理函数
 //==============================================================================
 
-// 创建一个以 Color 为背景色，指定大小的 24位位图
+// 创建一个以 Color 为背景色，指定大小的 24 位位图
 function CreateEmptyBmp24(Width, Height: Integer; Color: TColor): TBitmap;
 type
   TRGBArray = array[0..65535] of TRGBTriple;
@@ -443,7 +575,7 @@ begin
     P := Result.ScanLine[y];
     for x := 0 to Width - 1 do
     begin
-      with P[x] do
+      with P^[x] do
       begin
         rgbtBlue := b;
         rgbtGreen := g;
@@ -471,5 +603,106 @@ begin
     ImageList.Free;
   end;
 end;
+
+procedure StretchDrawBmp(Src, Dst: TBitmap; Smooth: Boolean = True);
+var
+{$IFDEF SUPPORT_GDIPLUS}
+  Bmp: TGPBitmap;
+  GP: TGPGraphics;
+{$ELSE}
+  {$IFDEF BCB5OR6}
+  Rd: TRect;
+  {$ELSE}
+  GP: GpGraphics;
+  Bmp: GpBitmap;
+  St: TStatus;
+  {$ENDIF}
+{$ENDIF}
+begin
+  if (Src = nil) or (Dst = nil) then
+    Exit;
+
+{$IFDEF SUPPORT_GDIPLUS}
+  GP := nil;
+  Bmp := nil;
+  try
+    GP := TGPGraphics.Create(Dst.Canvas.Handle);
+    if Smooth then
+      GP.SetSmoothingMode(SmoothingModeAntiAlias);
+
+    Bmp := TGPBitmap.Create(Src.Handle, Src.Palette);
+    GP.DrawImage(Bmp, 0, 0, Dst.Width + 1, Dst.Height + 1);
+  finally
+    Bmp.Free;
+    GP.Free;
+  end;
+{$ELSE}
+  if (Src.Width <> Dst.Width) or (Src.Height <> Dst.Height) then
+  begin
+{$IFDEF BCB5OR6}
+    Rd := Rect(0, 0, Dst.Width, Dst.Height);
+    Dst.Canvas.StretchDraw(Rd, Src);
+{$ELSE}
+    GP := nil;
+    St := GdipCreateFromHDC(Dst.Canvas.Handle, GP);
+    if (St <> Ok) or (GP = nil) then
+      Exit;
+
+    try
+      if Smooth then
+        GdipSetSmoothingMode(GP, SmoothingModeAntiAlias);
+
+      Bmp := nil;
+      St := GdipCreateBitmapFromHBITMAP(Src.Handle, Src.Palette, Bmp);
+      if (St <> Ok) or (Bmp = nil) then
+        Exit;
+
+      GdipDrawImageRectI(GP, Bmp, 0, 0, Dst.Width + 1, Dst.Height + 1);
+    finally
+      if Bmp <> nil then
+        GdipDisposeImage(Bmp);
+      if GP <> nil then
+        GdipDeleteGraphics(GP);
+    end;
+{$ENDIF}
+  end
+  else
+    Dst.Canvas.Draw(0, 0, Src);
+{$ENDIF}
+end;
+
+{$IFNDEF SUPPORT_GDIPLUS}
+
+procedure CnStartUpGdiPlus;
+begin
+{$IFNDEF BCB5OR6}
+  if not GdiPlusInit then
+  begin
+    StartupInput.DebugEventCallback := nil;
+    StartupInput.SuppressBackgroundThread := False;
+    StartupInput.SuppressExternalCodecs   := False;
+    StartupInput.GdiplusVersion := 1;
+
+    GdiplusStartup(GdiPlusToken, @StartupInput, nil);
+
+    GdiPlusInit := True;
+  end;
+{$ENDIF}
+end;
+
+procedure CnShutDownGdiPlus;
+begin
+{$IFNDEF BCB5OR6}
+  if GdiPlusInit then
+  begin
+    GdiplusShutdown(GdiplusToken);
+
+    GdiplusToken := 0;
+    GdiPlusInit := False;
+  end;
+{$ENDIF}
+end;
+
+{$ENDIF}
 
 end.

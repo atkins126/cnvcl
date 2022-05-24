@@ -1,0 +1,749 @@
+object FormBigNumber: TFormBigNumber
+  Left = 217
+  Height = 720
+  Top = 85
+  Width = 1096
+  Caption = 'Big Number Test'
+  ClientHeight = 720
+  ClientWidth = 1096
+  Color = clBtnFace
+  Font.Color = clWindowText
+  Font.Height = -11
+  Font.Name = 'MS Sans Serif'
+  OnCreate = FormCreate
+  OnDestroy = FormDestroy
+  LCLVersion = '2.2.0.4'
+  object pgc1: TPageControl
+    Left = 8
+    Height = 657
+    Top = 8
+    Width = 1057
+    ActivePage = tsBigNumber
+    TabIndex = 0
+    TabOrder = 0
+    object tsBigNumber: TTabSheet
+      Caption = 'BigNumber'
+      ClientHeight = 631
+      ClientWidth = 1049
+      object lblNumber1: TLabel
+        Left = 16
+        Height = 13
+        Top = 16
+        Width = 46
+        Caption = 'Number 1'
+      end
+      object lblNum2: TLabel
+        Left = 16
+        Height = 13
+        Top = 208
+        Width = 46
+        Caption = 'Number 2'
+      end
+      object lblBytes: TLabel
+        Left = 528
+        Height = 13
+        Top = 16
+        Width = 55
+        Caption = 'Byte Count:'
+      end
+      object lblShift: TLabel
+        Left = 480
+        Height = 13
+        Top = 208
+        Width = 24
+        Caption = 'Shift:'
+      end
+      object lblIntPower: TLabel
+        Left = 904
+        Height = 13
+        Top = 84
+        Width = 48
+        Caption = 'Exponent:'
+      end
+      object mmoNum1: TMemo
+        Left = 16
+        Height = 153
+        Top = 40
+        Width = 873
+        ReadOnly = True
+        ScrollBars = ssVertical
+        TabOrder = 9
+      end
+      object mmoNum2: TMemo
+        Left = 16
+        Height = 161
+        Top = 256
+        Width = 873
+        ReadOnly = True
+        ScrollBars = ssVertical
+        TabOrder = 30
+      end
+      object btnGen1: TButton
+        Left = 816
+        Height = 21
+        Top = 12
+        Width = 75
+        Caption = 'Generate'
+        OnClick = btnGen1Click
+        TabOrder = 8
+      end
+      object btnGen2: TButton
+        Left = 816
+        Height = 21
+        Top = 204
+        Width = 75
+        Caption = 'Generate'
+        OnClick = btnGen2Click
+        TabOrder = 19
+      end
+      object mmoResult: TMemo
+        Left = 16
+        Height = 161
+        Top = 448
+        Width = 873
+        ReadOnly = True
+        ScrollBars = ssVertical
+        TabOrder = 45
+      end
+      object btnDup: TButton
+        Left = 72
+        Height = 21
+        Top = 204
+        Width = 75
+        Caption = 'Copy'
+        OnClick = btnDupClick
+        TabOrder = 10
+      end
+      object btnSwap: TButton
+        Left = 152
+        Height = 21
+        Top = 204
+        Width = 75
+        Caption = 'Swap'
+        OnClick = btnSwapClick
+        TabOrder = 11
+      end
+      object btnCompare: TButton
+        Left = 232
+        Height = 21
+        Top = 204
+        Width = 75
+        Caption = 'Compare'
+        OnClick = btnCompareClick
+        TabOrder = 12
+      end
+      object btnInverseNeg1: TButton
+        Left = 680
+        Height = 21
+        Top = 12
+        Width = 81
+        Caption = 'Inverse Neg'
+        OnClick = btnInverseNeg1Click
+        TabOrder = 6
+      end
+      object btnInverseNeg2: TButton
+        Left = 712
+        Height = 21
+        Top = 204
+        Width = 99
+        Caption = 'Inverse Negative'
+        OnClick = btnInverseNeg2Click
+        TabOrder = 18
+      end
+      object cbbDigits: TComboBox
+        Left = 584
+        Height = 21
+        Top = 12
+        Width = 93
+        ItemHeight = 13
+        ItemIndex = 0
+        Items.Strings = (
+          '4096'
+          '2048'
+          '1024'
+          '512'
+          '256'
+          '128'
+          '64'
+          '32'
+          '16'
+          '8'
+          '4'
+        )
+        TabOrder = 5
+        Text = '4096'
+      end
+      object btnUAdd: TButton
+        Left = 16
+        Height = 21
+        Top = 422
+        Width = 75
+        Caption = 'Unsigned Add'
+        OnClick = btnUAddClick
+        TabOrder = 31
+      end
+      object btnUsub: TButton
+        Left = 96
+        Height = 21
+        Top = 422
+        Width = 75
+        Caption = 'Unsigned Sub'
+        OnClick = btnUsubClick
+        TabOrder = 32
+      end
+      object btnSignedAdd: TButton
+        Left = 176
+        Height = 21
+        Top = 422
+        Width = 75
+        Caption = 'Signed Add'
+        OnClick = btnSignedAddClick
+        TabOrder = 33
+      end
+      object btnSignedSub: TButton
+        Left = 256
+        Height = 21
+        Top = 422
+        Width = 75
+        Caption = 'Signed Sub'
+        OnClick = btnSignedSubClick
+        TabOrder = 34
+      end
+      object btnShiftRightOne: TButton
+        Left = 392
+        Height = 21
+        Top = 204
+        Width = 75
+        Caption = 'Shift Right 1'
+        OnClick = btnShiftRightOneClick
+        TabOrder = 14
+      end
+      object btnShiftleftOne: TButton
+        Left = 312
+        Height = 21
+        Top = 204
+        Width = 75
+        Caption = 'Shift Left 1'
+        OnClick = btnShiftleftOneClick
+        TabOrder = 13
+      end
+      object seShift: TSpinEdit
+        Left = 512
+        Height = 21
+        Top = 204
+        Width = 41
+        TabOrder = 15
+        Value = 2
+      end
+      object btnShiftRight: TButton
+        Left = 632
+        Height = 21
+        Top = 204
+        Width = 75
+        Caption = 'Shift Right'
+        OnClick = btnShiftRightClick
+        TabOrder = 17
+      end
+      object btnShiftLeft: TButton
+        Left = 552
+        Height = 21
+        Top = 204
+        Width = 75
+        Caption = 'Shift Left'
+        OnClick = btnShiftLeftClick
+        TabOrder = 16
+      end
+      object btnSqr: TButton
+        Left = 336
+        Height = 21
+        Top = 422
+        Width = 41
+        Caption = 'Sqr'
+        OnClick = btnSqrClick
+        TabOrder = 35
+      end
+      object btnMul: TButton
+        Left = 384
+        Height = 21
+        Top = 422
+        Width = 41
+        Caption = 'Mul'
+        OnClick = btnMulClick
+        TabOrder = 36
+      end
+      object btnDiv: TButton
+        Left = 432
+        Height = 21
+        Top = 422
+        Width = 41
+        Caption = 'Div'
+        OnClick = btnDivClick
+        TabOrder = 37
+      end
+      object btnMod: TButton
+        Left = 480
+        Height = 21
+        Top = 422
+        Width = 41
+        Caption = 'Mod'
+        OnClick = btnModClick
+        TabOrder = 38
+      end
+      object btnExp: TButton
+        Left = 528
+        Height = 21
+        Top = 422
+        Width = 41
+        Caption = 'Exp'
+        OnClick = btnExpClick
+        TabOrder = 39
+      end
+      object seExponent: TSpinEdit
+        Left = 576
+        Height = 21
+        Top = 422
+        Width = 41
+        TabOrder = 40
+        Value = 2
+      end
+      object pnlDisplay: TPanel
+        Left = 80
+        Height = 33
+        Top = 4
+        Width = 137
+        BevelOuter = bvNone
+        ClientHeight = 33
+        ClientWidth = 137
+        TabOrder = 0
+        object rbHex: TRadioButton
+          Left = 14
+          Height = 17
+          Top = 6
+          Width = 39
+          Caption = 'Hex'
+          Checked = True
+          OnClick = rbDecClick
+          TabOrder = 0
+          TabStop = True
+        end
+        object rbDec: TRadioButton
+          Left = 62
+          Height = 17
+          Top = 6
+          Width = 40
+          Caption = 'Dec'
+          OnClick = rbDecClick
+          TabOrder = 1
+        end
+      end
+      object btnGcd: TButton
+        Left = 624
+        Height = 21
+        Top = 422
+        Width = 41
+        Caption = 'Gcd'
+        OnClick = btnGcdClick
+        TabOrder = 41
+      end
+      object btnGenWord: TButton
+        Left = 104
+        Height = 21
+        Top = 230
+        Width = 75
+        Caption = 'Geneate Word'
+        OnClick = btnGenWordClick
+        TabOrder = 21
+      end
+      object edtWord: TEdit
+        Left = 184
+        Height = 21
+        Top = 230
+        Width = 121
+        TabOrder = 22
+        Text = '0'
+      end
+      object btnWordAdd: TButton
+        Left = 312
+        Height = 21
+        Top = 230
+        Width = 75
+        Caption = 'Add Word'
+        OnClick = btnWordAddClick
+        TabOrder = 23
+      end
+      object btnSubWord: TButton
+        Left = 392
+        Height = 21
+        Top = 230
+        Width = 75
+        Caption = 'Sub Word'
+        OnClick = btnSubWordClick
+        TabOrder = 24
+      end
+      object btnMulWord: TButton
+        Left = 472
+        Height = 21
+        Top = 230
+        Width = 75
+        Caption = 'Mul Word'
+        OnClick = btnMulWordClick
+        TabOrder = 25
+      end
+      object btnDivWord: TButton
+        Left = 552
+        Height = 21
+        Top = 230
+        Width = 75
+        Caption = 'Div Word'
+        OnClick = btnDivWordClick
+        TabOrder = 26
+      end
+      object btnModWord: TButton
+        Left = 632
+        Height = 21
+        Top = 230
+        Width = 75
+        Caption = 'Mod Word'
+        OnClick = btnModWordClick
+        TabOrder = 27
+      end
+      object btnVerifyDiv: TButton
+        Left = 712
+        Height = 21
+        Top = 230
+        Width = 97
+        Caption = 'Verify Div Word'
+        OnClick = btnVerifyDivClick
+        TabOrder = 28
+      end
+      object btnMultipleMod: TButton
+        Left = 672
+        Height = 21
+        Top = 422
+        Width = 75
+        Caption = 'Multiple Mod'
+        OnClick = btnMultipleModClick
+        TabOrder = 42
+      end
+      object btnPowerMod: TButton
+        Left = 752
+        Height = 21
+        Top = 422
+        Width = 75
+        Caption = 'Power Mod'
+        OnClick = btnPowerModClick
+        TabOrder = 43
+      end
+      object btnIsPrime: TButton
+        Left = 816
+        Height = 21
+        Top = 230
+        Width = 73
+        Caption = 'Is Prime?'
+        OnClick = btnIsPrimeClick
+        TabOrder = 29
+      end
+      object btnGenPrime: TButton
+        Left = 456
+        Height = 21
+        Top = 12
+        Width = 65
+        Caption = 'Gen Prime'
+        OnClick = btnGenPrimeClick
+        TabOrder = 4
+      end
+      object btnJudgeInt: TButton
+        Left = 376
+        Height = 21
+        Top = 12
+        Width = 73
+        Caption = 'U/Int 32/64?'
+        OnClick = btnJudgeIntClick
+        TabOrder = 3
+      end
+      object btnRandRange: TButton
+        Left = 768
+        Height = 21
+        Top = 12
+        Width = 41
+        Caption = 'Range'
+        OnClick = btnRandRangeClick
+        TabOrder = 7
+      end
+      object btnEnterNum1: TButton
+        Left = 224
+        Height = 21
+        Top = 12
+        Width = 81
+        Caption = 'Enter Num1'
+        OnClick = btnEnterNum1Click
+        TabOrder = 1
+      end
+      object btnEnterNum2: TButton
+        Left = 16
+        Height = 21
+        Top = 230
+        Width = 81
+        Caption = 'Enter Num2 '
+        OnClick = btnEnterNum2Click
+        TabOrder = 20
+      end
+      object btnMInverse: TButton
+        Left = 832
+        Height = 21
+        Top = 422
+        Width = 57
+        Caption = 'Mod Inv'
+        OnClick = btnMInverseClick
+        TabOrder = 44
+      end
+      object btnSetUInt64: TButton
+        Left = 308
+        Height = 21
+        Top = 12
+        Width = 65
+        Caption = 'Set (U)Int64'
+        OnClick = btnSetUInt64Click
+        TabOrder = 2
+      end
+      object btnPowerModCompare: TButton
+        Left = 904
+        Height = 25
+        Top = 294
+        Width = 129
+        Caption = 'Power Mod Compare'
+        OnClick = btnPowerModCompareClick
+        TabOrder = 46
+      end
+      object btnMulModCompare: TButton
+        Left = 904
+        Height = 25
+        Top = 323
+        Width = 129
+        Caption = 'Mul Mod Compare'
+        OnClick = btnMulModCompareClick
+        TabOrder = 47
+      end
+      object btnCheckPrime: TButton
+        Left = 904
+        Height = 25
+        Top = 236
+        Width = 129
+        Caption = 'Check Prime 1'
+        OnClick = btnCheckPrimeClick
+        TabOrder = 48
+      end
+      object btnIntPower: TButton
+        Left = 904
+        Height = 25
+        Top = 44
+        Width = 129
+        Caption = 'Integer Power'
+        OnClick = btnIntPowerClick
+        TabOrder = 49
+      end
+      object seIntPower: TSpinEdit
+        Left = 976
+        Height = 21
+        Top = 80
+        Width = 57
+        MaxValue = 1024
+        TabOrder = 50
+        Value = 18
+      end
+      object btnGetTenCount: TButton
+        Left = 904
+        Height = 25
+        Top = 12
+        Width = 129
+        Caption = '10 Precision'
+        OnClick = btnGetTenCountClick
+        TabOrder = 51
+      end
+      object btnCheckPrime2: TButton
+        Left = 904
+        Height = 25
+        Top = 265
+        Width = 129
+        Caption = 'Check Prime 2'
+        OnClick = btnCheckPrime2Click
+        TabOrder = 52
+      end
+      object btnBNCRT: TButton
+        Left = 904
+        Height = 25
+        Top = 352
+        Width = 129
+        Caption = 'Chinese Remainder '
+        OnClick = btnBNCRTClick
+        TabOrder = 53
+      end
+      object btnBNSqrt: TButton
+        Left = 904
+        Height = 25
+        Top = 207
+        Width = 129
+        Caption = 'Sqrt'
+        OnClick = btnBNSqrtClick
+        TabOrder = 54
+      end
+      object btnBNNextPrime: TButton
+        Left = 904
+        Height = 25
+        Top = 178
+        Width = 129
+        Caption = 'Next Prime'
+        OnClick = btnBNNextPrimeClick
+        TabOrder = 55
+      end
+      object btnBNMulKaratsuba: TButton
+        Left = 904
+        Height = 25
+        Top = 381
+        Width = 129
+        Caption = 'Mul Karatsuba'
+        OnClick = btnBNMulKaratsubaClick
+        TabOrder = 56
+      end
+      object btnRoot: TButton
+        Left = 904
+        Height = 25
+        Top = 120
+        Width = 129
+        Caption = 'Integer Root'
+        OnClick = btnRootClick
+        TabOrder = 57
+      end
+      object btnIsPerfectPower: TButton
+        Left = 904
+        Height = 25
+        Top = 149
+        Width = 129
+        Caption = 'Is Perfect Power'
+        OnClick = btnIsPerfectPowerClick
+        TabOrder = 58
+      end
+      object btnComNum: TButton
+        Left = 904
+        Height = 25
+        Top = 410
+        Width = 129
+        Caption = 'Combinatorial Numbers'
+        OnClick = btnComNumClick
+        TabOrder = 59
+      end
+      object btnBNAKS: TButton
+        Left = 904
+        Height = 25
+        Top = 439
+        Width = 129
+        Caption = 'AKS is Prime'
+        OnClick = btnBNAKSClick
+        TabOrder = 60
+      end
+      object btnFloatToBigNumber: TButton
+        Left = 904
+        Height = 25
+        Top = 472
+        Width = 129
+        Caption = 'Float To BigNumber'
+        OnClick = btnFloatToBigNumberClick
+        TabOrder = 61
+      end
+      object btnBigNumberToFloat: TButton
+        Left = 904
+        Height = 25
+        Top = 504
+        Width = 129
+        Caption = 'BigNumber To Float'
+        OnClick = btnBigNumberToFloatClick
+        TabOrder = 62
+      end
+      object btnBNEuler: TButton
+        Left = 904
+        Height = 25
+        Top = 536
+        Width = 129
+        Caption = 'BigNumber Euler'
+        OnClick = btnBNEulerClick
+        TabOrder = 63
+      end
+      object btnMulDivFloat: TButton
+        Left = 904
+        Height = 25
+        Top = 568
+        Width = 129
+        Caption = 'Mul Div Float'
+        OnClick = btnMulDivFloatClick
+        TabOrder = 64
+      end
+    end
+    object tsSparseBigNumberList: TTabSheet
+      Caption = 'Sparse BigNumber List'
+      ClientHeight = 631
+      ClientWidth = 1049
+      ImageIndex = 1
+      object btnSBNLTest1: TButton
+        Left = 16
+        Height = 25
+        Top = 16
+        Width = 75
+        Caption = 'Set Values'
+        OnClick = btnSBNLTest1Click
+        TabOrder = 0
+      end
+      object edtSBNL: TEdit
+        Left = 112
+        Height = 21
+        Top = 16
+        Width = 753
+        TabOrder = 1
+      end
+      object mmoSBNL: TMemo
+        Left = 16
+        Height = 161
+        Top = 56
+        Width = 161
+        TabOrder = 2
+      end
+      object chkSparseUseSubMerge: TCheckBox
+        Left = 880
+        Height = 17
+        Top = 24
+        Width = 115
+        Caption = 'Use Subtract Merge'
+        TabOrder = 3
+      end
+      object edtSparseList2: TEdit
+        Left = 552
+        Height = 21
+        Top = 56
+        Width = 313
+        TabOrder = 4
+      end
+      object btnSparseMerge: TButton
+        Left = 888
+        Height = 25
+        Top = 56
+        Width = 113
+        Caption = 'Merge Sparse'
+        OnClick = btnSparseMergeClick
+        TabOrder = 5
+      end
+      object mmoSBNL2: TMemo
+        Left = 192
+        Height = 161
+        Top = 56
+        Width = 161
+        TabOrder = 6
+      end
+      object mmoSBNL3: TMemo
+        Left = 368
+        Height = 161
+        Top = 56
+        Width = 161
+        TabOrder = 7
+      end
+    end
+  end
+end

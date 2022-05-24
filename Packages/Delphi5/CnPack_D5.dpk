@@ -38,11 +38,12 @@ requires
 {$ENDIF}
   VclSmp50;
 
-contains
+contains 
   CnAES in '..\..\Source\Crypto\CnAES.pas',
   CnAntiCheater in '..\..\Source\Common\CnAntiCheater.pas',
   CnBase64 in '..\..\Source\Crypto\CnBase64.pas',
   CnBerUtils in '..\..\Source\Crypto\CnBerUtils.pas',
+  CnBigDecimal in '..\..\Source\Common\CnBigDecimal.pas',
   CnBigNumber in '..\..\Source\Crypto\CnBigNumber.pas',
   CnBigRational in '..\..\Source\Common\CnBigRational.pas',
   CnBinaryDiffPatch in '..\..\Source\Common\CnBinaryDiffPatch.pas',
@@ -67,6 +68,7 @@ contains
   CnEventHook in '..\..\Source\Common\CnEventHook.pas',
   CnFEC in '..\..\Source\Crypto\CnFEC.pas',
   CnFitCurve in '..\..\Source\Common\CnFitCurve.pas',
+  CnFloatConvert in '..\..\Source\Common\CnFloatConvert.pas',
   CnGraphUtils in '..\..\Source\Common\CnGraphUtils.pas',
   CnHardWareInfo in '..\..\Source\Common\CnHardWareInfo.pas',
   CnHashMap in '..\..\Source\Common\CnHashMap.pas',
@@ -75,6 +77,7 @@ contains
   CnIniStrUtils in '..\..\Source\Common\CnIniStrUtils.pas',
   CnKDF in '..\..\Source\Crypto\CnKDF.pas',
   CnLinkedList in '..\..\Source\Common\CnLinkedList.pas',
+  CnLockFree in '..\..\Source\Common\CnLockFree.pas',
   CnMatrix in '..\..\Source\Common\CnMatrix.pas',
   CnMD5 in '..\..\Source\Crypto\CnMD5.pas',
   CnMethodHook in '..\..\Source\Common\CnMethodHook.pas',
@@ -95,6 +98,7 @@ contains
   CnSM2 in '..\..\Source\Crypto\CnSM2.pas',
   CnSM3 in '..\..\Source\Crypto\CnSM3.pas',
   CnSM4 in '..\..\Source\Crypto\CnSM4.pas',
+  CnSM9 in '..\..\Source\Crypto\CnSM9.pas',
   CnSQLite in '..\..\Source\Common\CnSQLite.pas',
   CnStrDiff in '..\..\Source\Common\CnStrDiff.pas',
   CnStream in '..\..\Source\Common\CnStream.pas',
@@ -144,6 +148,7 @@ contains
   CnSpin in '..\..\Source\Graphics\CnSpin.pas',
   CnSplitter in '..\..\Source\Graphics\CnSplitter.pas',
   CnTabSet in '..\..\Source\Graphics\CnTabSet.pas',
+  CnTextControl in '..\..\Source\Graphics\CnTextControl.pas',
   CnValidateImage in '..\..\Source\Graphics\CnValidateImage.pas',
   CnWaterEffect in '..\..\Source\Graphics\CnWaterEffect.pas',
   CnWaterImage in '..\..\Source\Graphics\CnWaterImage.pas',

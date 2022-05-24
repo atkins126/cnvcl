@@ -13,6 +13,7 @@ USEUNIT("..\..\Source\Crypto\CnAES.pas");
 USEUNIT("..\..\Source\Common\CnAntiCheater.pas");
 USEUNIT("..\..\Source\Crypto\CnBase64.pas");
 USEUNIT("..\..\Source\Crypto\CnBerUtils.pas");
+USEUNIT("..\..\Source\Common\CnBigDecimal.pas");
 USEUNIT("..\..\Source\Crypto\CnBigNumber.pas");
 USEUNIT("..\..\Source\Common\CnBigRational.pas");
 USEUNIT("..\..\Source\Common\CnBinaryDiffPatch.pas");
@@ -23,7 +24,7 @@ USEUNIT("..\..\Source\Common\CnCallBack.pas");
 USEUNIT("..\..\Source\Crypto\CnCertificateAuthority.pas");
 USEUNIT("..\..\Source\Common\CnClasses.pas");
 USEUNIT("..\..\Source\Common\CnCommon.pas");
-USEUNIT("..\..\Source\Common\CnComplex.pas");
+USEUNIT("..\..\Source\Crypto\CnComplex.pas");
 USEUNIT("..\..\Source\Common\CnCompUtils.pas");
 USEUNIT("..\..\Source\Common\CnConsts.pas");
 USEUNIT("..\..\Source\Common\CnContainers.pas");
@@ -37,6 +38,7 @@ USEUNIT("..\..\Source\Common\CnEventBus.pas");
 USEUNIT("..\..\Source\Common\CnEventHook.pas");
 USEUNIT("..\..\Source\Crypto\CnFEC.pas");
 USEUNIT("..\..\Source\Common\CnFitCurve.pas");
+USEUNIT("..\..\Source\Common\CnFloatConvert.pas");
 USEUNIT("..\..\Source\Common\CnGraphUtils.pas");
 USEUNIT("..\..\Source\Common\CnHardWareInfo.pas");
 USEUNIT("..\..\Source\Common\CnHashMap.pas");
@@ -45,6 +47,7 @@ USEUNIT("..\..\Source\Common\CnIniCfg.pas");
 USEUNIT("..\..\Source\Common\CnIniStrUtils.pas");
 USEUNIT("..\..\Source\Crypto\CnKDF.pas");
 USEUNIT("..\..\Source\Common\CnLinkedList.pas");
+USEUNIT("..\..\Source\Common\CnLockFree.pas");
 USEUNIT("..\..\Source\Common\CnMatrix.pas");
 USEUNIT("..\..\Source\Crypto\CnMD5.pas");
 USEUNIT("..\..\Source\Common\CnMethodHook.pas");
@@ -65,6 +68,7 @@ USEUNIT("..\..\Source\Common\CnSkipList.pas");
 USEUNIT("..\..\Source\Crypto\CnSM2.pas");
 USEUNIT("..\..\Source\Crypto\CnSM3.pas");
 USEUNIT("..\..\Source\Crypto\CnSM4.pas");
+USEUNIT("..\..\Source\Crypto\CnSM9.pas");
 USEUNIT("..\..\Source\Common\CnSQLite.pas");
 USEUNIT("..\..\Source\Common\CnStrDiff.pas");
 USEUNIT("..\..\Source\Common\CnStream.pas");
@@ -113,6 +117,7 @@ USEUNIT("..\..\Source\Graphics\CnSkinMagic.pas");
 USEUNIT("..\..\Source\Graphics\CnSpin.pas");
 USEUNIT("..\..\Source\Graphics\CnSplitter.pas");
 USEUNIT("..\..\Source\Graphics\CnTabSet.pas");
+USEUNIT("..\..\Source\Graphics\CnTextControl.pas");
 USEUNIT("..\..\Source\Graphics\CnValidateImage.pas");
 USEUNIT("..\..\Source\Graphics\CnWaterEffect.pas");
 USEUNIT("..\..\Source\Graphics\CnWaterImage.pas");
@@ -196,6 +201,7 @@ USEUNIT("..\..\Source\Skin\CnSkinXPGreenStyle.pas");
 USEUNIT("..\..\Source\Skin\CnSkinXPSilverStyle.pas");
 //---------------------------------------------------------------------------
 #pragma package(smart_init)
+#pragma link "msimg32.lib"
 //---------------------------------------------------------------------------
 
 //   Package source.

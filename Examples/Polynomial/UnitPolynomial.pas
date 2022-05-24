@@ -182,6 +182,86 @@ type
     btnCompareRationalMul2Method: TButton;
     btnInt64MulDFT: TButton;
     btnTestInt64SimpleDFT: TButton;
+    btnTestInt64SimpleNTT: TButton;
+    tsBiInt64Polynomial: TTabSheet;
+    grpBiInt64Poly: TGroupBox;
+    btnBiInt64ToString: TButton;
+    edtBIP: TEdit;
+    btnBiInt64SetString: TButton;
+    mmoIBP1: TMemo;
+    btnIBP1Random: TButton;
+    lblIBPDeg: TLabel;
+    edtIBP1Deg: TEdit;
+    mmoIBP2: TMemo;
+    btnIBP2Rand: TButton;
+    edtIBP2Deg: TEdit;
+    lblIBP2Deg: TLabel;
+    btnIBPAdd: TButton;
+    btnIBPSub: TButton;
+    btnIBPMul: TButton;
+    lblIBPEqual: TLabel;
+    edtIBP3: TEdit;
+    btnIBPPower: TButton;
+    lblIBPPower: TLabel;
+    edtIBPPower: TEdit;
+    btnIBPEvalY: TButton;
+    btnIBPEvalX: TButton;
+    btnIBPTranspose: TButton;
+    bvl8: TBevel;
+    bvl9: TBevel;
+    lblIBPExtract: TLabel;
+    edtIBPExtract: TEdit;
+    btnIBPExtractXY: TButton;
+    btnIBPIsMonicX: TButton;
+    btnIPIsMonic: TButton;
+    lblIBPShiftX: TLabel;
+    edtIBPShiftX: TEdit;
+    btnIBPShiftLeftX: TButton;
+    btnIBPShiftRightX: TButton;
+    btnIBPDivModX: TButton;
+    bvl10: TBevel;
+    btnIBPTestMod: TButton;
+    btnIBPTestAKSExample: TButton;
+    btnTestModExample: TButton;
+    tsBNBPolynomial: TTabSheet;
+    grpBNBPolynomial: TGroupBox;
+    btnBNBPToString: TButton;
+    edtBNBP: TEdit;
+    btnBNBIPSetString: TButton;
+    btnBIBNPShiftLeftX: TButton;
+    lblBIBNPShiftX: TLabel;
+    edtBIBNPShiftX: TEdit;
+    btnBIBNPShiftRightX: TButton;
+    mmoBNBP1: TMemo;
+    btnBNBP1Rand: TButton;
+    lblBNBIP1: TLabel;
+    edtBNBP1Deg: TEdit;
+    mmoBNBP2: TMemo;
+    btnBNBP2Rand: TButton;
+    edtBNBPDeg2: TEdit;
+    lblBNBPDeg2: TLabel;
+    lblBNBPEqual: TLabel;
+    edtBNBP3: TEdit;
+    bvl11: TBevel;
+    btnBNBPAdd: TButton;
+    btnBNBPSub: TButton;
+    btnBNBPMul: TButton;
+    btnBNBPPower: TButton;
+    lblBNBPExp: TLabel;
+    edtBNBPExp: TEdit;
+    bvl12: TBevel;
+    btnBNBPEvalY: TButton;
+    btnBNBPEvalX: TButton;
+    btnBNBPTranspose: TButton;
+    bvl13: TBevel;
+    lblBNBPExtractDegree: TLabel;
+    edtBNBPExtractDegree: TEdit;
+    btnBNBPExtract: TButton;
+    btnBNBPIsMonicX: TButton;
+    btnBNBPDivXModX: TButton;
+    btnTestSetString: TButton;
+    btnTestBNBPAddSub: TButton;
+    btnBNBPTestModX: TButton;
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
     procedure btnIPCreateClick(Sender: TObject);
@@ -294,6 +374,46 @@ type
     procedure btnCompareRationalMul2MethodClick(Sender: TObject);
     procedure btnInt64MulDFTClick(Sender: TObject);
     procedure btnTestInt64SimpleDFTClick(Sender: TObject);
+    procedure btnTestInt64SimpleNTTClick(Sender: TObject);
+    procedure btnBiInt64ToStringClick(Sender: TObject);
+    procedure btnIBPAddClick(Sender: TObject);
+    procedure btnIBPSubClick(Sender: TObject);
+    procedure btnIBPMulClick(Sender: TObject);
+    procedure btnIBP1RandomClick(Sender: TObject);
+    procedure btnBiInt64SetStringClick(Sender: TObject);
+    procedure btnIBP2RandClick(Sender: TObject);
+    procedure btnIBPPowerClick(Sender: TObject);
+    procedure btnIBPEvalYClick(Sender: TObject);
+    procedure btnIBPEvalXClick(Sender: TObject);
+    procedure btnIBPTransposeClick(Sender: TObject);
+    procedure btnIBPExtractXYClick(Sender: TObject);
+    procedure btnIBPIsMonicXClick(Sender: TObject);
+    procedure btnIPIsMonicClick(Sender: TObject);
+    procedure btnIBPShiftLeftXClick(Sender: TObject);
+    procedure btnIBPShiftRightXClick(Sender: TObject);
+    procedure btnIBPDivModXClick(Sender: TObject);
+    procedure btnIBPTestModClick(Sender: TObject);
+    procedure btnIBPTestAKSExampleClick(Sender: TObject);
+    procedure btnTestModExampleClick(Sender: TObject);
+    procedure btnBNBPToStringClick(Sender: TObject);
+    procedure btnBNBIPSetStringClick(Sender: TObject);
+    procedure btnBIBNPShiftLeftXClick(Sender: TObject);
+    procedure btnBIBNPShiftRightXClick(Sender: TObject);
+    procedure btnBNBP1RandClick(Sender: TObject);
+    procedure btnBNBP2RandClick(Sender: TObject);
+    procedure btnBNBPAddClick(Sender: TObject);
+    procedure btnBNBPSubClick(Sender: TObject);
+    procedure btnTestSetStringClick(Sender: TObject);
+    procedure btnBNBPMulClick(Sender: TObject);
+    procedure btnBNBPTransposeClick(Sender: TObject);
+    procedure btnBNBPIsMonicXClick(Sender: TObject);
+    procedure btnBNBPDivXModXClick(Sender: TObject);
+    procedure btnBNBPEvalYClick(Sender: TObject);
+    procedure btnBNBPEvalXClick(Sender: TObject);
+    procedure btnBNBPExtractClick(Sender: TObject);
+    procedure btnTestBNBPAddSubClick(Sender: TObject);
+    procedure btnBNBPPowerClick(Sender: TObject);
+    procedure btnBNBPTestModXClick(Sender: TObject);
   private
     FQ: TCnBigNumber;
     FIP1: TCnInt64Polynomial;
@@ -308,6 +428,12 @@ type
     FBRP1: TCnBigNumberRationalPolynomial;
     FBRP2: TCnBigNumberRationalPolynomial;
     FBRP3: TCnBigNumberRationalPolynomial;
+    FIBP1: TCnInt64BiPolynomial;
+    FIBP2: TCnInt64BiPolynomial;
+    FIBP3: TCnInt64BiPolynomial;
+    FBNBP1: TCnBigNumberBiPolynomial;
+    FBNBP2: TCnBigNumberBiPolynomial;
+    FBNBP3: TCnBigNumberBiPolynomial;
   public
     { Public declarations }
   end;
@@ -447,10 +573,26 @@ begin
   FBRP1 := TCnBigNumberRationalPolynomial.Create;
   FBRP2 := TCnBigNumberRationalPolynomial.Create;
   FBRP3 := TCnBigNumberRationalPolynomial.Create;
+
+  FIBP1 := TCnInt64BiPolynomial.Create;
+  FIBP2 := TCnInt64BiPolynomial.Create;
+  FIBP3 := TCnInt64BiPolynomial.Create;
+
+  FBNBP1 := TCnBigNumberBiPolynomial.Create;
+  FBNBP2 := TCnBigNumberBiPolynomial.Create;
+  FBNBP3 := TCnBigNumberBiPolynomial.Create;
 end;
 
 procedure TFormPolynomial.FormDestroy(Sender: TObject);
 begin
+  FBNBP1.Free;
+  FBNBP2.Free;
+  FBNBP3.Free;
+
+  FIBP1.Free;
+  FIBP2.Free;
+  FIBP3.Free;
+
   FBRP1.Free;
   FBRP2.Free;
   FBRP3.Free;
@@ -474,7 +616,7 @@ procedure TFormPolynomial.btnIPCreateClick(Sender: TObject);
 var
   IP: TCnInt64Polynomial;
 begin
-  IP := TCnInt64Polynomial.Create([23, 4, -45, 6, -78, 23, 34, 1, 0, -34, 4]);
+  IP := TCnInt64Polynomial.Create([23, 4, -45, 0, -78, 23, 34, 1, 0, -34, 4, -1]);
   edtIP1.Text := IP.ToString;
   IP.Free;
 end;
@@ -1989,7 +2131,6 @@ begin
     FBP2.Add(T);
   end;
   mmoBP2.Lines.Text := FBP2.ToString;
-
 end;
 
 procedure TFormPolynomial.btnBPAddClick(Sender: TObject);
@@ -3910,6 +4051,577 @@ begin
   FIP2.SetCoefficents([1, 1, 1]);
   if Int64PolynomialDftMul(FIP3, FIP1, FIP2) then
     ShowMessage(FIP3.ToString);
+end;
+
+procedure TFormPolynomial.btnTestInt64SimpleNTTClick(Sender: TObject);
+begin
+  FIP1.SetCoefficents([1, 1, 1]);
+  FIP2.SetCoefficents([1, 1, 1]);
+  if Int64PolynomialNttMul(FIP3, FIP1, FIP2) then
+    ShowMessage(FIP3.ToString);
+end;
+
+procedure TFormPolynomial.btnBiInt64ToStringClick(Sender: TObject);
+var
+  IBP, IBP1: TCnInt64BiPolynomial;
+begin
+  IBP := TCnInt64BiPolynomial.Create;
+
+  IBP.SetYCoefficents(0, [23, 4, -45]);
+  IBP.SetYCoefficents(1, [0, -78, 23, 34]);
+  IBP.SetYCoefficents(3, [1, 0]);
+  IBP.SetYCoefficents(4, [-34, 4, -1]);
+
+  edtBIP.Text := IBP.ToString;
+
+  IBP1 := Int64BiPolynomialDuplicate(IBP);
+  edtBIP.Text := IBP1.ToString;
+
+  IBP1.Free;
+  IBP.Free;
+end;
+
+procedure TFormPolynomial.btnIBPAddClick(Sender: TObject);
+begin
+  if Int64BiPolynomialAdd(FIBP3, FIBP1, FIBP2) then
+    edtIBP3.Text := FIBP3.ToString;
+end;
+
+procedure TFormPolynomial.btnIBPSubClick(Sender: TObject);
+begin
+  if Int64BiPolynomialSub(FIBP3, FIBP1, FIBP2) then
+    edtIBP3.Text := FIBP3.ToString;
+end;
+
+procedure TFormPolynomial.btnIBPMulClick(Sender: TObject);
+begin
+  if Int64BiPolynomialMul(FIBP3, FIBP1, FIBP2) then
+    edtIBP3.Text := FIBP3.ToString;
+end;
+
+procedure TFormPolynomial.btnIBP1RandomClick(Sender: TObject);
+var
+  I, D, X, Y: Integer;
+begin
+  D := StrToIntDef(edtIBP1Deg.Text, 5);
+  FIBP1.SetZero;
+  Randomize;
+
+  for I := 0 to D do
+  begin
+    X := Random(D);
+    Y := Random(D);
+    FIBP1.SafeValue[X, Y] := Random(32) - 16;
+  end;
+  mmoIBP1.Lines.Text := FIBP1.ToString;
+end;
+
+procedure TFormPolynomial.btnIBP2RandClick(Sender: TObject);
+var
+  I, D, X, Y: Integer;
+begin
+  D := StrToIntDef(edtIBP2Deg.Text, 4);
+  FIBP2.SetZero;
+  Randomize;
+
+  for I := 0 to D do
+  begin
+    X := Random(D);
+    Y := Random(D);
+    FIBP2.SafeValue[X, Y] := Random(32) - 16;
+  end;
+  mmoIBP2.Lines.Text := FIBP2.ToString;
+end;
+
+procedure TFormPolynomial.btnBiInt64SetStringClick(Sender: TObject);
+begin
+  FIBP1.SetString('-X^4Y^2+4X^4Y-34X^4+X^3+34XY^3+23XY^2-78XY-45Y^2+4Y+23');
+  edtBIP.Text := FIBP1.ToString;
+end;
+
+procedure TFormPolynomial.btnIBPPowerClick(Sender: TObject);
+begin
+  if Int64BiPolynomialPower(FIBP3, FIBP1, StrToIntDef(edtIBPPower.Text, 2)) then
+    edtIBP3.Text := FIBP3.ToString;
+end;
+
+procedure TFormPolynomial.btnIBPEvalYClick(Sender: TObject);
+var
+  S: string;
+  Y: Int64;
+  Res: TCnInt64Polynomial;
+begin
+  S := '0';
+  if InputQuery('Hint', 'Enter Y Value:', S) then
+  begin
+    Y := StrToInt64(S);
+    Res := TCnInt64Polynomial.Create;
+    if Int64BiPolynomialEvaluateByY(Res, FIBP1, Y) then
+      edtIBP3.Text := Res.ToString;
+    Res.Free;
+  end;
+end;
+
+procedure TFormPolynomial.btnIBPEvalXClick(Sender: TObject);
+var
+  S: string;
+  X: Int64;
+  Res: TCnInt64Polynomial;
+begin
+  S := '0';
+  if InputQuery('Hint', 'Enter X Value:', S) then
+  begin
+    X := StrToInt64(S);
+    Res := TCnInt64Polynomial.Create;
+    if Int64BiPolynomialEvaluateByX(Res, FIBP1, X) then
+      edtIBP3.Text := Int64PolynomialToString(Res, 'Y');
+    Res.Free;
+  end;
+end;
+
+procedure TFormPolynomial.btnIBPTransposeClick(Sender: TObject);
+begin
+  Int64BiPolynomialTranspose(FIBP3, FIBP1);
+  edtIBP3.Text := FIBP3.ToString;
+end;
+
+procedure TFormPolynomial.btnIBPExtractXYClick(Sender: TObject);
+var
+  P: TCnInt64Polynomial;
+  D: Integer;
+begin
+  D := StrToIntDef(edtIBPExtract.Text, 2);
+  P := TCnInt64Polynomial.Create;
+
+  Int64BiPolynomialExtractYByX(P, FIBP1, D);
+  mmoIBP2.Lines.Text := Int64PolynomialToString(P, 'Y');
+  Int64BiPolynomialExtractXByY(P, FIBP1, D);
+  edtIBP3.Text := P.ToString;
+
+  P.Free;
+end;
+
+procedure TFormPolynomial.btnIBPIsMonicXClick(Sender: TObject);
+begin
+  if FIBP1.IsMonicX then
+    ShowMessage('Is Monic X')
+  else
+    ShowMessage('Is NOT Monic X');
+end;
+
+procedure TFormPolynomial.btnIPIsMonicClick(Sender: TObject);
+begin
+  if FIP1.IsMonic then
+    ShowMessage('Is Monic')
+  else
+    ShowMessage('Is NOT Monic');
+end;
+
+procedure TFormPolynomial.btnIBPShiftLeftXClick(Sender: TObject);
+begin
+  Int64BiPolynomialShiftLeftX(FIBP1, StrToIntDef(edtIBPShiftX.Text, 2));
+  edtIBP3.Text := FIBP1.ToString;
+end;
+
+procedure TFormPolynomial.btnIBPShiftRightXClick(Sender: TObject);
+begin
+  Int64BiPolynomialShiftRightX(FIBP1, StrToIntDef(edtIBPShiftX.Text, 2));
+  edtIBP3.Text := FIBP1.ToString;
+end;
+
+procedure TFormPolynomial.btnIBPDivModXClick(Sender: TObject);
+var
+  R: TCnInt64BiPolynomial;
+begin
+  R := TCnInt64BiPolynomial.Create;
+
+  // 针对纯 X 多项式的测试代码
+  FIBP1.SetZero;
+  FIBP2.SetZero;
+  FIBP1.SetXCoefficents(0, [1, 2, 3]);
+  FIBP2.SetXCoefficents(0, [2, 1]);
+  mmoIBP1.Lines.Text := FIBP1.ToString;
+  mmoIBP2.Lines.Text := FIBP2.ToString;
+
+  if Int64BiPolynomialDivX(FIBP3, R, FIBP1, FIBP2) then
+  begin
+    edtIBP3.Text := FIBP3.ToString;          // 3X - 4
+    ShowMessage('Remain: ' + R.ToString);    // 9
+  end;
+
+  // 测试代码 End
+
+  // 针对混合 X 和 Y 的测试代码
+  FIBP1.SetString('2X^2Y+3XY^2+Y-6');
+  FIBP2.SetString('X+3Y');
+
+  mmoIBP1.Lines.Text := FIBP1.ToString;
+  mmoIBP2.Lines.Text := FIBP2.ToString;
+  if Int64BiPolynomialDivX(FIBP3, R, FIBP1, FIBP2) then
+  begin
+    edtIBP3.Text := FIBP3.ToString;          // 2XY - 3Y2
+    ShowMessage('Remain: ' + R.ToString);    // 9Y^3 + Y -6
+  end;
+
+  R.Free;
+end;
+
+procedure TFormPolynomial.btnIBPTestModClick(Sender: TObject);
+begin
+  // 两种方式计算模 31 的 (X+Y)^29 mod (X^29-1)
+  FIBP1.SetString('X+Y');
+  Int64BiPolynomialPower(FIBP2, FIBP1, 29);
+  mmoIBP2.Lines.Text := FIBP2.ToString;
+
+  // 这里 FIBP2 的结果应该是
+  // X^29+29X^28Y+406X^27Y^2+3654X^26Y^3+23751X^25Y^4+118755X^24Y^5+475020X^23Y^6
+  // +1560780X^22Y^7+4292145X^21Y^8+10015005X^20Y^9+20030010X^19Y^10+34597290X^18Y^11
+  // +51895935X^17Y^12+67863915X^16Y^13+77558760X^15Y^14+77558760X^14Y^15+67863915X^13Y^16
+  // +51895935X^12Y^17+34597290X^11Y^18+20030010X^10Y^19+10015005X^9Y^20+4292145X^8Y^21
+  // +1560780X^7Y^22+475020X^6Y^23+118755X^5Y^24+23751X^4Y^25+3654X^3Y^26+406X^2Y^27+29XY^28+Y^29
+
+  FIBP3.SetString('X^29-1');
+  Int64BiPolynomialModX(FIBP2, FIBP2, FIBP3);
+  mmoIBP2.Lines.Text := FIBP2.ToString;
+
+  // 这里 FIBP2 的结果应该是
+  // 29X^28Y+406X^27Y^2+3654X^26Y^3+23751X^25Y^4+118755X^24Y^5+475020X^23Y^6+1560780X^22Y^7+
+  // 4292145X^21Y^8+10015005X^20Y^9+20030010X^19Y^10+34597290X^18Y^11+51895935X^17Y^12+
+  // 67863915X^16Y^13+77558760X^15Y^14+77558760X^14Y^15+67863915X^13Y^16+51895935X^12Y^17+
+  // 34597290X^11Y^18+20030010X^10Y^19+10015005X^9Y^20+4292145X^8Y^21+1560780X^7Y^22+475020X^6Y^23+
+  // 118755X^5Y^24+23751X^4Y^25+3654X^3Y^26+406X^2Y^27+29XY^28+Y^29+1
+
+  Int64BiPolynomialNonNegativeModWord(FIBP2, 31);
+  mmoIBP2.Lines.Text := FIBP2.ToString;
+
+  // 这里 FIBP2 的结果应该是
+  // 29X^28Y+3X^27Y^2+27X^26Y^3+5X^25Y^4+25X^24Y^5+7X^23Y^6+23X^22Y^7+9X^21Y^8+21X^20Y^9+
+  // 11X^19Y^10+19X^18Y^11+13X^17Y^12+17X^16Y^13+15X^15Y^14+15X^14Y^15+17X^13Y^16+13X^12Y^17+
+  // 19X^11Y^18+11X^10Y^19+21X^9Y^20+9X^8Y^21+23X^7Y^22+7X^6Y^23+25X^5Y^24+5X^4Y^25+27X^3Y^26+3X^2Y^27+29XY^28+Y^29+1
+
+  // 换 Int64BiPolynomialGaloisPower 直接计算，先不带本原多项式
+  FIBP1.SetString('X+Y');
+  FIBP3.SetString('X^29-1');
+  Int64BiPolynomialGaloisPower(FIBP2, FIBP1, 29, 31);
+  edtIBP3.Text := FIBP2.ToString;
+
+  // 计算得到的 FIBP2 的结果是
+  // X^29+29X^28Y+3X^27Y^2+27X^26Y^3+5X^25Y^4+25X^24Y^5+7X^23Y^6+23X^22Y^7+9X^21Y^8+
+  // 21X^20Y^9+11X^19Y^10+19X^18Y^11+13X^17Y^12+17X^16Y^13+15X^15Y^14+15X^14Y^15+17X^13Y^16+
+  // 13X^12Y^17+19X^11Y^18+11X^10Y^19+21X^9Y^20+9X^8Y^21+23X^7Y^22+7X^6Y^23+25X^5Y^24+
+  // 5X^4Y^25+27X^3Y^26+3X^2Y^27+29XY^28+Y^29
+
+  // 再加入本原多项式重新取模
+  Int64BiPolynomialGaloisPower(FIBP2, FIBP1, 29, 31, FIBP3);
+  mmoIBP2.Lines.Text := FIBP2.ToString;
+
+  // 计算到的 FIBP2 的结果是
+  // 29X^28Y+3X^27Y^2+27X^26Y^3+5X^25Y^4+25X^24Y^5+7X^23Y^6+23X^22Y^7+9X^21Y^8+21X^20Y^9+
+  // 11X^19Y^10+19X^18Y^11+13X^17Y^12+17X^16Y^13+15X^15Y^14+15X^14Y^15+17X^13Y^16+13X^12Y^17+
+  // 19X^11Y^18+11X^10Y^19+21X^9Y^20+9X^8Y^21+23X^7Y^22+7X^6Y^23+25X^5Y^24+5X^4Y^25+27X^3Y^26+3X^2Y^27+29XY^28+Y^29+1
+  // 对上了！
+end;
+
+procedure TFormPolynomial.btnIBPTestAKSExampleClick(Sender: TObject);
+begin
+  // 直接计算 (x + y)^31 % (x^29-1, 31) 是否等于 y^31 + x^2
+  FIBP1.SetString('X+Y');
+  FIBP3.SetString('X^29-1');
+  Int64BiPolynomialGaloisPower(FIBP2, FIBP1, 31, 31, FIBP3);
+  mmoIBP2.Lines.Text := FIBP2.ToString;  // X^2+Y^31 正确！
+
+  // 直接计算 (x^31 + y) % (x^29-1, 31) 是否等于 = y + x^2
+  FIBP1.SetString('X^31+Y');
+  FIBP3.SetString('X^29-1');
+  Int64BiPolynomialGaloisModX(FIBP2, FIBP1, FIBP3, 31);
+  mmoIBP2.Lines.Text := FIBP2.ToString;  // X^2+Y 正确！
+end;
+
+procedure TFormPolynomial.btnTestModExampleClick(Sender: TObject);
+var
+  PX, PD: TCnInt64Polynomial;
+  PBX, PBD: TCnInt64BiPolynomial;
+begin
+  // 分别计算 (x + y)^31 mod (x^29 - 1) 和 (x + 1)^31 mod (x^29 - 1)
+  PBX := TCnInt64BiPolynomial.Create;
+  PBX.SetString('X+Y');
+  Int64BiPolynomialPower(PBX, PBX, 31);
+
+  PX := TCnInt64Polynomial.Create([1, 1]);
+  Int64PolynomialPower(PX, PX, 31);
+
+  mmoIBP1.Lines.Text := PBX.ToString;
+  mmoIBP2.Lines.Text := PX.ToString;
+
+  PD := TCnInt64Polynomial.Create;
+  PD.MaxDegree := 29;
+  PD[29] :=1;
+  PD[0] := -1;
+
+  PBD := TCnInt64BiPolynomial.Create;
+  PBD.MaxXDegree := 29;
+  PBD.SafeValue[0, 0] := -1;
+  PBD.SafeValue[29, 0] := 1;
+
+  // mmoIBP1.Lines.Text := PD.ToString;
+  // mmoIBP2.Lines.Text := PBD.ToString;
+
+  Int64BiPolynomialModX(PBX, PBX, PBD);
+  Int64PolynomialMod(PX, PX, PD);
+
+  mmoIBP1.Lines.Text := PBX.ToString;
+  mmoIBP2.Lines.Text := PX.ToString;
+
+  PX.Free;
+  PBX.Free;
+  PD.Free;
+  PBD.Free;
+end;
+
+procedure TFormPolynomial.btnBNBPToStringClick(Sender: TObject);
+var
+  BNBIP, BNBIP1: TCnBigNumberBiPolynomial;
+begin
+  BNBIP := TCnBigNumberBiPolynomial.Create;
+
+  BNBIP.SetYCoefficents(0, [23, 4, -45]);
+  BNBIP.SetYCoefficents(1, [0, -78, 23, 34]);
+  BNBIP.SetYCoefficents(3, [1, 0]);
+  BNBIP.SetYCoefficents(4, [-34, 4, -1]);
+
+  edtBNBP.Text := BNBIP.ToString;
+
+  BNBIP1 := bigNumberBiPolynomialDuplicate(BNBIP);
+  edtBNBP.Text := BNBIP1.ToString;
+
+  BNBIP1.Free;
+  BNBIP.Free;
+end;
+
+procedure TFormPolynomial.btnBNBIPSetStringClick(Sender: TObject);
+begin
+  FBNBP1.SetString('-X^4Y^2+4X^4Y-34X^4+X^3+34XY^3+23XY^2-78XY-45Y^2+4Y+23');
+  edtBNBP.Text := FBNBP1.ToString;
+end;
+
+procedure TFormPolynomial.btnBIBNPShiftLeftXClick(Sender: TObject);
+begin
+  BigNumberBiPolynomialShiftLeftX(FBNBP1, StrToIntDef(edtBIBNPShiftX.Text, 2));
+  edtBNBP.Text := FBNBP1.ToString;
+end;
+
+procedure TFormPolynomial.btnBIBNPShiftRightXClick(Sender: TObject);
+begin
+  BigNumberBiPolynomialShiftRightX(FBNBP1, StrToIntDef(edtBIBNPShiftX.Text, 2));
+  edtBNBP.Text := FBNBP1.ToString;
+end;
+
+procedure TFormPolynomial.btnBNBP1RandClick(Sender: TObject);
+var
+  I, D, X, Y: Integer;
+begin
+  D := StrToIntDef(edtBNBP1Deg.Text, 5);
+  FBNBP1.SetZero;
+  Randomize;
+
+  for I := 0 to D do
+  begin
+    X := Random(D);
+    Y := Random(D);
+    FBNBP1.SafeValue[X, Y].SetInt64(Random(32) - 16);
+  end;
+  mmoBNBP1.Lines.Text := FBNBP1.ToString;
+end;
+
+procedure TFormPolynomial.btnBNBP2RandClick(Sender: TObject);
+var
+  I, D, X, Y: Integer;
+begin
+  D := StrToIntDef(edtBNBP1Deg.Text, 5);
+  FBNBP2.SetZero;
+  Randomize;
+
+  for I := 0 to D do
+  begin
+    X := Random(D);
+    Y := Random(D);
+    FBNBP2.SafeValue[X, Y].SetInt64(Random(32) - 16);
+  end;
+  mmoBNBP2.Lines.Text := FBNBP2.ToString;
+end;
+
+procedure TFormPolynomial.btnBNBPAddClick(Sender: TObject);
+begin
+  if BigNumberBiPolynomialAdd(FBNBP3, FBNBP1, FBNBP2) then
+    edtBNBP3.Text := FBNBP3.ToString;
+end;
+
+procedure TFormPolynomial.btnBNBPSubClick(Sender: TObject);
+begin
+  if BigNumberBiPolynomialSub(FBNBP3, FBNBP1, FBNBP2) then
+    edtBNBP3.Text := FBNBP3.ToString;
+end;
+
+procedure TFormPolynomial.btnTestSetStringClick(Sender: TObject);
+begin
+  FBNBP1.SetZero;
+
+  FBNBP1.SafeValue[0, 0].SetInt64(13);
+  FBNBP1.SafeValue[0, 1].SetInt64(7);
+  FBNBP1.SafeValue[1, 1].SetInt64(9);
+
+  mmoBNBP1.Lines.Text := FBNBP1.ToString;
+end;
+
+procedure TFormPolynomial.btnBNBPMulClick(Sender: TObject);
+begin
+  if BigNumberBiPolynomialMul(FBNBP3, FBNBP1, FBNBP2) then
+    edtBNBP3.Text := FBNBP3.ToString;
+end;
+
+procedure TFormPolynomial.btnBNBPTransposeClick(Sender: TObject);
+begin
+  BigNumberBiPolynomialTranspose(FBNBP3, FBNBP1);
+  edtBNBP3.Text := FBNBP3.ToString;
+end;
+
+procedure TFormPolynomial.btnBNBPIsMonicXClick(Sender: TObject);
+begin
+  if FBNBP1.IsMonicX then
+    ShowMessage('Is Monic X')
+  else
+    ShowMessage('Is NOT Monic X');
+end;
+
+procedure TFormPolynomial.btnBNBPDivXModXClick(Sender: TObject);
+var
+  R: TCnBigNumberBiPolynomial;
+begin
+  R := TCnBigNumberBiPolynomial.Create;
+
+  // 针对纯 X 多项式的测试代码
+  FBNBP1.SetZero;
+  FBNBP2.SetZero;
+  FBNBP1.SetXCoefficents(0, [1, 2, 3]);
+  FBNBP2.SetXCoefficents(0, [2, 1]);
+  mmoBNBP1.Lines.Text := FBNBP1.ToString;
+  mmoBNBP2.Lines.Text := FBNBP2.ToString;
+
+  if BigNumberBiPolynomialDivX(FBNBP3, R, FBNBP1, FBNBP2) then
+  begin
+    edtBNBP3.Text := FBNBP3.ToString;        // 3X - 4
+    ShowMessage('Remain: ' + R.ToString);    // 9
+  end;
+
+  // 测试代码 End
+
+  // 针对混合 X 和 Y 的测试代码
+  FBNBP1.SetString('2X^2Y+3XY^2+Y-6');
+  FBNBP2.SetString('X+3Y');
+
+  mmoBNBP1.Lines.Text := FBNBP1.ToString;
+  mmoBNBP2.Lines.Text := FBNBP2.ToString;
+  if BigNumberBiPolynomialDivX(FBNBP3, R, FBNBP1, FBNBP2) then
+  begin
+    edtBNBP3.Text := FBNBP3.ToString;        // 2XY - 3Y^2
+    ShowMessage('Remain: ' + R.ToString);    // 9Y^3 + Y -6
+  end;
+
+  R.Free;
+end;
+
+procedure TFormPolynomial.btnBNBPEvalYClick(Sender: TObject);
+var
+  S: string;
+  Y: TCnBigNumber;
+  Res: TCnBigNumberPolynomial;
+begin
+  S := '0';
+  if InputQuery('Hint', 'Enter Y Value:', S) then
+  begin
+    Y := TCnBigNumber.FromDec(S);
+    Res := TCnBigNumberPolynomial.Create;
+    if BigNumberBiPolynomialEvaluateByY(Res, FBNBP1, Y) then
+      edtBNBP3.Text := Res.ToString;
+    Y.Free;
+    Res.Free;
+  end;
+end;
+
+procedure TFormPolynomial.btnBNBPEvalXClick(Sender: TObject);
+var
+  S: string;
+  X: TCnBigNumber;
+  Res: TCnBigNumberPolynomial;
+begin
+  S := '0';
+  if InputQuery('Hint', 'Enter X Value:', S) then
+  begin
+    X := TCnBigNumber.FromDec(S);
+    Res := TCnBigNumberPolynomial.Create;
+    if BigNumberBiPolynomialEvaluateByX(Res, FBNBP1, X) then
+      edtBNBP3.Text := BigNumberPolynomialToString(Res, 'Y');
+    Res.Free;
+    X.Free;
+  end;
+end;
+
+procedure TFormPolynomial.btnBNBPExtractClick(Sender: TObject);
+var
+  P: TCnBigNumberPolynomial;
+  D: Integer;
+begin
+  D := StrToIntDef(edtBNBPExtractDegree.Text, 2);
+  P := TCnBigNumberPolynomial.Create;
+
+  BigNumberBiPolynomialExtractYByX(P, FBNBP1, D);
+  mmoBNBP2.Lines.Text := BigNumberPolynomialToString(P, 'Y');
+  BigNumberBiPolynomialExtractXByY(P, FBNBP1, D);
+  edtBNBP3.Text := P.ToString;
+
+  P.Free;
+end;
+
+procedure TFormPolynomial.btnTestBNBPAddSubClick(Sender: TObject);
+begin
+  FBNBP1.SetString('X-Y');
+  FBNBP2.SetString('XY-1');
+  IF BigNumberBiPolynomialAdd(FBNBP3, FBNBP1, FBNBP2) then
+    edtBNBP3.Text := FBNBP3.ToString;
+end;
+
+procedure TFormPolynomial.btnBNBPPowerClick(Sender: TObject);
+var
+  BN: TCnBigNumber;
+begin
+  BN := TCnBigNumber.Create;
+  BN.SetDec(edtBNBPExp.Text);
+  if BigNumberBiPolynomialPower(FBNBP3, FBNBP1, BN) then
+    edtBNBP3.Text := FBNBP3.ToString;
+  BN.Free;
+end;
+
+procedure TFormPolynomial.btnBNBPTestModXClick(Sender: TObject);
+const
+  POLY_1 = 'X^31+Y';
+  POLY_2 = 'X^29-1';
+  POLY_3 = 'X^7+Y';
+  POLY_4 = 'X^5-1';
+var
+  BN: TCnBigNumber;
+begin
+  FBNBP1.SetString(POLY_3);
+  FBNBP2.SetString(POLY_4);
+  BN := TCnBigNumber.Create;
+  BN.SetWord(3);
+  if BigNumberBiPolynomialGaloisModX(FBNBP3, FBNBP1, FBNBP2, BN) then
+    edtBNBP3.Text := FBNBP3.ToString;
+  BN.Free;
+
+  FIBP1.SetString(POLY_3);
+  FIBP2.SetString(POLY_4);
+  if Int64BiPolynomialGaloisModX(FIBP3, FIBP1, FIBP2, 3) then
+    mmoBNBP2.Lines.Text := FIBP3.ToString;
 end;
 
 end.

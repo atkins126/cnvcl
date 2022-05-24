@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2021 CnPack 开发组                       }
+{                   (C)Copyright 2001-2022 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -30,7 +30,11 @@ unit CnBigDecimal;
 * 开发平台：Win 7 + Delphi 5.0
 * 兼容测试：暂未进行
 * 本 地 化：该单元无需本地化处理
-* 修改记录：2020.07.08 V1.1
+* 修改记录：2021.12.05 V1.3
+*               增加与 TCnBigRational 互相转换的函数以及求平方根的函数
+*           2021.09.05 V1.2
+*               增加一批 TCnBigBinary 操作函数
+*           2020.07.08 V1.1
 *               实现基于二进制的浮点数 TCnBigBinary
 *           2020.06.25 V1.0
 *               创建单元
@@ -42,14 +46,15 @@ interface
 {$I CnPack.inc}
 
 uses
-  SysUtils, Classes, Contnrs, SysConst, Math {$IFDEF MSWINDOWS}, Windows {$ENDIF},
-  CnNativeDecl, CnFloatConvert, CnContainers, CnBigNumber;
-
-{$DEFINE MULTI_THREAD} // 大浮点数池支持多线程，性能略有下降，如不需要，注释此行即可
+  SysUtils, Classes, SysConst,
+  CnNativeDecl, CnFloatConvert, CnContainers, CnBigRational, CnBigNumber;
 
 const
   CN_BIG_DECIMAL_DEFAULT_PRECISION = 12;         // 大浮点数乘除法的小数点后的默认精度
   CN_BIG_BINARY_DEFAULT_PRECISION  = 32;         // 大二进制浮点数小数点后的默认精度
+
+  CN_BIG_DECIMAL_DEFAULT_DIGITS    = 20;         // 大浮点数转换为小数时默认保留的位数
+  CN_SQRT_DEFAULT_ROUND_COUNT      = 10;         // 大浮点数求平方根时默认迭代的次数
 
 type
   ECnBigDecimalException = class(Exception);
@@ -87,7 +92,7 @@ type
     procedure Negate;
     {* 负号设置反}
 
-    function SetWord(W: LongWord): Boolean;
+    function SetWord(W: TCnLongWord32): Boolean;
     {* 设置为一个 UInt32}
     function SetInt64(W: Int64): Boolean;
     {* 设置为一个 Int64}
@@ -100,19 +105,24 @@ type
     procedure SetExtended(Value: Extended);
     {* 扩展精度浮点值}
 
-    procedure AddWord(W: LongWord);
+    procedure AddWord(W: TCnLongWord32);
     {* 加上一个 UInt32}
-    procedure SubWord(W: LongWord);
+    procedure SubWord(W: TCnLongWord32);
     {* 减去一个 UInt32}
-    procedure MulWord(W: LongWord);
+    procedure MulWord(W: TCnLongWord32);
     {* 乘以一个 UInt32}
-    procedure DivWord(W: LongWord; DivPrecision: Integer = 0);
+    procedure DivWord(W: TCnLongWord32; DivPrecision: Integer = 0);
     {* 除以一个 UInt32。DivPrecision 表示除法精度最多保留小数点后几位，0 表示按默认设置来}
 
     function IsNegative: Boolean;
     {* 是否负数}
     function IsZero: Boolean;
     {* 是否是 0}
+    function IsOne: Boolean;
+    {* 是否是 1，只判断值是 1 且指数是 0}
+
+    procedure RoundTo(Precision: Integer; RoundMode: TCnBigRoundMode = dr465RoundEven);
+    {* 取整至指定小数位数，如原来小数位数就少则不动}
 
     function ToString: string; {$IFDEF OBJECT_HAS_TOSTRING} override; {$ENDIF}
     {* 将大浮点数转成字符串}
@@ -138,7 +148,7 @@ type
     正时简而言之就是二进制模式下小数点后有 FScale 位，负时简而言之还要加 -FScale 个 0}
   private
     FValue: TCnBigNumber;
-    FScale: Integer;                 // 精确值为 FValue / (2^FScale)
+    FScale: Integer;                 // 精确值为 FValue / (2^FScale)，默认 FScale 为 0，也就是除以 1，等于不除
     function GetDebugDump: string;
     function GetDecString: string;
   public
@@ -154,7 +164,7 @@ type
     procedure Negate;
     {* 负号设置反}
 
-    function SetWord(W: LongWord): Boolean;
+    function SetWord(W: TCnLongWord32): Boolean;
     {* 设置为一个 UInt32}
     function SetInt64(W: Int64): Boolean;
     {* 设置为一个 Int64}
@@ -166,15 +176,25 @@ type
     {* 双精度浮点值}
     procedure SetExtended(Value: Extended);
     {* 扩展精度浮点值}
+    procedure SetBigNumber(Value: TCnBigNumber);
+    {* 大整数值}
 
-    procedure AddWord(W: LongWord);
+    procedure AddWord(W: TCnLongWord32);
     {* 加上一个 UInt32}
-    procedure SubWord(W: LongWord);
+    procedure SubWord(W: TCnLongWord32);
     {* 减去一个 UInt32}
-    procedure MulWord(W: LongWord);
+    procedure MulWord(W: TCnLongWord32);
     {* 乘以一个 UInt32}
-    procedure DivWord(W: LongWord; DivPrecision: Integer = 0);
+    procedure DivWord(W: TCnLongWord32; DivPrecision: Integer = 0);
     {* 除以一个 UInt32。DivPrecision 表示除法精度最多保留小数点后几位，0 表示按默认设置来}
+
+    procedure ShiftLeft(N: Integer);
+    {* 左移 N 位}
+    procedure ShiftRight(N: Integer);
+    {* 右移 N 位}
+
+    procedure Power(N: Integer);
+    {* 求幂}
 
     function IsNegative: Boolean;
     {* 是否负数}
@@ -205,7 +225,7 @@ procedure BigDecimalClear(const Num: TCnBigDecimal);
 function BigDecimalSetDec(const Buf: string; const Res: TCnBigDecimal): Boolean;
 {* 为大浮点数对象设置字符串值}
 
-function BigDecimalSetWord(W: LongWord; const Res: TCnBigDecimal): Boolean;
+function BigDecimalSetWord(W: TCnLongWord32; const Res: TCnBigDecimal): Boolean;
 {* 为大浮点数对象设置整数值}
 
 function BigDecimalSetInt64(W: Int64; const Res: TCnBigDecimal): Boolean;
@@ -272,6 +292,17 @@ function BigDecimalDiv(const Res: TCnBigDecimal; const Num1: TCnBigDecimal;
 {* 大浮点数除，Res 可以是 Num1 或 Num2，Num1 可以是 Num2，
   DivPrecision 表示除法精度最多保留小数点后几位，0 表示按默认设置来}
 
+function BigDecimalSqrt(const Res: TCnBigDecimal; const Num: TCnBigDecimal;
+  SqrtPrecision: Integer = 0): Boolean;
+{* 大浮点数开平方根，Res 可以是 Num。
+  SqrtPrecision 表示开平方根精度最多保留小数点后几位，0 表示按默认设置来}
+
+procedure BigDecimalSqrt2(const Res: TCnBigDecimal; const Num: TCnBigDecimal;
+  RoundCount: Integer = CN_SQRT_DEFAULT_ROUND_COUNT);
+{* 大浮点数开平方根，Res 可以是 Num，小数点后准确几位不易控制因而此处未实现
+  内部使用大有理数保持精度，RoundCount 表示内部迭代次数，0 表示按默认设置来，
+  注意迭代次数如太多会导致大有理数运算较慢}
+
 function BigDecimalChangeToScale(const Res: TCnBigDecimal; const Num: TCnBigDecimal;
   Scale: Integer; RoundMode: TCnBigRoundMode = drTowardsZero): Boolean;
 {* 将大浮点数在值不咋变的前提下转换到指定 Scale，也就是小数点后 Scale 位，可能产生舍入，按指定模式来
@@ -285,6 +316,13 @@ function BigDecimalRoundToDigits(const Res: TCnBigDecimal; const Num: TCnBigDeci
 function BigDecimalTrunc(const Res: TCnBigDecimal; const Num: TCnBigDecimal): Boolean;
 {* 将大浮点数 Trunc 到只剩整数。Res 可以是 Num}
 
+procedure BigDecimalToBigRational(const Res: TCnBigRational; const Num: TCnBigDecimal);
+{* 大浮点数转换为大有理数}
+
+procedure BigRationalToBigDecimal(const Res: TCnBigDecimal; const Num: TCnBigRational;
+  Digits: Integer = 20);
+{* 大有理数转换为大浮点数，可能有精度损失，默认保留小数点后 20 位}
+
 function BigDecimalDebugDump(const Num: TCnBigDecimal): string;
 {* 打印大浮点数内部信息}
 
@@ -296,7 +334,7 @@ procedure BigBinaryClear(const Num: TCnBigBinary);
 function BigBinarySetDec(const Buf: string; const Res: TCnBigBinary): Boolean;
 {* 为大二进制浮点数对象设置字符串值}
 
-function BigBinarySetWord(W: LongWord; const Res: TCnBigBinary): Boolean;
+function BigBinarySetWord(W: TCnLongWord32; const Res: TCnBigBinary): Boolean;
 {* 为大二进制浮点数对象设置整数值}
 
 function BigBinarySetInt64(W: Int64; const Res: TCnBigBinary): Boolean;
@@ -310,6 +348,9 @@ function BigBinarySetDouble(const Value: Double; const Res: TCnBigBinary): Boole
 
 function BigBinarySetExtended(const Value: Extended; const Res: TCnBigBinary): Boolean;
 {* 为大二进制浮点数对象设置扩展精度浮点值}
+
+function BigBinarySetBigNumber(const Num: TCnBigNumber; const Res: TCnBigBinary): Boolean;
+{* 为大二进制浮点数对象设置大数值}
 
 function BigBinaryToString(const Num: TCnBigBinary): string;
 {* 大二进制浮点数对象转换为字符串}
@@ -356,6 +397,15 @@ function BigBinaryDiv(const Res: TCnBigBinary; const Num1: TCnBigBinary;
 {* 大二进制浮点数除，Res 可以是 Num1 或 Num2，Num1 可以是 Num2，
   DivPrecision 表示除法精度最多保留小数点后几位，0 表示按默认设置来}
 
+procedure BigBinaryShiftLeft(const Res: TCnBigBinary; const N: Integer);
+{* 大二进制浮点数左移，内部直接调整 FScale}
+
+procedure BigBinaryShiftRight(const Res: TCnBigBinary; const N: Integer);
+{* 大二进制浮点数右移，内部直接调整 FScale}
+
+function BigBinaryPower(const Res: TCnBigBinary; const N: Integer): Boolean;
+{* 大二进制求幂，只支持非负整数幂}
+
 function BigBinaryChangeToScale(const Res: TCnBigBinary; const Num: TCnBigBinary;
   Scale: Integer; RoundMode: TCnBigRoundMode = drTowardsZero): Boolean;
 {* 将大二进制浮点数在值不咋变的前提下转换到指定 Scale，也就是小数点后 Scale 位，可能产生舍入，按指定模式进行。
@@ -368,6 +418,9 @@ function BigBinaryRoundToDigits(const Res: TCnBigBinary; const Num: TCnBigBinary
 
 function BigBinaryTrunc(const Res: TCnBigBinary; const Num: TCnBigBinary): Boolean;
 {* 将大二进制浮点数 Trunc 到只剩整数。Res 可以是 Num}
+
+function BigBinaryTruncTo(const Res: TCnBigNumber; const Num: TCnBigBinary): Boolean;
+{* 将大二进制浮点数 Trunc 到只剩整数并放大数中。}
 
 function BigBinaryDebugDump(const Num: TCnBigBinary): string;
 {* 打印大二进制浮点数内部信息}
@@ -382,10 +435,13 @@ resourcestring
   SCnNotImplemented = 'NOT Implemented.';
   SCnScaleOutOfRange = 'Scale Out of Range.';
   SCnRoundModeNotSupport = 'Round Mode Not Support.';
+  SCnSqrtRangeError = 'Sqrt Range Error.';
 
 const
+  SCN_EXTEND_GAP = '0.000000001';
+
   SCN_FIVE_POWER_UINT32 = 13;
-  SCN_POWER_FIVES32: array[0..13] of LongWord = (
+  SCN_POWER_FIVES32: array[0..13] of TCnLongWord32 = (
     1,                               // 5 ^ 0
     5,                               // 5 ^ 1
     25,                              // 5 ^ 2
@@ -403,7 +459,7 @@ const
   );
 
   SCN_TEN_POWER_UINT32 = 9;
-  SCN_POWER_TENS32: array[0..9] of LongWord = (
+  SCN_POWER_TENS32: array[0..9] of TCnLongWord32 = (
     1,                               // 10 ^ 0
     10,                              // 10 ^ 1
     100,                             // 10 ^ 2
@@ -416,7 +472,6 @@ const
     1000000000                       // 10 ^ 9
   );
 
-const
   SCN_POWER_TENS64: array[0..19] of TUInt64 = (
     1,                               // 10 ^ 0
     10,                              // 10 ^ 1
@@ -450,6 +505,16 @@ var
 
   FDefaultDecimalPrecisionDigits: Integer = CN_BIG_DECIMAL_DEFAULT_PRECISION;
   FDefaultBinaryPrecisionDigits: Integer = CN_BIG_BINARY_DEFAULT_PRECISION;
+
+// 根据精度数字整出一个差值供迭代求解过程中停止
+procedure GetGapFromPrecisionDigits(Precision: Integer; Gap: TCnBigDecimal);
+begin
+  if Precision <= 0 then
+    Precision := FDefaultDecimalPrecisionDigits;
+
+  Gap.FValue.SetOne;
+  Gap.FScale := Precision + 1;
+end;
 
 function CheckScaleAddRange(Scale1, Scale2: Integer): Integer;
 begin
@@ -652,7 +717,7 @@ begin
   Result := True;
 end;
 
-function BigDecimalSetWord(W: LongWord; const Res: TCnBigDecimal): Boolean;
+function BigDecimalSetWord(W: TCnLongWord32; const Res: TCnBigDecimal): Boolean;
 begin
   Res.FValue.SetWord(W);
   Res.FScale := 0;
@@ -700,7 +765,7 @@ function BigDecimalSetSingle(const Value: Single; const Res: TCnBigDecimal): Boo
 var
   N: Boolean;
   E: Integer;
-  S: LongWord;
+  S: Cardinal;
 begin
   if SingleIsInfinite(Value) or SingleIsNan(Value) then
     raise ECnBigDecimalException.Create(SInvalidOp);
@@ -1226,9 +1291,13 @@ begin
   if DivPrecision < 0 then
     DivPrecision := CN_BIG_DECIMAL_DEFAULT_PRECISION;
 
-  // 根据精度要求计算将被除数扩大的倍数，注意存在乘以 9 时就可能溢出的情况但先不管
-  M := CheckScaleAddRange(DivPrecision, (Num2.FValue.Top - Num2.FValue.Top + 1) * 9 + 3);
-  TS := CheckScaleAddRange(TS, M); // 扩大的倍数在这里抵消
+  // 根据精度要求计算将被除数扩大的倍数，注意为了加速可能有 1 位误差
+  M := CheckScaleAddRange(DivPrecision, BigNumberGetTenPrecision2(Num2.FValue)
+    - BigNumberGetTenPrecision2(Num1.FValue) + 1);
+  if M < 0 then  // 无需扩大、精度已经足够
+    M := 0
+  else if M > 0 then
+    TS := CheckScaleAddRange(TS, M); // 扩大的倍数在这里抵消
 
   T := nil;
   R := nil;
@@ -1250,6 +1319,138 @@ begin
   finally
     FLocalBigNumberPool.Recycle(T);
     FLocalBigNumberPool.Recycle(R);
+  end;
+end;
+
+procedure BigDecimalSqrt2(const Res: TCnBigDecimal; const Num: TCnBigDecimal;
+  RoundCount: Integer);
+var
+  I: Integer;
+  X0, R, T, D, G: TCnBigRational;
+begin
+  if Num.IsNegative then
+    raise ERangeError.Create('');
+
+  if Num.IsZero or Num.IsOne then
+  begin
+    if Res <> Num then
+      BigDecimalCopy(Res, Num);
+
+    Exit;
+  end;
+
+  if RoundCount <= 0 then
+    RoundCount := CN_SQRT_DEFAULT_ROUND_COUNT;
+
+  X0 := nil;
+  T := nil;
+  D := nil;
+  G := nil;
+
+  try
+    X0 := TCnBigRational.Create;
+    BigDecimalToBigRational(X0, Num);
+    R := TCnBigRational.Create;
+    D := TCnBigRational.Create;
+    D.SetIntValue(2);
+
+    I := 0;
+    while I < RoundCount do
+    begin
+      Inc(I);
+
+      // R := (X0 + Num/X0) / 2;
+      BigDecimalToBigRational(R, Num);
+      BigRationalNumberDiv(R, R, X0);
+      BigRationalNumberAdd(R, R, X0);
+      BigRationalNumberDiv(R, R, D);
+
+      X0.Assign(R);
+    end;
+    BigRationalToBigDecimal(Res, R);
+  finally
+    X0.Free;
+    T.Free;
+    D.Free;
+    G.Free;
+  end;
+end;
+
+function BigDecimalSqrt(const Res: TCnBigDecimal; const Num: TCnBigDecimal;
+  SqrtPrecision: Integer = 0): Boolean;
+var
+  X0, R, T, D, G: TCnBigDecimal;
+begin
+  if Num.IsNegative then
+    raise ERangeError.Create(SCnSqrtRangeError);
+
+  if Num.IsZero or Num.IsOne then
+  begin
+    if Res <> Num then
+      BigDecimalCopy(Res, Num);
+
+    Result := True;
+    Exit;
+  end;
+
+  X0 := nil;
+  T := nil;
+  D := nil;
+  G := nil;
+
+  if SqrtPrecision <= 0 then
+    SqrtPrecision := CN_BIG_DECIMAL_DEFAULT_PRECISION; 
+
+  try
+    G := FLocalBigDecimalPool.Obtain;
+    GetGapFromPrecisionDigits(SqrtPrecision, G);
+
+    D := FLocalBigDecimalPool.Obtain;
+    D.SetWord(2);
+
+    T := FLocalBigDecimalPool.Obtain;
+
+    X0 := FLocalBigDecimalPool.Obtain;
+    BigDecimalCopy(X0, Num);
+
+    if Res <> Num then
+      R := Res
+    else
+      R := FLocalBigDecimalPool.Obtain;
+
+    while True do
+    begin
+      // R := (X0 + Num/X0) / 2;
+      BigDecimalCopy(R, Num);
+      BigDecimalDiv(R, R, X0, SqrtPrecision * 2);
+      BigDecimalAdd(R, R, X0);
+      BigDecimalDiv(R, R, D, SqrtPrecision * 2);
+
+      // if Abs(R - X0) < SCN_EXTEND_GAP then
+      BigDecimalSub(T, R, X0);
+      if T.IsNegative then
+        T.Negate;
+
+      if BigDecimalCompare(T, G) <= 0 then
+        Break;
+
+      // X0 := R;
+      BigDecimalCopy(X0, R);
+    end;
+
+    if Num = Res then
+    begin
+      BigDecimalCopy(Res, R);
+      FLocalBigDecimalPool.Recycle(R);
+    end;
+
+    Res.RoundTo(SqrtPrecision);
+    Result := True;
+  finally
+    FLocalBigDecimalPool.Recycle(X0);
+    FLocalBigDecimalPool.Recycle(T);
+    FLocalBigDecimalPool.Recycle(D);
+    FLocalBigDecimalPool.Recycle(G);
   end;
 end;
 
@@ -1359,6 +1560,49 @@ begin
   end;
 end;
 
+procedure BigDecimalToBigRational(const Res: TCnBigRational; const Num: TCnBigDecimal);
+var
+  T: TCnBigNumber;
+begin
+  if (Res <> nil) and (Num <> nil) then
+  begin
+    BigNumberCopy(Res.Nominator, Num.FValue);
+
+    // 精确值为 FValue / (10^FScale)，如果 FScale > 0 则乘方到分母上去，否则相反数乘方到分子上去
+    Res.Denominator.SetOne;
+    if Num.FScale > 0 then
+    begin
+      Res.Denominator.SetWord(10);
+      Res.Denominator.PowerWord(Num.FScale);
+    end
+    else
+    begin
+      T := FLocalBigNumberPool.Obtain;
+      try
+        T.SetWord(10);
+        T.PowerWord(-Num.FScale);
+        BigNumberMul(Res.Nominator, Res.Nominator, T);
+      finally
+        FLocalBigNumberPool.Recycle(T);
+      end;
+    end;
+    Res.Reduce;
+  end;
+end;
+
+procedure BigRationalToBigDecimal(const Res: TCnBigDecimal; const Num: TCnBigRational;
+  Digits: Integer = 20);
+var
+  S: string;
+begin
+  if (Res <> nil) and (Num <> nil) then
+  begin
+    S := Num.ToDec(Digits);
+    if S <> '' then
+      Res.SetDec(S);
+  end;
+end;
+
 function BigDecimalDebugDump(const Num: TCnBigDecimal): string;
 begin
   Result := '10 Scale: ' + IntToStr(Num.FScale) + '. ' + BigNumberDebugDump(Num.FValue);
@@ -1366,7 +1610,7 @@ end;
 
 { TCnBigDecimal }
 
-procedure TCnBigDecimal.AddWord(W: LongWord);
+procedure TCnBigDecimal.AddWord(W: TCnLongWord32);
 var
   T: TCnBigDecimal;
 begin
@@ -1391,7 +1635,7 @@ begin
   inherited;
 end;
 
-procedure TCnBigDecimal.DivWord(W: LongWord; DivPrecision: Integer);
+procedure TCnBigDecimal.DivWord(W: TCnLongWord32; DivPrecision: Integer);
 var
   T: TCnBigDecimal;
 begin
@@ -1419,12 +1663,17 @@ begin
   Result := FValue.IsNegative;
 end;
 
+function TCnBigDecimal.IsOne: Boolean;
+begin
+  Result := FValue.IsOne and (FScale = 0);
+end;
+
 function TCnBigDecimal.IsZero: Boolean;
 begin
   Result := FValue.IsZero;
 end;
 
-procedure TCnBigDecimal.MulWord(W: LongWord);
+procedure TCnBigDecimal.MulWord(W: TCnLongWord32);
 begin
   FValue.MulWord(W);
 end;
@@ -1432,6 +1681,12 @@ end;
 procedure TCnBigDecimal.Negate;
 begin
   FValue.Negate;
+end;
+
+procedure TCnBigDecimal.RoundTo(Precision: Integer;
+  RoundMode: TCnBigRoundMode);
+begin
+  BigDecimalChangeToScale(Self, Self, Precision, RoundMode);
 end;
 
 function TCnBigDecimal.SetDec(const Buf: string): Boolean;
@@ -1470,7 +1725,7 @@ begin
   BigDecimalSetSingle(Value, Self);
 end;
 
-function TCnBigDecimal.SetWord(W: LongWord): Boolean;
+function TCnBigDecimal.SetWord(W: TCnLongWord32): Boolean;
 begin
   Result := BigDecimalSetWord(W, Self);
 end;
@@ -1481,7 +1736,7 @@ begin
   FScale := 0;
 end;
 
-procedure TCnBigDecimal.SubWord(W: LongWord);
+procedure TCnBigDecimal.SubWord(W: TCnLongWord32);
 var
   T: TCnBigDecimal;
 begin
@@ -1704,7 +1959,7 @@ begin
   Result := True;
 end;
 
-function BigBinarySetWord(W: LongWord; const Res: TCnBigBinary): Boolean;
+function BigBinarySetWord(W: TCnLongWord32; const Res: TCnBigBinary): Boolean;
 begin
   Res.FValue.SetWord(W);
   Res.FScale := 0;
@@ -1751,7 +2006,7 @@ function BigBinarySetSingle(const Value: Single; const Res: TCnBigBinary): Boole
 var
   N: Boolean;
   E: Integer;
-  S: LongWord;
+  S: Cardinal;
 begin
   if SingleIsInfinite(Value) or SingleIsNan(Value) then
     raise ECnBigBinaryException.Create(SInvalidOp);
@@ -1811,6 +2066,12 @@ begin
   ExtractFloatExtended(Value, N, E, S);
   // 把 1. 开头的有效数字当成整数，E 需要减 63
   Result := InternalBigBinarySetFloat(N, E - 63, S, Res);
+end;
+
+function BigBinarySetBigNumber(const Num: TCnBigNumber; const Res: TCnBigBinary): Boolean;
+begin
+  Res.FScale := 0;
+  Result := BigNumberCopy(Res.FValue, Num) <> nil;
 end;
 
 function BigBinaryToString(const Num: TCnBigBinary): string;
@@ -2238,11 +2499,15 @@ begin
     DivPrecision := CN_BIG_BINARY_DEFAULT_PRECISION;
 
   // 根据精度要求计算将被除数扩大的倍数
-  M := CheckScaleAddRange(DivPrecision, (Num2.FValue.GetBitsCount - Num2.FValue.GetBitsCount + 1));
-  TS := CheckScaleAddRange(TS, M); // 扩大的倍数在这里抵消
+  M := CheckScaleAddRange(DivPrecision, (Num2.FValue.GetBitsCount - Num1.FValue.GetBitsCount + 1));
+  if M < 0 then // 无需扩大、精度已经足够
+    M := 0
+  else if M > 0 then
+    TS := CheckScaleAddRange(TS, M); // 扩大的倍数在这里抵消
 
   T := nil;
   R := nil;
+
   try
     T := FLocalBigNumberPool.Obtain;
     BigNumberCopy(T, Num1.FValue);
@@ -2261,6 +2526,32 @@ begin
   finally
     FLocalBigNumberPool.Recycle(T);
     FLocalBigNumberPool.Recycle(R);
+  end;
+end;
+
+procedure BigBinaryShiftLeft(const Res: TCnBigBinary; const N: Integer);
+begin
+  Dec(Res.FScale, N);
+end;
+
+procedure BigBinaryShiftRight(const Res: TCnBigBinary; const N: Integer);
+begin
+  Inc(Res.FScale, N);
+end;
+
+function BigBinaryPower(const Res: TCnBigBinary; const N: Integer): Boolean;
+begin
+  Result := False;
+  if N = 0 then
+  begin
+    if Res.IsZero then
+      raise EZeroDivide.Create(SDivByZero);
+    Res.SetOne;
+  end
+  else if N > 0 then
+  begin
+    Res.FScale := Res.FScale * N;
+    Result := Res.FValue.PowerWord(N);
   end;
 end;
 
@@ -2376,6 +2667,30 @@ begin
   end;
 end;
 
+function BigBinaryTruncTo(const Res: TCnBigNumber; const Num: TCnBigBinary): Boolean;
+var
+  T: TCnBigBinary;
+begin
+  if Num.FScale <= 0 then // 无小数部分
+  begin
+    BigNumberCopy(Res, Num.FValue);
+    Res.ShiftLeft(-Num.FScale);
+
+    Result := True;
+    Exit;
+  end
+  else // 有小数部分 FScale 位，干掉
+  begin
+    T := FLocalBigBinaryPool.Obtain;
+    try
+      Result := BigBinaryChangeToScale(T, Num, 0, drTowardsZero);
+      BigNumberCopy(Res, T.FValue); // Scale 已经为 0 了可以直接忽略
+    finally
+      FLocalBigBinaryPool.Recycle(T);
+    end;
+  end;
+end;
+
 function BigBinaryDebugDump(const Num: TCnBigBinary): string;
 begin
   Result := '2 Scale: ' + IntToStr(Num.FScale) + '. ' + BigNumberDebugDump(Num.FValue);
@@ -2383,7 +2698,7 @@ end;
 
 { TCnBigBinary }
 
-procedure TCnBigBinary.AddWord(W: LongWord);
+procedure TCnBigBinary.AddWord(W: TCnLongWord32);
 var
   T: TCnBigBinary;
 begin
@@ -2408,7 +2723,7 @@ begin
   inherited;
 end;
 
-procedure TCnBigBinary.DivWord(W: LongWord; DivPrecision: Integer);
+procedure TCnBigBinary.DivWord(W: TCnLongWord32; DivPrecision: Integer);
 var
   T: TCnBigBinary;
 begin
@@ -2453,7 +2768,7 @@ begin
   Result := FValue.IsZero;
 end;
 
-procedure TCnBigBinary.MulWord(W: LongWord);
+procedure TCnBigBinary.MulWord(W: TCnLongWord32);
 begin
   FValue.MulWord(W);
 end;
@@ -2461,6 +2776,16 @@ end;
 procedure TCnBigBinary.Negate;
 begin
   FValue.Negate;
+end;
+
+procedure TCnBigBinary.Power(N: Integer);
+begin
+  BigBinaryPower(Self, N);
+end;
+
+procedure TCnBigBinary.SetBigNumber(Value: TCnBigNumber);
+begin
+  BigBinarySetBigNumber(Value, Self);
 end;
 
 function TCnBigBinary.SetDec(const Buf: string): Boolean;
@@ -2499,7 +2824,7 @@ begin
   BigBinarySetSingle(Value, Self);
 end;
 
-function TCnBigBinary.SetWord(W: LongWord): Boolean;
+function TCnBigBinary.SetWord(W: TCnLongWord32): Boolean;
 begin
   Result := BigBinarySetWord(W, Self);
 end;
@@ -2510,7 +2835,17 @@ begin
   FScale := 0;
 end;
 
-procedure TCnBigBinary.SubWord(W: LongWord);
+procedure TCnBigBinary.ShiftLeft(N: Integer);
+begin
+  BigBinaryShiftLeft(Self, N);
+end;
+
+procedure TCnBigBinary.ShiftRight(N: Integer);
+begin
+  BigBinaryShiftRight(Self, N);
+end;
+
+procedure TCnBigBinary.SubWord(W: TCnLongWord32);
 var
   T: TCnBigBinary;
 begin

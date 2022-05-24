@@ -1,6 +1,6 @@
 object CnMemoForm: TCnMemoForm
   Left = 201
-  Top = 197
+  Top = 199
   Width = 850
   Height = 512
   Caption = 'CnMemo Demo'
@@ -23,7 +23,7 @@ object CnMemoForm: TCnMemoForm
     Anchors = [akLeft, akTop, akRight, akBottom]
     TabOrder = 0
     object ts1: TTabSheet
-      Caption = 'CnMemo'
+      Caption = 'Memo'
       object lblLeftMargin: TLabel
         Left = 344
         Top = 24
@@ -59,7 +59,7 @@ object CnMemoForm: TCnMemoForm
       end
       object btnChangeFont: TButton
         Left = 400
-        Top = 192
+        Top = 208
         Width = 75
         Height = 25
         Caption = 'Change Font'
@@ -180,7 +180,95 @@ object CnMemoForm: TCnMemoForm
         Width = 817
         Height = 19
         Panels = <>
-        SimplePanel = False
+        SimplePanel = True
+      end
+      object mmoSelection: TMemo
+        Left = 400
+        Top = 256
+        Width = 353
+        Height = 145
+        ReadOnly = True
+        TabOrder = 13
+      end
+      object edtMemoInsert: TEdit
+        Left = 16
+        Top = 384
+        Width = 121
+        Height = 21
+        TabOrder = 14
+        Text = '文本Insert进去'
+      end
+      object btnMemoInsert: TButton
+        Left = 144
+        Top = 384
+        Width = 65
+        Height = 21
+        Caption = 'Insert Single'
+        TabOrder = 15
+        OnClick = btnMemoInsertClick
+      end
+      object btnMemoInsertCRLF: TButton
+        Left = 216
+        Top = 384
+        Width = 65
+        Height = 21
+        Caption = 'Insert CRLF'
+        TabOrder = 16
+        OnClick = btnMemoInsertCRLFClick
+      end
+      object btnMemoInsertMulti: TButton
+        Left = 296
+        Top = 384
+        Width = 65
+        Height = 21
+        Caption = 'Insert Lines'
+        TabOrder = 17
+        OnClick = btnMemoInsertMultiClick
+      end
+      object chkMemoReadOnly: TCheckBox
+        Left = 400
+        Top = 184
+        Width = 97
+        Height = 17
+        Caption = 'ReadOnly'
+        TabOrder = 18
+        OnClick = chkMemoReadOnlyClick
+      end
+      object btnMemoSelectRange: TButton
+        Left = 16
+        Top = 344
+        Width = 75
+        Height = 21
+        Caption = 'Select Range'
+        TabOrder = 19
+        OnClick = btnMemoSelectRangeClick
+      end
+      object btnMemoCut: TButton
+        Left = 128
+        Top = 344
+        Width = 41
+        Height = 21
+        Caption = 'Cut'
+        TabOrder = 20
+        OnClick = btnMemoCutClick
+      end
+      object btnMemoCopy: TButton
+        Left = 184
+        Top = 344
+        Width = 41
+        Height = 21
+        Caption = 'Copy'
+        TabOrder = 21
+        OnClick = btnMemoCopyClick
+      end
+      object btnMemoPaste: TButton
+        Left = 240
+        Top = 344
+        Width = 41
+        Height = 21
+        Caption = 'Paste'
+        TabOrder = 22
+        OnClick = btnMemoPasteClick
       end
     end
     object tsEditorStringList: TTabSheet

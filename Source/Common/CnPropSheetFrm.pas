@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2021 CnPack 开发组                       }
+{                   (C)Copyright 2001-2022 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -24,7 +24,9 @@ unit CnPropSheetFrm;
 * 软件名称：CnPack 公用单元
 * 单元名称：对象 RTTI 信息显示窗体单元
 * 单元作者：刘啸（LiuXiao） liuxiao@cnpack.org
-* 备    注：
+* 备    注：部分类在遍历其属性并读属性值时其内部会发生改动，如高版本的 TPicture
+*           读 Bitmap/Icon/Metafile 属性时读什么内部就会强行转成什么导致原有数据丢失
+*           该类副作用遇到时要注意
 * 开发平台：PWinXP + Delphi 5
 * 兼容测试：未测试
 * 本 地 化：该窗体中的字符串暂不符合本地化处理方式
@@ -46,7 +48,7 @@ interface
 uses
   Windows, Messages, SysUtils, Classes, Graphics, Controls, Forms, Dialogs, Menus,
   Grids, StdCtrls, ExtCtrls, TypInfo, Contnrs, Buttons, ComCtrls, Tabs, Commctrl,
-  Clipbrd, CnTree {$IFDEF VER130}{$ELSE}, Variants{$ENDIF}
+  Clipbrd, ImgList, CnTree {$IFDEF VER130}{$ELSE}, Variants{$ENDIF}
   {$IFDEF SUPPORT_ENHANCED_RTTI}, Rtti {$ENDIF};
 
 const
@@ -54,7 +56,7 @@ const
 
   CnCanModifyPropTypes: TTypeKinds =
     [tkInteger, tkChar, tkEnumeration, tkFloat, tkString, tkSet, tkWChar,
-    tkLString, tkWString, tkInt64];
+    tkLString, tkWString, {$IFDEF UNICODE} tkUString, {$ENDIF} tkInt64];
 
   SCnCanNotReadValue = '<Can NOT Read Value>';
 
@@ -95,10 +97,26 @@ type
     FPropRttiValue: TValue;
   {$IFDEF SUPPORT_ENHANCED_INDEXEDPROPERTY}
     FIndexParamCount: Integer;
+    FIndexNames: TStringList;
   {$ENDIF}
 {$ENDIF}
     FCanModify: Boolean;
+  protected
+{$IFDEF SUPPORT_ENHANCED_RTTI}
+  {$IFDEF SUPPORT_ENHANCED_INDEXEDPROPERTY}
+    function GetIndexNames(Index: Integer): string;
+  {$ENDIF}
+{$ENDIF}
   public
+    constructor Create; virtual;
+    destructor Destroy; override;
+
+{$IFDEF SUPPORT_ENHANCED_RTTI}
+  {$IFDEF SUPPORT_ENHANCED_INDEXEDPROPERTY}
+    function AddIndexName(const AName: string): Integer;
+  {$ENDIF}
+{$ENDIF}
+
     property PropName: string read FPropName write FPropName;
     property PropType: TTypeKind read FPropType write FPropType;
     property PropValue: Variant read FPropValue write FPropValue;
@@ -108,6 +126,7 @@ type
   {$IFDEF SUPPORT_ENHANCED_INDEXEDPROPERTY}
     // Indexed Property Support
     property IndexParamCount: Integer read FIndexParamCount write FIndexParamCount;
+    property IndexNames[Index: Integer]: string read GetIndexNames;
   {$ENDIF}
 {$ENDIF}
     property CanModify: Boolean read FCanModify write FCanModify;
@@ -283,8 +302,12 @@ type
 
     procedure InspectObject;
     procedure Clear;
-
-    function ChangePropertyValue(const PropName, Value: string): Boolean; virtual;
+{$IFDEF SUPPORT_ENHANCED_RTTI}
+    function ChangeFieldValue(const FieldName, Value: string;
+      FieldObj: TCnFieldObject): Boolean; virtual;
+{$ENDIF}
+    function ChangePropertyValue(const PropName, Value: string;
+      PropObj: TCnPropertyObject): Boolean; virtual;
     property ObjectAddr: Pointer read FObjectAddr write SetObjectAddr;
     {* 主要供外部写，写入 Object，或 String }
 
@@ -342,7 +365,12 @@ type
 
     procedure DoEvaluate; override;
   public
-    function ChangePropertyValue(const PropName, Value: string): Boolean; override;
+{$IFDEF SUPPORT_ENHANCED_RTTI}
+    function ChangeFieldValue(const FieldName, Value: string;
+      FieldObj: TCnFieldObject): Boolean; override;
+{$ENDIF}
+    function ChangePropertyValue(const PropName, Value: string;
+      PropObj: TCnPropertyObject): Boolean; override;
     property ObjectInstance: TObject read FObjectInstance;
   end;
 
@@ -375,7 +403,7 @@ type
     lvFields: TListView;
     pnlGraphicInfo: TPanel;
     bxGraphic: TScrollBox;
-    imgGraphic: TImage;
+    pbGraphic: TPaintBox;
     lblGraphicInfo: TLabel;
     lblPixel: TLabel;
     btnTree: TSpeedButton;
@@ -409,7 +437,7 @@ type
     procedure ListViewKeyDown(Sender: TObject; var Key: Word;
       Shift: TShiftState);
     procedure btnLocateClick(Sender: TObject);
-    procedure imgGraphicMouseMove(Sender: TObject; Shift: TShiftState; X,
+    procedure pbGraphicMouseMove(Sender: TObject; Shift: TShiftState; X,
       Y: Integer);
     procedure btnTreeClick(Sender: TObject);
     procedure tsTreeChange(Sender: TObject; NewTab: Integer;
@@ -419,7 +447,11 @@ type
     procedure edtSearchKeyPress(Sender: TObject; var Key: Char);
     procedure Copy1Click(Sender: TObject);
     procedure CopyAll1Click(Sender: TObject);
+    procedure pbGraphicPaint(Sender: TObject);
+    procedure lvFieldsDblClick(Sender: TObject);
   private
+    FImgBk: TBitmap;
+    FGraphicBmp: TBitmap;  // 用于显示的
     FListViewHeaderHeight: Integer;
     FContentTypes: TCnPropContentTypes;
     FPropListPtr: PPropList;
@@ -430,6 +462,11 @@ type
     FInspectParam: Pointer;
     FCurrObj: TObject;
     FCurrIntf: IUnknown;
+{$IFDEF SUPPORT_ENHANCED_RTTI}
+  {$IFDEF SUPPORT_ENHANCED_INDEXEDPROPERTY}
+    FCurrProp: TCnPropertyObject;  // 目前用于 Indexed Property
+  {$ENDIF}
+{$ENDIF}
     FParentSheetForm: TCnPropSheetForm;
     FHierarchys: TStrings;
     FGraphicObject: TObject;
@@ -474,6 +511,7 @@ type
     procedure AfterEvaluateProperties(Sender: TObject);
     procedure AfterEvaluateHierarchy(Sender: TObject);
   protected
+    procedure TileBkToImageBmp;
     procedure Notification(AComponent: TComponent; Operation: TOperation); override;
   public
     procedure SetPropListSize(const Value: Integer);
@@ -521,6 +559,8 @@ implementation
 
 {$R *.DFM}
 
+{$R CnPropSheet.res}
+
 type
   PParamData = ^TParamData;
   TParamData = record
@@ -560,7 +600,7 @@ type
     csReplicatable, csNoStdEvents, csDisplayDragImage, csReflector,
     csActionClient, csMenuEvents, csNeedsBorderPaint, csParentBackground,
     csPannable, csAlignWithMargins, csGestures, csPaintBlackOpaqueOnGlass,
-    csOverrideStylePaint);
+    csOverrideStylePaint, csNeedsDesignDisabledState);
 
 {$IFNDEF SUPPORT_INTERFACE_AS_OBJECT}
   PPointer = ^Pointer;
@@ -578,10 +618,15 @@ const
     ('Properties', 'Fields', 'Events', 'Methods', 'CollectionItems', 'MenuItems',
      'Strings', 'Graphics', 'Components', 'Controls', 'Hierarchy');
 
+  SCnInputGetIndexedPropertyCaption = 'Get Indexed Property Value';
+  SCnInputGetIndexedPropertyPrompt = 'Enter a Value for %s:';
+
   SCnInputNewValueCaption = 'Modify Value';
   SCnInputNewValuePrompt = 'Enter a New Value for %s:';
-  SCnErrorChangeValue = 'Change Property Value Failed!';
-
+  SCnErrorChangeValue = 'Change Field/Property Value Failed!';
+{$IFNDEF COMPILER6_UP}
+  AC_SRC_ALPHA = $01;
+{$ENDIF}
 
 var
   FSheetList: TComponentList = nil;
@@ -943,8 +988,24 @@ begin
             S := IntToStr(GetOrdProp(Instance, PropInfo));
         end;
       end;
-    tkChar, tkWChar:
-      S := IntToStr(GetOrdProp(Instance, PropInfo));
+    tkChar:
+      S := Chr(GetOrdProp(Instance, PropInfo));
+    tkWChar:
+      begin
+        iTmp := GetOrdProp(Instance, PropInfo);
+        // 得到的是 WideChar 的 Unicode 双字节值，转换成能显示的字符串
+{$IFDEF UNICODE}
+        S := Chr(iTmp);
+{$ELSE}
+//        SetLength(WS, 1);       // 用 WideString 容纳 Unicode 字符
+//        P := PByte(@WS[1]);
+//        P^ := iTmp and $FF;
+//        Inc(P);
+//        P^ := ((iTmp shr 8) and $FF);
+//        S := string(WS);        // 转 AnsiString
+        S := WideChar(iTmp);
+{$ENDIF}
+      end;
     tkClass:
       begin
         iTmp := GetOrdProp(Instance, PropInfo);
@@ -1146,6 +1207,12 @@ var
   AClass: TClass;
 begin
   Result := '';
+  if RttiField.FieldType = nil then
+  begin
+    Result := '<Rtti Exception>';
+    Exit;
+  end;
+
   case RttiField.FieldType.TypeKind of
     tkInteger:
       begin
@@ -1513,8 +1580,18 @@ begin
     FOnAfterEvaluateMenuItems(Self);
 end;
 
-function TCnObjectInspector.ChangePropertyValue(const PropName,
-  Value: string): Boolean;
+{$IFDEF SUPPORT_ENHANCED_RTTI}
+
+function TCnObjectInspector.ChangeFieldValue(const FieldName, Value: string;
+  FieldObj: TCnFieldObject): Boolean;
+begin
+  Result := False;
+end;
+
+{$ENDIF}
+
+function TCnObjectInspector.ChangePropertyValue(const PropName, Value: string;
+  PropObj: TCnPropertyObject): Boolean;
 begin
   Result := False;
 end;
@@ -1665,8 +1742,12 @@ var
       P := M.GetParameters;
       IndexedProp.IndexParamCount := Length(P);
       for I := 0 to Length(P) - 2 do
+      begin
         IndexedProp.PropName := IndexedProp.PropName + P[I].ToString + ', ';
+        IndexedProp.AddIndexName(P[I].ToString);
+      end;
       IndexedProp.PropName := IndexedProp.PropName + P[Length(P) - 1].ToString;
+      IndexedProp.AddIndexName(P[Length(P) - 1].ToString);
     end
     else
     begin
@@ -1679,8 +1760,12 @@ var
       P := M.GetParameters;
       IndexedProp.IndexParamCount := Length(P) - 1;
       for I := 0 to Length(P) - 3 do
+      begin
         IndexedProp.PropName := IndexedProp.PropName + P[I].ToString + ', ';
+        IndexedProp.AddIndexName(P[I].ToString);
+      end;
       IndexedProp.PropName := IndexedProp.PropName + P[Length(P) - 2].ToString;
+      IndexedProp.AddIndexName(P[Length(P) - 2].ToString);
     end;
     IndexedProp.PropName := IndexedProp.PropName + ']';
   end;
@@ -1694,6 +1779,7 @@ begin
       Properties.Clear;
       Fields.Clear;
       Events.Clear;
+      Methods.Clear;
       Components.Clear;
       Controls.Clear;
       CollectionItems.Clear;
@@ -1729,88 +1815,97 @@ begin
       end;
     end;
 
+    // 以旧方式拿属性
     APropCount := GetTypeData(PTypeInfo(FObjectInstance.ClassInfo))^.PropCount;
-    GetMem(PropListPtr, APropCount * SizeOf(Pointer));
-    GetPropList(PTypeInfo(FObjectInstance.ClassInfo), tkAny, PropListPtr);
-
-    for I := 0 to APropCount - 1 do
+    if APropCount > 0 then
     begin
-      PropInfo := PropListPtr^[I];
-      if PropInfo^.PropType^^.Kind in tkProperties then
+      GetMem(PropListPtr, APropCount * SizeOf(Pointer));
+      GetPropList(PTypeInfo(FObjectInstance.ClassInfo), tkAny, PropListPtr);
+
+      for I := 0 to APropCount - 1 do
       begin
-        try
-          if not IsRefresh then
-            AProp := TCnPropertyObject.Create
-          else
-            AProp := IndexOfProperty(Properties, PropInfoName(PropInfo));
-
-          AProp.PropName := PropInfoName(PropInfo);
-          AProp.PropType := PropInfo^.PropType^^.Kind;
-          AProp.IsObjOrIntf := AProp.PropType in [tkClass, tkInterface];
-
-          // 有写入权限，并且指定类型，才可修改，否则界面上没法整
-          AProp.CanModify := (PropInfo^.SetProc <> nil) and (PropInfo^.PropType^^.Kind
-            in CnCanModifyPropTypes);
-
-          AProp.PropValue := GetPropValue(FObjectInstance, PropInfoName(PropInfo));
-
-          AProp.ObjValue := nil;
-          AProp.IntfValue := nil;
-          if AProp.IsObjOrIntf then
-          begin
-            if AProp.PropType = tkClass then
-              AProp.ObjValue := GetObjectProp(FObjectInstance, PropInfo)
+        PropInfo := PropListPtr^[I];
+        if PropInfo^.PropType^^.Kind in tkProperties then
+        begin
+          try
+            if not IsRefresh then
+              AProp := TCnPropertyObject.Create
             else
-              AProp.IntfValue := IUnknown(GetOrdProp(FObjectInstance, PropInfo));
+              AProp := IndexOfProperty(Properties, PropInfoName(PropInfo));
+
+            AProp.PropName := PropInfoName(PropInfo);
+            AProp.PropType := PropInfo^.PropType^^.Kind;
+            AProp.IsObjOrIntf := AProp.PropType in [tkClass, tkInterface];
+
+            // 有写入权限，并且指定类型，才可修改，否则界面上没法整
+            AProp.CanModify := (PropInfo^.SetProc <> nil) and (PropInfo^.PropType^^.Kind
+              in CnCanModifyPropTypes);
+
+            try
+              AProp.PropValue := GetPropValue(FObjectInstance, PropInfoName(PropInfo));
+            except
+              ; // Interface 类型可能会出错，屏蔽之
+            end;
+
+            AProp.ObjValue := nil;
+            AProp.IntfValue := nil;
+            if AProp.IsObjOrIntf then
+            begin
+              if AProp.PropType = tkClass then
+                AProp.ObjValue := GetObjectProp(FObjectInstance, PropInfo)
+              else
+                AProp.IntfValue := IUnknown(GetOrdProp(FObjectInstance, PropInfo));
+            end;
+
+            S := GetPropValueStr(FObjectInstance, PropInfo);
+            if S <> AProp.DisplayValue then
+            begin
+              AProp.DisplayValue := S;
+              AProp.Changed := True;
+            end
+            else
+              AProp.Changed := False;
+
+            if not IsRefresh then
+              Properties.Add(AProp);
+
+            Include(FContentTypes, pctProps);
+          except
+            ;
           end;
+        end;
 
-          S := GetPropValueStr(FObjectInstance, PropInfo);
-          if S <> AProp.DisplayValue then
-          begin
-            AProp.DisplayValue := S;
-            AProp.Changed := True;
-          end
-          else
-            AProp.Changed := False;
+        // 拿事件
+        if PropInfo^.PropType^^.Kind = tkMethod then
+        begin
+          try
+            if not IsRefresh then
+              AEvent := TCnEventObject.Create
+            else
+              AEvent := IndexOfEvent(FEvents, PropInfoName(PropInfo));
 
-          if not IsRefresh then
-            Properties.Add(AProp);
+            AEvent.EventName := PropInfoName(PropInfo);
+            AEvent.EventType := VarToStr(GetPropValue(FObjectInstance, PropInfoName(PropInfo)));
+            S := GetPropValueStr(FObjectInstance, PropInfo);
+            if S <> AEvent.DisplayValue then
+            begin
+              AEvent.DisplayValue := S;
+              AEvent.Changed := True;
+            end
+            else
+              AEvent.Changed := False;
 
-          Include(FContentTypes, pctProps);
-        except
-          ;
+            if not IsRefresh then
+              FEvents.Add(AEvent);
+
+            Include(FContentTypes, pctEvents);
+          except
+            ;
+          end;
         end;
       end;
-
-      if PropInfo^.PropType^^.Kind = tkMethod then
-      begin
-        try
-          if not IsRefresh then
-            AEvent := TCnEventObject.Create
-          else
-            AEvent := IndexOfEvent(FEvents, PropInfoName(PropInfo));
-
-          AEvent.EventName := PropInfoName(PropInfo);
-          AEvent.EventType := VarToStr(GetPropValue(FObjectInstance, PropInfoName(PropInfo)));
-          S := GetPropValueStr(FObjectInstance, PropInfo);
-          if S <> AEvent.DisplayValue then
-          begin
-            AEvent.DisplayValue := S;
-            AEvent.Changed := True;
-          end
-          else
-            AEvent.Changed := False;
-
-          if not IsRefresh then
-            FEvents.Add(AEvent);
-
-          Include(FContentTypes, pctEvents);
-        except
-          ;
-        end;
-      end;
+      FreeMem(PropListPtr);
     end;
-    FreeMem(PropListPtr);
 
 {$IFDEF SUPPORT_ENHANCED_RTTI}
     // D2010 及以上，使用新 RTTI 方法获取更多属性
@@ -1941,78 +2036,91 @@ begin
         end;
 {$ENDIF}
 
-        for RttiMethod in RttiType.GetMethods do
-        begin
-          S := GetMethodFullName(RttiMethod);
-          if not IsRefresh then
+        // 获取 Methods
+        try
+          for RttiMethod in RttiType.GetMethods do  // 有些在此出 Exception
           begin
-            AMethod := TCnMethodObject.Create;
-            AMethod.IsNewRTTI := True;
-          end
-          else
-            AMethod := IndexOfMethod(FMethods, S);
+            S := GetMethodFullName(RttiMethod);
+            if not IsRefresh then
+            begin
+              AMethod := TCnMethodObject.Create;
+              AMethod.IsNewRTTI := True;
+            end
+            else
+              AMethod := IndexOfMethod(FMethods, S);
 
-          AMethod.MethodSimpleName := RttiMethod.Name;
-          AMethod.FullName := S;
-          if S <> AMethod.DisplayValue then
-          begin
-            AMethod.DisplayValue := S;
-            AMethod.Changed := True;
-          end
-          else
-            AMethod.Changed := False;
+            AMethod.MethodSimpleName := RttiMethod.Name;
+            AMethod.FullName := S;
+            if S <> AMethod.DisplayValue then
+            begin
+              AMethod.DisplayValue := S;
+              AMethod.Changed := True;
+            end
+            else
+              AMethod.Changed := False;
 
-          if not IsRefresh then
-            FMethods.Add(AMethod);
+            if not IsRefresh then
+              FMethods.Add(AMethod);
 
-          Include(FContentTypes, pctMethods);
+            Include(FContentTypes, pctMethods);
+          end;
+        except
+          ;
         end;
 
         // 获取 Fields
-        for RttiField in RttiType.GetFields do
-        begin
-          if not IsRefresh then
-            AField := TCnFieldObject.Create
-          else
-            AField := IndexOfField(FFields, RttiField.Name);
-
-          AField.FieldName := RttiField.Name; // 不能用 RttiField.ToString，否则 IndexOfFields 找不到
-          AField.Offset := RttiField.Offset;
-          AField.FieldType := RttiField.FieldType;
-          AField.IsObjOrIntf := RttiField.FieldType.TypeKind in [tkClass, tkInterface];
-
-          try
-            AField.FieldValue := RttiField.GetValue(FObjectInstance);
-          except
-            // Getting Some Property causes Exception. Catch it.
-            AField.FieldValue := nil;
-          end;
-
-          AField.ObjValue := nil;
-          AField.IntfValue := nil;
-          try
-            if AField.IsObjOrIntf and RttiField.GetValue(FObjectInstance).IsObject then
-              AField.ObjValue := RttiField.GetValue(FObjectInstance).AsObject
-            else if AField.IsObjOrIntf and (RttiField.GetValue(FObjectInstance).TypeInfo <> nil) and
-              (RttiField.GetValue(FObjectInstance).TypeInfo^.Kind = tkInterface) then
-              AField.IntfValue := RttiField.GetValue(FObjectInstance).AsInterface;
-          except
-            // Getting Some Property causes Exception. Catch it.;
-          end;
-
-          S := GetRttiFieldValueStr(FObjectInstance, RttiField);
-          if S <> AField.DisplayValue then
+        try
+          for RttiField in RttiType.GetFields do // 有些在此出 Exception
           begin
-            AField.DisplayValue := S;
-            AField.Changed := True;
-          end
-          else
-            AField.Changed := False;
+            if not IsRefresh then
+              AField := TCnFieldObject.Create
+            else
+              AField := IndexOfField(FFields, RttiField.Name);
 
-          if not IsRefresh then
-            FFields.Add(AField);
+            AField.FieldName := RttiField.Name; // 不能用 RttiField.ToString，否则 IndexOfFields 找不到
+            AField.Offset := RttiField.Offset;
+            AField.FieldType := RttiField.FieldType;
 
-          Include(FContentTypes, pctFields);
+            if RttiField.FieldType <> nil then // 有可能 FieldType 为 nil
+              AField.IsObjOrIntf := RttiField.FieldType.TypeKind in [tkClass, tkInterface]
+            else
+              AField.IsObjOrIntf := False;
+
+            try
+              AField.FieldValue := RttiField.GetValue(FObjectInstance);
+            except
+              // Getting Some Property causes Exception. Catch it.
+              AField.FieldValue := nil;
+            end;
+
+            AField.ObjValue := nil;
+            AField.IntfValue := nil;
+            try
+              if AField.IsObjOrIntf and RttiField.GetValue(FObjectInstance).IsObject then
+                AField.ObjValue := RttiField.GetValue(FObjectInstance).AsObject
+              else if AField.IsObjOrIntf and (RttiField.GetValue(FObjectInstance).TypeInfo <> nil) and
+                (RttiField.GetValue(FObjectInstance).TypeInfo^.Kind = tkInterface) then
+                AField.IntfValue := RttiField.GetValue(FObjectInstance).AsInterface;
+            except
+              // Getting Some Property causes Exception. Catch it.;
+            end;
+
+            S := GetRttiFieldValueStr(FObjectInstance, RttiField);
+            if S <> AField.DisplayValue then
+            begin
+              AField.DisplayValue := S;
+              AField.Changed := True;
+            end
+            else
+              AField.Changed := False;
+
+            if not IsRefresh then
+              FFields.Add(AField);
+
+            Include(FContentTypes, pctFields);
+          end;
+        except
+          ;
         end;
       end;
     finally
@@ -2361,7 +2469,7 @@ begin
       end;
 
       // 如果是 ImageList，画其子图片
-      if ObjectInstance is TImageList then
+      if ObjectInstance is TCustomImageList then
       begin
         FGraphics.Graphic := ObjectInstance;
         Include(FContentTypes, pctGraphics);
@@ -2379,17 +2487,231 @@ begin
   FInspectComplete := True;
 end;
 
-function TCnLocalObjectInspector.ChangePropertyValue(const PropName,
-  Value: string): Boolean;
+{$IFDEF SUPPORT_ENHANCED_RTTI}
+
+function TCnLocalObjectInspector.ChangeFieldValue(const FieldName, Value: string;
+  FieldObj: TCnFieldObject): Boolean;
+{$IFDEF SUPPORT_ENHANCED_RTTI}
+var
+  RttiContext: TRttiContext;
+  RttiType: TRttiType;
+  RttiField: TRttiField;
+  ValueRec: TValue;
+  ASet: Integer;
+{$ENDIF}
+begin
+  Result := False;
+  if ObjectInstance = nil then
+    Exit;
+
+  RttiContext := TRttiContext.Create;
+  try
+    RttiType := RttiContext.GetType(ObjectInstance.ClassInfo);
+    if RttiType = nil then
+      Exit;
+
+    RttiField := RttiType.GetField(FieldName);
+    if (RttiField = nil) or (RttiField.FieldType = nil) then
+      Exit;
+
+    case RttiField.FieldType.TypeKind of
+      tkInteger:
+        begin
+          try
+            ValueRec := StrToInt(Value);
+            RttiField.SetValue(ObjectInstance, ValueRec);
+          except
+            // 判断是否是 TColor 和 clRed 这种
+            if RttiField.FieldType.Name = 'TColor' then
+            begin
+              try
+                ValueRec := StringToColor(Value);
+                RttiField.SetValue(ObjectInstance, ValueRec);
+              except
+                Exit;
+              end;
+            end
+            else
+              Exit;
+          end;
+        end;
+      tkInt64:
+        begin
+          try
+            ValueRec := StrToInt64(Value);
+            RttiField.SetValue(ObjectInstance, ValueRec);
+          except
+            Exit;
+          end;
+        end;
+      tkFloat:
+        begin
+          try
+            ValueRec := StrToFloat(Value);
+            RttiField.SetValue(ObjectInstance, ValueRec);
+          except
+            Exit;
+          end;
+        end;
+      tkChar,
+      tkWChar:
+        begin
+          try
+            ValueRec := TValue.FromOrdinal(RttiField.FieldType.Handle, StrToInt64(Value));
+            RttiField.SetValue(ObjectInstance, ValueRec);
+          except
+            Exit;
+          end;
+        end;
+      tkLString,
+      tkWString,
+{$IFDEF UNICODE}
+      tkUString,
+{$ENDIF}
+      tkString:
+        begin
+          ValueRec := Value;
+          RttiField.SetValue(ObjectInstance, ValueRec);
+        end;
+      tkEnumeration:
+        begin
+          // 枚举与 Boolean 都会到这，先从字符串转成 Integer，再转成 Enum 值
+          ValueRec := TValue.FromOrdinal(RttiField.FieldType.Handle,
+            GetEnumValue(RttiField.FieldType.Handle, Value));
+          RttiField.SetValue(ObjectInstance, ValueRec);
+        end;
+      tkSet:
+        begin
+          // 集合字符串先转成 Integer，再通过 Make 转成 TValue
+          ASet := StringToSet(RttiField.FieldType.Handle, Value);
+          TValue.Make(@ASet, RttiField.FieldType.Handle, ValueRec);
+          RttiField.SetValue(ObjectInstance, ValueRec);
+        end;
+    end;
+
+    Result := True;
+  finally
+    RttiContext.Free;
+  end;
+end;
+
+{$ENDIF}
+
+function TCnLocalObjectInspector.ChangePropertyValue(const PropName, Value: string;
+  PropObj: TCnPropertyObject): Boolean;
 var
   PropInfo: PPropInfo;
   VInt: Integer;
   VInt64: Int64;
   VFloat: Double;
+  C: TColor;
+{$IFDEF SUPPORT_ENHANCED_RTTI}
+  RttiContext: TRttiContext;
+  RttiType: TRttiType;
+  RttiProperty: TRttiProperty;
+  ValueRec: TValue;
+  ASet: Integer;
+{$ENDIF}
 begin
   Result := False;
   if ObjectInstance = nil then
     Exit;
+
+{$IFDEF SUPPORT_ENHANCED_RTTI}
+  if PropObj.IsNewRTTI then
+  begin
+    RttiContext := TRttiContext.Create;
+    try
+      RttiType := RttiContext.GetType(ObjectInstance.ClassInfo);
+      if RttiType = nil then
+        Exit;
+
+      RttiProperty := RttiType.GetProperty(PropName);
+      if (RttiProperty = nil) or (RttiProperty.PropertyType = nil) then
+        Exit;
+
+      case RttiProperty.PropertyType.TypeKind of
+        tkInteger:
+          begin
+            try
+              ValueRec := StrToInt(Value);
+              RttiProperty.SetValue(ObjectInstance, ValueRec);
+            except
+              // 判断是否是 TColor 和 clRed 这种
+              if RttiProperty.PropertyType.Name = 'TColor' then
+              begin
+                try
+                  ValueRec := StringToColor(Value);
+                  RttiProperty.SetValue(ObjectInstance, ValueRec);
+                except
+                  Exit;
+                end;
+              end
+              else
+                Exit;
+            end;
+          end;
+        tkInt64:
+          begin
+            try
+              ValueRec := StrToInt64(Value);
+              RttiProperty.SetValue(ObjectInstance, ValueRec);
+            except
+              Exit;
+            end;
+          end;
+        tkFloat:
+          begin
+            try
+              ValueRec := StrToFloat(Value);
+              RttiProperty.SetValue(ObjectInstance, ValueRec);
+            except
+              Exit;
+            end;
+          end;
+        tkChar,
+        tkWChar:
+          begin
+            try
+              ValueRec := TValue.FromOrdinal(RttiProperty.PropertyType.Handle, StrToInt64(Value));
+              RttiProperty.SetValue(ObjectInstance, ValueRec);
+            except
+              Exit;
+            end;
+          end;
+        tkLString,
+        tkWString,
+{$IFDEF UNICODE}
+        tkUString,
+{$ENDIF}
+        tkString:
+          begin
+            ValueRec := Value;
+            RttiProperty.SetValue(ObjectInstance, ValueRec);
+          end;
+        tkEnumeration:
+          begin
+            // 枚举与 Boolean 都会到这，先从字符串转成 Integer，再转成 Enum 值
+            ValueRec := TValue.FromOrdinal(RttiProperty.PropertyType.Handle,
+              GetEnumValue(RttiProperty.PropertyType.Handle, Value));
+            RttiProperty.SetValue(ObjectInstance, ValueRec);
+          end;
+        tkSet:
+          begin
+            // 集合字符串先转成 Integer，再通过 Make 转成 TValue
+            ASet := StringToSet(RttiProperty.PropertyType.Handle, Value);
+            TValue.Make(@ASet, RttiProperty.PropertyType.Handle, ValueRec);
+            RttiProperty.SetValue(ObjectInstance, ValueRec);
+          end;
+      end;
+
+      Result := True;
+    finally
+      RttiContext.Free;
+    end;
+    Exit;
+  end;
+{$ENDIF}
 
   PropInfo := GetPropInfo(ObjectInstance, PropName);
   if (PropInfo = nil) or (PropInfo^.SetProc = nil) then
@@ -2402,7 +2724,18 @@ begin
           VInt := StrToInt(Value);
           SetOrdProp(ObjectInstance, PropName, VInt);
         except
-          Exit;
+          // 判断是否是 TColor 和 clRed 这种
+          if PropInfo^.PropType^^.Name = 'TColor' then
+          begin
+            try
+              C := StringToColor(Value);
+              SetOrdProp(ObjectInstance, PropName, C);
+            except
+              Exit;
+            end;
+          end
+          else
+            Exit;
         end;
       end;
     tkInt64:
@@ -2468,6 +2801,10 @@ begin
   if CnFormLeft >= Screen.Width - Self.Width - 30 then CnFormLeft := 50;
   if CnFormTop >= Screen.Height - Self.Height - 30 then CnFormTop := 50;
 
+  FImgBk := TBitmap.Create;
+  FImgBk.Handle := LoadBitmap(HInstance, 'CNTRANSBK');
+  FGraphicBmp := TBitmap.Create;
+
 {$IFDEF COMPILER7_UP}
   pnlHierarchy.ParentBackground := False;
 {$ENDIF}
@@ -2479,20 +2816,60 @@ const
   IMG_INTERVAL = 30;
 var
   I, ImgTop, ImgLeft: Integer;
-  ImageList: TImageList;
+  ImageList: TCustomImageList;
+  CountInLine, PaintHeight: Integer;
 
   procedure InternalDrawGraphic(AGraphic: TGraphic);
   const
     EMPTY_STR = '<Empty>';
   var
     S: string;
+    Bmp32Draw: Boolean;
+//    Bf: TBlendFunction;
   begin
-    if (AGraphic = nil) or (imgGraphic.Picture = nil) then
+    if AGraphic = nil then
       Exit;
 
-    imgGraphic.Height := AGraphic.Height;
-    imgGraphic.Width := AGraphic.Width;
-    imgGraphic.Picture.Assign(AGraphic);
+{$IFDEF TGRAPHIC_SUPPORT_PARTIALTRANSPARENCY}
+    Bmp32Draw := False; // 支持 AlphaFormat 的，无需自己画
+{$ELSE}
+    Bmp32Draw := (AGraphic is TBitmap) and ((AGraphic as TBitmap).PixelFormat = pf32bit);
+{$ENDIF}
+
+    if Bmp32Draw then
+      FGraphicBmp.PixelFormat := pf32bit
+    else
+      FGraphicBmp.PixelFormat := pf24bit;
+
+    FGraphicBmp.Height := AGraphic.Height;
+    FGraphicBmp.Width := AGraphic.Width;
+
+//    if AGraphic.Transparent
+//{$IFDEF TGRAPHIC_SUPPORT_PARTIALTRANSPARENCY}
+//      or AGraphic.SupportsPartialTransparency
+//{$ENDIF}
+//      then // 如果有透明度或半透明度，就
+
+    // 先不管怎样都画个背景
+    TileBkToImageBmp;
+
+    // 不支持 Alpha 的情形下，32 位如果直接调用 Draw 则会画出黑底
+    // 如果用 AlphaBlend 则难以判断其内容是否 PreMultiply 过，权衡一下还是直接画
+
+//    if Bmp32Draw and not AGraphic.Empty then
+//    begin
+//      // 不支持 Alpha 的情形下，32 位位图自己画半透明度输出，但从没成功过，先不用
+//      Bf.BlendOp := AC_SRC_OVER;
+//      Bf.BlendFlags := 0;
+//      Bf.SourceConstantAlpha := $FF;
+//      Bf.AlphaFormat := AC_SRC_ALPHA;
+//
+//      Windows.AlphaBlend(FGraphicBmp.Canvas.Handle, 0, 0, FGraphicBmp.Width, FGraphicBmp.Height,
+//        (AGraphic as TBitmap).Canvas.Handle, 0, 0, FGraphicBmp.Width, FGraphicBmp.Height, Bf);
+//    end
+//    else
+      FGraphicBmp.Canvas.Draw(0, 0, AGraphic);
+      // Draw 封装了全透明度的画、以及半透明混合画，但后者只在 XE2 或以上版本起作用
 
     if AGraphic.Empty then
       S := EMPTY_STR
@@ -2502,6 +2879,10 @@ var
 
       if AGraphic.Transparent then
         S := S + ' Transparent.'
+{$IFDEF TGRAPHIC_SUPPORT_PARTIALTRANSPARENCY}
+      else if AGraphic.SupportsPartialTransparency then // 如果支持 Alpha 透明度
+        S := S + ' Alpha Transparent.'
+{$ENDIF}
       else
         S := S + ' No Transparent.';
     end;
@@ -2640,7 +3021,7 @@ begin
   FHierarchys.Text := FInspector.Hierarchy;
   FGraphicObject := FInspector.Graphics.Graphic;
 
-  imgGraphic.Canvas.FillRect(imgGraphic.Canvas.ClipRect);
+  pbGraphic.Canvas.FillRect(pbGraphic.Canvas.ClipRect);
   if FGraphicObject <> nil then
   begin
     if FGraphicObject is TPicture then
@@ -2652,20 +3033,39 @@ begin
     begin
       InternalDrawGraphic(FGraphicObject as TGraphic);
     end
-    else if FGraphicObject is TImageList then
+    else if FGraphicObject is TCustomImageList then
     begin
-      if (FGraphicObject as TImageList).Count > 0 then
+      if (FGraphicObject as TCustomImageList).Count > 0 then
       begin
-        // 根据 ImageList 尺寸以及 Image 尺寸来排版绘制
-        ImageList := FGraphicObject as TImageList;
+        // 根据 ImageList 尺寸以及 PaintBox 尺寸来排版绘制
+        FGraphicBmp.Width := bxGraphic.Width;
+        FGraphicBmp.Canvas.Brush.Color := clWhite;
+        FGraphicBmp.Canvas.Brush.Style := bsSolid;
+        FGraphicBmp.Canvas.FillRect(Rect(0, 0, FGraphicBmp.Width, FGraphicBmp.Height));
+
+        ImageList := FGraphicObject as TCustomImageList;
+
+        // 一行画 (FGraphicBmp.Width - IMG_MARGIN) div (ImageList.Width + IMG_INTERVAL) 个
+        CountInLine := (FGraphicBmp.Width - IMG_MARGIN) div (ImageList.Width + IMG_INTERVAL);
+
+        // 能画 ImageList.Count div CountInLine + 1 行，计算其高度
+        PaintHeight := (ImageList.Count div CountInLine + 1) * (ImageList.Height + IMG_INTERVAL) + IMG_INTERVAL;
+        if bxGraphic.Height > PaintHeight then
+          FGraphicBmp.Height := bxGraphic.Height  // 少则充满高度
+        else
+        begin
+          FGraphicBmp.Height := PaintHeight;      // 多则超出高度
+          pbGraphic.Height := PaintHeight;
+        end;
+
         ImgLeft := IMG_MARGIN;
         ImgTop := IMG_MARGIN;
 
         for I := 0 to ImageList.Count - 1 do
         begin
-          ImageList.Draw(imgGraphic.Canvas, ImgLeft, ImgTop, I);
+          ImageList.Draw(FGraphicBmp.Canvas, ImgLeft, ImgTop, I);
           Inc(ImgLeft, ImageList.Width + IMG_INTERVAL);
-          if ImgLeft + IMG_MARGIN > imgGraphic.Width - ImageList.Width then
+          if ImgLeft + IMG_MARGIN > FGraphicBmp.Width - ImageList.Width then
           begin
             Inc(ImgTop, ImageList.Height + IMG_INTERVAL);
             ImgLeft := IMG_MARGIN;
@@ -2673,6 +3073,7 @@ begin
         end;
       end;
     end;
+    pbGraphic.Invalidate;
   end;
 
   UpdateHierarchys;
@@ -2746,6 +3147,8 @@ end;
 
 procedure TCnPropSheetForm.FormDestroy(Sender: TObject);
 begin
+  FGraphicBmp.Free;
+  FImgBk.Free;
   FHierarchys.Free;
   FHierLines.Free;
   FHierPanels.Free;
@@ -2828,6 +3231,18 @@ end;
 procedure TCnPropSheetForm.btnInspectClick(Sender: TObject);
 var
   Obj: TObject;
+{$IFDEF SUPPORT_ENHANCED_RTTI}
+  {$IFDEF SUPPORT_ENHANCED_INDEXEDPROPERTY}
+  I: Integer;
+  S: string;
+  RttiContext: TRttiContext;
+  RttiType: TRttiType;
+  RttiIndexedProp: TRttiIndexedProperty;
+  IndexParams: array of TValue;
+  P: TArray<TRttiParameter>;
+  IndexedValue: TValue;
+  {$ENDIF}
+{$ENDIF}
 
   // 移植自 A.Bouchez 的实现
   function ObjectFromInterface(const AIntf: IUnknown): TObject;
@@ -2858,6 +3273,68 @@ begin
     Obj := ObjectFromInterface(FCurrIntf);
     EvaluatePointer(Obj, FInspectParam, nil, False, Self);
   end;
+
+{$IFDEF SUPPORT_ENHANCED_RTTI}
+  {$IFDEF SUPPORT_ENHANCED_INDEXEDPROPERTY}
+  if (FCurrProp <> nil) and (FCurrProp.IndexParamCount > 0) then
+  begin
+    // TODO: 拿到获取该属性需要的一个或多个 Index 值并调用 Rtti 方法获取真实值
+    RttiContext := TRttiContext.Create;
+    IndexParams := nil;
+    try
+      RttiType := RttiContext.GetType(TObject(FObjectPointer).ClassInfo);
+      if RttiType <> nil then
+      begin
+        S := FCurrProp.PropName; // PropName 后面有 [I: Integer] 的字样要去掉
+        I := Pos('[', S);
+        if I > 1 then
+          S := Copy(S, 1, I - 1);
+
+        RttiIndexedProp := RttiType.GetIndexedProperty(S);
+        // 先从 Obj 与 PropName 拿到 RttiIndexedProperty
+        if (RttiIndexedProp <> nil) and (RttiIndexedProp.ReadMethod <> nil) then
+        begin
+          SetLength(IndexParams, FCurrProp.IndexParamCount);
+          P := RttiIndexedProp.ReadMethod.GetParameters;
+
+          for I := Low(IndexParams) to High(IndexParams) do
+          begin
+            S := '0';
+            if InputQuery(SCnInputGetIndexedPropertyCaption,
+              Format(SCnInputGetIndexedPropertyPrompt, [FCurrProp.IndexNames[I]]), S) then
+              // 根据 ReadMethod 的 GetParam 列表让用户输入各个 Index 值
+              case P[I].ParamType.TypeKind of
+                tkInteger, tkInt64:
+                  IndexParams[I] := StrToInt(S);
+                tkFloat:
+                  IndexParams[I] := StrToFloat(S);
+                tkChar, tkWChar, tkString, tkWString{$IFDEF UNICODE}, tkUString {$ENDIF}:
+                  IndexParams[I] := S;
+              end
+            else
+              Exit;
+          end;
+          IndexedValue := RttiIndexedProp.GetValue(FObjectPointer, IndexParams);
+
+          if RttiIndexedProp.PropertyType.TypeKind = tkClass then
+          begin
+            if IndexedValue.AsObject <> nil then
+            begin
+              EvaluatePointer(IndexedValue.AsObject);
+              Exit;
+            end;
+          end;
+
+          ShowMessage(IndexedValue.ToString);
+        end;
+      end;
+    finally
+      SetLength(IndexParams, 0);
+      RttiContext.Free;
+    end;
+  end;
+  {$ENDIF}
+{$ENDIF}
 end;
 
 procedure TCnPropSheetForm.lvPropCustomDrawItem(Sender: TCustomListView;
@@ -2888,11 +3365,26 @@ begin
     begin
       if (Item <> nil) and (Item.Data <> nil) and (ALv.Selected = Item) and
         ((TCnDisplayObject(Item.Data).ObjValue <> nil) or
-        (TCnDisplayObject(Item.Data).IntfValue <> nil)) then
+        (TCnDisplayObject(Item.Data).IntfValue <> nil)
+{$IFDEF SUPPORT_ENHANCED_RTTI}
+  {$IFDEF SUPPORT_ENHANCED_INDEXEDPROPERTY}
+        or (TCnPropertyObject(Item.Data).IndexParamCount > 0) // 表示是 Index 类型的属性
+  {$ENDIF}
+{$ENDIF}
+        ) then
       begin
         ARect := Item.DisplayRect(drSelectBounds);
         FCurrObj := TCnDisplayObject(Item.Data).ObjValue;
         FCurrIntf := TCnDisplayObject(Item.Data).IntfValue;
+
+{$IFDEF SUPPORT_ENHANCED_RTTI}
+  {$IFDEF SUPPORT_ENHANCED_INDEXEDPROPERTY}
+        if TCnDisplayObject(Item.Data) is TCnPropertyObject then
+          FCurrProp := TCnPropertyObject(Item.Data)
+        else
+          FCurrProp := nil;
+  {$ENDIF}
+{$ENDIF}
 
         if ARect.Top >= FListViewHeaderHeight then
         begin
@@ -2916,8 +3408,15 @@ procedure TCnPropSheetForm.lvPropSelectItem(Sender: TObject;
 begin
   if Sender is TListView then
   begin
-    if (Item <> nil) and (Item.Data <> nil) and ((Sender as TListView).Selected = Item)
-      and (TCnDisplayObject(Item.Data).ObjValue <> nil) then
+    if (Item <> nil) and (Item.Data <> nil) and ((Sender as TListView).Selected = Item) and
+       ((TCnDisplayObject(Item.Data).ObjValue <> nil)
+{$IFDEF SUPPORT_ENHANCED_RTTI}
+  {$IFDEF SUPPORT_ENHANCED_INDEXEDPROPERTY}
+        or (TCnPropertyObject(Item.Data).IndexParamCount > 0) // 表示是 Index 类型的属性
+  {$ENDIF}
+{$ENDIF}
+      ) then
+      // pnlInspectBtn.Visible := True
     else
       pnlInspectBtn.Visible := False;
   end;
@@ -3111,7 +3610,7 @@ begin
   S := Prop.DisplayValue;
   if InputQuery(SCnInputNewValueCaption, Format(SCnInputNewValuePrompt, [Prop.PropName]), S) then
   begin
-    if FInspector.ChangePropertyValue(Prop.PropName, S) then
+    if FInspector.ChangePropertyValue(Prop.PropName, S, Prop) then
       btnRefresh.Click
     else
       ShowMessage(SCnErrorChangeValue);
@@ -3213,11 +3712,10 @@ begin
   end;
 end;
 
-procedure TCnPropSheetForm.imgGraphicMouseMove(Sender: TObject;
+procedure TCnPropSheetForm.pbGraphicMouseMove(Sender: TObject;
   Shift: TShiftState; X, Y: Integer);
 var
   S: string;
-  Bmp: TBitmap;
   Rec: TRect;
   Pt: TPoint;
   C: TColor;
@@ -3239,16 +3737,14 @@ var
 
 begin
   S := '';
-  if (imgGraphic.Picture <> nil) and (imgGraphic.Picture.Bitmap <> nil)
-    and not imgGraphic.Picture.Bitmap.Empty then
+  if not FGraphicBmp.Empty then
   begin
-    Bmp := imgGraphic.Picture.Bitmap;
-    Rec := Rect(0, 0, Bmp.Width, Bmp.Height);
+    Rec := Rect(0, 0, FGraphicBmp.Width, FGraphicBmp.Height);
     Pt := Point(X, Y);
     if PtInRect(Rec, Pt) then
     begin
-      C := Bmp.Canvas.Pixels[X, Y];
-      S := Format('%s: X: %d, Y: %d, Color $%8.8x', [GetPixelFormatName(Bmp.PixelFormat),
+      C := FGraphicBmp.Canvas.Pixels[X, Y];
+      S := Format('%s: X: %d, Y: %d, Color $%8.8x', [GetPixelFormatName(FGraphicBmp.PixelFormat),
         X, Y, C]);
     end;
   end;
@@ -3434,6 +3930,25 @@ begin
     EvaluatePointer(Node.Data, FInspectParam, Self);
 end;
 
+procedure TCnPropSheetForm.TileBkToImageBmp;
+var
+  X, Y, DX, DY: Integer;
+begin
+  DX := FImgBk.Width;
+  DY := FImgBk.Height;
+  Y := 0;
+  while Y < FGraphicBmp.Height do
+  begin
+    X := 0;
+    while X < FGraphicBmp.Width do
+    begin
+      FGraphicBmp.Canvas.Draw(X, Y, FImgBk);
+      Inc(X, DX);
+    end;
+    Inc(Y, DY);
+  end;
+end;
+
 {$IFDEF SUPPORT_ENHANCED_RTTI}
 
 { TCnFieldObject }
@@ -3550,6 +4065,85 @@ begin
     end;
   end;
 end;
+
+procedure TCnPropSheetForm.pbGraphicPaint(Sender: TObject);
+var
+  R: TRect;
+begin
+  if not FGraphicBmp.Empty and (pbGraphic.Width <> FGraphicBmp.Width) then
+    pbGraphic.Width := FGraphicBmp.Width;
+
+  R := Rect(0, 0, pbGraphic.Width, pbGraphic.Height);
+  pbGraphic.Canvas.Brush.Color := pbGraphic.Color;
+  pbGraphic.Canvas.Brush.Style := bsSolid;
+  pbGraphic.Canvas.FillRect(R);
+
+  pbGraphic.Canvas.Draw(0, 0, FGraphicBmp);
+end;
+
+procedure TCnPropSheetForm.lvFieldsDblClick(Sender: TObject);
+{$IFDEF SUPPORT_ENHANCED_RTTI}
+var
+  Field: TCnFieldObject;
+  S: string;
+{$ENDIF}
+begin
+{$IFDEF SUPPORT_ENHANCED_RTTI}
+  if lvFields.Selected = nil then
+    Exit;
+
+  Field := TCnFieldObject(lvFields.Selected.Data);
+  if (Field = nil) or not Field.CanModify then
+    Exit;
+
+  S := Field.DisplayValue;
+  if InputQuery(SCnInputNewValueCaption, Format(SCnInputNewValuePrompt, [Field.FieldName]), S) then
+  begin
+    if FInspector.ChangeFieldValue(Field.FieldName, S, Field) then
+      btnRefresh.Click
+    else
+      ShowMessage(SCnErrorChangeValue);
+  end;
+{$ENDIF}
+end;
+
+{ TCnPropertyObject }
+
+constructor TCnPropertyObject.Create;
+begin
+  inherited;
+{$IFDEF SUPPORT_ENHANCED_RTTI}
+{$IFDEF SUPPORT_ENHANCED_INDEXEDPROPERTY}
+  FIndexNames := TStringList.Create;
+{$ENDIF}
+{$ENDIF}
+end;
+
+destructor TCnPropertyObject.Destroy;
+begin
+{$IFDEF SUPPORT_ENHANCED_RTTI}
+{$IFDEF SUPPORT_ENHANCED_INDEXEDPROPERTY}
+  FIndexNames.Free;
+{$ENDIF}
+{$ENDIF}
+  inherited;
+end;
+
+{$IFDEF SUPPORT_ENHANCED_RTTI}
+{$IFDEF SUPPORT_ENHANCED_INDEXEDPROPERTY}
+
+function TCnPropertyObject.GetIndexNames(Index: Integer): string;
+begin
+  Result := FIndexNames[Index];
+end;
+
+function TCnPropertyObject.AddIndexName(const AName: string): Integer;
+begin
+  Result := FIndexNames.Add(AName);
+end;
+
+{$ENDIF}
+{$ENDIF}
 
 initialization
   FSheetList := TComponentList.Create(True);

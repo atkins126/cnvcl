@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2021 CnPack 开发组                       }
+{                   (C)Copyright 2001-2022 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -87,6 +87,9 @@ function CnFmxGetCommonCustomFormCaption(AForm: TComponent): string;
 
 // 为高版本语法的set赋值增加类名，如[seTop]变成[TSide.seTop]
 function CnFmxFixSetValue(const PType: string; const PValue: string): string;
+
+function CnInputQuery(const ACaption, APrompt: string;
+  var Value: string): Boolean;
 
 implementation
 
@@ -392,6 +395,12 @@ begin
       end;
     end;
   end;
+end;
+
+function CnInputQuery(const ACaption, APrompt: string;
+  var Value: string): Boolean;
+begin
+  Result := InputQuery(ACaption, APrompt, Value);
 end;
 
 procedure CreateFmxSetFixArray;

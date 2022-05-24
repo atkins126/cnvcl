@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2021 CnPack 开发组                       }
+{                   (C)Copyright 2001-2022 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -45,12 +45,12 @@ type
 
   ECnGraphException = class(Exception);
 
-  TCnMatrix = array of array of Integer;
+  TCnGraphMatrix = array of array of Integer;
 
-  TCnAdjacencyMatrix = TCnMatrix;
+  TCnAdjacencyMatrix = TCnGraphMatrix;
   {* 邻接矩阵，顶点与顶点}
 
-  TCnIncidenceMatrix = TCnMatrix;
+  TCnIncidenceMatrix = TCnGraphMatrix;
   {* 关联矩阵，顶点与边}
 
   TCnVertex = class(TObject)
@@ -188,12 +188,12 @@ type
     {* 广度优先遍历时遍历到一个顶点时的触发事件，Sender 是此顶点 }
   end;
 
-procedure CnMatrixToStrings(Matrix: TCnMatrix; List: TStrings);
+procedure CnMatrixToStrings(Matrix: TCnGraphMatrix; List: TStrings);
 {* 将矩阵转换为字符串列表用来显示}
 
 implementation
 
-procedure CnMatrixToStrings(Matrix: TCnMatrix; List: TStrings);
+procedure CnMatrixToStrings(Matrix: TCnGraphMatrix; List: TStrings);
 var
   I, J: Integer;
   S: string;

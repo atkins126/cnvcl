@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2021 CnPack 开发组                       }
+{                   (C)Copyright 2001-2022 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -72,13 +72,12 @@ interface
 
 {$I CnPack.inc}
 
-{$OVERFLOWCHECKS OFF}
-{$RANGECHECKS OFF}
-
 uses
   Classes, SysUtils {$IFDEF MSWINDOWS}, Windows {$ENDIF};
 
 type
+  PMD5Digest = ^TMD5Digest;
+
   TMD5Count = array[0..1] of LongWord;
   TMD5State = array[0..3] of LongWord;
   TMD5Block = array[0..15] of LongWord;
@@ -533,7 +532,7 @@ begin
   MD5Init(Context);
   GetMem(Buf, BufLen);
   try
-    Stream.Seek(0, soFromBeginning);
+    Stream.Position := 0;
     repeat
       ReadBytes := Stream.Read(Buf^, BufLen);
       if ReadBytes <> 0 then

@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2021 CnPack 开发组                       }
+{                   (C)Copyright 2001-2022 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -623,12 +623,20 @@ begin
       if ANode.Count > 0 then
       begin
         Leaf := AddLeftChild(ALeaf as TCnBinaryLeaf);
+{$IFDEF FPC}
+        LoadFromATreeNode(Leaf, ANode.Items[0]);
+{$ELSE}
         LoadFromATreeNode(Leaf, ANode.Item[0]);
+{$ENDIF}
       end;
       if ANode.Count > 1 then
       begin
         Leaf := AddRightChild(ALeaf as TCnBinaryLeaf);
+{$IFDEF FPC}
+        LoadFromATreeNode(Leaf, ANode.Items[1]);
+{$ELSE}
         LoadFromATreeNode(Leaf, ANode.Item[1]);
+{$ENDIF}
       end;
     end
     else

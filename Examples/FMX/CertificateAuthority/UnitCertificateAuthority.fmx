@@ -1,0 +1,548 @@
+object FormCA: TFormCA
+  Left = 360
+  Top = 126
+  Caption = 'Certificate Authority'
+  ClientHeight = 613
+  ClientWidth = 889
+  Position = ScreenCenter
+  FormFactor.Width = 320
+  FormFactor.Height = 480
+  FormFactor.Devices = [Desktop, iPhone, iPad]
+  OnCreate = FormCreate
+  OnDestroy = FormDestroy
+  Left = 360
+  Top = 126
+  DesignerMasterStyle = 0
+  object pgc1: TTabControl
+    Anchors = [akLeft, akTop, akRight, akBottom]
+    Position.X = 8.000000000000000000
+    Position.Y = 8.000000000000000000
+    Size.Width = 865.000000000000000000
+    Size.Height = 567.000000000000000000
+    Size.PlatformDefault = False
+    TabIndex = 0
+    TabOrder = 0
+    TabPosition = Top
+    Sizes = (
+      865s
+      539s
+      865s
+      539s)
+    object tsRequest: TTabItem
+      CustomIcon = <
+        item
+        end>
+      IsSelected = True
+      Size.Width = 154.000000000000000000
+      Size.Height = 28.000000000000000000
+      Size.PlatformDefault = False
+      StyleLookup = ''
+      TabOrder = 0
+      Text = 'Certificate Sign Request'
+      ExplicitSize.cx = 50.000000000000000000
+      ExplicitSize.cy = 50.000000000000000000
+      object grpGenRequest: TGroupBox
+        Anchors = [akLeft, akTop, akRight]
+        Position.X = 8.000000000000000000
+        Position.Y = 8.000000000000000000
+        Size.Width = 1656.000000000000000000
+        Size.Height = 185.000000000000000000
+        Size.PlatformDefault = False
+        Text = 'Generate Certificate Sign Request'
+        TabOrder = 0
+        object lblKey: TLabel
+          Position.X = 16.000000000000000000
+          Position.Y = 24.000000000000000000
+          Size.Width = 72.000000000000000000
+          Size.Height = 13.000000000000000000
+          Size.PlatformDefault = False
+          Text = 'RSA/ECC Key:'
+        end
+        object lblContryName: TLabel
+          Position.X = 16.000000000000000000
+          Position.Y = 52.000000000000000000
+          Size.Width = 64.000000000000000000
+          Size.Height = 13.000000000000000000
+          Size.PlatformDefault = False
+          Text = 'Contry Name:'
+        end
+        object lblStateOrProvinceName: TLabel
+          Position.X = 160.000000000000000000
+          Position.Y = 52.000000000000000000
+          Size.Width = 116.000000000000000000
+          Size.Height = 13.000000000000000000
+          Size.PlatformDefault = False
+          Text = 'State or Province Name:'
+        end
+        object lblLocalityName: TLabel
+          Position.X = 432.000000000000000000
+          Position.Y = 52.000000000000000000
+          Size.Width = 70.000000000000000000
+          Size.Height = 13.000000000000000000
+          Size.PlatformDefault = False
+          Text = 'Locality Name:'
+        end
+        object lblOrgName: TLabel
+          Position.X = 16.000000000000000000
+          Position.Y = 84.000000000000000000
+          Size.Width = 93.000000000000000000
+          Size.Height = 13.000000000000000000
+          Size.PlatformDefault = False
+          Text = 'Organization Name:'
+        end
+        object lblOrgUnitName: TLabel
+          Position.X = 304.000000000000000000
+          Position.Y = 84.000000000000000000
+          Size.Width = 123.000000000000000000
+          Size.Height = 13.000000000000000000
+          Size.PlatformDefault = False
+          Text = 'Organizational Unit Name:'
+        end
+        object lblCommonName: TLabel
+          Position.X = 16.000000000000000000
+          Position.Y = 116.000000000000000000
+          Size.Width = 75.000000000000000000
+          Size.Height = 13.000000000000000000
+          Size.PlatformDefault = False
+          Text = 'Common Name:'
+        end
+        object lblEmail: TLabel
+          Position.X = 304.000000000000000000
+          Position.Y = 116.000000000000000000
+          Size.Width = 69.000000000000000000
+          Size.Height = 13.000000000000000000
+          Size.PlatformDefault = False
+          Text = 'Email Address:'
+        end
+        object lblHash: TLabel
+          Position.X = 16.000000000000000000
+          Position.Y = 148.000000000000000000
+          Size.Width = 74.000000000000000000
+          Size.Height = 13.000000000000000000
+          Size.PlatformDefault = False
+          Text = 'Hash Algorithm:'
+        end
+        object edtRSAECCKey: TEdit
+          Touch.InteractiveGestures = [LongTap, DoubleTap]
+          Anchors = [akLeft, akTop, akRight]
+          TabOrder = 0
+          Position.X = 88.000000000000000000
+          Position.Y = 20.000000000000000000
+          Size.Width = 641.000000000000000000
+          Size.Height = 21.000000000000000000
+          Size.PlatformDefault = False
+        end
+        object btnBrowseKey: TButton
+          Anchors = [akTop, akRight]
+          Position.X = 736.000000000000000000
+          Position.Y = 20.000000000000000000
+          Size.Width = 91.000000000000000000
+          Size.Height = 21.000000000000000000
+          Size.PlatformDefault = False
+          TabOrder = 1
+          Text = 'Browse Key File'
+          OnClick = btnBrowseKeyClick
+        end
+        object edtContryName: TEdit
+          Touch.InteractiveGestures = [LongTap, DoubleTap]
+          TabOrder = 2
+          Text = 'CN'
+          Position.X = 88.000000000000000000
+          Position.Y = 48.000000000000000000
+          Size.Width = 49.000000000000000000
+          Size.Height = 21.000000000000000000
+          Size.PlatformDefault = False
+        end
+        object edtStateOrProvinceName: TEdit
+          Touch.InteractiveGestures = [LongTap, DoubleTap]
+          TabOrder = 3
+          Text = 'ZheJiang'
+          Position.X = 288.000000000000000000
+          Position.Y = 48.000000000000000000
+          Size.Width = 121.000000000000000000
+          Size.Height = 21.000000000000000000
+          Size.PlatformDefault = False
+        end
+        object edtLocalityName: TEdit
+          Touch.InteractiveGestures = [LongTap, DoubleTap]
+          TabOrder = 4
+          Text = 'HangZhou'
+          Position.X = 512.000000000000000000
+          Position.Y = 48.000000000000000000
+          Size.Width = 129.000000000000000000
+          Size.Height = 21.000000000000000000
+          Size.PlatformDefault = False
+        end
+        object edtOrgName: TEdit
+          Touch.InteractiveGestures = [LongTap, DoubleTap]
+          TabOrder = 5
+          Text = 'CnPack'
+          Position.X = 120.000000000000000000
+          Position.Y = 80.000000000000000000
+          Size.Width = 161.000000000000000000
+          Size.Height = 21.000000000000000000
+          Size.PlatformDefault = False
+        end
+        object edtOrgUnitName: TEdit
+          Touch.InteractiveGestures = [LongTap, DoubleTap]
+          TabOrder = 6
+          Text = 'CnPack Team'
+          Position.X = 440.000000000000000000
+          Position.Y = 80.000000000000000000
+          Size.Width = 201.000000000000000000
+          Size.Height = 21.000000000000000000
+          Size.PlatformDefault = False
+        end
+        object edtCommonName: TEdit
+          Touch.InteractiveGestures = [LongTap, DoubleTap]
+          TabOrder = 7
+          Text = 'cnpack.org'
+          Position.X = 120.000000000000000000
+          Position.Y = 112.000000000000000000
+          Size.Width = 161.000000000000000000
+          Size.Height = 21.000000000000000000
+          Size.PlatformDefault = False
+        end
+        object edtEmail: TEdit
+          Touch.InteractiveGestures = [LongTap, DoubleTap]
+          TabOrder = 8
+          Text = 'master@cnpack.org'
+          Position.X = 440.000000000000000000
+          Position.Y = 112.000000000000000000
+          Size.Width = 201.000000000000000000
+          Size.Height = 21.000000000000000000
+          Size.PlatformDefault = False
+        end
+        object cbbHash: TComboEdit
+          Touch.InteractiveGestures = [LongTap, DoubleTap]
+          TabOrder = 9
+          ItemHeight = 13.000000000000000000
+          Items.Strings = (
+            'MD5'
+            'SHA1'
+            'SHA256')
+          ItemIndex = -1
+          Position.X = 120.000000000000000000
+          Position.Y = 144.000000000000000000
+          Size.Width = 161.000000000000000000
+          Size.Height = 21.000000000000000000
+          Size.PlatformDefault = False
+        end
+        object btnGenerateCSR: TButton
+          Anchors = [akTop, akRight]
+          Position.X = 1303.000000000000000000
+          Position.Y = 144.000000000000000000
+          Size.Width = 209.000000000000000000
+          Size.Height = 21.000000000000000000
+          Size.PlatformDefault = False
+          TabOrder = 10
+          Text = 'Generate Certificate Sign Request'
+          OnClick = btnGenerateCSRClick
+        end
+        object btnSelfSign: TButton
+          Anchors = [akTop, akRight]
+          Position.X = 1527.000000000000000000
+          Position.Y = 144.000000000000000000
+          Size.Width = 113.000000000000000000
+          Size.Height = 21.000000000000000000
+          Size.PlatformDefault = False
+          TabOrder = 11
+          Text = 'Self Sign'
+          OnClick = btnSelfSignClick
+        end
+      end
+      object grpParse: TGroupBox
+        Anchors = [akLeft, akTop, akRight, akBottom]
+        Position.X = 8.000000000000000000
+        Position.Y = 200.000000000000000000
+        Size.Width = 1656.000000000000000000
+        Size.Height = 816.000000000000000000
+        Size.PlatformDefault = False
+        Text = 'Parse CSR File'
+        TabOrder = 1
+        object lblCSR: TLabel
+          Position.X = 16.000000000000000000
+          Position.Y = 24.000000000000000000
+          Size.Width = 44.000000000000000000
+          Size.Height = 13.000000000000000000
+          Size.PlatformDefault = False
+          Text = 'CSR File:'
+        end
+        object edtCSR: TEdit
+          Touch.InteractiveGestures = [LongTap, DoubleTap]
+          Anchors = [akLeft, akTop, akRight]
+          TabOrder = 0
+          Position.X = 88.000000000000000000
+          Position.Y = 20.000000000000000000
+          Size.Width = 497.000000000000000000
+          Size.Height = 21.000000000000000000
+          Size.PlatformDefault = False
+        end
+        object btnBrowseCSR: TButton
+          Anchors = [akTop, akRight]
+          Position.X = 592.000000000000000000
+          Position.Y = 20.000000000000000000
+          Size.Width = 73.000000000000000000
+          Size.Height = 21.000000000000000000
+          Size.PlatformDefault = False
+          TabOrder = 1
+          Text = 'Browse CSR'
+          OnClick = btnBrowseCSRClick
+        end
+        object mmoCSRParse: TMemo
+          Touch.InteractiveGestures = [Pan, LongTap, DoubleTap]
+          DataDetectorTypes = []
+          TextSettings.WordWrap = True
+          Anchors = [akLeft, akTop, akRight, akBottom]
+          Position.X = 16.000000000000000000
+          Position.Y = 56.000000000000000000
+          Size.Width = 809.000000000000000000
+          Size.Height = 255.000000000000000000
+          Size.PlatformDefault = False
+          TabOrder = 4
+          Viewport.Width = 805.000000000000000000
+          Viewport.Height = 251.000000000000000000
+        end
+        object btnParseCSR: TButton
+          Anchors = [akTop, akRight]
+          Position.X = 672.000000000000000000
+          Position.Y = 20.000000000000000000
+          Size.Width = 73.000000000000000000
+          Size.Height = 21.000000000000000000
+          Size.PlatformDefault = False
+          TabOrder = 2
+          Text = 'Parse CSR'
+          OnClick = btnParseCSRClick
+        end
+        object btnVerifyCSR: TButton
+          Anchors = [akTop, akRight]
+          Position.X = 752.000000000000000000
+          Position.Y = 20.000000000000000000
+          Size.Width = 73.000000000000000000
+          Size.Height = 21.000000000000000000
+          Size.PlatformDefault = False
+          TabOrder = 3
+          Text = 'Verify CSR'
+          OnClick = btnVerifyCSRClick
+        end
+      end
+    end
+    object tsSign: TTabItem
+      CustomIcon = <
+        item
+        end>
+      IsSelected = False
+      ImageIndex = 1
+      Size.Width = 107.000000000000000000
+      Size.Height = 28.000000000000000000
+      Size.PlatformDefault = False
+      StyleLookup = ''
+      TabOrder = 0
+      Text = 'Sign Certificate'
+      ExplicitSize.cx = 50.000000000000000000
+      ExplicitSize.cy = 50.000000000000000000
+      object grpSign: TGroupBox
+        Anchors = [akLeft, akTop, akRight]
+        Position.X = 8.000000000000000000
+        Position.Y = 8.000000000000000000
+        Size.Width = 1656.000000000000000000
+        Size.Height = 153.000000000000000000
+        Size.PlatformDefault = False
+        Text = 'Sign CSR File'
+        TabOrder = 0
+        object lblSignCSR: TLabel
+          Position.X = 16.000000000000000000
+          Position.Y = 24.000000000000000000
+          Size.Width = 44.000000000000000000
+          Size.Height = 13.000000000000000000
+          Size.PlatformDefault = False
+          Text = 'CSR File:'
+        end
+        object lblRoot: TLabel
+          Position.X = 16.000000000000000000
+          Position.Y = 56.000000000000000000
+          Size.Width = 47.000000000000000000
+          Size.Height = 13.000000000000000000
+          Size.PlatformDefault = False
+          Text = 'Root Key:'
+        end
+        object lblRootCrt: TLabel
+          Position.X = 16.000000000000000000
+          Position.Y = 88.000000000000000000
+          Size.Width = 51.000000000000000000
+          Size.Height = 13.000000000000000000
+          Size.PlatformDefault = False
+          Text = 'Root CRT:'
+        end
+        object edtSignCSR: TEdit
+          Touch.InteractiveGestures = [LongTap, DoubleTap]
+          Anchors = [akLeft, akTop, akRight]
+          TabOrder = 0
+          Position.X = 88.000000000000000000
+          Position.Y = 20.000000000000000000
+          Size.Width = 641.000000000000000000
+          Size.Height = 21.000000000000000000
+          Size.PlatformDefault = False
+        end
+        object btnSignCSRBrowse: TButton
+          Anchors = [akTop, akRight]
+          Position.X = 736.000000000000000000
+          Position.Y = 20.000000000000000000
+          Size.Width = 91.000000000000000000
+          Size.Height = 21.000000000000000000
+          Size.PlatformDefault = False
+          TabOrder = 1
+          Text = 'Browse CSR File'
+          OnClick = btnSignCSRBrowseClick
+        end
+        object edtSignKey: TEdit
+          Touch.InteractiveGestures = [LongTap, DoubleTap]
+          Anchors = [akLeft, akTop, akRight]
+          TabOrder = 2
+          Position.X = 88.000000000000000000
+          Position.Y = 52.000000000000000000
+          Size.Width = 641.000000000000000000
+          Size.Height = 21.000000000000000000
+          Size.PlatformDefault = False
+        end
+        object btnSignKeyBrowse: TButton
+          Anchors = [akTop, akRight]
+          Position.X = 736.000000000000000000
+          Position.Y = 52.000000000000000000
+          Size.Width = 91.000000000000000000
+          Size.Height = 21.000000000000000000
+          Size.PlatformDefault = False
+          TabOrder = 3
+          Text = 'Browse Key File'
+          OnClick = btnSignKeyBrowseClick
+        end
+        object btnSign: TButton
+          Anchors = [akLeft, akTop, akRight]
+          Position.X = 16.000000000000000000
+          Position.Y = 118.000000000000000000
+          Size.Width = 809.000000000000000000
+          Size.Height = 21.000000000000000000
+          Size.PlatformDefault = False
+          TabOrder = 4
+          Text = 'Sign CSR File to CRT File '
+          OnClick = btnSignClick
+        end
+        object edtRootCRT: TEdit
+          Touch.InteractiveGestures = [LongTap, DoubleTap]
+          Anchors = [akLeft, akTop, akRight]
+          TabOrder = 5
+          Position.X = 88.000000000000000000
+          Position.Y = 84.000000000000000000
+          Size.Width = 641.000000000000000000
+          Size.Height = 21.000000000000000000
+          Size.PlatformDefault = False
+        end
+        object btnRootCRTBrowse: TButton
+          Anchors = [akTop, akRight]
+          Position.X = 736.000000000000000000
+          Position.Y = 84.000000000000000000
+          Size.Width = 91.000000000000000000
+          Size.Height = 21.000000000000000000
+          Size.PlatformDefault = False
+          TabOrder = 6
+          Text = 'Browse CRT File'
+          OnClick = btnRootCRTBrowseClick
+        end
+      end
+      object grpParseCER: TGroupBox
+        Anchors = [akLeft, akTop, akRight, akBottom]
+        Position.X = 8.000000000000000000
+        Position.Y = 168.000000000000000000
+        Size.Width = 1656.000000000000000000
+        Size.Height = 848.000000000000000000
+        Size.PlatformDefault = False
+        Text = 'Parse CRT File'
+        TabOrder = 1
+        object lblCRT: TLabel
+          Position.X = 16.000000000000000000
+          Position.Y = 24.000000000000000000
+          Size.Width = 44.000000000000000000
+          Size.Height = 13.000000000000000000
+          Size.PlatformDefault = False
+          Text = 'CRT File:'
+        end
+        object edtCRT: TEdit
+          Touch.InteractiveGestures = [LongTap, DoubleTap]
+          Anchors = [akLeft, akTop, akRight]
+          TabOrder = 0
+          Position.X = 88.000000000000000000
+          Position.Y = 20.000000000000000000
+          Size.Width = 377.000000000000000000
+          Size.Height = 21.000000000000000000
+          Size.PlatformDefault = False
+        end
+        object btnBrowseCRT: TButton
+          Anchors = [akTop, akRight]
+          Position.X = 472.000000000000000000
+          Position.Y = 20.000000000000000000
+          Size.Width = 73.000000000000000000
+          Size.Height = 21.000000000000000000
+          Size.PlatformDefault = False
+          TabOrder = 1
+          Text = 'Browse CRT'
+          OnClick = btnBrowseCRTClick
+        end
+        object mmoCRT: TMemo
+          Touch.InteractiveGestures = [Pan, LongTap, DoubleTap]
+          DataDetectorTypes = []
+          TextSettings.WordWrap = True
+          Anchors = [akLeft, akTop, akRight, akBottom]
+          Position.X = 16.000000000000000000
+          Position.Y = 56.000000000000000000
+          Size.Width = 1624.000000000000000000
+          Size.Height = 776.000000000000000000
+          Size.PlatformDefault = False
+          TabOrder = 5
+          Viewport.Width = 1620.000000000000000000
+          Viewport.Height = 772.000000000000000000
+        end
+        object btnParseCRT: TButton
+          Anchors = [akTop, akRight]
+          Position.X = 552.000000000000000000
+          Position.Y = 20.000000000000000000
+          Size.Width = 73.000000000000000000
+          Size.Height = 21.000000000000000000
+          Size.PlatformDefault = False
+          TabOrder = 2
+          Text = 'Parse CRT'
+          OnClick = btnParseCRTClick
+        end
+        object btnVerifySelfSignedCRT: TButton
+          Anchors = [akTop, akRight]
+          Position.X = 632.000000000000000000
+          Position.Y = 20.000000000000000000
+          Size.Width = 113.000000000000000000
+          Size.Height = 21.000000000000000000
+          Size.PlatformDefault = False
+          TabOrder = 3
+          Text = 'Verify Self-Signed CRT'
+          OnClick = btnVerifySelfSignedCRTClick
+        end
+        object btnVerifyCRT: TButton
+          Anchors = [akTop, akRight]
+          Position.X = 752.000000000000000000
+          Position.Y = 20.000000000000000000
+          Size.Width = 73.000000000000000000
+          Size.Height = 21.000000000000000000
+          Size.PlatformDefault = False
+          TabOrder = 4
+          Text = 'Verify CRT'
+          OnClick = btnVerifyCRTClick
+        end
+      end
+    end
+  end
+  object dlgOpen: TOpenDialog
+    Left = 532
+    Top = 56
+  end
+  object dlgSave: TSaveDialog
+    Left = 412
+    Top = 152
+  end
+end

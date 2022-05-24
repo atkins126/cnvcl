@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2021 CnPack 开发组                       }
+{                   (C)Copyright 2001-2022 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -28,7 +28,9 @@ unit CnCommon;
 * 开发平台：PWin98SE + Delphi 5.0
 * 兼容测试：PWin9X/2000/XP + Delphi 5/6
 * 本 地 化：该单元中的字符串均符合本地化处理方式
-* 修改记录：2019.02.25 by LiuXiao
+* 修改记录：2021.06.22 by LiuXiao
+*               增加多按钮提示框的函数，暂不支持图标
+*           2019.02.25 by LiuXiao
 *               增加检查中国大陆 18 位身份证号是否正确的函数
 *           2012.01.19 by LiuXiao
 *               增加一个移植自外国牛人的快速开根号倒数的函数
@@ -74,13 +76,14 @@ uses
   SysUtils, Classes, TypInfo, IniFiles,
 {$IFDEF MSWINDOWS}
   Windows, Messages, Graphics, Controls, Forms, Dialogs,
-  ComCtrls, Math, Menus, PsAPI, Registry, ComObj, FileCtrl, ShellAPI, CommDlg,
-  MMSystem, StdCtrls, TLHelp32, ActiveX, ShlObj, CheckLst, MultiMon,
+  ComCtrls, Math, Menus, Registry, ComObj, FileCtrl, ShellAPI, CommDlg,
+  MMSystem, StdCtrls, ActiveX, ShlObj, CheckLst, MultiMon,
+  {$IFNDEF FPC} TLHelp32, PsAPI,{$ENDIF}
 {$ENDIF}
 {$IFDEF COMPILER6_UP}
   StrUtils, Variants, Types,
 {$ENDIF}
-  CnConsts, CnNativeDecl, CnIni, CnIniStrUtils;
+  CnConsts, CnNativeDecl, CnIni, CnIniStrUtils, CnWideStrings;
 
 //------------------------------------------------------------------------------
 // 公共类型定义
@@ -97,9 +100,20 @@ type
 
   ENotImplementedException = class(Exception);
 
+  TCnDlgButtonCaption = (cdbCancel, cdbOK, cdbNo, cdbYes, cdbNoToAll, cdbYesToAll);
+  {* 自定义多按钮对话框的按钮值}
+
+  TCnDlgResult = (cdrCancel, cdrOK, cdrNo, cdrYes, cdrNoToAll, cdrYesToAll);
+  {* 自定义多按钮对话框的返回值}
+
+  TCnDlgButtonCaptions = set of TCnDlgButtonCaption;
+  TCnDlgResults = set of TCnDlgResult;
+
 {$IFDEF COMPILER5}
   UTF8String = type string; // Delphi 5 has no UTF8String definition
 {$ENDIF}
+
+  TCnSenderCallback = procedure(Sender: TObject);
 
 const
 {$IFNDEF COMPILER6_UP}
@@ -361,6 +375,9 @@ function AnsiStartsText(const ASubText, AText: string): Boolean;
 function AnsiReplaceText(const AText, AFromText, AToText: string): string;
 {$ENDIF}
 
+function ReplaceAllInString(const S: string; OldPattern, NewPattern: string): string;
+{* StringReplace 无法处理字符串中的 #0，新写一个全替换的版本，不处理大小写}
+
 {$IFNDEF COMPILER7_UP}
 function AnsiContainsText(const AText, ASubText: string): Boolean;
 {* AText 是否包含 ASubText }
@@ -390,7 +407,7 @@ procedure DelEmptyTree(const Dir: string; DelRoot: Boolean = True);
 {* 删除整个目录中的空目录, DelRoot 表示是否删除目录本身}
 
 function GetDirFiles(const Dir: string; FileNames: TStrings = nil): Integer;
-{* 取文件夹下的直系文件列表，不包括子目录。返回文件数}
+{* 取文件夹下的直系文件列表，文件名不包含路径名。不搜索子目录。返回文件数}
 
 type
   TFindCallBack = procedure(const FileName: string; const Info: TSearchRec;
@@ -498,23 +515,23 @@ function IntToStrSp(Value: Integer; SpLen: Integer = 3; Sp: Char = ',';
   ShowPlus: Boolean = False): string;
 {* 带分隔符的整数－字符转换}
 
-function IsFloat(const s: String): Boolean;
+function IsFloat(const S: String): Boolean;
 {* 判断字符串是否可转换成浮点型}
 
-function IsInt(const s: String): Boolean;
+function IsInt(const S: String): Boolean;
 {* 判断字符串是否可转换成整型}
 
-function IsDateTime(const s: string): Boolean;
+function IsDateTime(const S: string): Boolean;
 {* 判断字符串是否可转换成 DateTime }
 
-function IsValidEmail(const s: string): Boolean;
-{* 判断是否有效的邮件地址 }
-
-function AverageNoOverflow(A, B: Integer): Integer;
-{* 以不溢出的方式计算两个整型的算术平均数}
+function IsValidEmail(const S: string): Boolean;
+{* 判断是否有效的邮件地址}
 
 function StrSpToInt(const Value: string; Sp: Char = ','): Int64;
 {* 去掉字符串中的分隔符－字符转换}
+
+function AverageNoOverflow(A, B: Integer): Integer;
+{* 以不溢出的方式计算两个整型的算术平均数}
 
 function ByteToBin(Value: Byte): string;
 {* 字节转二进制串}
@@ -531,6 +548,9 @@ function StrRight(const Str: string; Len: Integer): string;
 function StrLeft(const Str: string; Len: Integer): string;
 {* 返回字符串左边的字符}
 
+function StrEndWith(const S, Tail: string): Boolean;
+{* 返回字符串是否以特定子串结尾}
+
 function GetLine(C: Char; Len: Integer): string;
 {* 返回字符串行}
 
@@ -540,7 +560,7 @@ function GetTextFileLineCount(const FileName: String): Integer;
 function Spc(Len: Integer): string;
 {* 返回空格串}
 
-procedure SwapStr(var s1, s2: string);
+procedure SwapStr(var S1, S2: string);
 {* 交换字串}
 
 procedure SeparateStrAndNum(const AInStr: string; var AOutStr: string;
@@ -551,9 +571,12 @@ function UnQuotedStr(const Str: string; const Ch: Char;
   const Sep: string = ''): string;
 {* 去除被引用的字符串的引用}
 
+function LastCharPos(const S: string; C: Char): Integer;
+{* 查找字符串中最后一次出现某字符的位置，无则返回 0}
+
 function CharPosWithCounter(const Sub: Char; const AStr: String;
   Counter: Integer = 1): Integer;
-{* 查找字符串中出现的第 Counter 次的字符的位置 }
+{* 查找字符串中出现的第 Counter 次的字符的位置}
 
 function CountCharInStr(const Sub: Char; const AStr: string): Integer;
 {* 查找字符串中字符的出现次数}
@@ -635,7 +658,7 @@ function FastSqrt(N: LongWord): LongWord;
 function FastSqrt64(N: Int64): Int64;
 {* 逐位确定法快速计算整数的平方根的整数部分}
 
-function StrToRegRoot(const s: string): HKEY;
+function StrToRegRoot(const S: string): HKEY;
 {* 字符串转注册表根键，支持 'HKEY_CURRENT_USER' 'HKCR' 长短两种格式}
 
 function RegRootToStr(Key: HKEY; ShortFormat: Boolean = True): string;
@@ -728,16 +751,26 @@ function QueryDlg(const Mess: string; DefaultNo: Boolean = False;
   Caption: string = ''): Boolean;
 {* 显示查询是否窗口}
 
+procedure LongMessageDlg(const Mess: string; AutoWrap: Boolean = False;
+  const Caption: string = '');
+{* 用 Memo 显示长字符串或多行字符串}
+
+function MultiButtonsDlg(const Mess: string; Buttons: TCnDlgButtonCaptions;
+  Caption: string = ''): TCnDlgResult;
+{* 显示多按钮对话框，动态构造按钮并返回其 ModalResult，暂不支持图标}
+
 const
   csDefComboBoxSection = 'History';
 
 function CnInputQuery(const ACaption, APrompt: string;
   var Value: string; Ini: TCustomIniFile = nil;
-  const Section: string = csDefComboBoxSection; APassword: Boolean = False): Boolean;
+  const Section: string = csDefComboBoxSection; APassword: Boolean = False;
+  FormCallBack: TCnSenderCallback = nil): Boolean;
 {* 输入对话框}
 
 function CnInputBox(const ACaption, APrompt, ADefault: string;
-   Ini: TCustomIniFile = nil; const Section: string = csDefComboBoxSection): string;
+   Ini: TCustomIniFile = nil; const Section: string = csDefComboBoxSection;
+   FormCallBack: TCnSenderCallback = nil): string;
 {* 输入对话框}
 
 //------------------------------------------------------------------------------
@@ -851,13 +884,16 @@ procedure EndWait;
 {* 结束等待光标}
 
 function CheckWindows9598: Boolean;
-{* 检测是否 Win95/98 平台}
+{* 检测是否 Windows 95/98 平台}
 
 function CheckWinXP: Boolean;
-{* 检测是否 WinXP 或以上平台}
+{* 检测是否 Windows XP 或以上平台}
 
 function CheckWinVista: Boolean;
-{* 检查是否 Vista/Win7 或以上系统 }
+{* 检查是否 Vista/Windows 7 或以上系统}
+
+function CheckWin8: Boolean;
+{* 检查是否 Windows 8 或以上系统}
 
 function CheckWin10: Boolean;
 {* 检查是否 Windows 10 或以上系统}
@@ -909,6 +945,9 @@ procedure ListboxHorizontalScrollbar(Listbox: TCustomListBox);
 procedure CloneMenuItem(Source, Dest: TMenuItem);
 {* 复制菜单项和其子项}
 
+procedure SelectMemoOneLine(AMemo: TMemo; FromLine: Integer);
+{* 选中 Memo 的第 FromLine 后的一整行，首行是第 1 行}
+
 //------------------------------------------------------------------------------
 // 其它过程
 //------------------------------------------------------------------------------
@@ -920,14 +959,14 @@ function GetMultiMonitorDesktopRect: TRect;
 {* 获得多显示器情况下，整个桌面相对于主显示器原点的坐标}
 
 function TrimInt(Value, Min, Max: Integer): Integer;
-{* 输出限制在Min..Max之间}
+{* 输出限制在 Min..Max 之间}
 
 function CompareInt(V1, V2: Integer; Desc: Boolean = False): Integer;
 {* 比较两个整数，V1 > V2 返回 1，V1 < V2 返回 -1，V1 = V2 返回 0
    如果 Desc 为 True，返回结果反向 }
 
 function IntToByte(Value: Integer): Byte;
-{* 输出限制在0..255之间}
+{* 输出限制在 0..255 之间}
 
 function InBound(Value: Integer; V1, V2: Integer): Boolean;
 {* 判断整数Value是否在V1和V2之间}
@@ -940,6 +979,10 @@ function HalfFind(List: TList; P: Pointer; SCompare: TListSortCompare): Integer;
 
 function CheckChineseIDCardNumber(const IDNumber: string): Boolean;
 {* 检查中国大陆的 18 位身份证是否合法}
+
+procedure StretchDrawImageListToCanvas(ImageList: TImageList; ImageIndex: Integer;
+  DestCanvas: TCanvas; X, Y, AWidth, AHeight: Integer);
+{* 拉伸绘制 ImageList 中的指定图像至指定 Canvas 的指定矩形中，支持背景透明}
 
 type
   TFindRange = record
@@ -960,19 +1003,19 @@ procedure CnSwap(var A, B: Double); overload;
 {* 交换两个数}
 
 function RectEqu(Rect1, Rect2: TRect): Boolean;
-{* 比较两个Rect是否相等}
+{* 比较两个 Rect 是否相等}
 
 procedure DeRect(Rect: TRect; var x, y, Width, Height: Integer);
-{* 分解一个TRect为左上角坐标x, y和宽度Width、高度Height}
+{* 分解一个 TRect 为左上角坐标 x, y 和宽度 Width、高度 Height}
 
 function EnSize(cx, cy: Integer): TSize;
-{* 返回一个TSize类型}
+{* 返回一个 TSize 类型}
 
 function RectWidth(Rect: TRect): Integer;
-{* 计算TRect的宽度}
+{* 计算 TRect 的宽度}
 
 function RectHeight(Rect: TRect): Integer;
-{* 计算TRect的高度}
+{* 计算 TRect 的高度}
 
 procedure Delay(const uDelay: DWORD);
 {* 延时}
@@ -982,14 +1025,14 @@ procedure SetClipboardContent(Format: Word; var Buffer; Size: Integer);
 
 {$IFNDEF WIN64}
 procedure BeepEx(const Freq: WORD = 1200; const Delay: WORD = 1);
-{* 在Win9X下让喇叭发声}
+{* 在 Win9X 下让喇叭发声}
 {$ENDIF}
 
 function GetLastErrorMsg(IncludeErrorCode: Boolean = False): string;
 {* 取得最后一次错误信息}
 
 procedure ShowLastError;
-{* 显示Win32 Api运行结果信息}
+{* 显示 Win32 Api 运行结果信息}
 
 function GetHzPy(const AHzStr: AnsiString): AnsiString;
 {* 取汉字的拼音}
@@ -1006,7 +1049,7 @@ function TextHalfWidthToFullWidth(const Text: string): string;
 {* 半角字符转换为全角字符}
 
 function GetSelText(edt: TCustomEdit): string;
-{* 获得CustomEdit选中的字符串，可正确处理使用了XP样式的程序}
+{* 获得 CustomEdit 选中的字符串，可正确处理使用了 XP 样式的程序}
 
 function SoundCardExist: Boolean;
 {* 声卡是否存在}
@@ -1080,7 +1123,12 @@ function TypeInfoName(TypeInfo: PTypeInfo): string;
 procedure GetAllPropNames(AComp: TObject; PropNames: TStrings;
   const BaseName: string = ''; IncludeType: Boolean = False);
 {* 获得某对象的所有属性的字符串值，包括子属性的属性
-   IncludeType 为 True 时，格式为 Name=TypeName，Object中放入 PropType }
+   IncludeType 为 True 时，格式为 Name=TypeName，Object 放入 PropType }
+
+procedure GetAllPropNamesFromClass(ACompClass: TClass; PropNames: TStrings;
+  IncludeType: Boolean = False);
+{* 获得某类的所有属性的字符串值，不包括子属性的属性，因为没有实例
+   IncludeType 为 True 时，格式为 Name=TypeName，Object 中放入 PropType }
 
 //==============================================================================
 // 其他杂项函数 by LiuXiao
@@ -1128,16 +1176,6 @@ function CnAnsiToUtf8(const Text: AnsiString): AnsiString;
 function CnAnsiToUtf82(const Text: string): string;
 {* Ansi 版的转换 Ansi 到 Utf8 字符串，以解决 D2009 下 AnsiToUtf8 是 UString 的问题 }
 
-{$IFNDEF UNICODE}
-
-function CnUtf8EncodeWideString(const S: WideString): AnsiString;
-{* 对 WideString 进行 Utf8 编码得到 AnsiString，不做 Ansi 转换避免丢字符}
-
-function CnUtf8DecodeToWideString(const S: AnsiString): WideString;
-{* 对 AnsiString 的 Utf8 解码得到 WideString，不做 Ansi 转换避免丢字符}
-
-{$ENDIF}
-
 function WideStringReplace(const S, OldPattern, NewPattern: Widestring): Widestring;
 {* WideString 的全部替换实现，区分大小写}
 
@@ -1164,6 +1202,10 @@ function CalcAnsiLengthFromWideStringOffset(Text: PWideChar; WideOffset: Integer
 {* 计算 Unicode 宽字符串从 1 到 WideOffset 的子串的 Ansi 长度，WideOffset 从 1 开始。
    等于 Copy(1, WideOffset) 后的子串转 Ansi 取 Length，但不用实际转 Ansi，以防止纯英文平台下丢字符
    VisualMode 为 True 时以粗略字符宽度判断，为 False 时以纯粹大于 $FF 判断。}
+
+function CalcUtf8LengthFromWideStringOffset(Text: PWideChar; WideOffset: Integer): Integer;
+{* 计算 Unicode 宽字符串从 1 到 WideOffset 的子串的 Utf8 长度，WideOffset 从 1 开始。如果 WideOffset 是 0 则返回 0
+   等于 Copy(1, WideOffset) 后的子串转 Utf8 取 Length，但不用实际转 Utf8，以节省开销。}
 
 function CalcWideStringLengthFromAnsiOffset(Text: PWideChar; AnsiOffset: Integer;
   VisualMode: Boolean = True; AllowExceedEnd: Boolean = False): Integer;
@@ -1192,6 +1234,9 @@ function ConvertUtf16ToAlterAnsi(WideText: PWideChar; AlterChar: AnsiChar = ' ')
 function ConvertUtf8ToAlterAnsi(Utf8Text: PAnsiChar; AlterChar: AnsiChar = ' '): AnsiString;
 {* 手动将 Utf8 字符串转换成 Ansi，把其中的宽字符都替换成两个 AlterChar，用于纯英文环境下的字符宽度计算}
 
+function GetSetElementCount(const ASet; ASetSize: Integer): Integer;
+{* 获取某集合内的元素数目，尺寸不对则返回 -1}
+
 implementation
 
 const
@@ -1204,6 +1249,11 @@ const
   WM_COPYGLOBALDATA = $0049; // XE4 and below does not support WM_COPYGLOBALDATA and MSGFIT_ADD
   MSGFLT_ADD        = $00000001;
 {$ENDIF}
+
+  SCnDlgButtonCaptions: array[Low(TCnDlgButtonCaption)..High(TCnDlgButtonCaption)] of PString = (
+    @SCnMsgDlgOK, @SCnMsgDlgCancel, @SCnMsgDlgYes, @SCnMsgDlgNo, @SCnMsgDlgYesToAll,
+    @SCnMsgDlgNoToAll
+  );
 
 type
   TNtQueryInformationProcess = function(ProcessHandle: THANDLE; ProcessInformationClass: DWORD;
@@ -1282,7 +1332,7 @@ begin
     Idx := 0;
     if VisualMode then
     begin
-      while (Text^ <> #0) and (Idx < WideOffset) do
+      while (Text^ <> #0) and (Idx < WideOffset) do // Idx 0 开始，WideOffset 1 开始，所以用 <
       begin
         if WideCharIsWideLength(Text^) then
           Inc(Result, SizeOf(WideChar))
@@ -1294,7 +1344,7 @@ begin
     end
     else
     begin
-      while (Text^ <> #0) and (Idx < WideOffset) do
+      while (Text^ <> #0) and (Idx < WideOffset) do // Idx 0 开始，WideOffset 1 开始，所以用 <
       begin
         if Ord(Text^) > $FF then
           Inc(Result, SizeOf(WideChar))
@@ -1303,6 +1353,24 @@ begin
         Inc(Text);
         Inc(Idx);
       end
+    end;
+  end;
+end;
+
+// 计算 Unicode 宽字符串从 1 到 WideOffset 的子串的 Utf8 长度，WideOffset 从 1 开始。
+function CalcUtf8LengthFromWideStringOffset(Text: PWideChar; WideOffset: Integer): Integer;
+var
+  Idx: Integer;
+begin
+  Result := 0;
+  if (Text <> nil) and (WideOffset > 0) then
+  begin
+    Idx := 0;
+    while (Text^ <> #0) and (Idx < WideOffset) do // Idx 0 开始，WideOffset 1 开始，所以用 <
+    begin
+      Inc(Result, CalcUtf8LengthFromWideChar(Text^));
+      Inc(Text);
+      Inc(Idx);
     end;
   end;
 end;
@@ -1667,179 +1735,6 @@ end;
 // Ansi 字符串函数
 //==============================================================================
 
-{$IFNDEF UNICODE}
-
-// D5 下没有内置 UTF8/Ansi 转换函数
-
-function InternalUnicodeToUtf8(Dest: PAnsiChar; MaxDestBytes: Cardinal;
-  Source: PWideChar; SourceChars: Cardinal): Cardinal;
-var
-  I, Cnt: Cardinal;
-  C: Cardinal;
-begin
-  Result := 0;
-  if Source = nil then Exit;
-  Cnt := 0;
-  I := 0;
-  if Dest <> nil then
-  begin
-    while (I < SourceChars) and (Cnt < MaxDestBytes) do
-    begin
-      C := Cardinal(Source[I]);
-      Inc(I);
-      if C <= $7F then
-      begin
-        Dest[Cnt] := Char(C);
-        Inc(Cnt);
-      end
-      else if C > $7FF then
-      begin
-        if Cnt + 3 > MaxDestBytes then
-          break;
-        Dest[Cnt] := Char($E0 or (C shr 12));
-        Dest[Cnt + 1] := Char($80 or ((C shr 6) and $3F));
-        Dest[Cnt + 2] := Char($80 or (C and $3F));
-        Inc(Cnt, 3);
-      end
-      else //  $7F < Source[i] <= $7FF
-      begin
-        if Cnt + 2 > MaxDestBytes then
-          break;
-        Dest[Cnt] := Char($C0 or (C shr 6));
-        Dest[Cnt + 1] := Char($80 or (C and $3F));
-        Inc(Cnt,2);
-      end;
-    end;
-    if Cnt >= MaxDestBytes then Cnt := MaxDestBytes - 1;
-    Dest[Cnt] := #0;
-  end
-  else
-  begin
-    while I < SourceChars do
-    begin
-      C := Integer(Source[I]);
-      Inc(I);
-      if C > $7F then
-      begin
-        if C > $7FF then
-          Inc(Cnt);
-        Inc(Cnt);
-      end;
-      Inc(Cnt);
-    end;
-  end;
-  Result := Cnt + 1;  // convert zero based index to byte count
-end;
-
-function InternalUtf8ToUnicode(Dest: PWideChar; MaxDestChars: Cardinal;
-  Source: PChar; SourceBytes: Cardinal): Cardinal;
-var
-  I, Cnt: Cardinal;
-  C: Byte;
-  WC: Cardinal;
-begin
-  if Source = nil then
-  begin
-    Result := 0;
-    Exit;
-  end;
-  Result := Cardinal(-1);
-  Cnt := 0;
-  I := 0;
-  if Dest <> nil then
-  begin
-    while (I < SourceBytes) and (Cnt < MaxDestChars) do
-    begin
-      WC := Cardinal(Source[I]);
-      Inc(I);
-      if (WC and $80) <> 0 then
-      begin
-        if I >= SourceBytes then Exit;          // incomplete multibyte char
-        WC := WC and $3F;
-        if (WC and $20) <> 0 then
-        begin
-          C := Byte(Source[I]);
-          Inc(I);
-          if (C and $C0) <> $80 then Exit;      // malformed trail byte or out of range char
-          if I >= SourceBytes then Exit;        // incomplete multibyte char
-          WC := (WC shl 6) or (C and $3F);
-        end;
-        C := Byte(Source[I]);
-        Inc(I);
-        if (C and $C0) <> $80 then Exit;       // malformed trail byte
-
-        Dest[Cnt] := WideChar((WC shl 6) or (C and $3F));
-      end
-      else
-        Dest[Cnt] := WideChar(WC);
-      Inc(Cnt);
-    end;
-    if Cnt >= MaxDestChars then Cnt := MaxDestChars-1;
-    Dest[Cnt] := #0;
-  end
-  else
-  begin
-    while (I < SourceBytes) do
-    begin
-      C := Byte(Source[I]);
-      Inc(I);
-      if (C and $80) <> 0 then
-      begin
-        if I >= SourceBytes then Exit;          // incomplete multibyte char
-        C := C and $3F;
-        if (C and $20) <> 0 then
-        begin
-          C := Byte(Source[I]);
-          Inc(I);
-          if (C and $C0) <> $80 then Exit;      // malformed trail byte or out of range char
-          if I >= SourceBytes then Exit;        // incomplete multibyte char
-        end;
-        C := Byte(Source[I]);
-        Inc(I);
-        if (C and $C0) <> $80 then Exit;       // malformed trail byte
-      end;
-      Inc(Cnt);
-    end;
-  end;
-  Result := Cnt + 1;
-end;
-
-// 对 WideString 进行 Utf8 编码得到 AnsiString，不做 Ansi 转换避免丢字符
-function CnUtf8EncodeWideString(const S: WideString): AnsiString;
-var
-  L: Integer;
-  Temp: AnsiString;
-begin
-  Result := '';
-  if S = '' then Exit;
-  SetLength(Temp, Length(S) * 3); // SetLength includes space for null terminator
-
-  L := InternalUnicodeToUtf8(PAnsiChar(Temp), Length(Temp) + 1, PWideChar(S), Length(S));
-  if L > 0 then
-    SetLength(Temp, L - 1)
-  else
-    Temp := '';
-  Result := Temp;
-end;
-
-// 对 AnsiString 的 Utf8 解码得到 WideString，不做 Ansi 转换避免丢字符
-function CnUtf8DecodeToWideString(const S: AnsiString): WideString;
-var
-  L: Integer;
-begin
-  Result := '';
-  if S = '' then Exit;
-  SetLength(Result, Length(S));
-
-  L := InternalUtf8ToUnicode(PWideChar(Result), Length(Result) + 1, PAnsiChar(S), Length(S));
-  if L > 0 then
-    SetLength(Result, L - 1)
-  else
-    Result := '';
-end;
-
-{$ENDIF}
-
 // WideString 的全部替换实现，区分大小写
 function WideStringReplace(const S, OldPattern, NewPattern: WideString): WideString;
 var
@@ -2020,15 +1915,15 @@ end;
 // 删除文件到回收站
 function DeleteToRecycleBin(const FileName: string): Boolean;
 var
-  s: string;
+  S: string;
   lpFileOp: TSHFileOpStruct;
 begin
-  s := PChar(FileName) + #0#0;
+  S := PChar(FileName) + #0#0;
   with lpFileOp do
   begin
     Wnd := Application.Handle;
     wFunc := FO_DELETE;
-    pFrom := PChar(s);
+    pFrom := PChar(S);
     pTo := nil;
     fFlags := FOF_ALLOWUNDO or FOF_SILENT or FOF_NOCONFIRMATION;
     hNameMappings := nil;
@@ -2809,15 +2704,15 @@ var
 
   procedure ReadLinesFromPipe(IsEnd: Boolean);
   var
-    s: AnsiString;
+    S: AnsiString;
     ls: TStringList;
     i: Integer;
   begin
     if InStream.Position < InStream.Size then
     begin
-      SetLength(s, InStream.Size - InStream.Position);
-      InStream.Read(PAnsiChar(s)^, InStream.Size - InStream.Position);
-      strTemp := strTemp + string(s);
+      SetLength(S, InStream.Size - InStream.Position);
+      InStream.Read(PAnsiChar(S)^, InStream.Size - InStream.Position);
+      strTemp := strTemp + string(S);
       ls := TStringList.Create;
       try
         ls.Text := strTemp;
@@ -3003,13 +2898,13 @@ begin
   SetLength(S, StrLen(PChar(S)));
 end;
 
-// 取Program Files目录
+// 取 Program Files 目录
 function GetProgramFilesDir: string;
 begin
   Result := RegReadStringDef(HKEY_LOCAL_MACHINE, HKLM_CURRENT_VERSION_WINDOWS, 'ProgramFilesDir', '');
 end;
 
-// 取Windows目录
+// 取 Windows 目录
 function GetWindowsDir: string;
 var
   Required: Cardinal;
@@ -3930,6 +3825,31 @@ begin
 end;
 {$ENDIF}
 
+// StringReplace 无法处理字符串中的 #0，新写一个全替换的版本，不处理大小写}
+function ReplaceAllInString(const S: string; OldPattern, NewPattern: string): string;
+var
+  SchStr, PatStr, NewStr: string;
+  Offset: Integer;
+begin
+  Result := '';
+  SchStr := S;
+  PatStr := OldPattern;
+  NewStr := S;
+
+  while SchStr <> '' do
+  begin
+    Offset := Pos(PatStr, SchStr);
+    if Offset = 0 then
+    begin
+      Result := Result + NewStr;
+      Break;
+    end;
+    Result := Result + Copy(NewStr, 1, Offset - 1) + NewPattern;
+    NewStr := Copy(NewStr, Offset + Length(OldPattern), MaxInt);
+    SchStr := Copy(SchStr, Offset + Length(PatStr), MaxInt);
+  end;
+end;
+
 {$IFNDEF COMPILER7_UP}
 // AText 是否包含 ASubText
 function AnsiContainsText(const AText, ASubText: string): Boolean;
@@ -4168,7 +4088,7 @@ begin
     RemoveDir(Dir);
 end;
 
-// 取文件夹下的直系文件列表，不包括子目录，返回文件数
+// 取文件夹下的直系文件列表，文件名不包含路径名。不搜索子目录，返回文件数
 function GetDirFiles(const Dir: string; FileNames: TStrings): Integer;
 var
   Sr: TSearchRec;
@@ -4603,32 +4523,32 @@ end;
 //------------------------------------------------------------------------------
 
 // 判断字符串是否可转换成浮点型
-function IsFloat(const s: String): Boolean;
+function IsFloat(const S: String): Boolean;
 var
   I: Real;
   E: Integer;
 begin
-  Val(s, I, E);
+  Val(S, I, E);
   Result := E = 0;
   E := Trunc( I );
 end;
 
 // 判断字符串是否可转换成整型
-function IsInt(const s: String): Boolean;
+function IsInt(const S: String): Boolean;
 var
   I: Integer;
   E: Integer;
 begin
-  Val(s, I, E);
+  Val(S, I, E);
   Result := E = 0;
   E := Trunc( I );
 end;
 
 // 判断字符串是否可转换成 DateTime
-function IsDateTime(const s: string): Boolean;
+function IsDateTime(const S: string): Boolean;
 begin
   try
-    StrToDateTime(s);
+    StrToDateTime(S);
     Result := True;
   except
     Result := False;
@@ -4636,23 +4556,23 @@ begin
 end;
 
 // 判断是否有效的邮件地址
-function IsValidEmail(const s: string): Boolean;
+function IsValidEmail(const S: string): Boolean;
 var
   i: Integer;
   AtCount: Integer;
 begin
   Result := False;
-  if s = '' then Exit;
+  if S = '' then Exit;
   AtCount := 0;
-  for i := 1 to Length(s) do
+  for i := 1 to Length(S) do
   begin
-    if s[i] = '@' then
+    if S[i] = '@' then
     begin
       Inc(AtCount);
       if AtCount > 1 then
         Exit;
     end
-    else if not CharInSet(s[i], ['0'..'9', 'a'..'z', 'A'..'Z', '_', '.', '-']) then
+    else if not CharInSet(S[i], ['0'..'9', 'a'..'z', 'A'..'Z', '_', '.', '-']) then
       Exit;
   end;
   Result := AtCount = 1;
@@ -4698,19 +4618,19 @@ end;
 // 带分隔符的整数－字符转换
 function IntToStrSp(Value: Integer; SpLen: Integer; Sp: Char; ShowPlus: Boolean): string;
 var
-  s: string;
+  S: string;
   i, j: Integer;
 begin
-  s := IntToStr(Value);
+  S := IntToStr(Value);
   if ShowPlus and (Value > 0) then
-    s := '+' + s;
+    S := '+' + S;
   Result := '';
   j := 0;
-  for i := Length(s) downto 1 do
+  for i := Length(S) downto 1 do
   begin
-    Result := s[i] + Result;
+    Result := S[i] + Result;
     Inc(j);
-    if ((j mod SpLen) = 0) and (i <> 1) and not CharInSet(s[i - 1], ['+', '-']) then
+    if ((j mod SpLen) = 0) and (i <> 1) and not CharInSet(S[i - 1], ['+', '-']) then
       Result := Sp + Result;
   end;
 end;
@@ -4736,6 +4656,13 @@ begin
     Result := Str
   else
     Result := Copy(Str, 1, Len);
+end;
+
+function StrEndWith(const S, Tail: string): Boolean;
+begin
+  Result := False;
+  if (Tail <> '') and (S <> '') then
+    Result := Pos(Tail, S) = Length(S) - Length(Tail) + 1;
 end;
 
 // 字节转二进制串
@@ -4814,13 +4741,13 @@ begin
 end;
 
 // 交换字串
-procedure SwapStr(var s1, s2: string);
+procedure SwapStr(var S1, S2: string);
 var
-  tempstr: string;
+  T: string;
 begin
-  tempstr := s1;
-  s1 := s2;
-  s2 := tempstr;
+  T := S1;
+  S1 := S2;
+  S2 := T;
 end;
 
 // 分割"非数字+数字"格式的字符串中的非数字和数字
@@ -4868,6 +4795,17 @@ begin
     else
       Result := Result + Sep + S;
   end;
+end;
+
+// 查找字符串中最后一次出现某字符的位置，无则返回 0
+function LastCharPos(const S: string; C: Char): Integer;
+var
+  I: Integer;
+begin
+  I := Length(S);
+  while (I > 0) and (S[I] <> C) do
+    Dec(I);
+  Result := I;
 end;
 
 // 查找字符串中出现的第 Counter 次的字符的位置
@@ -5392,21 +5330,21 @@ begin
 end;
 
 // 字符串转注册表根键，支持 'HKEY_CURRENT_USER' 'HKCR' 长短两种格式
-function StrToRegRoot(const s: string): HKEY;
+function StrToRegRoot(const S: string): HKEY;
 begin
-  if SameText(s, 'HKEY_CLASSES_ROOT') or SameText(s, 'HKCR') then
+  if SameText(S, 'HKEY_CLASSES_ROOT') or SameText(S, 'HKCR') then
     Result := HKEY_CLASSES_ROOT
-  else if SameText(s, 'HKEY_CURRENT_USER') or SameText(s, 'HKCU') then
+  else if SameText(S, 'HKEY_CURRENT_USER') or SameText(S, 'HKCU') then
     Result := HKEY_CURRENT_USER
-  else if SameText(s, 'HKEY_LOCAL_MACHINE') or SameText(s, 'HKLM') then
+  else if SameText(S, 'HKEY_LOCAL_MACHINE') or SameText(S, 'HKLM') then
     Result := HKEY_LOCAL_MACHINE
-  else if SameText(s, 'HKEY_USERS') or SameText(s, 'HKU') then
+  else if SameText(S, 'HKEY_USERS') or SameText(S, 'HKU') then
     Result := HKEY_USERS
-  else if SameText(s, 'HKEY_PERFORMANCE_DATA') or SameText(s, 'HKPD') then
+  else if SameText(S, 'HKEY_PERFORMANCE_DATA') or SameText(S, 'HKPD') then
     Result := HKEY_PERFORMANCE_DATA
-  else if SameText(s, 'HKEY_CURRENT_CONFIG') or SameText(s, 'HKCC') then
+  else if SameText(S, 'HKEY_CURRENT_CONFIG') or SameText(S, 'HKCC') then
     Result := HKEY_CURRENT_CONFIG
-  else if SameText(s, 'HKEY_DYN_DATA') or SameText(s, 'HKDD') then
+  else if SameText(S, 'HKEY_DYN_DATA') or SameText(S, 'HKDD') then
     Result := HKEY_DYN_DATA
   else
     Result := HKEY_CURRENT_USER;
@@ -5518,16 +5456,6 @@ function WildcardCompare(const FileWildcard, FileName: string; const IgnoreCase:
       Inc(FilePos);
     end;
     Result := (FilePos > Length(IstS));
-  end;
-
-  function LastCharPos(const S: string; C: Char): Integer;
-  var
-    i: Integer;
-  begin
-    i := Length(S);
-    while (i > 0) and (S[i] <> C) do
-      Dec(i);
-    Result := i;
   end;
 
 var
@@ -5742,20 +5670,20 @@ function CnAuthorEmailToStr(Author, Email: string): string;
 var
   s1, s2: string;
 
-  function GetLeftStr(var s: string; Sep: string): string;
+  function GetLeftStr(var S: string; Sep: string): string;
   var
     i: Integer;
   begin
     Result := '';
-    i := AnsiPos(Sep, s);
+    i := AnsiPos(Sep, S);
     if i > 0 then
     begin
-      Result := Trim(Copy(s, 1, i - 1));
-      Delete(s, 1, i);
+      Result := Trim(Copy(S, 1, i - 1));
+      Delete(S, 1, i);
     end
     else begin
-      Result := s;
-      s := '';
+      Result := S;
+      S := '';
     end;
   end;
 
@@ -5821,6 +5749,77 @@ begin
     MB_YESNO + MB_ICONQUESTION + Defaults[DefaultNo]) = IDYES;
 end;
 
+procedure LongMessageDlg(const Mess: string; AutoWrap: Boolean;
+  const Caption: string);
+var
+  FormMess: TForm;
+  mmoMess: TMemo;
+  btnOK: TButton;
+begin
+  FormMess := TForm.Create(Application);
+  try
+    mmoMess := TMemo.Create(FormMess);
+    btnOK := TButton.Create(FormMess);
+
+    FormMess.Name := 'FormMess';
+    FormMess.BorderStyle := bsSizeable;
+    FormMess.Color := clBtnFace;
+    FormMess.ClientWidth := 600;
+    FormMess.ClientHeight := 500;
+    FormMess.Scaled := True;
+    FormMess.Font.Charset := DEFAULT_CHARSET;
+    FormMess.Font.Color := clWindowText;
+    FormMess.Font.Height := -11;
+    FormMess.Font.Name := 'MS Sans Serif';
+    FormMess.Font.Style := [];
+{$IFNDEF NO_OLDCREATEORDER}
+    FormMess.OldCreateOrder := False;
+{$ENDIF}
+    FormMess.Position := poScreenCenter;
+    FormMess.PixelsPerInch := 96;
+
+    if Caption = '' then
+      FormMess.Caption := SCnInformation
+    else
+      FormMess.Caption := Caption;
+
+    mmoMess.Name := 'mmoMess';
+    mmoMess.Parent := FormMess;
+    mmoMess.Left := 0;
+    mmoMess.Top := 0;
+    mmoMess.Width := 600;
+    mmoMess.Height := 480;
+    mmoMess.Align := alTop;
+    mmoMess.Anchors := [akLeft, akTop, akRight, akBottom];
+    mmoMess.ReadOnly := True;
+    mmoMess.TabOrder := 0;
+    mmoMess.ScrollBars := ssBoth;
+
+    if AutoWrap then
+      mmoMess.WordWrap := True;
+
+    mmoMess.Lines.Text := Mess;
+
+    btnOK.Name := 'btnOK';
+    btnOK.Parent := FormMess;
+    btnOK.Width := 75;
+    btnOK.Height := 21;
+
+    btnOK.Left := FormMess.ClientWidth - btnOK.Width - 8;
+    btnOK.Top := FormMess.ClientHeight - btnOK.Height - 8;
+    btnOK.Anchors := [akRight, akBottom];
+    btnOK.Caption := SCnMsgDlgOK;
+    btnOK.TabOrder := 1;
+    btnOK.ModalResult := mrOk;
+
+    mmoMess.Height := FormMess.ClientHeight - btnOK.Height - 16;
+
+    FormMess.ShowModal;
+  finally
+    FormMess.Free;
+  end;
+end;
+
 function GetAveCharSize(Canvas: TCanvas): TPoint;
 var
   I: Integer;
@@ -5832,10 +5831,123 @@ begin
   Result.X := Result.X div 52;
 end;
 
+function MultiButtonsDlg(const Mess: string; Buttons: TCnDlgButtonCaptions;
+  Caption: string = ''): TCnDlgResult;
+var
+  Form: TForm;
+  Prompt: TLabel;
+  DialogUnits: TPoint;
+  ButtonTop, ButtonWidth, ButtonHeight, ButtonGap: Integer;
+  ButtonsVal, BC, I, J, W: Integer;
+  ButtonSet: TIntegerSet;
+  Btn: TButton;
+{$IFDEF CREATE_PARAMS_BUG}
+  OldLong: Longint;
+  AHandle: THandle;
+  NeedChange: Boolean;
+{$ENDIF}
+begin
+  Result := cdrOK;
+  if Caption = '' then
+    Caption := SCnInformation;
+
+  if Buttons = [] then
+    Buttons := [cdbOK];
+
+  ButtonsVal := 0;
+  Move(Buttons, ButtonsVal, SizeOf(Buttons));
+  BC := GetSetElementCount(Buttons, SizeOf(Buttons));
+  Integer(ButtonSet) := ButtonsVal;
+
+  // 共有 BC 个按钮，要根据这个数字设置窗体宽度
+{$IFDEF CREATE_PARAMS_BUG}
+  NeedChange := False;
+  OldLong := 0;
+  AHandle := Application.ActiveFormHandle;
+{$ENDIF}
+
+  Form := TForm.Create(Application);
+  try
+    Form.Scaled := False;
+    Form.Font.Handle := GetStockObject(DEFAULT_GUI_FONT);
+    Form.Canvas.Font := Form.Font;
+    DialogUnits := GetAveCharSize(Form.Canvas);
+    Form.BorderStyle := bsDialog;
+    Form.Caption := Caption;
+
+    ButtonTop := MulDiv(41, DialogUnits.Y, 8);
+    ButtonWidth := MulDiv(50, DialogUnits.X, 4);
+    ButtonHeight := MulDiv(14, DialogUnits.Y, 8);
+    ButtonGap := MulDiv(6, DialogUnits.X, 4);
+
+    // 计算文字宽度加上左右边距
+    W := Form.Canvas.TextWidth(Mess) + 2 * MulDiv(8, DialogUnits.X, 4);
+
+    // 计算 ClientWidth
+    if BC > 2 then
+      Form.ClientWidth := MulDiv(180, DialogUnits.X, 4)
+        + (ButtonWidth + ButtonGap) * (BC - 2)
+    else
+      Form.ClientWidth := MulDiv(180, DialogUnits.X, 4);
+
+    if Form.ClientWidth < W then // 如果文字超宽就需要放宽窗体
+      Form.ClientWidth := W;
+
+    Form.ClientHeight := MulDiv(64, DialogUnits.Y, 8);
+    Form.Position := poScreenCenter;
+
+    // 创建提示文字
+    Prompt := TLabel.Create(Form);
+    Prompt.Parent := Form;
+    Prompt.AutoSize := True;
+    Prompt.Left := MulDiv(8, DialogUnits.X, 4);
+    Prompt.Top := MulDiv(8, DialogUnits.Y, 8);
+    Prompt.Caption := Mess;
+
+    // 循环创建按钮
+    J := 0;
+    for I := 0 to SizeOf(Integer) * 8 - 1 do
+    begin
+      if I in ButtonSet then
+      begin
+        Inc(J);
+        Btn := TButton.Create(Form);
+        Btn.Parent := Form;
+        Btn.Caption := SCnDlgButtonCaptions[TCnDlgButtonCaption(I)]^;
+        Btn.ModalResult := I + 1;
+
+        // Width - 右边距 - (Gap + ButtonWidth) * J
+        Btn.SetBounds(Form.Width - MulDiv(8, DialogUnits.X, 4) -
+          (ButtonGap + ButtonWidth) * J, ButtonTop, ButtonWidth, ButtonHeight);
+      end;
+    end;
+
+{$IFDEF CREATE_PARAMS_BUG}
+    if AHandle <> 0 then
+    begin
+      OldLong := GetWindowLong(AHandle, GWL_EXSTYLE);
+      NeedChange := OldLong and WS_EX_TOOLWINDOW = WS_EX_TOOLWINDOW;
+      if NeedChange then
+        SetWindowLong(AHandle, GWL_EXSTYLE, OldLong and not WS_EX_TOOLWINDOW);
+    end;
+{$ENDIF}
+
+    J := Form.ShowModal;
+    if J > 0 then
+      Result := TCnDlgResult(J - 1);
+  finally
+{$IFDEF CREATE_PARAMS_BUG}
+    if NeedChange and (OldLong <> 0) then
+      SetWindowLong(AHandle, GWL_EXSTYLE, OldLong);
+{$ENDIF}
+    Form.Free;
+  end;
+end;
+
 // 输入对话框
 function CnInputQuery(const ACaption, APrompt: string;
   var Value: string; Ini: TCustomIniFile; const Section: string;
-  APassword: Boolean): Boolean;
+  APassword: Boolean; FormCallBack: TCnSenderCallback): Boolean;
 var
   Form: TForm;
   Prompt: TLabel;
@@ -5951,6 +6063,9 @@ begin
       end;
 {$ENDIF}
 
+      if Assigned(FormCallBack) then // 给外界一个处理界面的机会，如 HDPI 模式下放大等
+        FormCallBack(Form);
+
       if ShowModal = mrOk then
       begin
         if Assigned(ComboBox) then
@@ -5974,10 +6089,11 @@ end;
 
 // 输入对话框
 function CnInputBox(const ACaption, APrompt, ADefault: string;
-  Ini: TCustomIniFile; const Section: string): string;
+  Ini: TCustomIniFile; const Section: string;
+  FormCallBack: TCnSenderCallback): string;
 begin
   Result := ADefault;
-  CnInputQuery(ACaption, APrompt, Result, Ini, Section);
+  CnInputQuery(ACaption, APrompt, Result, Ini, Section, False, FormCallBack);
 end;
 
 //------------------------------------------------------------------------------
@@ -6341,22 +6457,29 @@ begin
     Result := True;
 end;
 
-// 检测是否 WinXP 或以上平台
+// 检测是否 Windows XP 或以上平台
 function CheckWinXP: Boolean;
 begin
   Result := (Win32MajorVersion > 5) or
     ((Win32MajorVersion = 5) and (Win32MinorVersion >= 1));
 end;
 
-// 检查是否 Vista/Win7 或以上系统
+// 检查是否 Vista/Windows 7 或以上系统
 function CheckWinVista: Boolean;
 begin
   Result := Win32MajorVersion >= 6;
 end;
 
+// 检查是否 Windows 8 或以上系统
+function CheckWin8: Boolean;
+begin
+  Result := (Win32MajorVersion >= 6) and (Win32MinorVersion >= 2);
+end;
+
 // 检查是否 Windows 10 或以上系统
 function CheckWin10: Boolean;
 begin
+  // 注意 Windows 10 下如果 Manifest 中不写支持 Windows 10 的话，Win32MajorVersion 是 6。
   Result := Win32MajorVersion >= 10;
 end;
 
@@ -6684,6 +6807,40 @@ begin
   end;
 end;
 
+procedure SelectMemoOneLine(AMemo: TMemo; FromLine: Integer);
+var
+  L, I: Integer;
+{$IFDEF DELPHI2007}
+  J, Len: Integer;
+{$ENDIF}
+begin
+  if AMemo = nil then
+    Exit;
+
+  if AMemo.Lines.Count > FromLine then // 有待显示内容
+  begin
+    L := 0;
+    for I := 0 to FromLine - 1 do
+    begin
+{$IFDEF DELPHI2007}
+      Len := Length(AMemo.Lines[I]);
+      for J := 0 to Length(AMemo.Lines[I]) - 1 do
+      begin
+        if Ord(AMemo.Lines[I][J]) < 128 then
+          Inc(Len);
+      end;
+      Len := Len div 2;
+      L := L + Len + 2;
+{$ELSE}
+      L := L + Length(AMemo.Lines[I]) + 2;
+{$ENDIF}
+    end;
+
+    AMemo.SelStart := L;
+    AMemo.SelLength := Length(AMemo.Lines[FromLine]);
+  end;
+end;
+
 //------------------------------------------------------------------------------
 // 其它过程
 //------------------------------------------------------------------------------
@@ -6738,7 +6895,7 @@ begin
   end;
 end;
 
-// 输出限制在Min..Max之间
+// 输出限制在 Min..Max 之间
 function TrimInt(Value, Min, Max: Integer): Integer; overload;
 begin
   if Value > Max then
@@ -6778,7 +6935,7 @@ asm
 @@OK:
 end;
 
-// 由TRect分离出坐标、宽高
+// 由 TRect 分离出坐标、宽高
 procedure DeRect(Rect: TRect; var x, y, Width, Height: Integer);
 begin
   x := Rect.Left;
@@ -6787,27 +6944,27 @@ begin
   Height := Rect.Bottom - Rect.Top;
 end;
 
-// 比较两个Rect
+// 比较两个 Rect
 function RectEqu(Rect1, Rect2: TRect): Boolean;
 begin
   Result := (Rect1.Left = Rect2.Left) and (Rect1.Top = Rect2.Top) and
     (Rect1.Right = Rect2.Right) and (Rect1.Bottom = Rect2.Bottom);
 end;
 
-// 产生TSize类型
+// 产生 TSize 类型
 function EnSize(cx, cy: Integer): TSize;
 begin
   Result.cx := cx;
   Result.cy := cy;
 end;
 
-// 计算Rect的宽度
+// 计算 Rect 的宽度
 function RectWidth(Rect: TRect): Integer;
 begin
   Result := Rect.Right - Rect.Left;
 end;
 
-// 计算Rect的高度
+// 计算 Rect 的高度
 function RectHeight(Rect: TRect): Integer;
 begin
   Result := Rect.Bottom - Rect.Top;
@@ -6906,6 +7063,24 @@ begin
   Sum := Sum mod 11;
   if Remains[Sum] = UpperCase(IDNumber[18]) then
     Result := True;
+end;
+
+// 拉伸绘制 ImageList 中的指定图像至指定 Canvas 的指定矩形中
+procedure StretchDrawImageListToCanvas(ImageList: TImageList; ImageIndex: Integer;
+  DestCanvas: TCanvas; X, Y, AWidth, AHeight: Integer);
+var
+  Icon: TIcon;
+begin
+  if (ImageList = nil) or (ImageIndex >= ImageList.Count) then
+    Exit;
+
+  Icon := TIcon.Create;
+  try
+    ImageList.GetIcon(ImageIndex, Icon);
+    DrawIconEx(DestCanvas.Handle, X, Y, Icon.Handle, AWidth, AHeight, 0, 0, DI_NORMAL);
+  finally
+    Icon.Free;
+  end;
 end;
 
 // 交换两个数
@@ -7026,7 +7201,7 @@ begin
     Result := Result + #10#13 + SErrorCode + IntToStr(ErrNo);
 end;
 
-// 显示Win32 Api运行结果信息
+// 显示 Win32 Api 运行结果信息
 procedure ShowLastError;
 begin
   MessageBox(Application.Handle, PChar(GetLastErrorMsg),
@@ -7035,11 +7210,13 @@ end;
 
 
 {$IFDEF UNICODE}
+
 // 取汉字的拼音，参数为 Utf16
 function GetHzPyW(const AHzStr: string): string;
 begin
   Result := string(GetHzPy(AnsiString(AHzStr)));
 end;
+
 {$ENDIF}
 
 // 取汉字的拼音
@@ -7077,14 +7254,14 @@ end;
 // 全角字符转换为半角字符。其中句号"。"转为"."，顿号"、"转为","
 function TextFullWidthToHalfWidth(const Text: string): string;
 var
-  s: string;
+  S: string;
   s1, s2: WideString;
   l: Integer;
 begin
   // 中文句号和顿号不会自动替换为 . 号，需要自行处理
-  s := StringReplace(Text, '。', '.', [rfReplaceAll]);
-  s := StringReplace(s, '、', ',', [rfReplaceAll]);
-  s1 := s;
+  S := StringReplace(Text, '。', '.', [rfReplaceAll]);
+  S := StringReplace(S, '、', ',', [rfReplaceAll]);
+  s1 := S;
   l := Length(s1);
   SetLength(s2, l);
   LCMapStringW(GetThreadLocale, LCMAP_HALFWIDTH, PWideChar(s1), l, PWideChar(s2), l);
@@ -7104,7 +7281,7 @@ begin
   Result := s2;
 end;
 
-// 获得CustomEdit选中的字符串，可以处理XP以上的系统
+// 获得 CustomEdit 选中的字符串，可以处理 XP 以上的系统
 function GetSelText(edt: TCustomEdit): string;
 var
   Ver: TDLLVERSIONINFO2;
@@ -7189,7 +7366,7 @@ begin
   Result := InheritsFromClassName(AObject.ClassType, AClass);
 end;
 
-// 提升自身权限到SeDebug或取消此权限
+// 提升自身权限到 SeDebug 或取消此权限
 function AdjustDebugPrivilege(Enable: Boolean): Boolean;
 var
   Token: THandle;
@@ -7332,7 +7509,8 @@ var
   PropInfo: PPropInfo;
 begin
   Result := Null;
-  if Instance = nil then Exit;
+  if Instance = nil then
+    Exit;
 
   Dot := Pos('.', PropName);
   if Dot = 0 then
@@ -7534,7 +7712,7 @@ begin
 end;
 
 // 获得某对象的所有属性的字符串值，包括子属性的属性
-// IncludeType 为 True 时，格式为 Name=TypeName，Object中放入 PropType
+// IncludeType 为 True 时，格式为 Name=TypeName，Object 中放入 PropType
 procedure GetAllPropNames(AComp: TObject; PropNames: TStrings;
   const BaseName: string; IncludeType: Boolean);
 var
@@ -7585,6 +7763,46 @@ begin
               if not (AObj is TComponent) or ((AObj as TComponent).Owner = AComp) then
                 GetAllPropNames(AObj, PropNames, PropInfoName(PropInfo), IncludeType);
           end;
+        end;
+      end;
+    finally
+      FreeMem(PropListPtr);
+    end;
+  end;
+end;
+
+{* 获得某类的所有属性的字符串值，不包括子属性的属性，因为没有实例
+   IncludeType 为 True 时，格式为 Name=TypeName，Object 中放入 PropType }
+procedure GetAllPropNamesFromClass(ACompClass: TClass; PropNames: TStrings;
+  IncludeType: Boolean);
+var
+  I, APropCount: Integer;
+  PropListPtr: PPropList;
+  PropInfo: PPropInfo;
+begin
+  if PropNames = nil then
+    Exit;
+
+  APropCount := GetTypeData(PTypeInfo(ACompClass.ClassInfo))^.PropCount;
+  if APropCount > 0 then
+  begin
+    GetMem(PropListPtr, APropCount * SizeOf(Pointer));
+    GetPropList(PTypeInfo(ACompClass.ClassInfo), tkAny, PropListPtr);
+
+    try
+      for I := 0 to APropCount - 1 do
+      begin
+        PropInfo := PropListPtr^[I];
+        if PropInfo^.Name = '' then
+          Continue;
+
+        if PropInfo^.PropType^^.Kind in (tkProperties + tkMethods) then
+        begin
+          if not IncludeType then
+            PropNames.Add(PropInfoName(PropInfo))
+          else
+            PropNames.AddObject(PropInfoName(PropInfo) + '=' +
+              TypeInfoName(PropInfo^.PropType^), TObject(PropInfo^.PropType^^.Kind))
         end;
       end;
     finally
@@ -7662,6 +7880,28 @@ begin
       Result := Index;
       Exit;
     end;
+end;
+
+// 获取某集合内的元素数目，尺寸不对则返回 -1
+function GetSetElementCount(const ASet; ASetSize: Integer): Integer;
+var
+  I, SetVal: Integer;
+  S: TIntegerSet;
+begin
+  Result := -1;
+  if (ASetSize <= 0) or (ASetSize > SizeOf(Integer)) then
+    Exit;
+
+  SetVal := 0;
+  Move(ASet, SetVal, ASetSize);
+  Integer(S) := SetVal;
+
+  Result := 0;
+  for I := 0 to SizeOf(Integer) * 8 - 1 do
+  begin
+    if I in S then
+      Inc(Result);
+  end;
 end;
 
 initialization

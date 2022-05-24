@@ -6,7 +6,7 @@ interface
 
 uses
   Windows, Messages, SysUtils, Classes, Graphics, Controls, Forms, Dialogs,
-  StdCtrls, ComCtrls, Buttons, ExtCtrls;
+  StdCtrls, ComCtrls, Buttons, ExtCtrls, CnNativeDecl, CnBigNumber;
 
 type
   TFormPrime = class(TForm)
@@ -84,6 +84,13 @@ type
     btnCRTTest: TButton;
     btnCheckPrime: TButton;
     btnInt64BSGS: TButton;
+    edtPower: TEdit;
+    btnIsPerfectPower: TButton;
+    btnInt64AKS: TButton;
+    btnCombinatorialNumber: TButton;
+    btnComNumMod: TButton;
+    chkRaw: TCheckBox;
+    btnMoreAKS: TButton;
     procedure btnGenClick(Sender: TObject);
     procedure btnIsPrimeClick(Sender: TObject);
     procedure btnInt64IsPrimeClick(Sender: TObject);
@@ -111,10 +118,15 @@ type
     procedure btnCRTTestClick(Sender: TObject);
     procedure btnCheckPrimeClick(Sender: TObject);
     procedure btnInt64BSGSClick(Sender: TObject);
+    procedure btnIsPerfectPowerClick(Sender: TObject);
+    procedure btnInt64AKSClick(Sender: TObject);
+    procedure btnCombinatorialNumberClick(Sender: TObject);
+    procedure btnComNumModClick(Sender: TObject);
+    procedure btnMoreAKSClick(Sender: TObject);
   private
 
   public
-    { Public declarations }
+
   end;
 
 var
@@ -123,7 +135,7 @@ var
 implementation
 
 uses
-  CnPrimeNumber, CnNativeDecl, CnClasses;
+  CnPrimeNumber, CnClasses, CnPolynomial, CnContainers;
 
 {$R *.DFM}
 
@@ -203,49 +215,84 @@ end;
 
 procedure TFormPrime.btnIsPrimeClick(Sender: TObject);
 var
-  N: Cardinal;
+  N, Root: Cardinal;
   F: TCnUInt32List;
   S: string;
   I: Integer;
 begin
   N := Cardinal(StrToInt64(edtToPrime.Text));
-  if CnUInt32IsPrime(N) then
-    ShowMessage('Is Prime Number.')
+  if chkRaw.Checked then
+  begin
+    Root := Trunc(Sqrt(N));
+    for I := 2 to Root do  // 时间复杂度为 O(根号n)
+    begin
+      if N mod I = 0 then
+      begin
+        ShowMessage('Not Prime Number. One Factor is: ' + IntToStr(I));
+        Exit;
+      end;
+    end;
+    ShowMessage('Is Prime Number.');
+  end
   else
   begin
-    F := TCnUInt32List.Create;
-    CnUInt32FindFactors(N, F);
-    S := #13#10#13#10;
-    for I := 0 to F.Count - 1 do
-      S := S + ' ' + IntToStr(F[I]);
-    F.Free;
-    N := CnEulerUInt32(N);
-    S := S + #13#10 + 'Euler: ' + IntToStr(N);
-    ShowMessage('Not Prime Number. Factors are:' + S);
+    if CnUInt32IsPrime(N) then
+      ShowMessage('Is Prime Number.')
+    else
+    begin
+      F := TCnUInt32List.Create;
+      CnUInt32FindFactors(N, F);
+      S := #13#10#13#10;
+      for I := 0 to F.Count - 1 do
+        S := S + ' ' + IntToStr(F[I]);
+      F.Free;
+      N := CnEulerUInt32(N);
+      S := S + #13#10 + 'Euler: ' + IntToStr(N);
+      ShowMessage('Not Prime Number. Factors are:' + S);
+    end;
   end;
 end;
 
 procedure TFormPrime.btnInt64IsPrimeClick(Sender: TObject);
 var
   N: TUInt64;
+  R: Extended;
+  Root: Cardinal;
   F: TCnUInt64List;
   S: string;
   I: Integer;
 begin
   N := StrToUInt64(edtInt64.Text);
-  if CnInt64IsPrime(N) then
-    ShowMessage('Is Prime Number.')
+  if chkRaw.Checked then
+  begin
+    R := N;
+    Root := Trunc(Sqrt(R));
+    for I := 2 to Root do  // 时间复杂度为 O(根号n)
+    begin
+      if N mod I = 0 then
+      begin
+        ShowMessage('Not Prime Number. One Factor is: ' + IntToStr(I));
+        Exit;
+      end;
+    end;
+    ShowMessage('Int64 Is Prime Number.');
+  end
   else
   begin
-    F := TCnUInt64List.Create;
-    CnInt64FindFactors(N, F);
-    S := #13#10#13#10;
-    for I := 0 to F.Count - 1 do
-      S := S + ' ' + UInt64ToStr(F[I]);
-    F.Free;
-    N := CnEulerInt64(N);
-    S := S + #13#10 + 'Euler: ' + UInt64ToStr(N);
-    ShowMessage('Not Prime Number. Factors are:' + S);
+    if CnInt64IsPrime(N) then
+      ShowMessage('Is Prime Number.')
+    else
+    begin
+      F := TCnUInt64List.Create;
+      CnInt64FindFactors(N, F);
+      S := #13#10#13#10;
+      for I := 0 to F.Count - 1 do
+        S := S + ' ' + UInt64ToStr(F[I]);
+      F.Free;
+      N := CnEulerInt64(N);
+      S := S + #13#10 + 'Euler: ' + UInt64ToStr(N);
+      ShowMessage('Not Prime Number. Factors are:' + S);
+    end;
   end;
 end;
 
@@ -392,8 +439,30 @@ begin
 end;
 
 procedure TFormPrime.FormCreate(Sender: TObject);
+var
+  K: TCnBigNumberBiPolynomial;
+  P: TCnInt64Polynomial;
+  M: TCnInt64BiPolynomial;
+  B: TCnBigNumber;
 begin
   pgc1.ActivePageIndex := 0;
+
+  // 为了编译进来
+  K := TCnBigNumberBiPolynomial.Create;
+  K.ToString;
+  K.Free;
+
+  M := TCnInt64BiPolynomial.Create;
+  M.ToString;
+  M.Free;
+
+  B := TCnBigNumber.Create;
+  B.ToString;
+  B.Free;
+
+  P := TCnInt64Polynomial.Create;
+  P.ToString;
+  P.Free;
 end;
 
 procedure TFormPrime.btnCalcXAClick(Sender: TObject);
@@ -568,6 +637,95 @@ begin
     ShowMessage('Verify OK')
   else
     ShowMessage('Verify Fail');
+end;
+
+procedure TFormPrime.btnIsPerfectPowerClick(Sender: TObject);
+var
+  N: Int64;
+begin
+  N := StrToInt64(edtPower.Text);
+  if CnInt64IsPerfectPower(N) then
+    ShowMessage('Is Perfect Power')
+  else
+    ShowMessage('Not Perfect Power');
+end;
+
+procedure TFormPrime.btnInt64AKSClick(Sender: TObject);
+var
+  P: Int64;
+  S: string;
+begin
+  S := '39779';
+  if InputQuery('Hint', 'Enter an Integer Value', S) then
+  begin
+    P := StrToInt64(S);
+    if CnInt64AKSIsPrime(P) then
+      ShowMessage(S + ' Is a Prime')
+    else
+      ShowMessage('NOT Prime');
+  end;
+end;
+
+procedure TFormPrime.btnCombinatorialNumberClick(Sender: TObject);
+var
+  I: Integer;
+  List: TCnInt64List;
+begin
+  List := TCnInt64List.Create;
+  try
+    CnInt64FillCombinatorialNumbers(List, 61);
+    for I := 0 to List.Count - 1 do
+      mmoResult.Lines.Add(Format('%3.3d  -  ', [I]) +  IntToStr(List[I]));
+
+    mmoResult.Lines.Add('');
+
+    CnUInt64FillCombinatorialNumbers(List, 62);
+    for I := 0 to List.Count - 1 do
+      mmoResult.Lines.Add(Format('%3.3d  -  ', [I]) +  UInt64ToStr(List[I]));
+
+    pgc1.ActivePageIndex := 0;
+  finally
+    List.Free;
+  end;
+end;
+
+procedure TFormPrime.btnComNumModClick(Sender: TObject);
+var
+  I: Integer;
+  List: TCnInt64List;
+begin
+  List := TCnInt64List.Create;
+  try
+    CnInt64FillCombinatorialNumbersMod(List, 29, 31);
+    for I := 0 to List.Count - 1 do
+      mmoResult.Lines.Add(Format('%3.3d  -  ', [I]) +  IntToStr(List[I]));
+
+    mmoResult.Lines.Add('');
+
+    CnUInt64FillCombinatorialNumbersMod(List, 29, 31);
+    for I := 0 to List.Count - 1 do
+      mmoResult.Lines.Add(Format('%3.3d  -  ', [I]) +  UInt64ToStr(List[I]));
+
+    pgc1.ActivePageIndex := 0;
+  finally
+    List.Free;
+  end;
+end;
+
+procedure TFormPrime.btnMoreAKSClick(Sender: TObject);
+var
+  I: Integer;
+begin
+  for I := Low(CN_PRIME_NUMBERS_SQRT_UINT32) to High(CN_PRIME_NUMBERS_SQRT_UINT32) do
+  begin
+    if CnInt64AKSIsPrime(CN_PRIME_NUMBERS_SQRT_UINT32[I]) then
+    begin
+      mmoCar.Lines.Add(IntToStr(I) + '  -  ' + IntToStr(CN_PRIME_NUMBERS_SQRT_UINT32[I]));
+      Application.ProcessMessages;
+    end
+    else
+      ShowMessage(IntToStr(CN_PRIME_NUMBERS_SQRT_UINT32[I]));
+  end;
 end;
 
 end.

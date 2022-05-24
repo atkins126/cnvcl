@@ -1,6 +1,6 @@
 object FormPolynomial: TFormPolynomial
   Left = 241
-  Top = 142
+  Top = 133
   Width = 955
   Height = 601
   Caption = 'Polynomial Test'
@@ -28,6 +28,7 @@ object FormPolynomial: TFormPolynomial
     Width = 929
     Height = 553
     ActivePage = tsIntegerPolynomial
+    Anchors = [akLeft, akTop, akRight, akBottom]
     TabOrder = 0
     object tsIntegerPolynomial: TTabSheet
       Caption = 'Int64 Polynomial'
@@ -36,6 +37,7 @@ object FormPolynomial: TFormPolynomial
         Top = 4
         Width = 905
         Height = 513
+        Anchors = [akLeft, akTop, akRight, akBottom]
         Caption = 'Int64 Polynomial'
         TabOrder = 0
         object bvl1: TBevel
@@ -101,7 +103,7 @@ object FormPolynomial: TFormPolynomial
           Width = 777
           Height = 57
           ReadOnly = True
-          TabOrder = 2
+          TabOrder = 3
         end
         object mmoIP2: TMemo
           Left = 24
@@ -109,7 +111,7 @@ object FormPolynomial: TFormPolynomial
           Width = 777
           Height = 57
           ReadOnly = True
-          TabOrder = 3
+          TabOrder = 11
         end
         object btnIP1Random: TButton
           Left = 816
@@ -126,7 +128,7 @@ object FormPolynomial: TFormPolynomial
           Width = 75
           Height = 21
           Caption = 'Random'
-          TabOrder = 5
+          TabOrder = 12
           OnClick = btnIP2RandomClick
         end
         object edtIPDeg1: TEdit
@@ -134,7 +136,7 @@ object FormPolynomial: TFormPolynomial
           Top = 120
           Width = 25
           Height = 21
-          TabOrder = 6
+          TabOrder = 5
           Text = '9'
         end
         object edtIPDeg2: TEdit
@@ -142,7 +144,7 @@ object FormPolynomial: TFormPolynomial
           Top = 216
           Width = 25
           Height = 21
-          TabOrder = 7
+          TabOrder = 13
           Text = '7'
         end
         object btnIPAdd: TButton
@@ -151,7 +153,7 @@ object FormPolynomial: TFormPolynomial
           Width = 75
           Height = 25
           Caption = 'Add'
-          TabOrder = 8
+          TabOrder = 6
           OnClick = btnIPAddClick
         end
         object btnIPSub: TButton
@@ -160,7 +162,7 @@ object FormPolynomial: TFormPolynomial
           Width = 75
           Height = 25
           Caption = 'Sub'
-          TabOrder = 9
+          TabOrder = 7
           OnClick = btnIPSubClick
         end
         object btnIPMul: TButton
@@ -169,7 +171,7 @@ object FormPolynomial: TFormPolynomial
           Width = 75
           Height = 25
           Caption = 'Mul'
-          TabOrder = 10
+          TabOrder = 8
           OnClick = btnIPMulClick
         end
         object btnIPDiv: TButton
@@ -178,7 +180,7 @@ object FormPolynomial: TFormPolynomial
           Width = 75
           Height = 25
           Caption = 'Div && Mod'
-          TabOrder = 11
+          TabOrder = 9
           OnClick = btnIPDivClick
         end
         object edtIP3: TEdit
@@ -186,7 +188,7 @@ object FormPolynomial: TFormPolynomial
           Top = 256
           Width = 833
           Height = 21
-          TabOrder = 12
+          TabOrder = 14
         end
         object btnTestExample1: TButton
           Left = 24
@@ -194,7 +196,7 @@ object FormPolynomial: TFormPolynomial
           Width = 113
           Height = 25
           Caption = 'Galois Test Point 1'
-          TabOrder = 13
+          TabOrder = 15
           OnClick = btnTestExample1Click
         end
         object btnTestExample2: TButton
@@ -203,7 +205,7 @@ object FormPolynomial: TFormPolynomial
           Width = 113
           Height = 25
           Caption = 'Galois Test Point 2'
-          TabOrder = 14
+          TabOrder = 16
           OnClick = btnTestExample2Click
         end
         object btnTestExample3: TButton
@@ -212,7 +214,7 @@ object FormPolynomial: TFormPolynomial
           Width = 113
           Height = 25
           Caption = 'Galois Test Power 3'
-          TabOrder = 15
+          TabOrder = 17
           OnClick = btnTestExample3Click
         end
         object btnTestExample4: TButton
@@ -221,7 +223,7 @@ object FormPolynomial: TFormPolynomial
           Width = 113
           Height = 25
           Caption = 'Galois Test Power 4'
-          TabOrder = 16
+          TabOrder = 18
           OnClick = btnTestExample4Click
         end
         object btnPolyGcd: TButton
@@ -230,7 +232,7 @@ object FormPolynomial: TFormPolynomial
           Width = 97
           Height = 25
           Caption = 'Test Poly Gcd'
-          TabOrder = 17
+          TabOrder = 21
           OnClick = btnPolyGcdClick
         end
         object btnGaloisTestGcd: TButton
@@ -239,7 +241,7 @@ object FormPolynomial: TFormPolynomial
           Width = 113
           Height = 25
           Caption = 'Galois Test GCD'
-          TabOrder = 18
+          TabOrder = 19
           OnClick = btnGaloisTestGcdClick
         end
         object btnTestGaloisMI: TButton
@@ -248,7 +250,7 @@ object FormPolynomial: TFormPolynomial
           Width = 113
           Height = 25
           Caption = 'Galois Test Inverse'
-          TabOrder = 19
+          TabOrder = 20
           OnClick = btnTestGaloisMIClick
         end
         object btnGF28Test1: TButton
@@ -257,7 +259,7 @@ object FormPolynomial: TFormPolynomial
           Width = 113
           Height = 25
           Caption = 'GF2^8 Test1'
-          TabOrder = 20
+          TabOrder = 22
           OnClick = btnGF28Test1Click
         end
         object btnTestGaloisDiv: TButton
@@ -266,7 +268,7 @@ object FormPolynomial: TFormPolynomial
           Width = 113
           Height = 25
           Caption = 'Test Galois Div'
-          TabOrder = 21
+          TabOrder = 23
           OnClick = btnTestGaloisDivClick
         end
         object btnTestGaloisDivTime: TButton
@@ -275,7 +277,7 @@ object FormPolynomial: TFormPolynomial
           Width = 241
           Height = 25
           Caption = 'Test Galois Div Time'
-          TabOrder = 22
+          TabOrder = 29
           OnClick = btnTestGaloisDivTimeClick
         end
         object btnTestGaloisCalc: TButton
@@ -284,7 +286,7 @@ object FormPolynomial: TFormPolynomial
           Width = 113
           Height = 25
           Caption = 'Test Galois Calc'
-          TabOrder = 23
+          TabOrder = 24
           OnClick = btnTestGaloisCalcClick
         end
         object btnTestHugeDiv: TButton
@@ -293,7 +295,7 @@ object FormPolynomial: TFormPolynomial
           Width = 113
           Height = 25
           Caption = 'Test Huge Div 1'
-          TabOrder = 24
+          TabOrder = 25
           OnClick = btnTestHugeDivClick
         end
         object btnTestHugeDiv2: TButton
@@ -302,7 +304,7 @@ object FormPolynomial: TFormPolynomial
           Width = 113
           Height = 25
           Caption = 'Test Huge Div 2'
-          TabOrder = 25
+          TabOrder = 26
           OnClick = btnTestHugeDiv2Click
         end
         object btnTestHugeDiv3: TButton
@@ -311,7 +313,7 @@ object FormPolynomial: TFormPolynomial
           Width = 113
           Height = 25
           Caption = 'Test Huge Div 3'
-          TabOrder = 26
+          TabOrder = 27
           OnClick = btnTestHugeDiv3Click
         end
         object btnTestPowerMod: TButton
@@ -320,7 +322,7 @@ object FormPolynomial: TFormPolynomial
           Width = 97
           Height = 25
           Caption = 'Test Power Mod'
-          TabOrder = 27
+          TabOrder = 28
           OnClick = btnTestPowerModClick
         end
         object btnInt64PolySetString: TButton
@@ -329,7 +331,7 @@ object FormPolynomial: TFormPolynomial
           Width = 75
           Height = 25
           Caption = 'Set String'
-          TabOrder = 28
+          TabOrder = 2
           OnClick = btnInt64PolySetStringClick
         end
         object btnTestBigDiv: TButton
@@ -338,7 +340,7 @@ object FormPolynomial: TFormPolynomial
           Width = 113
           Height = 25
           Caption = 'A Big Div'
-          TabOrder = 29
+          TabOrder = 30
           OnClick = btnTestBigDivClick
         end
         object btnTestBigGCD: TButton
@@ -347,7 +349,7 @@ object FormPolynomial: TFormPolynomial
           Width = 113
           Height = 25
           Caption = 'A Big GCD'
-          TabOrder = 30
+          TabOrder = 31
           OnClick = btnTestBigGCDClick
         end
         object btnInt64MulDFT: TButton
@@ -356,17 +358,35 @@ object FormPolynomial: TFormPolynomial
           Width = 75
           Height = 25
           Caption = 'Mul DFT'
-          TabOrder = 31
+          TabOrder = 10
           OnClick = btnInt64MulDFTClick
         end
         object btnTestInt64SimpleDFT: TButton
           Left = 536
           Top = 408
-          Width = 185
+          Width = 169
           Height = 25
           Caption = 'Test Int64 Simple Mul DFT'
           TabOrder = 32
           OnClick = btnTestInt64SimpleDFTClick
+        end
+        object btnTestInt64SimpleNTT: TButton
+          Left = 720
+          Top = 408
+          Width = 169
+          Height = 25
+          Caption = 'Test Int64 Simple Mul NTT'
+          TabOrder = 33
+          OnClick = btnTestInt64SimpleNTTClick
+        end
+        object btnIPIsMonic: TButton
+          Left = 712
+          Top = 152
+          Width = 65
+          Height = 25
+          Caption = 'IsMonic'
+          TabOrder = 34
+          OnClick = btnIPIsMonicClick
         end
       end
     end
@@ -378,6 +398,7 @@ object FormPolynomial: TFormPolynomial
         Top = 4
         Width = 897
         Height = 509
+        Anchors = [akLeft, akTop, akRight, akBottom]
         Caption = 'Ecc on Galois'
         TabOrder = 0
         object btnGaloisOnCurve: TButton
@@ -503,7 +524,7 @@ object FormPolynomial: TFormPolynomial
           Width = 849
           Height = 313
           ScrollBars = ssBoth
-          TabOrder = 13
+          TabOrder = 14
           WordWrap = False
         end
         object btnGenerateDivisionPolynomial: TButton
@@ -512,7 +533,7 @@ object FormPolynomial: TFormPolynomial
           Width = 169
           Height = 25
           Caption = 'Generate Division Polynomial'
-          TabOrder = 14
+          TabOrder = 13
           OnClick = btnGenerateDivisionPolynomialClick
         end
       end
@@ -525,6 +546,7 @@ object FormPolynomial: TFormPolynomial
         Top = 4
         Width = 905
         Height = 509
+        Anchors = [akLeft, akTop, akRight, akBottom]
         Caption = 'Int64 Rational Polynomial'
         TabOrder = 0
         object bvl3: TBevel
@@ -567,7 +589,7 @@ object FormPolynomial: TFormPolynomial
           Top = 24
           Width = 169
           Height = 25
-          Caption = 'Calc 2 * Point (x, 1*y£©on Ecc'
+          Caption = 'Calc 2 * Point (x, 1*y) on Ecc'
           TabOrder = 0
           OnClick = btnRP2PointClick
         end
@@ -576,14 +598,14 @@ object FormPolynomial: TFormPolynomial
           Top = 96
           Width = 385
           Height = 21
-          TabOrder = 1
+          TabOrder = 4
         end
         object edtRationalDenominator1: TEdit
           Left = 448
           Top = 96
           Width = 385
           Height = 21
-          TabOrder = 2
+          TabOrder = 5
         end
         object btnRationalPolynomialAdd: TButton
           Left = 264
@@ -591,7 +613,7 @@ object FormPolynomial: TFormPolynomial
           Width = 75
           Height = 25
           Caption = 'Add'
-          TabOrder = 3
+          TabOrder = 8
           OnClick = btnRationalPolynomialAddClick
         end
         object btnRationalPolynomialSub: TButton
@@ -600,7 +622,7 @@ object FormPolynomial: TFormPolynomial
           Width = 75
           Height = 25
           Caption = 'Sub'
-          TabOrder = 4
+          TabOrder = 9
           OnClick = btnRationalPolynomialSubClick
         end
         object btnRationalPolynomialMul: TButton
@@ -609,7 +631,7 @@ object FormPolynomial: TFormPolynomial
           Width = 75
           Height = 25
           Caption = 'Mul'
-          TabOrder = 5
+          TabOrder = 10
           OnClick = btnRationalPolynomialMulClick
         end
         object btnRationalPolynomialDiv: TButton
@@ -618,7 +640,7 @@ object FormPolynomial: TFormPolynomial
           Width = 75
           Height = 25
           Caption = 'Div'
-          TabOrder = 6
+          TabOrder = 11
           OnClick = btnRationalPolynomialDivClick
         end
         object chkRationalPolynomialGalois: TCheckBox
@@ -627,14 +649,14 @@ object FormPolynomial: TFormPolynomial
           Width = 73
           Height = 17
           Caption = 'Galois'
-          TabOrder = 7
+          TabOrder = 13
         end
         object edtRationalPolynomialPrime: TEdit
           Left = 728
           Top = 136
           Width = 105
           Height = 21
-          TabOrder = 8
+          TabOrder = 12
           Text = '97'
         end
         object edtRationalNominator2: TEdit
@@ -642,14 +664,14 @@ object FormPolynomial: TFormPolynomial
           Top = 176
           Width = 385
           Height = 21
-          TabOrder = 9
+          TabOrder = 14
         end
         object edtRationalDenominator2: TEdit
           Left = 448
           Top = 176
           Width = 385
           Height = 21
-          TabOrder = 10
+          TabOrder = 15
         end
         object btnRationalPolynomialGenerate: TButton
           Left = 16
@@ -657,7 +679,7 @@ object FormPolynomial: TFormPolynomial
           Width = 75
           Height = 25
           Caption = 'Generate'
-          TabOrder = 11
+          TabOrder = 6
           OnClick = btnRationalPolynomialGenerateClick
         end
         object edtRationalResultNominator: TEdit
@@ -665,14 +687,14 @@ object FormPolynomial: TFormPolynomial
           Top = 240
           Width = 385
           Height = 21
-          TabOrder = 12
+          TabOrder = 16
         end
         object edtRationalResultDenominator: TEdit
           Left = 452
           Top = 240
           Width = 385
           Height = 21
-          TabOrder = 13
+          TabOrder = 17
         end
         object btnManualOnCurve: TButton
           Left = 224
@@ -680,7 +702,7 @@ object FormPolynomial: TFormPolynomial
           Width = 209
           Height = 25
           Caption = 'Manual Test OnCurve'
-          TabOrder = 14
+          TabOrder = 1
           OnClick = btnManualOnCurveClick
         end
         object btnCheckDivisionPolynomialZero: TButton
@@ -689,7 +711,7 @@ object FormPolynomial: TFormPolynomial
           Width = 225
           Height = 25
           Caption = 'Check Division Polynomial Zero'
-          TabOrder = 15
+          TabOrder = 2
           OnClick = btnCheckDivisionPolynomialZeroClick
         end
         object btnCalcSimpleEcc: TButton
@@ -698,7 +720,7 @@ object FormPolynomial: TFormPolynomial
           Width = 161
           Height = 25
           Caption = 'Calc Simple Ecc Int64'
-          TabOrder = 16
+          TabOrder = 3
           OnClick = btnCalcSimpleEccClick
         end
         object mmoEcc: TMemo
@@ -706,7 +728,7 @@ object FormPolynomial: TFormPolynomial
           Top = 296
           Width = 225
           Height = 193
-          TabOrder = 17
+          TabOrder = 18
         end
         object btnCheckRationalAdd: TButton
           Left = 264
@@ -714,7 +736,7 @@ object FormPolynomial: TFormPolynomial
           Width = 209
           Height = 25
           Caption = 'Check Rational Polynomial Add'
-          TabOrder = 18
+          TabOrder = 19
           OnClick = btnCheckRationalAddClick
         end
         object btnTestPiXPolynomial: TButton
@@ -723,7 +745,7 @@ object FormPolynomial: TFormPolynomial
           Width = 177
           Height = 25
           Caption = 'Test Pi^2 + 2P Polynomial in Ring'
-          TabOrder = 19
+          TabOrder = 20
           OnClick = btnTestPiXPolynomialClick
         end
         object btnTestGaloisEqual: TButton
@@ -732,7 +754,7 @@ object FormPolynomial: TFormPolynomial
           Width = 137
           Height = 25
           Caption = 'Test Galois Equal'
-          TabOrder = 20
+          TabOrder = 21
           OnClick = btnTestGaloisEqualClick
         end
         object btnRationalSetString: TButton
@@ -741,7 +763,7 @@ object FormPolynomial: TFormPolynomial
           Width = 75
           Height = 25
           Caption = 'Set String'
-          TabOrder = 21
+          TabOrder = 7
           OnClick = btnRationalSetStringClick
         end
         object btnInt64ComposeRationalRational: TButton
@@ -759,7 +781,7 @@ object FormPolynomial: TFormPolynomial
           Width = 209
           Height = 25
           Caption = 'Compose Polynomial using Rational'
-          TabOrder = 23
+          TabOrder = 24
           OnClick = btnInt64ComposePolyRationalClick
         end
         object btnInt64ComposeRationalPolynomial: TButton
@@ -768,7 +790,7 @@ object FormPolynomial: TFormPolynomial
           Width = 209
           Height = 25
           Caption = 'Compose Rational using Polynomial'
-          TabOrder = 24
+          TabOrder = 25
           OnClick = btnInt64ComposeRationalPolynomialClick
         end
         object btnCompareRationalMul2Method: TButton
@@ -777,7 +799,7 @@ object FormPolynomial: TFormPolynomial
           Width = 329
           Height = 25
           Caption = 'Compare Int64 Rational Mul using  Division Polynomial and Add'
-          TabOrder = 25
+          TabOrder = 23
           OnClick = btnCompareRationalMul2MethodClick
         end
       end
@@ -848,7 +870,7 @@ object FormPolynomial: TFormPolynomial
           Width = 777
           Height = 57
           ReadOnly = True
-          TabOrder = 2
+          TabOrder = 3
         end
         object mmoBP2: TMemo
           Left = 24
@@ -856,7 +878,7 @@ object FormPolynomial: TFormPolynomial
           Width = 777
           Height = 57
           ReadOnly = True
-          TabOrder = 3
+          TabOrder = 10
         end
         object btnBPAdd: TButton
           Left = 88
@@ -864,7 +886,7 @@ object FormPolynomial: TFormPolynomial
           Width = 75
           Height = 25
           Caption = 'Add'
-          TabOrder = 4
+          TabOrder = 6
           OnClick = btnBPAddClick
         end
         object btnBPSub: TButton
@@ -873,7 +895,7 @@ object FormPolynomial: TFormPolynomial
           Width = 75
           Height = 25
           Caption = 'Sub'
-          TabOrder = 5
+          TabOrder = 7
           OnClick = btnBPSubClick
         end
         object btnBPMul: TButton
@@ -882,7 +904,7 @@ object FormPolynomial: TFormPolynomial
           Width = 75
           Height = 25
           Caption = 'Mul'
-          TabOrder = 6
+          TabOrder = 8
           OnClick = btnBPMulClick
         end
         object btnBPDivMod: TButton
@@ -891,7 +913,7 @@ object FormPolynomial: TFormPolynomial
           Width = 75
           Height = 25
           Caption = 'Div && Mod'
-          TabOrder = 7
+          TabOrder = 9
           OnClick = btnBPDivModClick
         end
         object edtBP3: TEdit
@@ -899,14 +921,14 @@ object FormPolynomial: TFormPolynomial
           Top = 256
           Width = 833
           Height = 21
-          TabOrder = 8
+          TabOrder = 13
         end
         object edtBP2Deg: TEdit
           Left = 864
           Top = 216
           Width = 25
           Height = 21
-          TabOrder = 9
+          TabOrder = 12
           Text = '7'
         end
         object btnBP1Rand: TButton
@@ -915,7 +937,7 @@ object FormPolynomial: TFormPolynomial
           Width = 75
           Height = 21
           Caption = 'Random'
-          TabOrder = 10
+          TabOrder = 11
           OnClick = btnBP1RandClick
         end
         object edtBP1Deg: TEdit
@@ -923,7 +945,7 @@ object FormPolynomial: TFormPolynomial
           Top = 120
           Width = 25
           Height = 21
-          TabOrder = 11
+          TabOrder = 5
           Text = '9'
         end
         object btnBP2Rand: TButton
@@ -932,7 +954,7 @@ object FormPolynomial: TFormPolynomial
           Width = 75
           Height = 21
           Caption = 'Random'
-          TabOrder = 12
+          TabOrder = 4
           OnClick = btnBP2RandClick
         end
         object btnBNTestExample1: TButton
@@ -941,7 +963,7 @@ object FormPolynomial: TFormPolynomial
           Width = 113
           Height = 25
           Caption = 'Galois Test Point 1'
-          TabOrder = 13
+          TabOrder = 14
           OnClick = btnBNTestExample1Click
         end
         object btnBNTestExample2: TButton
@@ -950,7 +972,7 @@ object FormPolynomial: TFormPolynomial
           Width = 113
           Height = 25
           Caption = 'Galois Test Point 2'
-          TabOrder = 14
+          TabOrder = 15
           OnClick = btnBNTestExample2Click
         end
         object btnBNTestExample3: TButton
@@ -959,7 +981,7 @@ object FormPolynomial: TFormPolynomial
           Width = 113
           Height = 25
           Caption = 'Galois Test Power 3'
-          TabOrder = 15
+          TabOrder = 16
           OnClick = btnBNTestExample3Click
         end
         object btnBNTestExample4: TButton
@@ -968,7 +990,7 @@ object FormPolynomial: TFormPolynomial
           Width = 113
           Height = 25
           Caption = 'Galois Test Power 4'
-          TabOrder = 16
+          TabOrder = 17
           OnClick = btnBNTestExample4Click
         end
         object btnBNGaloisTestGcd: TButton
@@ -977,7 +999,7 @@ object FormPolynomial: TFormPolynomial
           Width = 113
           Height = 25
           Caption = 'Galois Test GCD'
-          TabOrder = 17
+          TabOrder = 18
           OnClick = btnBNGaloisTestGcdClick
         end
         object btnBNTestGaloisMI: TButton
@@ -992,7 +1014,7 @@ object FormPolynomial: TFormPolynomial
           Font.Name = 'MS Sans Serif'
           Font.Style = []
           ParentFont = False
-          TabOrder = 18
+          TabOrder = 19
           OnClick = btnBNTestGaloisMIClick
         end
         object btnBNPolyGcd: TButton
@@ -1001,7 +1023,7 @@ object FormPolynomial: TFormPolynomial
           Width = 97
           Height = 25
           Caption = 'Test Poly Gcd'
-          TabOrder = 19
+          TabOrder = 20
           OnClick = btnBNPolyGcdClick
         end
         object btnBNGF28Test1: TButton
@@ -1010,7 +1032,7 @@ object FormPolynomial: TFormPolynomial
           Width = 113
           Height = 25
           Caption = 'GF2^8 Test1'
-          TabOrder = 20
+          TabOrder = 21
           OnClick = btnBNGF28Test1Click
         end
         object btnBNTestGaloisDiv: TButton
@@ -1019,7 +1041,7 @@ object FormPolynomial: TFormPolynomial
           Width = 113
           Height = 25
           Caption = 'Test Galois Div'
-          TabOrder = 21
+          TabOrder = 22
           OnClick = btnBNTestGaloisDivClick
         end
         object btnBNTestGaloisCalc: TButton
@@ -1028,7 +1050,7 @@ object FormPolynomial: TFormPolynomial
           Width = 113
           Height = 25
           Caption = 'Test Galois Calc'
-          TabOrder = 22
+          TabOrder = 23
           OnClick = btnBNTestGaloisCalcClick
         end
         object btnBNTestHugeDiv1: TButton
@@ -1037,7 +1059,7 @@ object FormPolynomial: TFormPolynomial
           Width = 113
           Height = 25
           Caption = 'Test Huge Div 1'
-          TabOrder = 23
+          TabOrder = 24
           OnClick = btnBNTestHugeDiv1Click
         end
         object btnBNTestHugeDiv2: TButton
@@ -1046,7 +1068,7 @@ object FormPolynomial: TFormPolynomial
           Width = 113
           Height = 25
           Caption = 'Test Huge Div 2'
-          TabOrder = 24
+          TabOrder = 25
           OnClick = btnBNTestHugeDiv2Click
         end
         object btnBNTestHugeDiv3: TButton
@@ -1055,7 +1077,7 @@ object FormPolynomial: TFormPolynomial
           Width = 113
           Height = 25
           Caption = 'Test Huge Div 3'
-          TabOrder = 25
+          TabOrder = 26
           OnClick = btnBNTestHugeDiv3Click
         end
         object btnBNTestPowerMod: TButton
@@ -1064,7 +1086,7 @@ object FormPolynomial: TFormPolynomial
           Width = 97
           Height = 25
           Caption = 'Test Power Mod'
-          TabOrder = 26
+          TabOrder = 27
           OnClick = btnBNTestPowerModClick
         end
         object btnBNTestGaloisDivTime: TButton
@@ -1073,7 +1095,7 @@ object FormPolynomial: TFormPolynomial
           Width = 241
           Height = 25
           Caption = 'Test Galois Div Time'
-          TabOrder = 27
+          TabOrder = 28
           OnClick = btnBNTestGaloisDivTimeClick
         end
         object btnBNPolySetString: TButton
@@ -1082,7 +1104,7 @@ object FormPolynomial: TFormPolynomial
           Width = 75
           Height = 25
           Caption = 'Set String'
-          TabOrder = 28
+          TabOrder = 2
           OnClick = btnBNPolySetStringClick
         end
       end
@@ -1095,6 +1117,7 @@ object FormPolynomial: TFormPolynomial
         Top = 8
         Width = 897
         Height = 505
+        Anchors = [akLeft, akTop, akRight, akBottom]
         Caption = 'BigNumber Ecc on Galois'
         TabOrder = 0
         object btnBNTestMI1: TButton
@@ -1109,7 +1132,7 @@ object FormPolynomial: TFormPolynomial
           Font.Name = 'MS Sans Serif'
           Font.Style = []
           ParentFont = False
-          TabOrder = 0
+          TabOrder = 9
           OnClick = btnBNTestMI1Click
         end
         object btnBNTestEuclid2: TButton
@@ -1118,7 +1141,7 @@ object FormPolynomial: TFormPolynomial
           Width = 161
           Height = 25
           Caption = 'Test Extended Euclid 2'
-          TabOrder = 1
+          TabOrder = 10
           OnClick = btnBNTestEuclid2Click
         end
         object btnBNTestGaloisMulMod: TButton
@@ -1127,7 +1150,7 @@ object FormPolynomial: TFormPolynomial
           Width = 105
           Height = 25
           Caption = 'Test Galois MulMod'
-          TabOrder = 2
+          TabOrder = 8
           OnClick = btnBNTestGaloisMulModClick
         end
         object btnBNTestEuclid3: TButton
@@ -1136,7 +1159,7 @@ object FormPolynomial: TFormPolynomial
           Width = 161
           Height = 25
           Caption = 'Test Extended Euclid 3'
-          TabOrder = 3
+          TabOrder = 11
           OnClick = btnBNTestEuclid3Click
         end
         object btnBNEccDivisionPoly: TButton
@@ -1145,7 +1168,7 @@ object FormPolynomial: TFormPolynomial
           Width = 177
           Height = 25
           Caption = 'Test Ecc Division Polynomial 3'
-          TabOrder = 4
+          TabOrder = 12
           OnClick = btnBNEccDivisionPolyClick
         end
         object btnBNGenerateDP: TButton
@@ -1154,7 +1177,7 @@ object FormPolynomial: TFormPolynomial
           Width = 169
           Height = 25
           Caption = 'Generate Division Polynomial'
-          TabOrder = 5
+          TabOrder = 13
           OnClick = btnBNGenerateDPClick
         end
         object mmoBNTestDivisionPolynomials: TMemo
@@ -1163,7 +1186,7 @@ object FormPolynomial: TFormPolynomial
           Width = 849
           Height = 313
           ScrollBars = ssBoth
-          TabOrder = 6
+          TabOrder = 14
           WordWrap = False
         end
         object btnBNTestDivPoly1: TButton
@@ -1172,7 +1195,7 @@ object FormPolynomial: TFormPolynomial
           Width = 177
           Height = 25
           Caption = 'Test Ecc Division Polynomial 1'
-          TabOrder = 7
+          TabOrder = 3
           OnClick = btnBNTestDivPoly1Click
         end
         object btnBNTestDivPoly2: TButton
@@ -1181,7 +1204,7 @@ object FormPolynomial: TFormPolynomial
           Width = 177
           Height = 25
           Caption = 'Test Ecc Division Polynomial 2'
-          TabOrder = 8
+          TabOrder = 4
           OnClick = btnBNTestDivPoly2Click
         end
         object btnBNEccOnCurve: TButton
@@ -1190,7 +1213,7 @@ object FormPolynomial: TFormPolynomial
           Width = 129
           Height = 25
           Caption = 'Test 1 Point on Curve'
-          TabOrder = 9
+          TabOrder = 0
           OnClick = btnBNEccOnCurveClick
         end
         object btnBNEccPointAdd1: TButton
@@ -1199,7 +1222,7 @@ object FormPolynomial: TFormPolynomial
           Width = 113
           Height = 25
           Caption = 'Test Point Add 1'
-          TabOrder = 10
+          TabOrder = 1
           OnClick = btnBNEccPointAdd1Click
         end
         object btnBNEccPointAdd2: TButton
@@ -1208,7 +1231,7 @@ object FormPolynomial: TFormPolynomial
           Width = 105
           Height = 25
           Caption = 'Test Point Add 2'
-          TabOrder = 11
+          TabOrder = 2
           OnClick = btnBNEccPointAdd2Click
         end
         object btnBNTestPoly1: TButton
@@ -1217,7 +1240,7 @@ object FormPolynomial: TFormPolynomial
           Width = 129
           Height = 25
           Caption = 'Test ? Point on Curve 1'
-          TabOrder = 12
+          TabOrder = 5
           OnClick = btnBNTestPoly1Click
         end
         object btnBNTestPoly2: TButton
@@ -1226,7 +1249,7 @@ object FormPolynomial: TFormPolynomial
           Width = 129
           Height = 25
           Caption = 'Test ? Point on Curve 2'
-          TabOrder = 13
+          TabOrder = 6
           OnClick = btnBNTestPoly2Click
         end
         object btnBNTestPoly3: TButton
@@ -1235,7 +1258,7 @@ object FormPolynomial: TFormPolynomial
           Width = 241
           Height = 25
           Caption = 'Test 4 Points on Curve?'
-          TabOrder = 14
+          TabOrder = 7
           OnClick = btnBNTestPoly3Click
         end
       end
@@ -1248,6 +1271,7 @@ object FormPolynomial: TFormPolynomial
         Top = 8
         Width = 905
         Height = 505
+        Anchors = [akLeft, akTop, akRight, akBottom]
         Caption = 'BigNumber Rational Polynomial'
         TabOrder = 0
         object bvl6: TBevel
@@ -1291,7 +1315,7 @@ object FormPolynomial: TFormPolynomial
           Width = 225
           Height = 25
           Caption = 'Check Division Polynomial Zero'
-          TabOrder = 0
+          TabOrder = 2
           OnClick = btnBNTestDivPolyClick
         end
         object btnBNTestPointAdd: TButton
@@ -1299,8 +1323,8 @@ object FormPolynomial: TFormPolynomial
           Top = 24
           Width = 169
           Height = 25
-          Caption = 'Calc 2 * Point (x, 1*y£©on Ecc'
-          TabOrder = 1
+          Caption = 'Calc 2 * Point (x, 1*y) on Ecc'
+          TabOrder = 0
           OnClick = btnBNTestPointAddClick
         end
         object btnBNTestManualPoint: TButton
@@ -1309,7 +1333,7 @@ object FormPolynomial: TFormPolynomial
           Width = 209
           Height = 25
           Caption = 'Manual Test OnCurve'
-          TabOrder = 2
+          TabOrder = 1
           OnClick = btnBNTestManualPointClick
         end
         object edtBNRationalNominator1: TEdit
@@ -1341,7 +1365,7 @@ object FormPolynomial: TFormPolynomial
           Width = 75
           Height = 25
           Caption = 'Add'
-          TabOrder = 6
+          TabOrder = 7
           OnClick = btnBNRationalAddClick
         end
         object btnBNRationalSub: TButton
@@ -1350,7 +1374,7 @@ object FormPolynomial: TFormPolynomial
           Width = 75
           Height = 25
           Caption = 'Sub'
-          TabOrder = 7
+          TabOrder = 8
           OnClick = btnBNRationalSubClick
         end
         object btnBNRationalMul: TButton
@@ -1359,7 +1383,7 @@ object FormPolynomial: TFormPolynomial
           Width = 75
           Height = 25
           Caption = 'Mul'
-          TabOrder = 8
+          TabOrder = 9
           OnClick = btnBNRationalMulClick
         end
         object btnBNRationalDiv: TButton
@@ -1368,7 +1392,7 @@ object FormPolynomial: TFormPolynomial
           Width = 75
           Height = 25
           Caption = 'Div'
-          TabOrder = 9
+          TabOrder = 10
           OnClick = btnBNRationalDivClick
         end
         object chkBNRationalGalois: TCheckBox
@@ -1377,7 +1401,7 @@ object FormPolynomial: TFormPolynomial
           Width = 73
           Height = 17
           Caption = 'Galois'
-          TabOrder = 10
+          TabOrder = 12
         end
         object edtBNRationalGalois: TEdit
           Left = 728
@@ -1392,7 +1416,7 @@ object FormPolynomial: TFormPolynomial
           Top = 176
           Width = 385
           Height = 21
-          TabOrder = 12
+          TabOrder = 14
         end
         object edtBNRationalDenominator2: TEdit
           Left = 16
@@ -1406,14 +1430,14 @@ object FormPolynomial: TFormPolynomial
           Top = 240
           Width = 385
           Height = 21
-          TabOrder = 14
+          TabOrder = 15
         end
         object edtBNRationalResultDenominator: TEdit
           Left = 452
           Top = 240
           Width = 385
           Height = 21
-          TabOrder = 15
+          TabOrder = 16
         end
         object btnBNTestRationalPointAdd1: TButton
           Left = 264
@@ -1421,7 +1445,7 @@ object FormPolynomial: TFormPolynomial
           Width = 209
           Height = 25
           Caption = 'Check Rational Polynomial Add'
-          TabOrder = 16
+          TabOrder = 17
           OnClick = btnBNTestRationalPointAdd1Click
         end
         object btnBNTestRationalPointAdd2: TButton
@@ -1430,7 +1454,7 @@ object FormPolynomial: TFormPolynomial
           Width = 177
           Height = 25
           Caption = 'Test Pi^2 + 2P Polynomial in Ring'
-          TabOrder = 17
+          TabOrder = 18
           OnClick = btnBNTestRationalPointAdd2Click
         end
         object btnBNTestGaloisEqual: TButton
@@ -1439,7 +1463,7 @@ object FormPolynomial: TFormPolynomial
           Width = 137
           Height = 25
           Caption = 'Test Galois Equal'
-          TabOrder = 18
+          TabOrder = 19
           OnClick = btnBNTestGaloisEqualClick
         end
         object btnBNRationalSetString: TButton
@@ -1448,7 +1472,7 @@ object FormPolynomial: TFormPolynomial
           Width = 75
           Height = 25
           Caption = 'Set String'
-          TabOrder = 19
+          TabOrder = 6
           OnClick = btnBNRationalSetStringClick
         end
         object btnBNRationalRational: TButton
@@ -1477,6 +1501,651 @@ object FormPolynomial: TFormPolynomial
           Caption = 'Compose Rational using Polynomial'
           TabOrder = 22
           OnClick = btnBNRationalPolyClick
+        end
+      end
+    end
+    object tsBiInt64Polynomial: TTabSheet
+      Caption = 'Bi Int64 Polynomial'
+      ImageIndex = 6
+      object grpBiInt64Poly: TGroupBox
+        Left = 8
+        Top = 4
+        Width = 905
+        Height = 513
+        Anchors = [akLeft, akTop, akRight, akBottom]
+        Caption = 'Bi Int64 Polynomial'
+        TabOrder = 0
+        object lblIBPDeg: TLabel
+          Left = 816
+          Top = 124
+          Width = 38
+          Height = 13
+          Caption = 'Degree:'
+        end
+        object lblIBP2Deg: TLabel
+          Left = 816
+          Top = 252
+          Width = 38
+          Height = 13
+          Caption = 'Degree:'
+        end
+        object lblIBPEqual: TLabel
+          Left = 24
+          Top = 288
+          Width = 11
+          Height = 20
+          Caption = '='
+          Font.Charset = DEFAULT_CHARSET
+          Font.Color = clWindowText
+          Font.Height = -16
+          Font.Name = 'MS Sans Serif'
+          Font.Style = [fsBold]
+          ParentFont = False
+        end
+        object lblIBPPower: TLabel
+          Left = 344
+          Top = 158
+          Width = 21
+          Height = 13
+          Caption = 'Exp:'
+        end
+        object bvl8: TBevel
+          Left = 400
+          Top = 152
+          Width = 17
+          Height = 25
+          Shape = bsLeftLine
+        end
+        object bvl9: TBevel
+          Left = 664
+          Top = 152
+          Width = 17
+          Height = 25
+          Shape = bsLeftLine
+        end
+        object lblIBPExtract: TLabel
+          Left = 672
+          Top = 158
+          Width = 38
+          Height = 13
+          Caption = 'Degree:'
+        end
+        object lblIBPShiftX: TLabel
+          Left = 272
+          Top = 62
+          Width = 24
+          Height = 13
+          Caption = 'Shift:'
+        end
+        object bvl10: TBevel
+          Left = 24
+          Top = 324
+          Width = 865
+          Height = 17
+          Shape = bsTopLine
+        end
+        object btnBiInt64ToString: TButton
+          Left = 24
+          Top = 32
+          Width = 75
+          Height = 21
+          Caption = 'To String'
+          TabOrder = 0
+          OnClick = btnBiInt64ToStringClick
+        end
+        object edtBIP: TEdit
+          Left = 128
+          Top = 32
+          Width = 673
+          Height = 21
+          TabOrder = 1
+        end
+        object btnBiInt64SetString: TButton
+          Left = 816
+          Top = 32
+          Width = 75
+          Height = 25
+          Caption = 'Set String'
+          TabOrder = 2
+          OnClick = btnBiInt64SetStringClick
+        end
+        object mmoIBP1: TMemo
+          Left = 24
+          Top = 88
+          Width = 777
+          Height = 57
+          ReadOnly = True
+          TabOrder = 3
+        end
+        object btnIBP1Random: TButton
+          Left = 816
+          Top = 88
+          Width = 75
+          Height = 21
+          Caption = 'Random'
+          TabOrder = 4
+          OnClick = btnIBP1RandomClick
+        end
+        object edtIBP1Deg: TEdit
+          Left = 864
+          Top = 120
+          Width = 25
+          Height = 21
+          TabOrder = 5
+          Text = '4'
+        end
+        object mmoIBP2: TMemo
+          Left = 24
+          Top = 216
+          Width = 777
+          Height = 57
+          ReadOnly = True
+          TabOrder = 11
+        end
+        object btnIBP2Rand: TButton
+          Left = 816
+          Top = 216
+          Width = 75
+          Height = 21
+          Caption = 'Random'
+          TabOrder = 12
+          OnClick = btnIBP2RandClick
+        end
+        object edtIBP2Deg: TEdit
+          Left = 864
+          Top = 248
+          Width = 25
+          Height = 21
+          TabOrder = 13
+          Text = '4'
+        end
+        object btnIBPAdd: TButton
+          Left = 24
+          Top = 152
+          Width = 75
+          Height = 25
+          Caption = 'Add'
+          TabOrder = 6
+          OnClick = btnIBPAddClick
+        end
+        object btnIBPSub: TButton
+          Left = 104
+          Top = 152
+          Width = 75
+          Height = 25
+          Caption = 'Sub'
+          TabOrder = 7
+          OnClick = btnIBPSubClick
+        end
+        object btnIBPMul: TButton
+          Left = 184
+          Top = 152
+          Width = 75
+          Height = 25
+          Caption = 'Mul'
+          TabOrder = 8
+          OnClick = btnIBPMulClick
+        end
+        object edtIBP3: TEdit
+          Left = 56
+          Top = 288
+          Width = 833
+          Height = 21
+          TabOrder = 14
+        end
+        object btnIBPPower: TButton
+          Left = 264
+          Top = 152
+          Width = 75
+          Height = 25
+          Caption = 'Power'
+          TabOrder = 9
+          OnClick = btnIBPPowerClick
+        end
+        object edtIBPPower: TEdit
+          Left = 368
+          Top = 154
+          Width = 25
+          Height = 21
+          TabOrder = 10
+          Text = '4'
+        end
+        object btnIBPEvalY: TButton
+          Left = 416
+          Top = 152
+          Width = 75
+          Height = 25
+          Caption = 'Eval Y'
+          TabOrder = 15
+          OnClick = btnIBPEvalYClick
+        end
+        object btnIBPEvalX: TButton
+          Left = 496
+          Top = 152
+          Width = 75
+          Height = 25
+          Caption = 'Eval X'
+          TabOrder = 16
+          OnClick = btnIBPEvalXClick
+        end
+        object btnIBPTranspose: TButton
+          Left = 576
+          Top = 152
+          Width = 75
+          Height = 25
+          Caption = 'Transpose'
+          TabOrder = 17
+          OnClick = btnIBPTransposeClick
+        end
+        object edtIBPExtract: TEdit
+          Left = 720
+          Top = 154
+          Width = 25
+          Height = 21
+          TabOrder = 18
+          Text = '2'
+        end
+        object btnIBPExtractXY: TButton
+          Left = 752
+          Top = 152
+          Width = 75
+          Height = 25
+          Caption = 'Extract'
+          TabOrder = 19
+          OnClick = btnIBPExtractXYClick
+        end
+        object btnIBPIsMonicX: TButton
+          Left = 24
+          Top = 184
+          Width = 73
+          Height = 25
+          Caption = 'IsMonicX'
+          TabOrder = 20
+          OnClick = btnIBPIsMonicXClick
+        end
+        object edtIBPShiftX: TEdit
+          Left = 304
+          Top = 58
+          Width = 25
+          Height = 21
+          TabOrder = 21
+          Text = '4'
+        end
+        object btnIBPShiftLeftX: TButton
+          Left = 192
+          Top = 56
+          Width = 75
+          Height = 25
+          Caption = 'Shift Left'
+          TabOrder = 22
+          OnClick = btnIBPShiftLeftXClick
+        end
+        object btnIBPShiftRightX: TButton
+          Left = 336
+          Top = 56
+          Width = 75
+          Height = 25
+          Caption = 'Shift Right'
+          TabOrder = 23
+          OnClick = btnIBPShiftRightXClick
+        end
+        object btnIBPDivModX: TButton
+          Left = 104
+          Top = 184
+          Width = 75
+          Height = 25
+          Caption = 'DivX && ModX'
+          TabOrder = 24
+          OnClick = btnIBPDivModXClick
+        end
+        object btnIBPTestMod: TButton
+          Left = 24
+          Top = 336
+          Width = 113
+          Height = 25
+          Caption = 'Test Power Mod'
+          TabOrder = 25
+          OnClick = btnIBPTestModClick
+        end
+        object btnIBPTestAKSExample: TButton
+          Left = 160
+          Top = 336
+          Width = 113
+          Height = 25
+          Caption = 'Test AKS Example'
+          TabOrder = 26
+          OnClick = btnIBPTestAKSExampleClick
+        end
+        object btnTestModExample: TButton
+          Left = 288
+          Top = 336
+          Width = 113
+          Height = 25
+          Caption = 'Test Mod Example'
+          TabOrder = 27
+          OnClick = btnTestModExampleClick
+        end
+      end
+    end
+    object tsBNBPolynomial: TTabSheet
+      Caption = 'Bi BigNumber Polynomial'
+      ImageIndex = 7
+      object grpBNBPolynomial: TGroupBox
+        Left = 8
+        Top = 4
+        Width = 905
+        Height = 509
+        Caption = 'grpBNBPolynomial'
+        TabOrder = 0
+        object lblBIBNPShiftX: TLabel
+          Left = 272
+          Top = 62
+          Width = 24
+          Height = 13
+          Caption = 'Shift:'
+        end
+        object lblBNBIP1: TLabel
+          Left = 816
+          Top = 124
+          Width = 38
+          Height = 13
+          Caption = 'Degree:'
+        end
+        object lblBNBPDeg2: TLabel
+          Left = 816
+          Top = 252
+          Width = 38
+          Height = 13
+          Caption = 'Degree:'
+        end
+        object lblBNBPEqual: TLabel
+          Left = 24
+          Top = 288
+          Width = 11
+          Height = 20
+          Caption = '='
+          Font.Charset = DEFAULT_CHARSET
+          Font.Color = clWindowText
+          Font.Height = -16
+          Font.Name = 'MS Sans Serif'
+          Font.Style = [fsBold]
+          ParentFont = False
+        end
+        object bvl11: TBevel
+          Left = 24
+          Top = 324
+          Width = 865
+          Height = 17
+          Shape = bsTopLine
+        end
+        object lblBNBPExp: TLabel
+          Left = 344
+          Top = 158
+          Width = 21
+          Height = 13
+          Caption = 'Exp:'
+        end
+        object bvl12: TBevel
+          Left = 400
+          Top = 152
+          Width = 17
+          Height = 25
+          Shape = bsLeftLine
+        end
+        object bvl13: TBevel
+          Left = 664
+          Top = 152
+          Width = 17
+          Height = 25
+          Shape = bsLeftLine
+        end
+        object lblBNBPExtractDegree: TLabel
+          Left = 672
+          Top = 158
+          Width = 38
+          Height = 13
+          Caption = 'Degree:'
+        end
+        object btnBNBPToString: TButton
+          Left = 24
+          Top = 32
+          Width = 75
+          Height = 21
+          Caption = 'To String'
+          TabOrder = 0
+          OnClick = btnBNBPToStringClick
+        end
+        object edtBNBP: TEdit
+          Left = 128
+          Top = 32
+          Width = 673
+          Height = 21
+          TabOrder = 1
+        end
+        object btnBNBIPSetString: TButton
+          Left = 816
+          Top = 32
+          Width = 75
+          Height = 25
+          Caption = 'Set String'
+          TabOrder = 2
+          OnClick = btnBNBIPSetStringClick
+        end
+        object btnBIBNPShiftLeftX: TButton
+          Left = 192
+          Top = 56
+          Width = 75
+          Height = 25
+          Caption = 'Shift Left'
+          TabOrder = 3
+          OnClick = btnBIBNPShiftLeftXClick
+        end
+        object edtBIBNPShiftX: TEdit
+          Left = 304
+          Top = 58
+          Width = 25
+          Height = 21
+          TabOrder = 4
+          Text = '4'
+        end
+        object btnBIBNPShiftRightX: TButton
+          Left = 336
+          Top = 56
+          Width = 75
+          Height = 25
+          Caption = 'Shift Right'
+          TabOrder = 5
+          OnClick = btnBIBNPShiftRightXClick
+        end
+        object mmoBNBP1: TMemo
+          Left = 24
+          Top = 88
+          Width = 777
+          Height = 57
+          ReadOnly = True
+          TabOrder = 6
+        end
+        object btnBNBP1Rand: TButton
+          Left = 816
+          Top = 88
+          Width = 75
+          Height = 21
+          Caption = 'Random'
+          TabOrder = 7
+          OnClick = btnBNBP1RandClick
+        end
+        object edtBNBP1Deg: TEdit
+          Left = 864
+          Top = 120
+          Width = 25
+          Height = 21
+          TabOrder = 8
+          Text = '4'
+        end
+        object mmoBNBP2: TMemo
+          Left = 24
+          Top = 216
+          Width = 777
+          Height = 57
+          ReadOnly = True
+          TabOrder = 9
+        end
+        object btnBNBP2Rand: TButton
+          Left = 816
+          Top = 216
+          Width = 75
+          Height = 21
+          Caption = 'Random'
+          TabOrder = 10
+          OnClick = btnBNBP2RandClick
+        end
+        object edtBNBPDeg2: TEdit
+          Left = 864
+          Top = 248
+          Width = 25
+          Height = 21
+          TabOrder = 11
+          Text = '4'
+        end
+        object edtBNBP3: TEdit
+          Left = 56
+          Top = 288
+          Width = 833
+          Height = 21
+          TabOrder = 12
+        end
+        object btnBNBPAdd: TButton
+          Left = 24
+          Top = 152
+          Width = 75
+          Height = 25
+          Caption = 'Add'
+          TabOrder = 13
+          OnClick = btnBNBPAddClick
+        end
+        object btnBNBPSub: TButton
+          Left = 104
+          Top = 152
+          Width = 75
+          Height = 25
+          Caption = 'Sub'
+          TabOrder = 14
+          OnClick = btnBNBPSubClick
+        end
+        object btnBNBPMul: TButton
+          Left = 184
+          Top = 152
+          Width = 75
+          Height = 25
+          Caption = 'Mul'
+          TabOrder = 15
+          OnClick = btnBNBPMulClick
+        end
+        object btnBNBPPower: TButton
+          Left = 264
+          Top = 152
+          Width = 75
+          Height = 25
+          Caption = 'Power'
+          TabOrder = 16
+          OnClick = btnBNBPPowerClick
+        end
+        object edtBNBPExp: TEdit
+          Left = 368
+          Top = 154
+          Width = 25
+          Height = 21
+          TabOrder = 17
+          Text = '4'
+        end
+        object btnBNBPEvalY: TButton
+          Left = 416
+          Top = 152
+          Width = 75
+          Height = 25
+          Caption = 'Eval Y'
+          TabOrder = 18
+          OnClick = btnBNBPEvalYClick
+        end
+        object btnBNBPEvalX: TButton
+          Left = 496
+          Top = 152
+          Width = 75
+          Height = 25
+          Caption = 'Eval X'
+          TabOrder = 19
+          OnClick = btnBNBPEvalXClick
+        end
+        object btnBNBPTranspose: TButton
+          Left = 576
+          Top = 152
+          Width = 75
+          Height = 25
+          Caption = 'Transpose'
+          TabOrder = 20
+          OnClick = btnBNBPTransposeClick
+        end
+        object edtBNBPExtractDegree: TEdit
+          Left = 720
+          Top = 154
+          Width = 25
+          Height = 21
+          TabOrder = 21
+          Text = '2'
+        end
+        object btnBNBPExtract: TButton
+          Left = 752
+          Top = 152
+          Width = 75
+          Height = 25
+          Caption = 'Extract'
+          TabOrder = 22
+          OnClick = btnBNBPExtractClick
+        end
+        object btnBNBPIsMonicX: TButton
+          Left = 24
+          Top = 184
+          Width = 73
+          Height = 25
+          Caption = 'IsMonicX'
+          TabOrder = 23
+          OnClick = btnBNBPIsMonicXClick
+        end
+        object btnBNBPDivXModX: TButton
+          Left = 104
+          Top = 184
+          Width = 75
+          Height = 25
+          Caption = 'DivX && ModX'
+          TabOrder = 24
+          OnClick = btnBNBPDivXModXClick
+        end
+        object btnTestSetString: TButton
+          Left = 24
+          Top = 344
+          Width = 75
+          Height = 25
+          Caption = 'Test Set Value'
+          TabOrder = 25
+          OnClick = btnTestSetStringClick
+        end
+        object btnTestBNBPAddSub: TButton
+          Left = 112
+          Top = 344
+          Width = 75
+          Height = 25
+          Caption = 'Test Add/Sub'
+          TabOrder = 26
+          OnClick = btnTestBNBPAddSubClick
+        end
+        object btnBNBPTestModX: TButton
+          Left = 200
+          Top = 344
+          Width = 75
+          Height = 25
+          Caption = 'Test ModX'
+          TabOrder = 27
+          OnClick = btnBNBPTestModXClick
         end
       end
     end

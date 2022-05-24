@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2021 CnPack 开发组                       }
+{                   (C)Copyright 2001-2022 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -23,13 +23,15 @@ unit CnZip;
 ================================================================================
 * 软件名称：CnPack 组件包
 * 单元名称：CnPack 组件包 Zip 实现单元
-* 单元作者：CnPack开发组 Liu Xiao
+* 单元作者：CnPack 开发组 Liu Xiao
 * 备    注：使用 Delphi 自带的 Zlib 实现压缩解压与传统密码支持。
 *           但 XE2 以上的 Zlib 才支持 WindowBits 参数，才兼容传统的 ZIP 软件
 * 开发平台：PWinXP + Delphi 5
 * 兼容测试：PWinXP/7 + Delphi 5 ~ XE
 * 本 地 化：该单元中的字符串均符合本地化处理方式
-* 修改记录：2018.08.26 V1.3
+* 修改记录：2022.03.30 V1.4
+*                支持删除 Zip 包中的指定文件
+*           2018.08.26 V1.3
 *                存储/Deflate 模式下支持 Zip 传统的密码压缩解压缩算法
 *           2018.08.22 V1.2
 *                存储模式下支持 Zip 传统的密码压缩解压缩算法，但 Deflate 模式仍不支持密码
@@ -52,9 +54,9 @@ interface
 
 uses
   SysUtils, Classes, Windows, Contnrs, FileCtrl, CnCRC32, ZLib
-  {$IFNDEF DISABLE_DIRECTORY_SUPPORT}, CnCommon {$ELSE}
-  {$IFNDEF COMPILER6_UP} , CnCommon {$ENDIF} {$ENDIF};
-  // D5 下需要用到 CnCommon 单元做 UTF8 支持
+  {$IFNDEF DISABLE_DIRECTORY_SUPPORT}, CnCommon {$ENDIF}
+  {$IFNDEF COMPILER6_UP} , CnWideStrings  {$ENDIF};
+  // D5 下需要用到 CnWideStrings 单元做 UTF8 支持
 
 type
   ECnZipException = class(Exception);
@@ -219,6 +221,11 @@ type
       Compression: TCnZipCompressionMethod = zcDeflate);
     {* 向 Zip 文件中添加指定内容，FileName 为具体文件，ArchiveFileName 为要写入
       Zip 内部的文件名}
+    function RemoveFile(const FileName: string): Boolean;
+    {* 从 Zip 文件内删除一个文件，返回删除是否成功
+      文件名参数需根据 RemovePath 的值以对应是否包含路径}
+    function RemoveFileByIndex(FileIndex: Integer): Boolean;
+    {* 从 Zip 文件内删除一个指定序号的文件，返回删除是否成功}
 {$IFNDEF DISABLE_DIRECTORY_SUPPORT}
     procedure AddDirectory(const DirName: string; Compression: TCnZipCompressionMethod = zcDeflate);
     {* 向 Zip 文件中添加指定目录下的所有文件}
@@ -1313,6 +1320,36 @@ begin
 end;
 
 {$ENDIF}
+
+function TCnZipWriter.RemoveFile(const FileName: string): Boolean;
+var
+  Idx: Integer;
+  H: PCnZipHeader;
+begin
+  Result := False;
+  Idx := IndexOf(FileName);
+  if Idx >= 0 then
+  begin
+    H := PCnZipHeader(FFileList[Idx]);
+    FFileList.Delete(Idx);
+    Dispose(H);
+    Result := True;
+  end;
+end;
+
+function TCnZipWriter.RemoveFileByIndex(FileIndex: Integer): Boolean;
+var
+  H: PCnZipHeader;
+begin
+  Result := False;
+  if (FileIndex >= 0) and (FileIndex < FileCount) then
+  begin
+    H := PCnZipHeader(FFileList[FileIndex]);
+    FFileList.Delete(FileIndex);
+    Dispose(H);
+    Result := True;
+  end;
+end;
 
 procedure TCnZipWriter.Save;
 var

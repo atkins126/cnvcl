@@ -23,7 +23,7 @@ object FormBigNumber: TFormBigNumber
     ActivePage = tsBigNumber
     TabOrder = 0
     object tsBigNumber: TTabSheet
-      Caption = 'tsBigNumber'
+      Caption = 'BigNumber'
       object lblNumber1: TLabel
         Left = 16
         Top = 16
@@ -53,8 +53,8 @@ object FormBigNumber: TFormBigNumber
         Caption = 'Shift:'
       end
       object lblIntPower: TLabel
-        Left = 912
-        Top = 120
+        Left = 904
+        Top = 84
         Width = 48
         Height = 13
         Caption = 'Exponent:'
@@ -507,7 +507,7 @@ object FormBigNumber: TFormBigNumber
       end
       object btnPowerModCompare: TButton
         Left = 904
-        Top = 304
+        Top = 294
         Width = 129
         Height = 25
         Caption = 'Power Mod Compare'
@@ -516,7 +516,7 @@ object FormBigNumber: TFormBigNumber
       end
       object btnMulModCompare: TButton
         Left = 904
-        Top = 352
+        Top = 323
         Width = 129
         Height = 25
         Caption = 'Mul Mod Compare'
@@ -525,7 +525,7 @@ object FormBigNumber: TFormBigNumber
       end
       object btnCheckPrime: TButton
         Left = 904
-        Top = 264
+        Top = 236
         Width = 129
         Height = 25
         Caption = 'Check Prime 1'
@@ -533,9 +533,9 @@ object FormBigNumber: TFormBigNumber
         OnClick = btnCheckPrimeClick
       end
       object btnIntPower: TButton
-        Left = 912
-        Top = 80
-        Width = 121
+        Left = 904
+        Top = 44
+        Width = 129
         Height = 25
         Caption = 'Integer Power'
         TabOrder = 49
@@ -543,7 +543,7 @@ object FormBigNumber: TFormBigNumber
       end
       object seIntPower: TSpinEdit
         Left = 976
-        Top = 116
+        Top = 80
         Width = 57
         Height = 22
         MaxValue = 1024
@@ -552,9 +552,9 @@ object FormBigNumber: TFormBigNumber
         Value = 18
       end
       object btnGetTenCount: TButton
-        Left = 912
-        Top = 48
-        Width = 121
+        Left = 904
+        Top = 12
+        Width = 129
         Height = 25
         Caption = '10 Precision'
         TabOrder = 51
@@ -562,7 +562,7 @@ object FormBigNumber: TFormBigNumber
       end
       object btnCheckPrime2: TButton
         Left = 904
-        Top = 392
+        Top = 265
         Width = 129
         Height = 25
         Caption = 'Check Prime 2'
@@ -571,7 +571,7 @@ object FormBigNumber: TFormBigNumber
       end
       object btnBNCRT: TButton
         Left = 904
-        Top = 440
+        Top = 352
         Width = 129
         Height = 25
         Caption = 'Chinese Remainder '
@@ -580,7 +580,7 @@ object FormBigNumber: TFormBigNumber
       end
       object btnBNSqrt: TButton
         Left = 904
-        Top = 224
+        Top = 207
         Width = 129
         Height = 25
         Caption = 'Sqrt'
@@ -589,7 +589,7 @@ object FormBigNumber: TFormBigNumber
       end
       object btnBNNextPrime: TButton
         Left = 904
-        Top = 184
+        Top = 178
         Width = 129
         Height = 25
         Caption = 'Next Prime'
@@ -598,12 +598,149 @@ object FormBigNumber: TFormBigNumber
       end
       object btnBNMulKaratsuba: TButton
         Left = 904
-        Top = 488
+        Top = 381
         Width = 129
         Height = 25
         Caption = 'Mul Karatsuba'
         TabOrder = 56
         OnClick = btnBNMulKaratsubaClick
+      end
+      object btnRoot: TButton
+        Left = 904
+        Top = 120
+        Width = 129
+        Height = 25
+        Caption = 'Integer Root'
+        TabOrder = 57
+        OnClick = btnRootClick
+      end
+      object btnIsPerfectPower: TButton
+        Left = 904
+        Top = 149
+        Width = 129
+        Height = 25
+        Caption = 'Is Perfect Power'
+        TabOrder = 58
+        OnClick = btnIsPerfectPowerClick
+      end
+      object btnComNum: TButton
+        Left = 904
+        Top = 410
+        Width = 129
+        Height = 25
+        Caption = 'Combinatorial Numbers'
+        TabOrder = 59
+        OnClick = btnComNumClick
+      end
+      object btnBNAKS: TButton
+        Left = 904
+        Top = 439
+        Width = 129
+        Height = 25
+        Caption = 'AKS is Prime'
+        TabOrder = 60
+        OnClick = btnBNAKSClick
+      end
+      object btnFloatToBigNumber: TButton
+        Left = 904
+        Top = 472
+        Width = 129
+        Height = 25
+        Caption = 'Float To BigNumber'
+        TabOrder = 61
+        OnClick = btnFloatToBigNumberClick
+      end
+      object btnBigNumberToFloat: TButton
+        Left = 904
+        Top = 504
+        Width = 129
+        Height = 25
+        Caption = 'BigNumber To Float'
+        TabOrder = 62
+        OnClick = btnBigNumberToFloatClick
+      end
+      object btnBNEuler: TButton
+        Left = 904
+        Top = 536
+        Width = 129
+        Height = 25
+        Caption = 'BigNumber Euler'
+        TabOrder = 63
+        OnClick = btnBNEulerClick
+      end
+      object btnMulDivFloat: TButton
+        Left = 904
+        Top = 568
+        Width = 129
+        Height = 25
+        Caption = 'Mul Div Float'
+        TabOrder = 64
+        OnClick = btnMulDivFloatClick
+      end
+    end
+    object tsSparseBigNumberList: TTabSheet
+      Caption = 'Sparse BigNumber List'
+      ImageIndex = 1
+      object btnSBNLTest1: TButton
+        Left = 16
+        Top = 16
+        Width = 75
+        Height = 25
+        Caption = 'Set Values'
+        TabOrder = 0
+        OnClick = btnSBNLTest1Click
+      end
+      object edtSBNL: TEdit
+        Left = 112
+        Top = 16
+        Width = 753
+        Height = 21
+        TabOrder = 1
+      end
+      object mmoSBNL: TMemo
+        Left = 16
+        Top = 56
+        Width = 161
+        Height = 161
+        TabOrder = 2
+      end
+      object chkSparseUseSubMerge: TCheckBox
+        Left = 880
+        Top = 24
+        Width = 121
+        Height = 17
+        Caption = 'Use Subtract Merge'
+        TabOrder = 3
+      end
+      object edtSparseList2: TEdit
+        Left = 552
+        Top = 56
+        Width = 313
+        Height = 21
+        TabOrder = 4
+      end
+      object btnSparseMerge: TButton
+        Left = 888
+        Top = 56
+        Width = 113
+        Height = 25
+        Caption = 'Merge Sparse'
+        TabOrder = 5
+        OnClick = btnSparseMergeClick
+      end
+      object mmoSBNL2: TMemo
+        Left = 192
+        Top = 56
+        Width = 161
+        Height = 161
+        TabOrder = 6
+      end
+      object mmoSBNL3: TMemo
+        Left = 368
+        Top = 56
+        Width = 161
+        Height = 161
+        TabOrder = 7
       end
     end
   end

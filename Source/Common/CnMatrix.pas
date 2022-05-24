@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2021 CnPack 开发组                       }
+{                   (C)Copyright 2001-2022 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -55,7 +55,7 @@ type
     procedure SetRowCount(const Value: Integer);
     function GetValue(Row, Col: Integer): Int64;
   protected
-    procedure SetValue(Row, Col: Integer; const Value: Int64); virtual;
+    procedure SetValue(Row, Col: Integer; const AValue: Int64); virtual;
 
     function Add3(X, Y, Z: Int64): Int64; virtual;
     function Mul3(X, Y, Z: Int64): Int64; virtual;
@@ -82,6 +82,8 @@ type
     {* 设置为 Size 阶单位矩阵}
     procedure SetZero;
     {* 设置为全 0 矩阵}
+    procedure Transpose;
+    {* 矩阵转置，也就是行列互换}
 
     function Determinant: Int64; virtual;
     {* 求方阵行列式值}
@@ -244,6 +246,9 @@ type
     {* 设置为 Size 阶单位矩阵}
     procedure SetZero;
     {* 设置为全 0 矩阵}
+    procedure Transpose;
+    {* 矩阵转置，也就是行列互换}
+
     procedure DeleteRow(Row: Integer);
     {* 删除其中一行}
     procedure DeleteCol(Col: Integer);
@@ -1169,9 +1174,9 @@ begin
   end;
 end;
 
-procedure TCnIntMatrix.SetValue(Row, Col: Integer; const Value: Int64);
+procedure TCnIntMatrix.SetValue(Row, Col: Integer; const AValue: Int64);
 begin
-  FMatrix[Row, Col] := Value;
+  FMatrix[Row, Col] := AValue;
 end;
 
 procedure TCnIntMatrix.SetZero;
@@ -1193,6 +1198,11 @@ begin
   Result := 0;
   for I := 0 to FRowCount - 1 do
     Result := OperationAdd(Result, FMatrix[I, I]);
+end;
+
+procedure TCnIntMatrix.Transpose;
+begin
+  CnMatrixTranspose(Self, Self);
 end;
 
 { TCnRationalNumber }
@@ -2055,6 +2065,11 @@ begin
   T.SetZero;
   for I := 0 to RowCount - 1 do
     T.Add(Value[I, I]);
+end;
+
+procedure TCnRationalMatrix.Transpose;
+begin
+  CnMatrixTranspose(Self, Self);
 end;
 
 end.

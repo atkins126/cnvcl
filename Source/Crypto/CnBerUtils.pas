@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2021 CnPack 开发组                       }
+{                   (C)Copyright 2001-2022 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -28,7 +28,11 @@ unit CnBerUtils;
 * 开发平台：WinXP + Delphi 5.0
 * 兼容测试：暂未进行
 * 本 地 化：该单元无需本地化处理
-* 修改记录：2020.03.28 V1.3
+* 修改记录：2022.04.26 V1.5
+*               修改 LongWord 与 Integer 地址转换以支持 MacOS64
+*           2022.04.15 V1.4
+*               加入一 AsCommonInteger 方法允许自动根据数据长度 1、2、4 获取整型值。
+*           2020.03.28 V1.3
 *               允许外部给节点设置 TypeMask 以应对 ECC 的私钥父节点的情况。
 *           2019.04.19 V1.2
 *               支持 Win32/Win64/MacOS，支持 VCL 与 FMX 下的 TreeView 交互。
@@ -49,7 +53,7 @@ interface
 {$ENDIF}
 
 uses
-  SysUtils, Classes, TypInfo, CnBigNumber, CnTree
+  SysUtils, Classes, TypInfo, CnNativeDecl, CnBigNumber, CnTree
   {$IFDEF DEBUG}
     {$IFDEF MSWINDOWS}, ComCtrls  {$ENDIF}
     {$IFDEF SUPPORT_FMX}, FMX.TreeView {$ENDIF}
@@ -123,8 +127,8 @@ type
     FBerTag: Integer;
     FBerDataLength: Integer;
     FBerDataOffset: Integer;
-    function GetItems(Index: Integer): TCnBerReadNode;
-    procedure SetItems(Index: Integer; const Value: TCnBerReadNode);
+    function GetItems(AIndex: Integer): TCnBerReadNode;
+    procedure SetItems(AIndex: Integer; const Value: TCnBerReadNode);
 
     function InternalAsInteger(ByteSize: Integer): Integer;
     function InternalAsString(TagSet: TCnBerTagSet): AnsiString;
@@ -146,6 +150,11 @@ type
     function AsInteger: Integer;
     function AsCardinal: Cardinal;
     function AsInt64: Int64;
+    // 注意以上整型返回的方法，调用时应当与 BerDataLength 对应，否则倒序时会出错
+
+    function AsCommonInteger: Integer;
+    {* 该方法按 BerDataLength 的实际值返回整型并按实际倒序，BerDataLength 超出 Integer 时出错}
+
     procedure AsBigNumber(OutNum: TCnBigNumber);
     {* 按尺寸返回整型值或大数}
 
@@ -169,7 +178,7 @@ type
     function GetNextSibling: TCnBerReadNode;
     function GetPrevSibling: TCnBerReadNode;
 
-    property Items[Index: Integer]: TCnBerReadNode read GetItems write SetItems; default;
+    property Items[AIndex: Integer]: TCnBerReadNode read GetItems write SetItems; default;
 
     property BerOffset: Integer read FBerOffset write FBerOffset;
     {* 该节点对应的 ASN.1 内容编码在整体中的偏移}
@@ -253,8 +262,8 @@ type
     FBerTypeMask: Byte;
     function GetIsContainer: Boolean;
     procedure SetIsContainer(const Value: Boolean);
-    function GetItems(Index: Integer): TCnBerWriteNode;
-    procedure SetItems(Index: Integer; const Value: TCnBerWriteNode);
+    function GetItems(AIndex: Integer): TCnBerWriteNode;
+    procedure SetItems(AIndex: Integer; const Value: TCnBerWriteNode);
 
     procedure FillHeadCalcLen(ATag, ADataLen: Integer); // 计算并填充 FHead 与 FHeadLen
   public
@@ -274,11 +283,11 @@ type
     function GetNodeLength: Integer;
     {* 如果是基本类型就返回自身长度，如果是容器则自己头加各子节点长度}
 
-    procedure FillBasicNode(ATag: Integer; Data: PByte; DataLen: Integer);
+    procedure FillBasicNode(ATag: Integer; AData: PByte; DataLen: Integer);
     {* 外界创建此基本节点后用此方法填充基本数据，Container 节点不用，
        注意原始 BitString 不支持头字节，暂不需要自己填充}
 
-    property Items[Index: Integer]: TCnBerWriteNode read GetItems write SetItems;
+    property Items[AIndex: Integer]: TCnBerWriteNode read GetItems write SetItems;
 
     property Data: Pointer read FData write FData;
     property DataLength: Integer read FDataLength write FDataLength;
@@ -379,7 +388,7 @@ begin
   Result := ((Value and $FF00) shr 8) or ((Value and $00FF) shl 8);
 end;
 
-function SwapLongWord(Value: LongWord): LongWord;
+function SwapCardinal(Value: Cardinal): Cardinal;
 begin
   Result := ((Value and $000000FF) shl 24) or ((Value and $0000FF00) shl 8)
     or ((Value and $00FF0000) shr 8) or ((Value and $FF000000) shr 24);
@@ -387,13 +396,13 @@ end;
 
 function SwapInt64(Value: Int64): Int64;
 var
-  Lo, Hi: LongWord;
+  Lo, Hi: Cardinal;
   Rec: Int64Rec;
 begin
   Lo := Int64Rec(Value).Lo;
   Hi := Int64Rec(Value).Hi;
-  Lo := SwapLongWord(Lo);
-  Hi := SwapLongWord(Hi);
+  Lo := SwapCardinal(Lo);
+  Hi := SwapCardinal(Hi);
   Rec.Lo := Hi;
   Rec.Hi := Lo;
   Result := Int64(Rec);
@@ -443,7 +452,7 @@ begin
   D := C - Num.GetBytesCount;
 
   FillChar(P^, D, 0);
-  Num.ToBinary(PAnsiChar(Integer(P) + D));
+  Num.ToBinary(PAnsiChar(TCnNativeInt(P) + D));
 
   Result := Writer.AddBasicNode(CN_BER_TAG_INTEGER, P, C, Parent);
   FreeMemory(P);
@@ -543,7 +552,7 @@ begin
 
   while Run < ADataLen do
   begin
-    B := AData[Run];
+    B := AData^[Run];
 
     if B = $FF then
       Exit;
@@ -561,7 +570,7 @@ begin
 
     // Run 指向长度，处理长度
     Delta := 1;  // 1 表示 Tag 所占字节
-    B := AData[Run];
+    B := AData^[Run];
     if (B and CN_BER_LENLEN_MASK) = 0 then
     begin
       // 本字节就是长度
@@ -583,9 +592,9 @@ begin
           [AStartOffset, Run, LenLen]);
 
       if LenLen = SizeOf(Byte) then
-        DataLen := AData[Run]
+        DataLen := AData^[Run]
       else if LenLen = SizeOf(Word) then
-        DataLen := (Cardinal(AData[Run]) shl 8) or Cardinal(AData[Run + 1])
+        DataLen := (Cardinal(AData^[Run]) shl 8) or Cardinal(AData^[Run + 1])
       else // if LenLen > SizeOf(Word) then
         raise Exception.CreateFmt('Length Too Long (Base %d) %d.', [AStartOffset, LenLen]);
 
@@ -660,7 +669,7 @@ begin
   if FBerTag <> CN_BER_TAG_INTEGER then
     raise Exception.Create('Ber Tag Type Mismatch for ByteSize: ' + IntToStr(ByteSize));
 
-  if not (ByteSize in [SizeOf(Byte)..SizeOf(LongWord)]) then
+  if not (ByteSize in [SizeOf(Byte)..SizeOf(Cardinal)]) then
     raise Exception.Create('Invalid ByteSize: ' + IntToStr(ByteSize));
 
   if FBerDataLength > ByteSize then
@@ -673,8 +682,8 @@ begin
   // Byte 不需交换，SmallInt 交换两位，Integer 交换四位
   if ByteSize = SizeOf(Word) then
     IntValue := Integer(SwapWord(Word(IntValue)))
-  else if ByteSize = SizeOf(LongWord) then
-    IntValue := SwapLongWord(IntValue);
+  else if ByteSize = SizeOf(Cardinal) then
+    IntValue := SwapCardinal(IntValue);
   Result := IntValue;
 end;
 
@@ -725,17 +734,17 @@ end;
 procedure TCnBerReadNode.CopyDataTo(DestBuf: Pointer);
 begin
   if (FOriginData <> nil) and (FBerDataLength > 0) then
-    Move(Pointer(Integer(FOriginData) + FBerDataOffset)^, DestBuf^, FBerDataLength);
+    Move(Pointer(TCnNativeInt(FOriginData) + FBerDataOffset)^, DestBuf^, FBerDataLength);
 end;
 
-function TCnBerReadNode.GetItems(Index: Integer): TCnBerReadNode;
+function TCnBerReadNode.GetItems(AIndex: Integer): TCnBerReadNode;
 begin
-  Result := inherited GetItems(Index) as TCnBerReadNode;
+  Result := inherited GetItems(AIndex) as TCnBerReadNode;
 end;
 
-procedure TCnBerReadNode.SetItems(Index: Integer; const Value: TCnBerReadNode);
+procedure TCnBerReadNode.SetItems(AIndex: Integer; const Value: TCnBerReadNode);
 begin
-  inherited SetItems(Index, Value);
+  inherited SetItems(AIndex, Value);
 end;
 
 function TCnBerReadNode.GetBerDataAddress: Pointer;
@@ -743,7 +752,7 @@ begin
   if FOriginData = nil then
     Result := nil
   else
-    Result := Pointer(Integer(FOriginData) + FBerDataOffset);
+    Result := Pointer(TCnNativeInt(FOriginData) + FBerDataOffset);
 end;
 
 function TCnBerReadNode.GetNextSibling: TCnBerReadNode;
@@ -759,13 +768,13 @@ end;
 procedure TCnBerReadNode.CopyHeadTo(DestBuf: Pointer);
 begin
   if FOriginData <> nil then
-    Move(Pointer(Integer(FOriginData) + FBerOffset)^, DestBuf^, FBerLength - FBerDataLength);
+    Move(Pointer(TCnNativeInt(FOriginData) + FBerOffset)^, DestBuf^, FBerLength - FBerDataLength);
 end;
 
 procedure TCnBerReadNode.CopyTLVTo(DestBuf: Pointer);
 begin
   if (FOriginData <> nil) and (FBerLength > 0) then
-    Move(Pointer(Integer(FOriginData) + FBerOffset)^, DestBuf^, FBerLength);
+    Move(Pointer(TCnNativeInt(FOriginData) + FBerOffset)^, DestBuf^, FBerLength);
 end;
 
 function TCnBerReadNode.AsIA5String: string;
@@ -839,7 +848,7 @@ begin
   if FOriginData = nil then
     Result := nil
   else
-    Result := Pointer(Integer(FOriginData) + FBerOffset);
+    Result := Pointer(TCnNativeInt(FOriginData) + FBerOffset);
 end;
 
 function TCnBerReadNode.AsBoolean: Boolean;
@@ -856,6 +865,28 @@ end;
 function TCnBerReadNode.AsRawString: string;
 begin
   Result := InternalAsString([]);
+end;
+
+function TCnBerReadNode.AsCommonInteger: Integer;
+var
+  IntValue: Integer;
+begin
+  if FBerTag <> CN_BER_TAG_INTEGER then
+    raise Exception.Create('Ber Tag Type Mismatch for Common Integer.');
+
+  if FBerDataLength > SizeOf(Cardinal) then
+    raise Exception.CreateFmt('Data Length %d Overflow for Common Integer.',
+      [FBerDataLength]);
+
+  IntValue := 0;
+  CopyDataTo(@IntValue);
+
+  // Byte 不需交换，SmallInt 交换两位，Integer 交换四位
+  if FBerDataLength = SizeOf(Word) then
+    IntValue := Integer(SwapWord(Word(IntValue)))
+  else if FBerDataLength = SizeOf(Cardinal) then
+    IntValue := SwapCardinal(IntValue);
+  Result := IntValue;
 end;
 
 { TCnBerWriter }
@@ -1076,7 +1107,7 @@ begin
     begin
       LenLen := 3;
       D := ADataLen;
-      D := SwapLongWord(D);
+      D := SwapCardinal(D);
       D := D shr 8;
       Move(D, FHead[2], LenLen);
     end
@@ -1084,7 +1115,7 @@ begin
     begin
       LenLen := 4;
       D := ADataLen;
-      D := SwapLongWord(D);
+      D := SwapCardinal(D);
       Move(D, FHead[2], LenLen);
     end;
 
@@ -1110,9 +1141,9 @@ begin
   Result := FIsContainer;
 end;
 
-function TCnBerWriteNode.GetItems(Index: Integer): TCnBerWriteNode;
+function TCnBerWriteNode.GetItems(AIndex: Integer): TCnBerWriteNode;
 begin
-  Result := TCnBerWriteNode(inherited GetItems(Index));
+  Result := TCnBerWriteNode(inherited GetItems(AIndex));
 end;
 
 function TCnBerWriteNode.SaveToStream(Stream: TStream): Integer;
@@ -1158,10 +1189,10 @@ begin
   FIsContainer := Value;
 end;
 
-procedure TCnBerWriteNode.SetItems(Index: Integer;
+procedure TCnBerWriteNode.SetItems(AIndex: Integer;
   const Value: TCnBerWriteNode);
 begin
-  inherited SetItems(Index, Value);
+  inherited SetItems(AIndex, Value);
 end;
 
 function TCnBerWriteNode.GetNodeLength: Integer;
@@ -1187,7 +1218,7 @@ begin
   end;
 end;
 
-procedure TCnBerWriteNode.FillBasicNode(ATag: Integer; Data: PByte;
+procedure TCnBerWriteNode.FillBasicNode(ATag: Integer; AData: PByte;
   DataLen: Integer);
 var
   B: Byte;
@@ -1196,7 +1227,7 @@ begin
   if FIsContainer then
     Exit;
 
-  FData := Data;
+  FData := AData;
   FDataLength := DataLen;
   FillHeadCalcLen(ATag, DataLen);
 
@@ -1243,7 +1274,7 @@ begin
   else
   begin
     if (FHeadLen > 0) and (FMem.Size > FHeadLen) then
-      Result := Stream.Write(Pointer(Integer(FMem.Memory) + FHeadLen)^, FMem.Size - FHeadLen);
+      Result := Stream.Write(Pointer(TCnNativeInt(FMem.Memory) + FHeadLen)^, FMem.Size - FHeadLen);
   end;
 end;
 

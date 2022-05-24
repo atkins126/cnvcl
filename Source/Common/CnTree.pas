@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2021 CnPack 开发组                       }
+{                   (C)Copyright 2001-2022 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -68,7 +68,7 @@ interface
 
 uses
   SysUtils, Classes, Contnrs {$IFDEF MSWINDOWS}, ComCtrls {$ENDIF}
-  {$IFDEF SUPPORT_FMX}, FMX.TreeView {$ENDIF}, Math;
+  {$IFDEF SUPPORT_FMX}, FMX.TreeView {$ENDIF};
   // If ComCtrls not found, please add 'Vcl' to 'Unit Scope Names' in Project Options.
 
 type
@@ -99,8 +99,8 @@ type
     function GetCount: Integer;
     function GetHasChildren: Boolean;
     function GetIndex: Integer;
-    function GetItems(Index: Integer): TCnLeaf;
-    procedure SetItems(Index: Integer; const Value: TCnLeaf);
+    function GetItems(AIndex: Integer): TCnLeaf;
+    procedure SetItems(AIndex: Integer; const Value: TCnLeaf);
     function GetLevel: Integer;
     function GetSubTreeHeight: Integer; virtual;
 
@@ -169,7 +169,7 @@ type
     {* 是否有子节点 }
     property Index: Integer read GetIndex;
     {* 本叶节点在父节点列表中的顺序索引，从 0 开始。无父则为 -1 }
-    property Items[Index: Integer]: TCnLeaf read GetItems write SetItems; default;
+    property Items[AIndex: Integer]: TCnLeaf read GetItems write SetItems; default;
     {* 直属叶节点数组 }
     property SubTreeHeight: Integer read GetSubTreeHeight;
     {* 此节点下属子树的最大高度，无子节点时为 0}
@@ -625,9 +625,9 @@ begin
     Result := -1;
 end;
 
-function TCnLeaf.GetItems(Index: Integer): TCnLeaf;
+function TCnLeaf.GetItems(AIndex: Integer): TCnLeaf;
 begin
-  Result := TCnLeaf(FList.Items[Index]);
+  Result := TCnLeaf(FList.Items[AIndex]);
 end;
 
 function TCnLeaf.GetLastChild: TCnLeaf;
@@ -778,7 +778,7 @@ begin
   if (ALeaf <> nil) and (ALeaf.Tree = Self.FTree) and
     (Index >= 0) and (Index < Count) then
   begin
-    Result := FList.Items[Index];
+    Result := TCnLeaf(FList.Items[Index]);
     FList.Items[Index] := ALeaf;
     ALeaf.FParent := Self;
   end
@@ -786,11 +786,11 @@ begin
     Result := nil;
 end;
 
-procedure TCnLeaf.SetItems(Index: Integer; const Value: TCnLeaf);
+procedure TCnLeaf.SetItems(AIndex: Integer; const Value: TCnLeaf);
 begin
-  if (Index >= 0) and (Index < Count) then
+  if (AIndex >= 0) and (AIndex < Count) then
   begin
-    FList.Items[Index] := Value;
+    FList.Items[AIndex] := Value;
     if Value <> nil then
       Value.FParent := Self;
   end;
@@ -1315,7 +1315,11 @@ begin
       for I := 0 to ANode.Count - 1 do
       begin
         Leaf := Self.AddChild(ALeaf);
+{$IFDEF FPC}
+        LoadFromATreeNode(Leaf, ANode.Items[I]);
+{$ELSE}
         LoadFromATreeNode(Leaf, ANode.Item[I]);
+{$ENDIF}
       end;
     end
     else

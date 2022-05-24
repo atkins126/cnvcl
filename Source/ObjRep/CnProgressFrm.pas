@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2021 CnPack 开发组                       }
+{                   (C)Copyright 2001-2022 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -60,14 +60,10 @@ type
     SpeedButton1: TSpeedButton;
     lblTitle: TLabel;
     ProgressBar: TProgressBar;
-    Label1: TLabel;
   private
-    { Private declarations }
     FPerLabel: TLabel;
   public
-    { Public declarations }
     procedure DoCreate; override;
-
   end;
 
 procedure ShowProgress(const Title: string; AMax: Integer = 100);
@@ -160,9 +156,9 @@ begin
   inherited;
   FPerLabel := TLabel.Create(Self);
   FPerLabel.Caption := '    '; // 100%
-  FPerLabel.Parent := Label1.Parent;
-  FPerLabel.Top := Label1.Top;
-  FPerLabel.Left := ProgressBar.Left + ProgressBar.Width - FPerLabel.Width;
+  FPerLabel.Parent := lblTitle.Parent;
+  FPerLabel.Top := ProgressBar.Top - FPerLabel.Height - 2;
+  FPerLabel.Left := (Width - FPerLabel.Width) div 2; // ProgressBar.Left + ProgressBar.Width - FPerLabel.Width;
 end;
 
 end.

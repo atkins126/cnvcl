@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2021 CnPack 开发组                       }
+{                   (C)Copyright 2001-2022 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -24,8 +24,9 @@ unit CnDebug;
 * 软件名称：CnDebugger
 * 单元名称：CnDebug 调试信息输出接口单元
 * 单元作者：刘啸（liuxiao@cnpack.org）
-* 备    注：该单元定义并实现了 CnDebugger 输出信息的接口内容
-*           部分内容引用了 overseer 的 udbg 单元内容
+* 备    注：该单元定义并实现了 CnDebugger 输出信息的接口内容，
+*           支持 Win32 和 Win64 以及 Unicode 与非 Unicode
+*           部分接口内容引用了 overseer 的 udbg 单元内容
 * 开发平台：PWin2000Pro + Delphi 7
 * 兼容测试：PWin9X/2000/XP + Delphi 5/6/7 + C++Builder 5/6
 * 本 地 化：该单元中的字符串均符合本地化处理方式
@@ -439,6 +440,7 @@ type
 {$ENDIF}
     procedure LogException(E: Exception; const AMsg: string = '');
     procedure LogMemDump(AMem: Pointer; Size: Integer);
+    procedure LogBitmapMemory(ABmp: TBitmap);
 {$IFDEF MSWINDOWS}
     procedure LogVirtualKey(AKey: Word);
     procedure LogVirtualKeyWithTag(AKey: Word; const ATag: string);
@@ -521,6 +523,7 @@ type
 {$ENDIF}
     procedure TraceException(E: Exception; const AMsg: string = '');
     procedure TraceMemDump(AMem: Pointer; Size: Integer);
+    procedure TraceBitmapMemory(ABmp: TBitmap);
 {$IFDEF MSWINDOWS}
     procedure TraceVirtualKey(AKey: Word);
     procedure TraceVirtualKeyWithTag(AKey: Word; const ATag: string);
@@ -567,6 +570,9 @@ type
     procedure FindControl;
     {* 全局范围内发起 Control 遍历，每个组件触发 OnFindComponent 事件，用于查找}
 {$ENDIF}
+
+    procedure Enable;
+    procedure Disable;
 
     // 其他属性
     property Channel: TCnDebugChannel read GetChannel;
@@ -865,7 +871,13 @@ begin
       if TypInfo = nil then
         Result := Result + IntToStr(I)
       else
-        Result := Result + GetEnumName(TypInfo, I);
+      begin
+        try
+          Result := Result + GetEnumName(TypInfo, I);
+        except
+          Result := Result + IntToStr(I);
+        end;
+      end;
     end;
   end;
   Result := '[' + Result + ']';
@@ -1175,6 +1187,51 @@ begin
   AList.Add('end');
 end;
 
+function GetBitmapPixelBytesCount(APixelFormat: TPixelFormat): Integer;
+begin
+  case APixelFormat of
+    pf8bit: Result := 1;
+    pf15bit, pf16bit: Result := 2;
+    pf24bit: Result := 3;
+    pf32bit: Result := 4;
+  else
+    raise Exception.Create('NOT Suppport');
+  end;
+end;
+
+function IsWin64: Boolean;
+const
+  PROCESSOR_ARCHITECTURE_AMD64 = 9;
+  PROCESSOR_ARCHITECTURE_IA64 = 6;
+var
+  Kernel32Handle: THandle;
+  IsWow64Process: function(Handle: Windows.THandle; var Res: Windows.BOOL): Windows.BOOL; stdcall;
+  GetNativeSystemInfo : procedure(var lpSystemInfo: TSystemInfo); stdcall; isWoW64 :BOOL;SystemInfo :  TSystemInfo;
+begin
+  Result := False;
+  Kernel32Handle := GetModuleHandle(kernel32);
+
+  if Kernel32Handle = 0 then
+    Kernel32Handle := LoadLibrary(kernel32);
+
+  if Kernel32Handle <> 0 then
+  begin
+    IsWow64Process := GetProcAddress(Kernel32Handle, 'IsWow64Process');
+    GetNativeSystemInfo := GetProcAddress(Kernel32Handle, 'GetNativeSystemInfo');
+
+    if Assigned(IsWow64Process) then
+    begin
+      IsWow64Process(GetCurrentProcess, isWoW64);
+      Result := isWoW64 and Assigned(GetNativeSystemInfo);
+      if Result then
+      begin
+        GetNativeSystemInfo(SystemInfo);
+        Result := (SystemInfo.wProcessorArchitecture = PROCESSOR_ARCHITECTURE_AMD64)
+          or (SystemInfo.wProcessorArchitecture = PROCESSOR_ARCHITECTURE_IA64);
+      end;
+    end;
+  end;
+end;
 
 function CnDebugger: TCnDebugger;
 begin
@@ -1981,6 +2038,24 @@ begin
 {$ENDIF}
 end;
 
+procedure TCnDebugger.LogBitmapMemory(ABmp: TBitmap);
+{$IFDEF DEBUG}
+var
+  H, B: Integer;
+{$ENDIF}
+begin
+{$IFDEF DEBUG}
+  if (ABmp <> nil) and not (ABmp.Empty) then
+  begin
+    LogFmt('Bmp Width %d, Height %d.', [ABmp.Width, ABmp.Height]);
+
+    B := GetBitmapPixelBytesCount(ABmp.PixelFormat);
+    for H := 0 to ABmp.Height - 1 do
+      LogMemDump(ABmp.ScanLine[H], ABmp.Width * B);
+  end;
+{$ENDIF}
+end;
+
 {$IFDEF MSWINDOWS}
 
 procedure TCnDebugger.LogVirtualKey(AKey: Word);
@@ -2093,6 +2168,12 @@ var
 {$ENDIF}
 begin
 {$IFDEF DEBUG}
+  if AObject = nil then
+  begin
+    LogMsgWithTypeTag('Object: nil', cmtObject, ATag);
+    Exit;
+  end;
+
   List := nil;
   try
     List := TStringList.Create;
@@ -2713,6 +2794,24 @@ begin
 {$ENDIF}
 end;
 
+procedure TCnDebugger.TraceBitmapMemory(ABmp: TBitmap);
+{$IFNDEF NDEBUG}
+var
+  H, B: Integer;
+{$ENDIF}
+begin
+{$IFNDEF NDEBUG}
+  if (ABmp <> nil) and not (ABmp.Empty) then
+  begin
+    TraceFmt('Bmp Width %d, Height %d.', [ABmp.Width, ABmp.Height]);
+
+    B := GetBitmapPixelBytesCount(ABmp.PixelFormat);
+    for H := 0 to ABmp.Height - 1 do
+      TraceMemDump(ABmp.ScanLine[H], ABmp.Width * B);
+  end;
+{$ENDIF}
+end;
+
 {$IFDEF MSWINDOWS}
 
 procedure TCnDebugger.TraceVirtualKey(AKey: Word);
@@ -2791,6 +2890,12 @@ var
 {$ENDIF}
 begin
 {$IFNDEF NDEBUG}
+  if AObject = nil then
+  begin
+    TraceMsgWithTypeTag('Object: nil', cmtObject, ATag);
+    Exit;
+  end;
+
   List := nil;
   try
     List := TStringList.Create;
@@ -4122,6 +4227,16 @@ begin
     TraceFull(AVarName + '|' + AValue, CurrentTag, CurrentLevel, cmtWatch);
 end;
 
+procedure TCnDebugger.Enable;
+begin
+  Active := True;
+end;
+
+procedure TCnDebugger.Disable;
+begin
+  Active := False;
+end;
+
 procedure TCnDebugger.FindComponent;
 var
   I: Integer;
@@ -4558,11 +4673,14 @@ end;
 
 procedure TCnMapFileChannel.StartDebugViewer;
 const
-  SCnDebugViewerExeName = 'CnDebugViewer.exe -a ';
+  SCnDebugViewerExeName = 'CnDebugViewer.exe';
+  SCnDotExe = '.exe';
+  SCn64DotExe = '64.exe';
 var
   hStarting: THandle;
   Reg: TRegistry;
-  S: string;
+  S, Subfix, Subfix64: string;
+  Len: Integer;
   ViewerExe: AnsiString;
 begin
   ViewerExe := '';
@@ -4576,12 +4694,46 @@ begin
     Reg.Free;
   end;
 
-  // 加上调用参数
+  // 设置运行文件名
   if S <> '' then
-    ViewerExe := AnsiString(S + ' -a ')
+    ViewerExe := AnsiString(S)
   else
     ViewerExe := SCnDebugViewerExeName;
 
+  // 判断是否支持 64 位
+  if IsWin64 then
+  begin
+    S := LowerCase(ViewerExe);
+    Len := Length(S);
+
+    if Len > Length(SCnDotExe) + 4 then
+    begin
+      if (S[1] = '"') and (S[Len] = '"') then
+      begin
+        Subfix := SCnDotExe + '"';
+        Subfix64 := SCn64DotExe + '"';
+      end
+      else
+      begin
+        Subfix := SCnDotExe;
+        Subfix64 := SCn64DotExe;
+      end;
+
+      if Copy(S, Len - Length(Subfix) + 1, MaxInt) = Subfix then // 末尾是 .exe
+      begin
+        if Copy(S, Len - Length(Subfix64) + 1, MaxInt) <> Subfix64 then // 但末尾不是 64.exe
+        begin
+          S := ViewerExe;
+          Insert('64', S, Len - Length(Subfix) + 1);
+          if FileExists(S) then
+            Insert('64', ViewerExe, Len - Length(Subfix) + 1); // 把 64 插点前面并且判断文件存在不
+        end;
+      end;
+    end;
+  end;
+
+  // 加上调用参数
+  ViewerExe := ViewerExe + ' -a ';
   if FUseLocalSession then
     ViewerExe := ViewerExe + ' -local ';
 

@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2021 CnPack 开发组                       }
+{                   (C)Copyright 2001-2022 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -37,6 +37,13 @@ interface
 
 {$I CnPack.inc}
 
+const
+  ECN_OK                              = 0;         // 错误码 OK，无错误
+
+  ECN_FILE_NOT_FOUND                  = $10;       // 文件不存在
+
+  ECN_CUSTOM_ERROR_BASE               = $1000;     // 供外界设定的错误码起始值
+
 //==============================================================================
 // Strings DO NOT Localize:
 //==============================================================================
@@ -63,11 +70,15 @@ var
   SCnDisabled: string = 'Disabled';
   SCnMsgDlgOK: string = '&OK';
   SCnMsgDlgCancel: string = '&Cancel';
+  SCnMsgDlgYes: string = '&Yes';
+  SCnMsgDlgNo: string = '&No';
+  SCnMsgDlgYesToAll: string = 'Yes to &All';
+  SCnMsgDlgNoToAll: string = 'No to A&ll';
 
 const
   // CnPack Information
   SCnPackAbout = 'CnPack';
-  SCnPackVer = 'Ver 0.1.1.9';
+  SCnPackVer = 'Ver 0.1.2.2';
   SCnPackStr = SCnPackAbout + ' ' + SCnPackVer;
   SCnPackUrl = 'http://www.cnpack.org';
   SCnPackBbsUrl = 'http://bbs.cnpack.org';
@@ -80,7 +91,7 @@ const
   SCnPackDonationUrl = 'http://www.cnpack.org/foundation.php';
   SCnPackDonationUrlSF = 'http://sourceforge.net/donate/index.php?group_id=110999';
   SCnPackGroup = 'CnPack Team';
-  SCnPackCopyright = '(C)Copyright 2001-2021 ' + SCnPackGroup;
+  SCnPackCopyright = '(C)Copyright 2001-2022 ' + SCnPackGroup;
 
   // CnPropEditors
   SCopyrightFmtStr =
@@ -204,7 +215,24 @@ const
   SCommaString = ',';
   SPeriodString = '.';
 
+function CnGetLastError: Integer;
+
+procedure _CnSetLastError(Err: Integer);
+
 implementation
+
+threadvar
+  CnErrorCode: Integer;
+
+function CnGetLastError: Integer;
+begin
+  Result := CnErrorCode
+end;
+
+procedure _CnSetLastError(Err: Integer);
+begin
+  CnErrorCode := Err;
+end;
 
 end.
 

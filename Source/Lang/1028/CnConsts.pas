@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2021 CnPack 开发组                       }
+{                   (C)Copyright 2001-2022 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -70,11 +70,15 @@ var
   SCnDisabled: string = '窽ノ';
   SCnMsgDlgOK: string = '絋粄(&O)';
   SCnMsgDlgCancel: string = '(&C)';
+  SCnMsgDlgYes: string = '琌(&Y)';
+  SCnMsgDlgNo: string = '(&N)';
+  SCnMsgDlgYesToAll: string = '琌(&A)';
+  SCnMsgDlgNoToAll: string = '(&l)';
 
 const
   // 秨祇獺
   SCnPackAbout = 'CnPack';
-  SCnPackVer = 'Ver 0.0.8.8';
+  SCnPackVer = 'Ver 0.1.2.2';
   SCnPackStr = SCnPackAbout + ' ' + SCnPackVer;
   SCnPackUrl = 'http://www.cnpack.org';
   SCnPackBbsUrl = 'http://bbs.cnpack.org';
@@ -86,7 +90,7 @@ const
   SCnPackDonationUrl = 'http://www.cnpack.org/foundation.php';
   SCnPackDonationUrlSF = 'http://sourceforge.net/donate/index.php?group_id=110999';
   SCnPackGroup = 'CnPack 秨祇舱';
-  SCnPackCopyright = '(C)Copyright 2001-2021 ' + SCnPackGroup;
+  SCnPackCopyright = '(C)Copyright 2001-2022 ' + SCnPackGroup;
 
   // CnPropEditors
   SCopyrightFmtStr =

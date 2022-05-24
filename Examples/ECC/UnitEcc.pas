@@ -236,6 +236,16 @@ type
     btnInt64CountOrder1: TButton;
     btnInt64CountEccPoints3: TButton;
     mmoBNEccPoints: TMemo;
+    cbbCurveTypes: TComboBox;
+    btnInt64Affine: TButton;
+    btnTestJacobian: TButton;
+    btnBNEccAffineTest: TButton;
+    btnBNJacobianTest: TButton;
+    bvl2: TBevel;
+    rbBNAddNormal: TRadioButton;
+    rbBNAddAffine: TRadioButton;
+    rbBNAddJacobian: TRadioButton;
+    btnMulTime: TButton;
     procedure btnTest1Click(Sender: TObject);
     procedure btnTest0Click(Sender: TObject);
     procedure btnTestOnClick(Sender: TObject);
@@ -308,6 +318,12 @@ type
     procedure btnInt64EccCountOrderClick(Sender: TObject);
     procedure btnInt64CountOrder1Click(Sender: TObject);
     procedure btnInt64CountEccPoints3Click(Sender: TObject);
+    procedure cbbCurveTypesChange(Sender: TObject);
+    procedure btnInt64AffineClick(Sender: TObject);
+    procedure btnTestJacobianClick(Sender: TObject);
+    procedure btnBNEccAffineTestClick(Sender: TObject);
+    procedure btnBNJacobianTestClick(Sender: TObject);
+    procedure btnMulTimeClick(Sender: TObject);
   private
     FEcc64E2311: TCnInt64Ecc;
     FEcc64E2311Points: array[0..23] of array [0..23] of Boolean;
@@ -402,12 +418,28 @@ end;
 procedure TFormEcc.btnTest1Click(Sender: TObject);
 var
   P, Q: TCnInt64EccPoint;
+  P3, Q3: TCnInt64Ecc3Point;
 begin
   P.X := 3; P.Y := 10;
   Q.X := 9; Q.Y := 7;
+  CnInt64EccPointToEcc3Point(P, P3);
+  CnInt64EccPointToEcc3Point(Q, Q3);
 
   FEcc64E2311.PointAddPoint(P, Q, P);
   ShowMessage(Format('3,10 + 9,7 = %d,%d',[P.X, P.Y]));
+
+  FEcc64E2311.AffinePointAddPoint(P3, Q3, P3);
+  CnInt64AffinePointToEccPoint(P3, Q, FEcc64E2311.FiniteFieldSize);
+  ShowMessage('Affine Sum: ' + Format('%d,%d',[Q.X, Q.Y]));
+
+  P.X := 3; P.Y := 10;
+  Q.X := 9; Q.Y := 7;
+  CnInt64EccPointToEcc3Point(P, P3);
+  CnInt64EccPointToEcc3Point(Q, Q3);
+
+  FEcc64E2311.JacobianPointAddPoint(P3, Q3, P3);
+  CnInt64JacobianPointToEccPoint(P3, Q, FEcc64E2311.FiniteFieldSize);
+  ShowMessage('Jacobian Sum: ' + Format('%d,%d',[Q.X, Q.Y]));
 end;
 
 procedure TFormEcc.btnTest0Click(Sender: TObject);
@@ -449,17 +481,78 @@ end;
 procedure TFormEcc.btnTest2PClick(Sender: TObject);
 var
   P: TCnInt64EccPoint;
+  P3: TCnInt64Ecc3Point;
 begin
   P.X := StrToInt(edtPX.Text);
   P.Y := StrToInt(edtPY.Text);
 
+  // 普通计算 P + P
+  CnInt64EccPointToEcc3Point(P, P3);
   FEcc64E2311.MultiplePoint(2, P);
   ShowMessage('P Multiple 2 is ' + IntToStr(P.X) + ',' + IntToStr(P.Y));
+
+  // 仿射坐标计算 P + P
+  FEcc64E2311.AffinePointAddPoint(P3, P3, P3);
+  CnInt64AffinePointToEccPoint(P3, P, FEcc64E2311.FiniteFieldSize);
+  ShowMessage('P + P using Affine is ' + IntToStr(P.X) + ',' + IntToStr(P.Y));
+
+  P.X := StrToInt(edtPX.Text);
+  P.Y := StrToInt(edtPY.Text);
+
+  // 雅可比坐标计算 P + P
+  CnInt64EccPointToEcc3Point(P, P3);
+  FEcc64E2311.JacobianPointAddPoint(P3, P3, P3);
+  CnInt64JacobianPointToEccPoint(P3, P, FEcc64E2311.FiniteFieldSize);
+  ShowMessage('P + P using Jacobian is ' + IntToStr(P.X) + ',' + IntToStr(P.Y));
+
+  P.X := StrToInt(edtPX.Text);
+  P.Y := StrToInt(edtPY.Text);
+
+  // 仿射坐标计算 P * 2
+  CnInt64EccPointToEcc3Point(P, P3);
+  FEcc64E2311.AffineMultiplePoint(2, P3);
+  CnInt64AffinePointToEccPoint(P3, P, FEcc64E2311.FiniteFieldSize);
+  ShowMessage('P * 2  using Affine is ' + IntToStr(P.X) + ',' + IntToStr(P.Y));
+
+  P.X := StrToInt(edtPX.Text);
+  P.Y := StrToInt(edtPY.Text);
+
+  // 雅可比坐标计算 P * 2
+  CnInt64EccPointToEcc3Point(P, P3);
+  FEcc64E2311.JacobianMultiplePoint(2, P3);
+  CnInt64JacobianPointToEccPoint(P3, P, FEcc64E2311.FiniteFieldSize);
+  ShowMessage('P * 2  using Jacobian is ' + IntToStr(P.X) + ',' + IntToStr(P.Y));
+
+  P.X := StrToInt(edtPX.Text);
+  P.Y := StrToInt(edtPY.Text);
+
+  // 普通坐标计算 P * 3
+  FEcc64E2311.MultiplePoint(3, P);
+  ShowMessage('P * 3 is ' + IntToStr(P.X) + ',' + IntToStr(P.Y));
+
+  P.X := StrToInt(edtPX.Text);
+  P.Y := StrToInt(edtPY.Text);
+
+  // 仿射坐标计算 P * 3
+  CnInt64EccPointToEcc3Point(P, P3);
+  FEcc64E2311.AffineMultiplePoint(3, P3);
+  CnInt64AffinePointToEccPoint(P3, P, FEcc64E2311.FiniteFieldSize);
+  ShowMessage('P * 3  using Affine is ' + IntToStr(P.X) + ',' + IntToStr(P.Y));
+
+  P.X := StrToInt(edtPX.Text);
+  P.Y := StrToInt(edtPY.Text);
+
+  // 雅可比坐标计算 P * 2
+  CnInt64EccPointToEcc3Point(P, P3);
+  FEcc64E2311.JacobianMultiplePoint(3, P3);
+  CnInt64JacobianPointToEccPoint(P3, P, FEcc64E2311.FiniteFieldSize);
+  ShowMessage('P * 3  using Jacobian is ' + IntToStr(P.X) + ',' + IntToStr(P.Y));
 end;
 
 procedure TFormEcc.btnTestMulClick(Sender: TObject);
 var
   P: TCnInt64EccPoint;
+  P3: TCnInt64Ecc3Point;
   I: Integer;
   List: TStringList;
 begin
@@ -479,10 +572,57 @@ begin
   end;
 
   ShowMessage('P Multiple is '#13#10#13#10 + List.Text);
+
+  List.Clear;
+  for I := 0 to 30 do
+  begin
+    P.X := StrToInt(edtPX.Text);
+    P.Y := StrToInt(edtPY.Text);
+
+    CnInt64EccPointToEcc3Point(P, P3);
+    FEcc64E2311.AffineMultiplePoint(I, P3);
+    CnInt64AffinePointToEccPoint(P3, P, FEcc64E2311.FiniteFieldSize);
+
+    List.Add(IntToStr(I) + '*: ' + IntToStr(P.X) + ',' + IntToStr(P.Y));
+    if FEcc64E2311.IsPointOnCurve(P) then
+      List[List.Count - 1] := List[List.Count - 1] + ' On Curve.'
+    else
+    begin
+      // ShowMessage(List[List.Count - 1] + ' NOT On Curve.');
+      List[List.Count - 1] := List[List.Count - 1] + ' NOT On Curve.'
+    end;
+  end;
+
+  ShowMessage('P Affine Multiple is '#13#10#13#10 + List.Text);
+
+  List.Clear;
+  for I := 0 to 30 do
+  begin
+    P.X := StrToInt(edtPX.Text);
+    P.Y := StrToInt(edtPY.Text);
+
+    CnInt64EccPointToEcc3Point(P, P3);
+    FEcc64E2311.JacobianMultiplePoint(I, P3);
+    CnInt64JacobianPointToEccPoint(P3, P, FEcc64E2311.FiniteFieldSize);
+
+    List.Add(IntToStr(I) + '*: ' + IntToStr(P.X) + ',' + IntToStr(P.Y));
+    if FEcc64E2311.IsPointOnCurve(P) then
+      List[List.Count - 1] := List[List.Count - 1] + ' On Curve.'
+    else
+    begin
+      // ShowMessage(List[List.Count - 1] + ' NOT On Curve.');
+      List[List.Count - 1] := List[List.Count - 1] + ' NOT On Curve.'
+    end;
+  end;
+
+  ShowMessage('P Jacobian Multiple is '#13#10#13#10 + List.Text);
+
   List.Free;
 end;
 
 procedure TFormEcc.FormCreate(Sender: TObject);
+var
+  C: TCnEccCurveType;
 begin
   pgc1.ActivePageIndex := 0;
 
@@ -509,6 +649,10 @@ begin
   FPublicKey := TCnEccPublicKey.Create;
   FKeyEcc := TCnEcc.Create;
   cbbKeyHash.ItemIndex := 0;
+
+  cbbCurveTypes.Items.Clear;
+  for C := Low(TCnEccCurveType) to High(TCnEccCurveType) do
+    cbbCurveTypes.Items.Add(GetEnumName(TypeInfo(TCnEccCurveType), Ord(C)));
 
   CallUseless;
 end;
@@ -826,10 +970,29 @@ end;
 procedure TFormEcc.btnBNEccInverseGClick(Sender: TObject);
 var
   P: TCnEccPoint;
+  P3: TCnEcc3Point;
 begin
   P := TCnEccPoint.Create;
   P.Assign(FBNEcc.Generator);
-  FBNEcc.PointInverse(P);
+  if rbBNAddNormal.Checked then
+    FBNEcc.PointInverse(P)
+  else
+  begin
+    P3 := TCnEcc3Point.Create;
+    CnEccPointToEcc3Point(P, P3);
+    if rbBNAddAffine.Checked then
+    begin
+      FBNEcc.AffinePointInverse(P3);
+      CnAffinePointToEccPoint(P3, P, FBNEcc.FiniteFieldSize);
+    end
+    else
+    begin
+      FBNEcc.JacobianPointInverse(P3);
+      CnJacobianPointToEccPoint(P3, P, FBNEcc.FiniteFieldSize);
+    end;
+    P3.Free;
+  end;
+
   edtBNEccResult.Text := CnEccPointToString(P);
   if not FBNEcc.IsPointOnCurve(P) then
     ShowMessage('Error');
@@ -839,24 +1002,78 @@ end;
 procedure TFormEcc.btnBNEccInverseAddClick(Sender: TObject);
 var
   P: TCnEccPoint;
+  P3, Q3: TCnEcc3Point;
 begin
   P := TCnEccPoint.Create;
   P.Assign(FBNEcc.Generator);
-  FBNEcc.PointInverse(P);
-  FBNEcc.PointAddPoint(FBNEcc.Generator, P, P);
+  if rbBNAddNormal.Checked then
+  begin
+    FBNEcc.PointInverse(P);
+    FBNEcc.PointAddPoint(FBNEcc.Generator, P, P);
+  end
+  else
+  begin
+    P3 := TCnEcc3Point.Create;
+    Q3 := TCnEcc3Point.Create;
+
+    CnEccPointToEcc3Point(P, P3);
+    CnEccPointToEcc3Point(P, Q3);
+
+    if rbBNAddAffine.Checked then
+    begin
+      FBNEcc.AffinePointInverse(P3);
+      FBNEcc.AffinePointAddPoint(P3, Q3, P3);
+      CnAffinePointToEccPoint(P3, P, FBNEcc.FiniteFieldSize);
+    end
+    else
+    begin
+      FBNEcc.JacobianPointInverse(P3);
+      FBNEcc.JacobianPointAddPoint(P3, Q3, P3);
+      CnJacobianPointToEccPoint(P3, P, FBNEcc.FiniteFieldSize);
+    end;
+
+    Q3.Free;
+    P3.Free;
+  end;
+
   edtBNEccResult.Text := CnEccPointToString(P);
   if not FBNEcc.IsPointOnCurve(P) then
-    ShowMessage('Error');
+    ShowMessage('NOT on Curve');
   P.Free;
 end;
 
 procedure TFormEcc.btnBNEccGx2Click(Sender: TObject);
 var
   P: TCnEccPoint;
+  P3, Q3: TCnEcc3Point;
 begin
   P := TCnEccPoint.Create;
   P.Assign(FBNEcc.Generator);
-  FBNEcc.PointAddPoint(FBNEcc.Generator, P, P);
+  if rbBNAddNormal.Checked then
+    FBNEcc.PointAddPoint(FBNEcc.Generator, P, P)
+  else
+  begin
+    P3 := TCnEcc3Point.Create;
+    Q3 := TCnEcc3Point.Create;
+
+    CnEccPointToEcc3Point(P, P3);
+    CnEccPointToEcc3Point(P, Q3);
+
+    if rbBNAddAffine.Checked then
+    begin
+      FBNEcc.AffinePointAddPoint(P3, Q3, P3);
+      CnAffinePointToEccPoint(P3, P, FBNEcc.FiniteFieldSize);
+    end
+    else
+    begin
+      FBNEcc.JacobianPointAddPoint(P3, Q3, P3);
+      CnJacobianPointToEccPoint(P3, P, FBNEcc.FiniteFieldSize);
+    end;
+
+    Q3.Free;
+    P3.Free;
+  end;
+
   edtBNEccResult.Text := CnEccPointToString(P);
   if not FBNEcc.IsPointOnCurve(P) then
     ShowMessage('Error');
@@ -866,11 +1083,40 @@ end;
 procedure TFormEcc.btnBNEccG2SubGClick(Sender: TObject);
 var
   P: TCnEccPoint;
+  P3, Q3: TCnEcc3Point;
 begin
   P := TCnEccPoint.Create;
   P.Assign(FBNEcc.Generator);
-  FBNEcc.PointAddPoint(FBNEcc.Generator, P, P);
-  FBNEcc.PointSubPoint(P, FBNEcc.Generator, P);
+  if rbBNAddNormal.Checked then
+  begin
+    FBNEcc.PointAddPoint(FBNEcc.Generator, P, P);
+    FBNEcc.PointSubPoint(P, FBNEcc.Generator, P);
+  end
+  else
+  begin
+    P3 := TCnEcc3Point.Create;
+    Q3 := TCnEcc3Point.Create;
+
+    CnEccPointToEcc3Point(P, P3);
+    CnEccPointToEcc3Point(P, Q3);
+
+    if rbBNAddAffine.Checked then
+    begin
+      FBNEcc.AffinePointAddPoint(P3, Q3, P3);
+      FBNEcc.AffinePointSubPoint(P3, Q3, P3);
+      CnAffinePointToEccPoint(P3, P, FBNEcc.FiniteFieldSize);
+    end
+    else
+    begin
+      FBNEcc.JacobianPointAddPoint(P3, Q3, P3);
+      FBNEcc.JacobianPointSubPoint(P3, Q3, P3);
+      CnJacobianPointToEccPoint(P3, P, FBNEcc.FiniteFieldSize);
+    end;
+
+    Q3.Free;
+    P3.Free;
+  end;
+
   edtBNEccResult.Text := CnEccPointToString(P);
   if not FBNEcc.IsPointOnCurve(P) then
     ShowMessage('Error');
@@ -881,12 +1127,33 @@ procedure TFormEcc.btnBNEccGAddGClick(Sender: TObject);
 var
   P: TCnEccPoint;
   K: TCnBigNumber;
+  P3: TCnEcc3Point;
 begin
   P := TCnEccPoint.Create;
   P.Assign(FBNEcc.Generator);
   K := TCnBigNumber.Create;
   K.SetDec('2');
-  FBNEcc.MultiplePoint(K, P);
+  if rbBNAddNormal.Checked then
+    FBNEcc.MultiplePoint(K, P)
+  else
+  begin
+    P3 := TCnEcc3Point.Create;
+    CnEccPointToEcc3Point(P, P3);
+
+    if rbBNAddAffine.Checked then
+    begin
+      FBNEcc.AffineMultiplePoint(K, P3);
+      CnAffinePointToEccPoint(P3, P, FBNEcc.FiniteFieldSize);
+    end
+    else
+    begin
+      FBNEcc.JacobianMultiplePoint(K, P3);
+      CnJacobianPointToEccPoint(P3, P, FBNEcc.FiniteFieldSize);
+    end;
+
+    P3.Free;
+  end;
+
   edtBNEccResult.Text := CnEccPointToString(P);
   if not FBNEcc.IsPointOnCurve(P) then
     ShowMessage('Error');
@@ -897,10 +1164,30 @@ end;
 procedure TFormEcc.btnBNEccGSubGClick(Sender: TObject);
 var
   P: TCnEccPoint;
+  P3: TCnEcc3Point;
 begin
   P := TCnEccPoint.Create;
   P.Assign(FBNEcc.Generator);
-  FBNEcc.PointSubPoint(P, FBNEcc.Generator, P);
+  if rbBNAddNormal.Checked then
+    FBNEcc.PointSubPoint(P, FBNEcc.Generator, P)
+  else
+  begin
+    P3 := TCnEcc3Point.Create;
+    CnEccPointToEcc3Point(P, P3);
+
+    if rbBNAddAffine.Checked then
+    begin
+      FBNEcc.AffinePointSubPoint(P3, P3, P3);
+      CnAffinePointToEccPoint(P3, P, FBNEcc.FiniteFieldSize);
+    end
+    else
+    begin
+      FBNEcc.JacobianPointSubPoint(P3, P3, P3);
+      CnJacobianPointToEccPoint(P3, P, FBNEcc.FiniteFieldSize);
+    end;
+
+    P3.Free;
+  end;
   edtBNEccResult.Text := CnEccPointToString(P);
   P.Free;
 end;
@@ -909,12 +1196,32 @@ procedure TFormEcc.btnBNEccNGClick(Sender: TObject);
 var
   P: TCnEccPoint;
   K: TCnBigNumber;
+  P3: TCnEcc3Point;
 begin
   P := TCnEccPoint.Create;
   P.Assign(FBNEcc.Generator);
   K := TCnBigNumber.Create;
   K.SetDec(edtBNEccOrder.Text);
-  FBNEcc.MultiplePoint(K, P);
+  if rbBNAddNormal.Checked then
+    FBNEcc.MultiplePoint(K, P)
+  else
+  begin
+    P3 := TCnEcc3Point.Create;
+    CnEccPointToEcc3Point(P, P3);
+
+    if rbBNAddAffine.Checked then
+    begin
+      FBNEcc.AffineMultiplePoint(K, P3);
+      CnAffinePointToEccPoint(P3, P, FBNEcc.FiniteFieldSize);
+    end
+    else
+    begin
+      FBNEcc.JacobianMultiplePoint(K, P3);
+      CnJacobianPointToEccPoint(P3, P, FBNEcc.FiniteFieldSize);
+    end;
+
+    P3.Free;
+  end;
   edtBNEccResult.Text := CnEccPointToString(P);
   P.Free;
   K.Free;
@@ -924,6 +1231,7 @@ procedure TFormEcc.btnBNEcc4GClick(Sender: TObject);
 var
   P, Q: TCnEccPoint;
   K: TCnBigNumber;
+  P3, Q3: TCnEcc3Point;
 begin
   P := TCnEccPoint.Create;
   Q := TCnEccPoint.Create;
@@ -932,26 +1240,104 @@ begin
 
   K := TCnBigNumber.Create;
   K.SetDec('2');
-  FBNEcc.MultiplePoint(K, P);
-  if not FBNEcc.IsPointOnCurve(P) then
-    ShowMessage('Error * 2');
-  FBNEcc.MultiplePoint(K, P);
-  if not FBNEcc.IsPointOnCurve(P) then
-    ShowMessage('Error * 4');
-  edtBNEccResult.Text := CnEccPointToString(P);
 
-  FBNEcc.PointAddPoint(Q, FBNEcc.Generator, Q);
-  if not FBNEcc.IsPointOnCurve(Q) then
-    ShowMessage('Error G + G');
-  FBNEcc.PointAddPoint(Q, FBNEcc.Generator, Q); // 前两个换位置就会出错？
-  if not FBNEcc.IsPointOnCurve(Q) then
-    ShowMessage('Error G + G + G');
-  FBNEcc.PointAddPoint(Q, FBNEcc.Generator, Q);
-  if not FBNEcc.IsPointOnCurve(Q) then
-    ShowMessage('Error G + G + G + G');
+  if rbBNAddNormal.Checked then
+  begin
+    FBNEcc.MultiplePoint(K, P);
+    if not FBNEcc.IsPointOnCurve(P) then
+      ShowMessage('Error * 2');
+    FBNEcc.MultiplePoint(K, P);
+    if not FBNEcc.IsPointOnCurve(P) then
+      ShowMessage('Error * 4');
+    edtBNEccResult.Text := CnEccPointToString(P);
 
-  if CnEccPointsEqual(P, Q) then
-    ShowMessage('Equal');
+    FBNEcc.PointAddPoint(Q, FBNEcc.Generator, Q);
+    if not FBNEcc.IsPointOnCurve(Q) then
+      ShowMessage('Error G + G');
+    FBNEcc.PointAddPoint(Q, FBNEcc.Generator, Q); // 前两个换位置就会出错？
+    if not FBNEcc.IsPointOnCurve(Q) then
+      ShowMessage('Error G + G + G');
+    FBNEcc.PointAddPoint(Q, FBNEcc.Generator, Q);
+    if not FBNEcc.IsPointOnCurve(Q) then
+      ShowMessage('Error G + G + G + G');
+
+    if CnEccPointsEqual(P, Q) then
+      ShowMessage('Equal');
+  end
+  else
+  begin
+    P3 := TCnEcc3Point.Create;
+    Q3 := TCnEcc3Point.Create;
+
+    CnEccPointToEcc3Point(P, P3);
+    CnEccPointToEcc3Point(P, Q3);
+
+    if rbBNAddAffine.Checked then
+    begin
+      FBNEcc.AffineMultiplePoint(K, P3);
+      CnAffinePointToEccPoint(P3, P, FBNEcc.FiniteFieldSize);
+      if not FBNEcc.IsPointOnCurve(P) then
+        ShowMessage('Affine Error * 2');
+
+      FBNEcc.AffineMultiplePoint(K, P3);
+      CnAffinePointToEccPoint(P3, P, FBNEcc.FiniteFieldSize);
+      if not FBNEcc.IsPointOnCurve(P) then
+        ShowMessage('Affine Error * 4');
+
+      edtBNEccResult.Text := CnEccPointToString(P);
+
+      CnEccPointToEcc3Point(FBNEcc.Generator, P3); // P3 是固定的 G
+      FBNEcc.AffinePointAddPoint(Q3, P3, Q3);
+      CnAffinePointToEccPoint(Q3, Q, FBNEcc.FiniteFieldSize);
+      if not FBNEcc.IsPointOnCurve(Q) then
+        ShowMessage('Error Affine G + G');
+      FBNEcc.AffinePointAddPoint(Q3, P3, Q3);
+      CnAffinePointToEccPoint(Q3, Q, FBNEcc.FiniteFieldSize);
+      if not FBNEcc.IsPointOnCurve(Q) then
+        ShowMessage('Error Affine G + G + G');
+      FBNEcc.AffinePointAddPoint(Q3, P3, Q3);
+      CnAffinePointToEccPoint(Q3, Q, FBNEcc.FiniteFieldSize);
+      if not FBNEcc.IsPointOnCurve(Q) then
+        ShowMessage('Error Affine G + G + G + G');
+
+      if CnEccPointsEqual(P, Q) then
+        ShowMessage('Equal');
+    end
+    else
+    begin
+      FBNEcc.JacobianMultiplePoint(K, P3);
+      CnJacobianPointToEccPoint(P3, P, FBNEcc.FiniteFieldSize);
+      if not FBNEcc.IsPointOnCurve(P) then
+        ShowMessage('Affine Error * 2');
+
+      FBNEcc.JacobianMultiplePoint(K, P3);
+      CnJacobianPointToEccPoint(P3, P, FBNEcc.FiniteFieldSize);
+      if not FBNEcc.IsPointOnCurve(P) then
+        ShowMessage('Affine Error * 4');
+
+      edtBNEccResult.Text := CnEccPointToString(P);
+
+      CnEccPointToEcc3Point(FBNEcc.Generator, P3); // P3 是固定的 G
+      FBNEcc.JacobianPointAddPoint(Q3, P3, Q3);
+      CnJacobianPointToEccPoint(Q3, Q, FBNEcc.FiniteFieldSize);
+      if not FBNEcc.IsPointOnCurve(Q) then
+        ShowMessage('Error Affine G + G');
+      FBNEcc.JacobianPointAddPoint(Q3, P3, Q3);
+      CnJacobianPointToEccPoint(Q3, Q, FBNEcc.FiniteFieldSize);
+      if not FBNEcc.IsPointOnCurve(Q) then
+        ShowMessage('Error Affine G + G + G');
+      FBNEcc.JacobianPointAddPoint(Q3, P3, Q3);
+      CnJacobianPointToEccPoint(Q3, Q, FBNEcc.FiniteFieldSize);
+      if not FBNEcc.IsPointOnCurve(Q) then
+        ShowMessage('Error Affine G + G + G + G');
+
+      if CnEccPointsEqual(P, Q) then
+        ShowMessage('Equal');
+    end;
+
+    Q3.Free;
+    P3.Free;
+  end;
   P.Free;
   K.Free;
 end;
@@ -1059,10 +1445,10 @@ procedure TFormEcc.btnTestECDHClick(Sender: TObject);
 var
   Priv1, Priv2: TCnEccPrivateKey;
   Pub1, Pub2: TCnEccPublicKey;
-  Sec: TCnEccPoint;
+  Sec: TCnEccPublicKey;
 begin
-  Priv1 := TCnEccPrivateKey.FromHex('E32868331FA8EF0138DE0DE85478346AEC5E3912B6029AE71691C384237A3EEB');
-  Priv2 := TCnEccPrivateKey.FromHex('CEF147652AA90162E1FFF9CF07F2605EA05529CA215A04350A98ECC24AA34342');
+  Priv1 := TCnEccPrivateKey(TCnBigNumber.FromHex('E32868331FA8EF0138DE0DE85478346AEC5E3912B6029AE71691C384237A3EEB'));
+  Priv2 := TCnEccPrivateKey(TCnBigNumber.FromHex('CEF147652AA90162E1FFF9CF07F2605EA05529CA215A04350A98ECC24AA34342'));
 
   Pub1 := TCnEccPublicKey.Create;
   Pub2 := TCnEccPublicKey.Create;
@@ -1076,7 +1462,7 @@ begin
   ShowMessage('Pub2 is:' + #13#10 + Pub2.X.ToHex + #13#10 + Pub2.Y.ToHex);
   // 4034127647BB7FDAB7F1526C7D10BE8B28174E2BBA35B06FFD8A26FC2C20134A, 9E773199EDC1EA792B150270EA3317689286C9FE239DD5B9C5CFD9E81B4B632
 
-  Sec := TCnEccPoint.Create;
+  Sec := TCnEccPublicKey.Create;
   CnEccDiffieHellmanComputeKey(FBNEcc, Priv1, Pub2, Sec);
   ShowMessage('A Compute Key is:' + #13#10 + Sec.X.ToHex + #13#10 + Sec.Y.ToHex);
   CnEccDiffieHellmanComputeKey(FBNEcc, Priv2, Pub1, Sec);
@@ -2013,12 +2399,32 @@ procedure TFormEcc.btnBNEccCalcClick(Sender: TObject);
 var
   P: TCnEccPoint;
   K: TCnBigNumber;
+  P3: TCnEcc3Point;
 begin
   P := TCnEccPoint.Create;
   P.Assign(FBNEcc.Generator);
   K := TCnBigNumber.Create;
   K.SetDec(CnInputBox('Enter', 'Enter a Multiple Count', '10'));
-  FBNEcc.MultiplePoint(K, P);
+  if rbBNAddNormal.Checked then
+    FBNEcc.MultiplePoint(K, P)
+  else
+  begin
+    P3 := TCnEcc3Point.Create;
+    CnEccPointToEcc3Point(P, P3);
+
+    if rbBNAddAffine.Checked then
+    begin
+      FBNEcc.AffineMultiplePoint(K, P3);
+      CnAffinePointToEccPoint(P3, P, FBNEcc.FiniteFieldSize);
+    end
+    else
+    begin
+      FBNEcc.JacobianMultiplePoint(K, P3);
+      CnJacobianPointToEccPoint(P3, P, FBNEcc.FiniteFieldSize);
+    end;
+
+    P3.Free;
+  end;
   edtBNEccResult.Text := CnEccPointToString(P);
   P.Free;
   K.Free;
@@ -2439,6 +2845,228 @@ begin
   TIRP.Free;
   TRP.Free;
   TBRP.Free;
+end;
+
+procedure TFormEcc.cbbCurveTypesChange(Sender: TObject);
+begin
+  if cbbCurveTypes.ItemIndex > 0 then
+  begin
+    FKeyEcc.Load(TCnEccCurveType(cbbCurveTypes.ItemIndex));
+    lblCurveTypeText.Caption := GetEnumName(TypeInfo(TCnEccCurveType), cbbCurveTypes.ItemIndex);
+
+    edtKeyEccA.Text := FKeyEcc.CoefficientA.ToDec;
+    edtKeyEccB.Text := FKeyEcc.CoefficientB.ToDec;
+    edtKeyEccP.Text := FKeyEcc.FiniteFieldSize.ToDec;
+    edtKeyEccGX.Text := FKeyEcc.Generator.X.ToDec;
+    edtKeyEccGY.Text := FKeyEcc.Generator.Y.ToDec;
+    edtKeyEccOrder.Text := FKeyEcc.Order.ToDec;
+
+    edtKeyEccA.Hint := FKeyEcc.CoefficientA.ToHex;
+    edtKeyEccB.Hint := FKeyEcc.CoefficientB.ToHex;
+    edtKeyEccP.Hint := FKeyEcc.FiniteFieldSize.ToHex;
+    edtKeyEccGX.Hint := FKeyEcc.Generator.X.ToHex;
+    edtKeyEccGY.Hint := FKeyEcc.Generator.Y.ToHex;
+    edtKeyEccOrder.Hint := FKeyEcc.Order.ToHex;
+  end;
+end;
+
+procedure TFormEcc.btnInt64AffineClick(Sender: TObject);
+var
+  P3, Q3, K3: TCnInt64Ecc3Point;
+  P, Q: TCnInt64EccPoint;
+begin
+  P3.X := 14;
+  P3.Y := 19;
+  P3.Z := 17;
+
+  Q3.X := 6;
+  Q3.Y := 18;
+  Q3.Z := 4;
+
+  CnInt64AffinePointToEccPoint(P3, P, FEcc64E2311.FiniteFieldSize);
+  CnInt64AffinePointToEccPoint(Q3, Q, FEcc64E2311.FiniteFieldSize);
+  ShowMessage(Format('P %d,%d. Q %d,%d.', [P.X, P.Y, Q.X, Q.Y]));
+
+  FEcc64E2311.AffinePointAddPoint(P3, Q3, K3);
+  ShowMessage(Format('Affine Sum: %d,%d,%d', [K3.X, K3.Y, K3.Z]));
+  CnInt64AffinePointToEccPoint(K3, P, FEcc64E2311.FiniteFieldSize);
+  ShowMessage(Format('Affine Sum to P %d,%d.', [P.X, P.Y]));
+
+  P3.X := 14;
+  P3.Y := 19;
+  P3.Z := 17;
+
+  Q3.X := 6;
+  Q3.Y := 19;
+  Q3.Z := 1;
+
+  CnInt64AffinePointToEccPoint(P3, P, FEcc64E2311.FiniteFieldSize);
+  CnInt64AffinePointToEccPoint(Q3, Q, FEcc64E2311.FiniteFieldSize);
+  ShowMessage(Format('P %d,%d. Q %d,%d.', [P.X, P.Y, Q.X, Q.Y]));
+
+  FEcc64E2311.AffinePointAddPoint(P3, Q3, P3);
+end;
+
+procedure TFormEcc.btnTestJacobianClick(Sender: TObject);
+var
+  P3, Q3, K3: TCnInt64Ecc3Point;
+  P, Q: TCnInt64EccPoint;
+begin         
+  P3.X := 6;
+  P3.Y := 19;
+  P3.Z := 1;
+  FEcc64E2311.JacobianMultiplePoint(2, P3);  // 4 19 15
+
+  P3.X := 4;
+  P3.Y := 19;
+  P3.Z := 15;
+
+  Q3.X := 4;
+  Q3.Y := 19;
+  Q3.Z := 15;
+
+  CnInt64JacobianPointToEccPoint(P3, P, FEcc64E2311.FiniteFieldSize);
+  CnInt64JacobianPointToEccPoint(Q3, Q, FEcc64E2311.FiniteFieldSize);
+  ShowMessage(Format('P %d,%d. Q %d,%d.', [P.X, P.Y, Q.X, Q.Y]));
+
+  FEcc64E2311.JacobianPointAddPoint(P3, Q3, K3);
+
+  CnInt64JacobianPointToEccPoint(K3, P, FEcc64E2311.FiniteFieldSize);
+  ShowMessage(Format('Jacobian Sum to P %d,%d.', [P.X, P.Y]));
+end;
+
+procedure TFormEcc.btnBNEccAffineTestClick(Sender: TObject);
+var
+  P3, Q3, K3: TCnEcc3Point;
+  P, Q, K: TCnEccPoint;
+  BNEcc: TCnEcc;
+begin
+  P3 := TCnEcc3Point.Create;
+  Q3 := TCnEcc3Point.Create;
+  K3 := TCnEcc3Point.Create;
+
+  P := TCnEccPoint.Create;
+  Q := TCnEccPoint.Create;
+  K := TCnEccPoint.Create;
+
+  BNEcc := TCnEcc.Create('1', '1', '17', '5', '4', '7'); // 十六进制，转为 23
+
+  P.X.SetWord(6);
+  P.Y.SetWord(19);
+
+  Q.X.SetWord(9);
+  Q.Y.SetWord(7);
+
+  CnEccPointToEcc3Point(P, P3);
+  CnEccPointToEcc3Point(Q, Q3);
+
+  BNEcc.AffinePointAddPoint(P3, Q3, K3);
+  ShowMessage(CnEcc3PointToString(K3));
+  CnAffinePointToEccPoint(K3, P, BNEcc.FiniteFieldSize);
+  ShowMessage(CnEccPointToString(P));
+
+  BNEcc.Free;
+
+  K.Free;
+  Q.Free;
+  P.Free;
+
+  K3.Free;
+  Q3.Free;
+  P3.Free;
+end;
+
+procedure TFormEcc.btnBNJacobianTestClick(Sender: TObject);
+var
+  P3, Q3, K3: TCnEcc3Point;
+  P, Q, K: TCnEccPoint;
+  BNEcc: TCnEcc;
+begin
+  P3 := TCnEcc3Point.Create;
+  Q3 := TCnEcc3Point.Create;
+  K3 := TCnEcc3Point.Create;
+
+  P := TCnEccPoint.Create;
+  Q := TCnEccPoint.Create;
+  K := TCnEccPoint.Create;
+
+  BNEcc := TCnEcc.Create('1', '1', '17', '5', '4', '7'); // 十六进制，转为 23
+
+  P.X.SetWord(6);
+  P.Y.SetWord(19);
+
+  Q.X.SetWord(9);
+  Q.Y.SetWord(7);
+
+  CnEccPointToEcc3Point(P, P3);
+  CnEccPointToEcc3Point(Q, Q3);
+
+  BNEcc.JacobianPointAddPoint(P3, Q3, K3);
+  ShowMessage(CnEcc3PointToString(K3));
+  CnJacobianPointToEccPoint(K3, P, BNEcc.FiniteFieldSize);
+  ShowMessage(CnEccPointToString(P));
+
+  BNEcc.Free;
+
+  K.Free;
+  Q.Free;
+  P.Free;
+
+  K3.Free;
+  Q3.Free;
+  P3.Free;
+end;
+
+procedure TFormEcc.btnMulTimeClick(Sender: TObject);
+const
+  COUNT = 100;
+var
+  P: TCnEccPoint;
+  K: TCnBigNumber;
+  P3: TCnEcc3Point;
+  T: Cardinal;
+  I: Integer;
+begin
+  P := TCnEccPoint.Create;
+  P.Assign(FBNEcc.Generator);
+  K := TCnBigNumber.Create;
+  K.SetDec('1234567890ABCDEFFEDCBA0987654321');
+  if rbBNAddNormal.Checked then
+  begin
+    T := GetTickCount;
+    for I := 1 to COUNT do
+      FBNEcc.MultiplePoint(K, P);
+    T := GetTickCount - T;
+  end
+  else
+  begin
+    P3 := TCnEcc3Point.Create;
+    CnEccPointToEcc3Point(P, P3);
+
+    // 仿射/雅可比坐标点的乘法运算速度提高近十倍
+    if rbBNAddAffine.Checked then
+    begin
+      T := GetTickCount;
+      for I := 1 to COUNT do
+        FBNEcc.AffineMultiplePoint(K, P3);
+      T := GetTickCount - T;
+      CnAffinePointToEccPoint(P3, P, FBNEcc.FiniteFieldSize);
+    end
+    else
+    begin
+      T := GetTickCount;
+      for I := 1 to COUNT do
+        FBNEcc.JacobianMultiplePoint(K, P3);
+      T := GetTickCount - T;
+      CnJacobianPointToEccPoint(P3, P, FBNEcc.FiniteFieldSize);
+    end;
+
+    P3.Free;
+  end;
+  edtBNEccResult.Text := CnEccPointToString(P);
+  ShowMessage(IntToStr(T));
+  P.Free;
+  K.Free;
 end;
 
 end.

@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2021 CnPack 开发组                       }
+{                   (C)Copyright 2001-2022 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -79,10 +79,6 @@ type
     FCaretRow: Integer;               // 光标所在的虚拟行号，1 开始，是 LineNumber
     FCaretCol: Integer;               // 光标所在的虚拟列号，1 开始
     FCaretAfterLineEnd: Boolean;      // 是否允许光标越过行尾
-    FSelectStartRow: Integer;         // 选择区起始虚拟行号，注意起始和结束不一定哪个靠前
-    FSelectEndRow: Integer;           // 选择区结束虚拟行号
-    FSelectStartCol: Integer;         // 选择区起始虚拟列号
-    FSelectEndCol: Integer;           // 选择区结束虚拟列号
     FLeftMouseDown: Boolean;          // 记录鼠标左键按下与否
     FLeftMouseMoveAfterDown: Boolean; // 记录鼠标左键按下后是否拖动过
     FIsWheeling: Boolean;             // 当前滚动时是否是由鼠标滚轮事件触发
@@ -127,15 +123,11 @@ type
     {* 根据当前光标位置以及最大行数以及是否允许光标超行尾的设置来调整光标行列位置}
     procedure SyncCaretPosition;
     {* 根据当前虚拟行列重新设置物理光标位置}
-    function SyncSelectionStartEnd(Force: Boolean = False): Boolean;
-    {* 不在选择状态时（或强制），将光标位置同步塞给选择起始结束位置，也意味着取消选择
-      返回值为 True 时表示执行了同步并取消选择动作}
     procedure CalcSelectEnd(Pt: TPoint);
     {* 根据控件内坐标计算并更新选择区末尾，会控制在光标可移动范围内}
 
     procedure SetCaretCol(const Value: Integer);
     procedure SetCaretRow(const Value: Integer);
-    procedure SetCaretRowCol(Row, Col: Integer);
     procedure SetCaretAfterLineEnd(const Value: Boolean);
     procedure SetSelectEndCol(const Value: Integer);    // 光标跟着选择区尾走
     procedure SetSelectEndRow(const Value: Integer);    // 光标跟着选择区尾走
@@ -156,6 +148,10 @@ type
     FAveCharWidthHalf: Integer;   // 单个字符的外框尺寸的一半，供判断点击时光标在字符前后使用
     FLineHeight: Integer;         // 行高，由字体计算而来
     FFontIsFixedWidth: Boolean;   // 字体是否等宽
+    FSelectStartRow: Integer;     // 选择区起始虚拟行号，注意起始和结束不一定哪个靠前
+    FSelectEndRow: Integer;       // 选择区结束虚拟行号
+    FSelectStartCol: Integer;     // 选择区起始虚拟列号
+    FSelectEndCol: Integer;       // 选择区结束虚拟列号
 
     procedure CreateParams(var Params: TCreateParams); override;
     procedure WMSetFont(var message: TMessage); message WM_SETFONT;
@@ -189,6 +185,9 @@ type
     procedure ScrollToVisibleCaret;
     {* 虚拟位置在屏幕外时滚动屏幕以将光标露出，虚拟光标不变，物理光标可能发生变化
       内部实现是修改 FVertOffset 和 FHoriOffset 并重绘}
+    function SyncSelectionStartEnd(Force: Boolean = False): Boolean;
+    {* 不在选择状态时（或强制），将光标位置同步塞给选择起始结束位置，也意味着取消选择
+      返回值为 True 时表示执行了同步并取消选择动作}
 
     procedure ScrollUpLine;      // 上滚一行
     procedure ScrollDownLine;    // 下滚一行
@@ -198,6 +197,9 @@ type
     procedure ScrollDownPage;    // 下滚一屏
     procedure ScrollLeftPage;    // 左滚一屏
     procedure ScrollRightPage;   // 右滚一屏
+
+    procedure SetCaretRowCol(Row, Col: Integer);
+    procedure MakeOrderSelection(var SelStartRow, SelStartCol, SelEndRow, SelEndCol: Integer);
 
     function ClientXToVirtualX(X: Integer): Integer;
     function VirtualXToClientX(X: Integer): Integer;
@@ -255,7 +257,7 @@ type
 
     function GetPrevColumn(AColumn, ARow: Integer): Integer; virtual;
     {** 某虚拟行里，返回某列的前一列，和具体绘制无关}
-    function GetNextColumn(AColumn, ARow: Integer): Integer; virtual;
+    function GetNextColumn(AColumn, ARow: Integer; ACaretAfterLineEnd: Boolean): Integer; virtual;
     {** 某虚拟行里，返回某列的后一列，和具体绘制无关}
     function GetNearestColumn(AColumn, ARow: Integer): Integer; virtual;
     {** 某虚拟行里，返回某列附近的合法列，如碰到汉字中间时要加减一}
@@ -268,6 +270,10 @@ type
     destructor Destroy; override;
     {* 析构函数}
 
+    procedure SelectRange(StartRow, StartCol, EndRow, EndCol: Integer);
+    {* 选择指定区域，光标顺便移动到选择区尾}
+    procedure SelectAll;
+    {* 选择全部}
     function HasSelection: Boolean;
     {* 是否有选择区存在，也就是判断起始和结束位置是否相同}
 
@@ -335,6 +341,9 @@ type
     property Font;
   end;
 
+resourcestring
+  SCnTextControlErrorColumn = 'Error Column';
+
 implementation
 
 {$IFDEF DEBUG}
@@ -350,9 +359,6 @@ const
   LINE_GAP = 2;                // 行与行之间的空隙，让画下划线波浪线用
   CARET_MARGIN = 3;
   DEFAULT_MAX_WIDTH = 255;
-
-resourcestring
-  SCnErrorColumn = 'Error Column';
 
 function GetNumWidth(Int: Integer): Integer;
 begin
@@ -427,7 +433,11 @@ begin
       FLineNumWidth := ASize.cx;
 
       // 判断是否等宽
-      FFontIsFixedWidth := EnumFontFamiliesEx(DC, LogFont, @EnumFontsProc, 0, 0);
+{$IFDEF DELPHI104_SYDNEY_UP}
+      FFontIsFixedWidth := EnumFontFamiliesEx(DC, LogFont, @EnumFontsProc, 0, 0) = 1;
+{$ELSE}
+      FFontIsFixedWidth := EnumFontFamiliesEx(DC, LogFont, @EnumFontsProc, 0, 0) = BOOL(1);
+{$ENDIF}
     finally
       SaveFont := SelectObject(DC, SaveFont);
       if SaveFont <> 0 then
@@ -546,7 +556,7 @@ var
   DV: Integer;
 begin
   if not CalcPixelOffsetFromColumnInLine(ARow, ACol, Rect, DW) then
-    raise ECnTextControlException.Create(SCnErrorColumn);
+    raise ECnTextControlException.Create(SCnTextControlErrorColumn);
 
   // 拿到的 Rect 是一行内的字符方框坐标，左上角为完整行头，需要转换成虚拟排版区内坐标
   // 注意横向不用改动
@@ -662,7 +672,7 @@ begin
         VK_RIGHT:
           begin
             // 虚拟光标右移并保持可见
-            CaretCol := GetNextColumn(CaretCol, CaretRow);
+            CaretCol := GetNextColumn(CaretCol, CaretRow, CaretAfterLineEnd);
             ScrollToVisibleCaret;
           end;
         VK_UP:
@@ -725,7 +735,7 @@ begin
         VK_RIGHT:
           begin
             // 选择区终点列右移并保持可见
-            SelectEndCol := GetNextColumn(SelectEndCol, CaretRow);;
+            SelectEndCol := GetNextColumn(SelectEndCol, CaretRow, CaretAfterLineEnd);
             ScrollToVisibleCaret;
           end;
         VK_UP:
@@ -1487,9 +1497,10 @@ begin
     FLeftMouseDown := False;
     if FUseSelection then  // 鼠标左键抬起时，要通过什么条件取消当前选择区？本次未拖动
     begin
-      if not FLeftMouseMoveAfterDown then // 拖动过的啥都不做，未拖动过的取消选择
+      if not FLeftMouseMoveAfterDown and HasSelection then // 拖动过的啥都不做，未拖动过的取消选择
       begin
         SyncSelectionStartEnd(True);
+        Invalidate;
         DoSelectChange;
       end;
     end;
@@ -1600,7 +1611,7 @@ begin
     LimitRowColumnInLine(ACaretRow, ACaretCol);
 
     if not ACharFrameIsLeft then
-      ACaretCol := GetNextColumn(ACaretCol, ACaretRow);
+      ACaretCol := GetNextColumn(ACaretCol, ACaretRow, CaretAfterLineEnd);
 
     // 通过虚拟 Row/Col 判断限制
     LimitRowColumnInLine(ACaretRow, ACaretCol);
@@ -1718,7 +1729,7 @@ begin
 end;
 
 function TCnVirtualTextControl.GetNextColumn(AColumn,
-  ARow: Integer): Integer;
+  ARow: Integer; ACaretAfterLineEnd: Boolean): Integer;
 begin
   Result := AColumn + 1;
 end;
@@ -1812,6 +1823,47 @@ function TCnVirtualTextControl.GetNearestColumn(AColumn,
   ARow: Integer): Integer;
 begin
   Result := AColumn;
+end;
+
+procedure TCnVirtualTextControl.MakeOrderSelection(var SelStartRow,
+  SelStartCol, SelEndRow, SelEndCol: Integer);
+var
+  T: Integer;
+begin
+  if (SelEndRow < SelStartRow) or ((SelEndRow = SelStartRow) and (SelEndCol < SelStartCol)) then
+  begin
+    T := SelEndRow;
+    SelEndRow := SelStartRow;
+    SelStartRow := T;
+
+    T := SelEndCol;
+    SelEndCol := SelStartCol;
+    SelStartCol := T;
+  end;    // 确保 StartRow/Col 在 EndRow/Col 前面
+end;
+
+procedure TCnVirtualTextControl.SelectRange(StartRow, StartCol, EndRow,
+  EndCol: Integer);
+begin
+  if not FUseSelection then
+    Exit;
+
+  MakeOrderSelection(StartRow, StartCol, EndRow, EndCol);
+  FSelectStartRow := StartRow;
+  FSelectStartCol := StartCol;
+  FSelectEndRow := EndRow;
+  FSelectEndCol := EndCol;
+  LimitRowColumnInLine(FSelectStartRow, FSelectStartCol);
+  LimitRowColumnInLine(FSelectEndRow, FSelectEndCol);
+  SetCaretRowCol(FSelectEndRow, FSelectEndCol);
+  SyncSelectionStartEnd;
+  Invalidate;
+  DoSelectChange;
+end;
+
+procedure TCnVirtualTextControl.SelectAll;
+begin
+  SelectRange(1, 1, MaxInt, MaxInt);
 end;
 
 end.

@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2021 CnPack 开发组                       }
+{                   (C)Copyright 2001-2022 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -52,10 +52,8 @@ type
   private
     procedure GetFilters(var FilterOptions: TLangTransFilterSet);
     procedure SetFilters(const FilterOptions: TLangTransFilterSet);
-    { Private declarations }
   public
     procedure Open(var FilterOptions: TLangTransFilterSet);
-    { Public declarations }
   end;
 
 implementation
@@ -67,7 +65,7 @@ uses
 
 procedure TFrmTransFilter.FormCreate(Sender: TObject);
 var
-  i: Integer;
+  I: Integer;
 begin
   Caption := SCnFilterFrmCaption;
   lblFilter.Caption := SCnFilterCaption;
@@ -75,28 +73,28 @@ begin
   btnCancel.Caption := SCnCancelCaption;
 
   with chklstFilter do
-    for i := 0 to Items.Count - 1 do
-      Checked[i] := True;
+    for I := 0 to Items.Count - 1 do
+      Checked[I] := True;
 end;
 
 procedure TFrmTransFilter.GetFilters(var FilterOptions: TLangTransFilterSet);
 var
-  i: Integer;
+  I: Integer;
 begin
   FilterOptions := [];
   with chklstFilter do
-    for i := 0 to Items.Count - 1 do
-      if Checked[i] then
-        Include(FilterOptions, TLangTransFilter(i));
+    for I := 0 to Items.Count - 1 do
+      if Checked[I] then
+        Include(FilterOptions, TLangTransFilter(I));
 end;
 
 procedure TFrmTransFilter.SetFilters(const FilterOptions: TLangTransFilterSet);
 var
-  i: Integer;
+  I: Integer;
 begin
   with chklstFilter do
-    for i := 0 to Items.Count - 1 do
-      Checked[i] := TLangTransFilter(i) in FilterOptions;
+    for I := 0 to Items.Count - 1 do
+      Checked[I] := TLangTransFilter(I) in FilterOptions;
 end;
 
 procedure TFrmTransFilter.Open(var FilterOptions: TLangTransFilterSet);
