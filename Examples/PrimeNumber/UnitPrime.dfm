@@ -411,7 +411,7 @@ object FormPrime: TFormPrime
       end
     end
     object tsDH: TTabSheet
-      Caption = 'Diffie-Hellman (Int64)'
+      Caption = 'Diffie-Hellman'
       ImageIndex = 3
       object lblInt64DHP: TLabel
         Left = 16
@@ -455,6 +455,13 @@ object FormPrime: TFormPrime
         Height = 13
         Caption = 'B:'
       end
+      object bvl3: TBevel
+        Left = 16
+        Top = 160
+        Width = 617
+        Height = 17
+        Shape = bsTopLine
+      end
       object edtDHPrime: TEdit
         Left = 56
         Top = 16
@@ -474,7 +481,7 @@ object FormPrime: TFormPrime
         Top = 16
         Width = 137
         Height = 21
-        Caption = 'Generate Int64 DH'
+        Caption = 'Gen Int64 DH Max Root'
         TabOrder = 2
         OnClick = btnGenInt64DHClick
       end
@@ -483,7 +490,7 @@ object FormPrime: TFormPrime
         Top = 48
         Width = 137
         Height = 21
-        Caption = 'Generate UInt32 DH'
+        Caption = 'Gen UInt32 DH Max Root'
         TabOrder = 3
         OnClick = btnGenInt32DHClick
       end
@@ -593,6 +600,40 @@ object FormPrime: TFormPrime
         Caption = 'Rand'
         TabOrder = 16
         OnClick = btnDHRandClick
+      end
+      object btnDHCheck: TButton
+        Left = 16
+        Top = 176
+        Width = 145
+        Height = 25
+        Caption = 'DH Check Preset Prime'
+        TabOrder = 17
+      end
+      object btnGenDH2: TButton
+        Left = 424
+        Top = 216
+        Width = 209
+        Height = 25
+        Caption = 'Gen UInt32 DH Min Root'
+        TabOrder = 18
+        OnClick = btnGenDH2Click
+      end
+      object btnGenDH3: TButton
+        Left = 424
+        Top = 176
+        Width = 209
+        Height = 25
+        Caption = 'Gen UInt64 DH2 Min Root'
+        TabOrder = 19
+        OnClick = btnGenDH3Click
+      end
+      object btnDHCheck2: TButton
+        Left = 16
+        Top = 216
+        Width = 145
+        Height = 25
+        Caption = 'DH Check Preset Generator'
+        TabOrder = 20
       end
     end
     object tsCRT: TTabSheet

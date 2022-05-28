@@ -700,11 +700,20 @@ function Int64MultipleMod(A, B, C: Int64): Int64;
 function MontgomeryPowerMod(A, B, C: TUInt64): TUInt64;
 {* 蒙哥马利法快速计算 (A ^ B) mod C，不能直接算，容易溢出}
 
+function PowerPowerMod(A, B, C, N: TUInt64): TUInt64;
+{* 快速计算 A ^ (B ^ C)，更不能直接算，更容易溢出}
+
 function CnGenerateUInt32Prime(HighBitSet: Boolean = False): Cardinal;
 {* 生成一个随机的 32 位无符号素数，HighBitSet 指明最高位是否必须为 1}
 
+function CnGenerateInt32Prime: Integer;
+{* 生成一个随机的 32 位无符号素数}
+
 function CnGenerateInt64Prime(HighBitSet: Boolean = False): TUInt64;
 {* 生成一个随机的 64 位无符号素数但允许用有符号的 Int64 表示，HighBitSet 指明最高位是否必须为 1}
+
+function CnGenerateInt64Prime2: Int64;
+{* 生成一个随机的 64 位有符号素数}
 
 {$IFDEF SUPPORT_UINT64}
 
@@ -747,17 +756,29 @@ function CnInt64LeastCommonMultiple(A, B: TUInt64): TUInt64;
 function CnInt64LeastCommonMultiple2(A, B: Int64): Int64;
 {* 求两个 64 位有符号数的最小公倍数，不考虑溢出的情况}
 
-procedure CnGenerateUInt32DiffieHellmanPrimeRoot(out Prime: Cardinal; out MaxRoot: Cardinal);
-{* 生成 Diffie-Hellman 算法所需的素数与其最大原根，范围为 UInt32}
+procedure CnGenerateUInt32DiffieHellmanPrimeMaxRoot(out Prime: Cardinal; out MaxRoot: Cardinal);
+{* 生成 Diffie-Hellman 算法所需的素数与其最大原根，满足 q = (p - 1) / 2 的 q 也是素数，范围为 UInt32}
 
-procedure CnGenerateInt64DiffieHellmanPrimeRoot(out Prime: TUInt64; out MaxRoot: TUInt64);
-{* 生成 Diffie-Hellman 算法所需的素数与其最大原根，范围为 UInt64}
+procedure CnGenerateInt64DiffieHellmanPrimeMaxRoot(out Prime: TUInt64; out MaxRoot: TUInt64);
+{* 生成 Diffie-Hellman 算法所需的素数与其最大原根，满足 q = (p - 1) / 2 的 q 也是素数，范围为 UInt64}
 
 procedure CnGenerateUInt32DiffieHellmanPrimeRoots(out Prime: Cardinal; OutRoots: TCnUInt32List);
-{* 生成 Diffie-Hellman 算法所需的素数与其所有原根，范围为 UInt32，耗时极长}
+{* 生成 Diffie-Hellman 算法所需的素数与其所有原根，满足 q = (p - 1) / 2 的 q 也是素数，范围为 UInt32，耗时极长}
 
 procedure CnGenerateInt64DiffieHellmanPrimeRoots(out Prime: TUInt64; OutRoots: TCnUInt64List);
-{* 生成 Diffie-Hellman 算法所需的素数与其所有原根，范围为 UInt64，耗时极长}
+{* 生成 Diffie-Hellman 算法所需的素数与其所有原根，满足 q = (p - 1) / 2 的 q 也是素数，范围为 UInt64，耗时极长}
+
+function CnGenerateUInt32DiffieHellmanPrimeMinRoot(out Prime: Cardinal;
+  out MinRoot: Cardinal): Boolean;
+{* 生成 Diffie-Hellman 算法所需的素数 p 与其生成元，范围为 UInt32，返回生成是否成功。
+  满足 q = (p - 1) / 2 的 q 也是素数。
+  内部使用 MinRoot^2 mod p <> 1 且 MinRoot^q mod p <> 1 来做快速判断}
+
+function CnGenerateInt64DiffieHellmanPrimeMinRoot(out Prime: TUInt64;
+  out MinRoot: TUInt64): Boolean;
+{* 生成 Diffie-Hellman 算法所需的素数 p 与其生成元，范围为 UInt64，返回生成是否成功。
+  满足 q = (p - 1) / 2 的 q 也是素数
+  内部使用 MinRoot^2 mod p <> 1 且 MinRoot^q mod p <> 1 来做快速判断}
 
 function CnIsUInt32PrimitiveRoot(Num: Cardinal; Root: Cardinal): Boolean;
 {* 检验 Root 是否为 Num 的原根，范围为 UInt32}
@@ -851,6 +872,7 @@ implementation
 uses
   CnHashMap, CnPolynomial, CnBigNumber, CnRandom;
 
+// 从 CN_PRIME_NUMBERS_SQRT_UINT32 数组中随机挑选一个素数
 function CnPickRandomSmallPrime: Integer;
 var
   D: Integer;
@@ -859,8 +881,8 @@ begin
   D := Random(High(CN_PRIME_NUMBERS_SQRT_UINT32)) + 1;
   Result := CN_PRIME_NUMBERS_SQRT_UINT32[D];
 end;
-{* 从 CN_PRIME_NUMBERS_SQRT_UINT32 数组中随机挑选一个素数}
 
+// 快速判断一 32 位无符号整数是否是素数
 function CnUInt32IsPrime(N: Cardinal): Boolean;
 var
   I, L, H, M: Cardinal;
@@ -1037,6 +1059,27 @@ begin
   Result := MultipleMod(A, T, C);
 end;
 
+function PowerPowerMod(A, B, C, N: TUInt64): TUInt64;
+var
+  I: TUInt64;
+begin
+  // A^(B^C) = A^(B*B*B*B...) 共 C 个 = ((A^B)^B)^B)^B 共 C 层 B
+  if C = 0 then
+    Result := A
+  else if C = 1 then
+    Result := MontgomeryPowerMod(A, B, N)
+  else
+  begin
+    I := 0;
+    Result := A;
+    while UInt64Compare(I, C) < 0 do
+    begin
+      Result := MontgomeryPowerMod(A, B, N);
+      I := I + 1;
+    end;
+  end;
+end;
+
 function FermatCheckComposite(A, B, C, T: TUInt64): Boolean;
 var
   I: Integer;
@@ -1115,31 +1158,40 @@ end;
 function CnGenerateUInt32Prime(HighBitSet: Boolean): Cardinal;
 begin
   Randomize;
-  Result := Trunc(Random * High(Cardinal) - 1) + 1;
-  if HighBitSet then
-    Result := Result or $80000000;
-
-  while not CnUInt32IsPrime(Result) do
-  begin
-    Randomize;
+  repeat
     Result := Trunc(Random * High(Cardinal) - 1) + 1;
     if HighBitSet then
       Result := Result or $80000000;
-  end;
+  until CnUInt32IsPrime(Result);
 end;
 
-// 生成一个随机的 64 位无符号素数
+// 生成一个随机的 32 位无符号素数
+function CnGenerateInt32Prime: Integer;
+begin
+  Randomize;
+  repeat
+    Result := Trunc(Random * High(Cardinal) - 1) + 1;
+    Result := Result and $7FFFFFFF;
+  until CnUInt32IsPrime(Result);
+end;
+
+// 生成一个随机的 64 位无符号素数但允许用有符号的 Int64 表示，HighBitSet 指明最高位是否必须为 1
 function CnGenerateInt64Prime(HighBitSet: Boolean): TUInt64;
 begin
-  Result := RandomUInt64;
-  if HighBitSet then
-    Result := Result or $8000000000000000;
-  while not CnInt64IsPrime(Result) do
-  begin
+  repeat
     Result := RandomUInt64;
     if HighBitSet then
       Result := Result or $8000000000000000;
-  end;
+  until CnInt64IsPrime(Result);
+end;
+
+// 生成一个随机的 64 位有符号素数
+function CnGenerateInt64Prime2: Int64;
+begin
+  repeat
+    Result := RandomUInt64;
+    Result := Result and $7FFFFFFFFFFFFFFF;
+  until CnInt64IsPrime(Result);
 end;
 
 {$IFDEF SUPPORT_UINT64}
@@ -1318,13 +1370,19 @@ begin
   Result := True;
 end;
 
-// 生成 Diffie-Hellman 算法所需的素数与其最大原根，范围为 UInt32
-procedure CnGenerateUInt32DiffieHellmanPrimeRoot(out Prime: Cardinal; out MaxRoot: Cardinal);
+// 生成 Diffie-Hellman 算法所需的素数与其最大原根，满足 q = (p - 1) / 2 的 q 也是素数，范围为 UInt32
+procedure CnGenerateUInt32DiffieHellmanPrimeMaxRoot(out Prime: Cardinal; out MaxRoot: Cardinal);
 var
-  I: Cardinal;
+  I, Q: Cardinal;
   Factors: TCnUInt32List;
 begin
-  Prime := CnGenerateUInt32Prime(True);
+  repeat
+    Prime := CnGenerateUInt32Prime(True);
+    Q := (Prime - 1) shr 1;
+    if CnUInt32IsPrime(Q) then
+      Break;
+  until False;
+
   Factors := TCnUInt32List.Create;
 {$IFDEF MSWINDOWS}
   Factors.IgnoreDuplicated := True;
@@ -1350,13 +1408,19 @@ begin
   end;
 end;
 
-// 生成 Diffie-Hellman 算法所需的素数与其最大原根，范围为 UInt64
-procedure CnGenerateInt64DiffieHellmanPrimeRoot(out Prime: TUInt64; out MaxRoot: TUInt64);
+// 生成 Diffie-Hellman 算法所需的素数与其最大原根，满足 q = (p - 1) / 2 的 q 也是素数，范围为 UInt64
+procedure CnGenerateInt64DiffieHellmanPrimeMaxRoot(out Prime: TUInt64; out MaxRoot: TUInt64);
 var
-  I: TUInt64;
+  I, Q: TUInt64;
   Factors: TCnUInt64List;
 begin
-  Prime := CnGenerateInt64Prime(True);
+  repeat
+    Prime := CnGenerateInt64Prime(True);
+    Q := (Prime - 1) shr 1;
+    if CnInt64IsPrime(Q) then
+      Break;
+  until False;
+
   Factors := TCnUInt64List.Create;
 {$IFDEF MSWINDOWS}
   Factors.IgnoreDuplicated := True;
@@ -1384,17 +1448,23 @@ begin
   end;
 end;
 
-// 生成 Diffie-Hellman 算法所需的素数与最小原根，范围为 UInt32，耗时极长
+// 生成 Diffie-Hellman 算法所需的素数与所有原根，范围为 UInt32，耗时极长
 procedure CnGenerateUInt32DiffieHellmanPrimeRoots(out Prime: Cardinal;
   OutRoots: TCnUInt32List);
 var
-  I: Cardinal;
+  I, Q: Cardinal;
   Factors: TCnUInt32List;
 begin
   if OutRoots = nil then
     Exit;
 
-  Prime := CnGenerateUInt32Prime(True);
+  repeat
+    Prime := CnGenerateUInt32Prime(True);
+    Q := (Prime - 1) shr 1;
+    if CnUInt32IsPrime(Q) then
+      Break;
+  until False;
+
   Factors := TCnUInt32List.Create;
 {$IFDEF MSWINDOWS}
   Factors.IgnoreDuplicated := True;
@@ -1417,17 +1487,23 @@ begin
   end;
 end;
 
-// 生成 Diffie-Hellman 算法所需的素数与最小原根，范围为 UInt64，耗时极长
+// 生成 Diffie-Hellman 算法所需的素数与所有原根，范围为 UInt64，耗时极长
 procedure CnGenerateInt64DiffieHellmanPrimeRoots(out Prime: TUInt64;
   OutRoots: TCnUInt64List);
 var
-  I: TUInt64;
+  I, Q: TUInt64;
   Factors: TCnUInt64List;
 begin
   if OutRoots = nil then
     Exit;
 
-  Prime := CnGenerateInt64Prime(True);
+  repeat
+    Prime := CnGenerateInt64Prime(True);
+    Q := (Prime - 1) shr 1;
+    if CnInt64IsPrime(Q) then
+      Break;
+  until False;
+
   Factors := TCnUInt64List.Create;
 {$IFDEF MSWINDOWS}
   Factors.IgnoreDuplicated := True;
@@ -1451,6 +1527,59 @@ begin
   finally
     Factors.Free;
   end;
+end;
+
+// 生成 Diffie-Hellman 算法所需的素数 p 与其生成元，范围为 UInt32，满足 q = (p - 1) / 2 也是素数
+function CnGenerateUInt32DiffieHellmanPrimeMinRoot(out Prime: Cardinal;
+  out MinRoot: Cardinal): Boolean;
+var
+  I: Integer;
+  Q: Cardinal;
+begin
+  repeat
+    Prime := CnGenerateUInt32Prime;
+    Q := (Prime - 1) shr 1;
+
+    if not CnUInt32IsPrime(Q) then
+      Continue;
+
+    for I := 2 to MaxInt do
+    begin
+      if (MultipleMod(I, I, Prime) <> 1) and (MontgomeryPowerMod(I, Q, Prime) <> 1) then
+      begin
+        MinRoot := I;
+        Result := True;
+        Exit;
+      end;
+    end;
+  until False;
+end;
+
+// 生成 Diffie-Hellman 算法所需的素数 p 与其生成元，范围为 UInt64，返回生成是否成功。
+// 满足 q = (p - 1) / 2 的 q 也是素数}
+function CnGenerateInt64DiffieHellmanPrimeMinRoot(out Prime: TUInt64;
+  out MinRoot: TUInt64): Boolean;
+var
+  I: Integer;
+  Q: TUInt64;
+begin
+  repeat
+    Prime := CnGenerateInt64Prime;
+    Q := (Prime - 1) shr 1;
+
+    if not CnInt64IsPrime(Q) then
+      Continue;
+
+    for I := 2 to MaxInt do
+    begin
+      if (MultipleMod(I, I, Prime) <> 1) and (MontgomeryPowerMod(I, Q, Prime) <> 1) then
+      begin
+        MinRoot := I;
+        Result := True;
+        Exit;
+      end;
+    end;
+  until False;
 end;
 
 // 检验 Root 是否为 Num 的原根，范围为 UInt32

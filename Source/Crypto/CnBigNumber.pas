@@ -760,6 +760,9 @@ function BigNumberCheckPrimitiveRoot(R, Prime: TCnBigNumber; Factors: TCnBigNumb
 {* 原根判断辅助函数。判断 R 是否对于 Prime - 1 的每个因子，都有 R ^ (剩余因子的积) mod Prime <> 1
    Factors 必须是 Prime - 1 的不重复的质因数列表，可从 BigNumberFindFactors 获取并去重而来}
 
+function BigNumberGetMinRootFromPrime(Res, Prime: TCnBigNumber): Boolean;
+{* 计算一素数的原根，返回计算是否成功}
+
 function BigNumberIsInt32(const Num: TCnBigNumber): Boolean;
 {* 大数是否是一个 32 位有符号整型范围内的数}
 
@@ -5046,8 +5049,9 @@ begin
     S := FLocalBigNumberPool.Obtain;
     for I := 1 to T do
     begin
-      if not BigNumberMulMod(R, R, R, B) then
+      if not BigNumberDirectMulMod(R, R, R, B) then
         Exit;
+      // 从 MulMod 改为 DirectMulMod 后，判断 1024 位素数大概从 1.6 秒多提速到 1.4 秒多
 
       if R.IsOne and not L.IsOne then
       begin
@@ -5278,6 +5282,46 @@ begin
     FLocalBigNumberPool.Recycle(T);
     FLocalBigNumberPool.Recycle(Remain);
     FLocalBigNumberPool.Recycle(SubOne);
+  end;
+end;
+
+// 计算一素数的原根，返回计算是否成功
+function BigNumberGetMinRootFromPrime(Res, Prime: TCnBigNumber): Boolean;
+var
+  I: Integer;
+  Num, PrimeSubOne: TCnBigNumber;
+  Factors: TCnBigNumberList;
+begin
+  Result := False;
+  PrimeSubOne := nil;
+  Factors := nil;
+  Num := nil;
+
+  try
+    PrimeSubOne := FLocalBigNumberPool.Obtain;
+    BigNumberCopy(PrimeSubOne, Prime);
+    BigNumberSubWord(PrimeSubOne, 1);
+
+    Factors := TCnBigNumberList.Create;
+    BigNumberFindFactors(PrimeSubOne, Factors);
+    Factors.RemoveDuplicated;
+
+    Num := FLocalBigNumberPool.Obtain;;
+    Res.SetZero;
+    for I := 2 to MaxInt do // 不查太大的大数
+    begin
+      Num.SetWord(I);
+      if BigNumberCheckPrimitiveRoot(Num, Prime, Factors) then
+      begin
+        Res.SetWord(I);
+        Result := True;
+        Exit;
+      end;
+    end;
+  finally
+    FLocalBigNumberPool.Recycle(Num);
+    Factors.Free;
+    FLocalBigNumberPool.Recycle(PrimeSubOne);
   end;
 end;
 
@@ -5657,14 +5701,14 @@ begin
       BigNumberShiftLeft(U, U, M - I - 1);
       BigNumberMontgomeryPowerMod(B, C, U, P);
       M := I;
-      BigNumberMulMod(R, R, B, P);
+      BigNumberDirectMulMod(R, R, B, P);
 
-      // T := T*B*B mod P = (T*B mod P) * (B mod P) mod P
-      BigNumberMulMod(U, T, B, P); // U := T*B mod P
+      // T := T * B * B mod P = (T * B mod P) * (B mod P) mod P
+      BigNumberDirectMulMod(U, T, B, P); // U := T * B mod P
       BigNumberMod(L, B, P);       // L := B mod P
-      BigNumberMulMod(T, U, L, P);
+      BigNumberDirectMulMod(T, U, L, P);
 
-      BigNumberMulMod(C, B, B, P);
+      BigNumberDirectMulMod(C, B, B, P);
     end;
 
     BigNumberMod(L, R, P);
@@ -5729,8 +5773,9 @@ begin
         BigNumberShiftRight(Z, Z, 1);
       end;
 
-      if not BigNumberUnsignedMulMod(T, Z, Z, P) then
+      if not BigNumberDirectMulMod(T, Z, Z, P) then
         Exit;
+      T.SetNegative(False); // 忽略符号
 
       if BigNumberCompare(T, A) = 0 then
       begin
@@ -5784,7 +5829,7 @@ begin
     begin
       BigNumberAddWord(I, 1);
 
-      BigNumberMulMod(R, X0, X0, X);
+      BigNumberDirectMulMod(R, X0, X0, X);
       BigNumberAdd(R, R, C);
       BigNumberMod(X0, R, X);
 
@@ -5960,26 +6005,26 @@ begin
 
     for I := C - 1 downto 0 do
     begin
-      if not BigNumberMulMod(Q0, Q0, Q1, N) then
+      if not BigNumberDirectMulMod(Q0, Q0, Q1, N) then
         Exit;
 
       if BigNumberIsBitSet(K, I) then
       begin
-        if not BigNumberMulMod(Q1, Q0, Y, N) then
+        if not BigNumberDirectMulMod(Q1, Q0, Y, N) then
           Exit;
 
-        if not BigNumberMulMod(T0, V0, V1, N) then
+        if not BigNumberDirectMulMod(T0, V0, V1, N) then
           Exit;
-        if not BigNumberMulMod(T1, X, Q0, N) then
+        if not BigNumberDirectMulMod(T1, X, Q0, N) then
           Exit;
         if not BigNumberSub(T0, T0, T1) then
           Exit;
         if not BigNumberNonNegativeMod(V0, T0, N) then
           Exit;
 
-        if not BigNumberMulMod(T0, V1, V1, N) then
+        if not BigNumberDirectMulMod(T0, V1, V1, N) then
           Exit;
-        if not BigNumberMulMod(T1, C2, Q1, N) then
+        if not BigNumberDirectMulMod(T1, C2, Q1, N) then
           Exit;
         if not BigNumberSub(T0, T0, T1) then
           Exit;
@@ -5990,18 +6035,18 @@ begin
       begin
         BigNumberCopy(Q1, Q0);
 
-        if not BigNumberMulMod(T0, V0, V1, N) then
+        if not BigNumberDirectMulMod(T0, V0, V1, N) then
           Exit;
-        if not BigNumberMulMod(T1, X, Q0, N) then
+        if not BigNumberDirectMulMod(T1, X, Q0, N) then
           Exit;
         if not BigNumberSub(T0, T0, T1) then
           Exit;
         if not BigNumberNonNegativeMod(V1, T0, N) then
           Exit;
 
-        if not BigNumberMulMod(T0, V0, V0, N) then
+        if not BigNumberDirectMulMod(T0, V0, V0, N) then
           Exit;
-        if not BigNumberMulMod(T1, C2, Q0, N) then
+        if not BigNumberDirectMulMod(T1, C2, Q0, N) then
           Exit;
         if not BigNumberSub(T0, T0, T1) then
           Exit;

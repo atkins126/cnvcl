@@ -30,7 +30,11 @@ unit CnSM2;
 * 开发平台：Win7 + Delphi 5.0
 * 兼容测试：Win7 + XE
 * 本 地 化：该单元无需本地化处理
-* 修改记录：2022.03.30 V1.2
+* 修改记录：2022.05.27 V1.4
+*               增加文件加解密的实现
+*           2022.05.26 V1.3
+*               增加非交互式 Schnorr 零知识证明验证过程的实现
+*           2022.03.30 V1.2
 *               兼容加解密的 C1C3C2 与 C1C2C3 排列模式以及前导字节 04
 *           2021.11.25 V1.1
 *               增加封装的 SignFile 与 VerifyFile 函数
@@ -91,10 +95,18 @@ function CnSM2EncryptData(PlainData: Pointer; DataLen: Integer; OutStream:
 function CnSM2DecryptData(EnData: Pointer; DataLen: Integer; OutStream: TStream;
   PrivateKey: TCnSM2PrivateKey; SM2: TCnSM2 = nil;
   SequenceType: TCnSM2CryptSequenceType = cstC1C3C2): Boolean;
-{* 用公钥对数据块进行解密，参考 GM/T0003.4-2012《SM2椭圆曲线公钥密码算法
+{* 用私钥对数据块进行解密，参考 GM/T0003.4-2012《SM2椭圆曲线公钥密码算法
    第4部分:公钥加密算法》中的运算规则，不同于普通 ECC 与 RSA 的对齐规则
    SequenceType 用来指明内部拼接采用默认国标的 C1C3C2 还是想当然的 C1C2C3
    无需 IncludePrefixByte 参数，内部自动处理}
+
+function CnSM2EncryptFile(const InFile, OutFile: string; PublicKey: TCnSM2PublicKey;
+  SM2: TCnSM2 = nil; SequenceType: TCnSM2CryptSequenceType = cstC1C3C2): Boolean;
+{* 用公钥加密 InFile 文件内容，加密结果存 OutFile 里，返回是否加密成功}
+
+function CnSM2DecryptFile(const InFile, OutFile: string; PrivateKey: TCnSM2PrivateKey;
+  SM2: TCnSM2 = nil; SequenceType: TCnSM2CryptSequenceType = cstC1C3C2): Boolean;
+{* 用私钥解密 InFile 文件内容，解密结果存 OutFile 里，返回是否解密成功}
 
 // ====================== SM2 椭圆曲线数字签名验证算法 =========================
 
@@ -152,6 +164,20 @@ function CnSM2KeyExchangeBStep2(const AUserID, BUserID: AnsiString; KeyByteLengt
   InOptionalSA: TSM3Digest; MyOptionalS2: TSM3Digest; SM2: TCnSM2 = nil): Boolean;
 {* 基于 SM2 的密钥交换协议，第四步 B 用户收到 A 的数据计算结果校验，协商完毕，此步可选
   实质上只对比 B 第二步生成的 S2 与 A 第三步发来的 SA，其余参数均不使用}
+
+// =============== 基于 SM2/SM3 的非交互式 Schnorr 零知识证明 ==================
+
+function CnSM2SchnorrProve(PrivateKey: TCnSM2PrivateKey; PublicKey: TCnSM2PublicKey;
+  OutR: TCnEccPoint; OutZ: TCnBigNumber; SM2: TCnSM2 = nil): Boolean;
+{* 基于 SM2/SM3 的非交互式 Schnorr 零知识证明步骤一，由私钥拥有者调用
+  私钥拥有者生成 R 和 Z，返回生成是否成功
+  该函数用于 SM2 私钥拥有者证明自己拥有对应公钥的私钥而无需公开该私钥}
+
+function CnSM2SchnorrCheck(PublicKey: TCnSM2PublicKey; InR: TCnEccPoint;
+  InZ: TCnBigNumber; SM2: TCnSM2 = nil): Boolean;
+{* 基于 SM2/SM3 的非交互式 Schnorr 零知识证明步骤二，由拿到公钥者验证
+  验证对方发来的 R 和 Z，如果成功，说明对方拥有该公钥对应的私钥
+  该函数用于验证对方是否拥有某 SM2 公钥对应的私钥}
 
 implementation
 
@@ -409,6 +435,48 @@ begin
     P2.Free;
     if SM2IsNil then
       SM2.Free;
+  end;
+end;
+
+function CnSM2EncryptFile(const InFile, OutFile: string; PublicKey: TCnSM2PublicKey;
+  SM2: TCnSM2 = nil; SequenceType: TCnSM2CryptSequenceType = cstC1C3C2): Boolean;
+var
+  Stream: TMemoryStream;
+  F: TFileStream;
+begin
+  Stream := nil;
+  F := nil;
+
+  try
+    Stream := TMemoryStream.Create;
+    Stream.LoadFromFile(InFile);
+
+    F := TFileStream.Create(OutFile, fmCreate);
+    Result := CnSM2EncryptData(Stream.Memory, Stream.Size, F, PublicKey, SM2, SequenceType);
+  finally
+    F.Free;
+    Stream.Free;
+  end;
+end;
+
+function CnSM2DecryptFile(const InFile, OutFile: string; PrivateKey: TCnSM2PrivateKey;
+  SM2: TCnSM2 = nil; SequenceType: TCnSM2CryptSequenceType = cstC1C3C2): Boolean;
+var
+  Stream: TMemoryStream;
+  F: TFileStream;
+begin
+  Stream := nil;
+  F := nil;
+
+  try
+    Stream := TMemoryStream.Create;
+    Stream.LoadFromFile(InFile);
+
+    F := TFileStream.Create(OutFile, fmCreate);
+    Result := CnSM2DecryptData(Stream.Memory, Stream.Size, F, PrivateKey, SM2, SequenceType);
+  finally
+    F.Free;
+    Stream.Free;
   end;
 end;
 
@@ -994,6 +1062,136 @@ function CnSM2KeyExchangeBStep2(const AUserID, BUserID: AnsiString; KeyByteLengt
   InOptionalSA: TSM3Digest; MyOptionalS2: TSM3Digest; SM2: TCnSM2): Boolean;
 begin
   Result := CompareMem(@InOptionalSA[0], @MyOptionalS2[0], SizeOf(TSM3Digest));
+end;
+
+{
+  随机取 r
+  点 R <= r * G
+  数 c <= Hash(PublicKey, R)
+  数 z <= r + c * PrivateKey
+}
+function CnSM2SchnorrProve(PrivateKey: TCnSM2PrivateKey; PublicKey: TCnSM2PublicKey;
+  OutR: TCnEccPoint; OutZ: TCnBigNumber; SM2: TCnSM2): Boolean;
+var
+  R: TCnBigNumber;
+  Dig: TSM3Digest;
+  SM2IsNil: Boolean;
+  Stream: TMemoryStream;
+begin
+  Result := False;
+  if (PrivateKey = nil) or (PublicKey = nil) or (OutR = nil) or (OutZ = nil) then
+  begin
+    _CnSetLastError(ECN_SM2_INVALID_INPUT);
+    Exit;
+  end;
+
+  R := nil;
+  Stream := nil;
+  SM2IsNil := SM2 = nil;
+
+  try
+    if SM2IsNil then
+      SM2 := TCnSM2.Create;
+
+    R := TCnBigNumber.Create;
+    if not BigNumberRandBytes(R, CN_SM2_FINITEFIELD_BYTESIZE) then
+    begin
+      _CnSetLastError(ECN_SM2_RANDOM_ERROR);
+      Exit;
+    end;
+
+    OutR.Assign(SM2.Generator);
+    SM2.MultiplePoint(R, OutR);
+
+    Stream := TMemoryStream.Create;
+    if CnEccPointToStream(PublicKey, Stream, CN_SM2_FINITEFIELD_BYTESIZE) <= 0 then
+      Exit;
+
+    if CnEccPointToStream(OutR, Stream, CN_SM2_FINITEFIELD_BYTESIZE) <= 0 then
+      Exit;
+
+    Dig := SM3(Stream.Memory, Stream.Size);
+
+    OutZ.SetBinary(@Dig[0], SizeOf(TSM3Digest));
+
+    // 注意，此处无需也不能 mod P！
+    if not BigNumberMul(OutZ, OutZ, PrivateKey) then
+      Exit;
+
+    if not BigNumberAdd(OutZ, OutZ, R) then
+      Exit;
+
+    Result := True;
+    _CnSetLastError(ECN_SM2_OK);
+  finally
+    Stream.Free;
+    R.Free;
+    if SM2IsNil then
+      SM2.Free;
+  end;
+end;
+
+{
+  数 c <= Hash(PublicKey, R)
+  点 z * G ?= R + c * PublicKey
+}
+function CnSM2SchnorrCheck(PublicKey: TCnSM2PublicKey; InR: TCnEccPoint;
+  InZ: TCnBigNumber; SM2: TCnSM2): Boolean;
+var
+  C: TCnBigNumber;
+  Dig: TSM3Digest;
+  SM2IsNil: Boolean;
+  Stream: TMemoryStream;
+  P1, P2: TCnEccPoint;
+begin
+  Result := False;
+  if (PublicKey = nil) or (InR = nil) or (InZ = nil) then
+  begin
+    _CnSetLastError(ECN_SM2_INVALID_INPUT);
+    Exit;
+  end;
+
+  Stream := nil;
+  C := nil;
+  P1 := nil;
+  P2 := nil;
+  SM2IsNil := SM2 = nil;
+
+  try
+    if SM2IsNil then
+      SM2 := TCnSM2.Create;
+
+    Stream := TMemoryStream.Create;
+    if CnEccPointToStream(PublicKey, Stream, CN_SM2_FINITEFIELD_BYTESIZE) <= 0 then
+      Exit;
+
+    if CnEccPointToStream(InR, Stream, CN_SM2_FINITEFIELD_BYTESIZE) <= 0 then
+      Exit;
+
+    Dig := SM3(Stream.Memory, Stream.Size);
+
+    C := TCnBigNumber.Create;
+    C.SetBinary(@Dig[0], SizeOf(TSM3Digest));
+
+    P1 := TCnEccPoint.Create;
+    P1.Assign(SM2.Generator);
+    SM2.MultiplePoint(InZ, P1);
+
+    P2 := TCnEccPoint.Create;
+    P2.Assign(PublicKey);
+    SM2.MultiplePoint(C, P2);
+    SM2.PointAddPoint(P2, InR, P2);
+
+    Result := CnEccPointsEqual(P1, P2);
+    _CnSetLastError(ECN_SM2_OK);
+  finally
+    P2.Free;
+    P1.Free;
+    C.Free;
+    Stream.Free;
+    if SM2IsNil then
+      SM2.Free;
+  end;
 end;
 
 end.

@@ -145,6 +145,24 @@ object FormSM2: TFormSM2
             TabOrder = 1
           end
         end
+        object btnSM2EncryptFile: TButton
+          Left = 16
+          Top = 232
+          Width = 169
+          Height = 25
+          Caption = 'Encrypt File using Public Key'
+          TabOrder = 7
+          OnClick = btnSM2EncryptFileClick
+        end
+        object btnSM2DecryptFile: TButton
+          Left = 16
+          Top = 272
+          Width = 169
+          Height = 25
+          Caption = 'Decrypt File using Private Key'
+          TabOrder = 8
+          OnClick = btnSM2DecryptFileClick
+        end
       end
     end
     object tsSignVerify: TTabSheet
@@ -304,9 +322,9 @@ object FormSM2: TFormSM2
         object lblBSM2PublicKey: TLabel
           Left = 16
           Top = 84
-          Width = 119
+          Width = 116
           Height = 13
-          Caption = 'B SM2 Public Key (Hex)::'
+          Caption = 'B SM2 Public Key (Hex):'
         end
         object lblBSm2PrivateKey: TLabel
           Left = 16
@@ -386,6 +404,64 @@ object FormSM2: TFormSM2
         end
       end
     end
+    object tsSchnorr: TTabSheet
+      Caption = 'Schnorr'
+      ImageIndex = 3
+      object grpSchnorr: TGroupBox
+        Left = 8
+        Top = 8
+        Width = 889
+        Height = 401
+        Caption = 'Schnorr'
+        TabOrder = 0
+        object lblSchnorrProveCheckR: TLabel
+          Left = 112
+          Top = 28
+          Width = 11
+          Height = 13
+          Caption = 'R:'
+        end
+        object lblSchnorrProveCheckZ: TLabel
+          Left = 112
+          Top = 60
+          Width = 10
+          Height = 13
+          Caption = 'Z:'
+        end
+        object btnSchnorrProve: TButton
+          Left = 16
+          Top = 24
+          Width = 75
+          Height = 25
+          Caption = 'Prove'
+          TabOrder = 0
+          OnClick = btnSchnorrProveClick
+        end
+        object edtSchnorrProveCheckR: TEdit
+          Left = 136
+          Top = 24
+          Width = 729
+          Height = 21
+          TabOrder = 1
+        end
+        object edtSchnorrProveCheckZ: TEdit
+          Left = 136
+          Top = 56
+          Width = 729
+          Height = 21
+          TabOrder = 2
+        end
+        object btnSchnorrCheck: TButton
+          Left = 16
+          Top = 52
+          Width = 75
+          Height = 25
+          Caption = 'Check'
+          TabOrder = 3
+          OnClick = btnSchnorrCheckClick
+        end
+      end
+    end
   end
   object edtSM2PublicKey: TEdit
     Left = 136
@@ -436,5 +512,9 @@ object FormSM2: TFormSM2
   object dlgOpen1: TOpenDialog
     Left = 876
     Top = 136
+  end
+  object dlgSave1: TSaveDialog
+    Left = 228
+    Top = 392
   end
 end
