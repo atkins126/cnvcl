@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2022 CnPack 开发组                       }
+{                   (C)Copyright 2001-2023 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -23,7 +23,7 @@ unit CnConsts;
 ================================================================================
 * 软件名称：开发包基础库
 * 单元名称：公共资源字符串定义单元
-* 单元作者：CnPack开发组
+* 单元作者：CnPack 开发组
 * 备    注：
 * 开发平台：PWin98SE + Delphi 5.0
 * 兼容测试：PWin9X/2000/XP + Delphi 5/6
@@ -41,8 +41,12 @@ interface
 
 {$I CnPack.inc}
 
-uses
-  Windows;
+const
+  ECN_OK                              = 0;         // 岿粇絏 OK礚岿粇
+
+  ECN_FILE_NOT_FOUND                  = $10;       // ゅンぃ
+
+  ECN_CUSTOM_ERROR_BASE               = $1000;     // ㄑ砞﹚岿粇絏癬﹍
 
 //==============================================================================
 // ぃ惠璶セて才﹃
@@ -78,11 +82,12 @@ var
 const
   // 秨祇獺
   SCnPackAbout = 'CnPack';
-  SCnPackVer = 'Ver 0.1.2.2';
+  SCnPackVer = 'Ver 0.1.2.5';
   SCnPackStr = SCnPackAbout + ' ' + SCnPackVer;
   SCnPackUrl = 'http://www.cnpack.org';
   SCnPackBbsUrl = 'http://bbs.cnpack.org';
   SCnPackNewsUrl = 'news://news.cnpack.org';
+  SCnPackSourceUrl = 'http://github.com/cnpack';
   SCnPackEmail = 'master@cnpack.org';
   SCnPackBugEmail = 'bugs@cnpack.org';
   SCnPackSuggestionsEmail = 'suggestions@cnpack.org';
@@ -90,7 +95,7 @@ const
   SCnPackDonationUrl = 'http://www.cnpack.org/foundation.php';
   SCnPackDonationUrlSF = 'http://sourceforge.net/donate/index.php?group_id=110999';
   SCnPackGroup = 'CnPack 秨祇舱';
-  SCnPackCopyright = '(C)Copyright 2001-2022 ' + SCnPackGroup;
+  SCnPackCopyright = '(C)Copyright 2001-2023 ' + SCnPackGroup;
 
   // CnPropEditors
   SCopyrightFmtStr =
@@ -123,6 +128,7 @@ var
   SCnPack_Wyb_star: string = 'ド腳';
   SCnPack_Licwing: string = 'Χ経(Licwing Zue)';
   SCnPack_Alan: string = '眎岸(Alan)';
+  SCnPack_GuYueChunQiu: string = 'る琄';
   SCnPack_Aimingoo: string = '㏄稲チ(Aimingoo)';
   SCnPack_QSoft: string = '睲(QSoft)';
   SCnPack_Hospitality: string = '眎蚏癮(Hospitality)';
@@ -144,6 +150,8 @@ var
   SCnPack_BuDeXian: string = 'ぃ眔盯';
   SCnPack_XiaoXia: string = '甃';
   SCnPack_ZiMin: string = '躺';
+  SCnPack_rarnu: string = 'rarnu';
+  SCnPack_dejoy: string = 'dejoy';
 
   // CnCommon
   SUnknowError: string = 'ゼ岿粇';
@@ -160,6 +168,7 @@ const
   SCnPack_Wyb_starMail = 'wyb_star@sina.com';
   SCnPack_LicwingEmail = 'licwing@chinasystemsn.com';
   SCnPack_AlanEmail = 'BeyondStudio@163.com';
+  SCnPack_GuYueChunQiuEmail = 'guyuechunqiu@cnpack.org';
   SCnPack_AimingooEmail = 'aim@263.net';
   SCnPack_QSoftEmail = 'hq.com@263.net';
   SCnPack_HospitalityEmail = 'Hospitality_ZJX@msn.com';
@@ -180,7 +189,9 @@ const
   SCnPack_SesameEmail = 'sesamehch@163.com';
   SCnPack_BuDeXianEmail = 'appleak46@yahoo.com.cn';
   SCnPack_XiaoXiaEmail = 'summercore@163.com';
-  SCnPack_ZiMinEmail: string = '441414288@qq.com';
+  SCnPack_ZiMinEmail = '441414288@qq.com';
+  SCnPack_rarnuEmail = 'rarnu@cnpack.org';
+  SCnPack_dejoyEmail = 'dejoybbs@163.com';
 
   // CnMemProf
   SCnPackMemMgr = 'ず恨瞶菏跌竟';
@@ -208,7 +219,24 @@ const
   SCommaString = '';
   SPeriodString = '';
 
+function CnGetLastError: Integer;
+
+procedure _CnSetLastError(Err: Integer);
+
 implementation
+
+threadvar
+  CnErrorCode: Integer;
+
+function CnGetLastError: Integer;
+begin
+  Result := CnErrorCode;
+end;
+
+procedure _CnSetLastError(Err: Integer);
+begin
+  CnErrorCode := Err;
+end;
 
 end.
 

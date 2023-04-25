@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2022 CnPack 开发组                       }
+{                   (C)Copyright 2001-2023 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -22,9 +22,11 @@ unit CnIni;
 {* |<PRE>
 ================================================================================
 * 软件名称：开发包基础库
-* 单元名称：扩展的INI访问单元
+* 单元名称：扩展的 INI 访问单元，支持 Win32/64 和 Posix
 * 单元作者：周劲羽 (zjy@cnpack.org)
 * 备    注：该单元编写时参考了 RxLib 2.75 中的 RxIni.pas
+*           编译时如出现 Graphics 找不到，请按编译平台是否 Windows 在工程选项中
+*           添加 Vcl 或 FMX 前缀
 * 开发平台：PWin2000Pro + Delphi 5.0
 * 兼容测试：PWin9X/2000/XP + Delphi 5/6
 * 本 地 化：该单元中的字符串均符合本地化处理方式
@@ -38,12 +40,13 @@ interface
 {$I CnPack.inc}
 
 {$IFDEF DELPHI}
-{$DEFINE SUPPORT_ZLIB}
+  {$DEFINE SUPPORT_ZLIB}
 {$ENDIF}
 
 uses
-  Windows, Classes, SysUtils, TypInfo, Forms, IniFiles, Graphics,
-  CnIniStrUtils, CnStream{$IFDEF SUPPORT_ZLIB}, ZLib{$ENDIF};
+  {$IFDEF MSWINDOWS} Windows, {$ELSE} System.Types, System.UITypes, System.UIConsts, {$ENDIF}
+  Classes, SysUtils, TypInfo, IniFiles, Graphics, // FMX 下如果 Graphics 找不到，需要工程选项里加 FMX 前缀
+  CnIniStrUtils, CnStream {$IFDEF SUPPORT_ZLIB}, ZLib{$ENDIF};
 
 type
 
@@ -83,9 +86,14 @@ type
        MemIniFile: Boolean     - 是否使用内存缓冲方式操作 INI，即内部使用 TMemIniFile 对象。
      |</PRE>}
     destructor Destroy; override;
-    
-    function ReadInteger(const Section, Ident: string; Default: Longint): Longint; override;
-    procedure WriteInteger(const Section, Ident: string; Value: Longint); override;
+
+{$IFDEF INIFILE_READWRITE_INTEGER}
+    function ReadInteger(const Section, Ident: string; Default: Integer): Integer; override;
+    procedure WriteInteger(const Section, Ident: string; Value: Integer); override;
+{$ELSE}
+    function ReadInteger(const Section, Ident: string; Default: LongInt): LongInt; override;
+    procedure WriteInteger(const Section, Ident: string; Value: LongInt); override;
+{$ENDIF}
     function ReadBool(const Section, Ident: string; Default: Boolean): Boolean; override;
     procedure WriteBool(const Section, Ident: string; Value: Boolean); override;
     function ReadDate(const Section, Name: string; Default: TDateTime): TDateTime; override;
@@ -687,11 +695,23 @@ begin
   Result := Ini.ReadFloat(Section, Name, Default);
 end;
 
+{$IFDEF INIFILE_READWRITE_INTEGER}
+
 function TCnIniFile.ReadInteger(const Section, Ident: string;
-  Default: Integer): Longint;
+  Default: Integer): Integer;
 begin
   Result := Ini.ReadInteger(Section, Ident, Default);
 end;
+
+{$ELSE}
+
+function TCnIniFile.ReadInteger(const Section, Ident: string;
+  Default: LongInt): LongInt;
+begin
+  Result := Ini.ReadInteger(Section, Ident, Default);
+end;
+
+{$ENDIF}
 
 function TCnIniFile.ReadTime(const Section, Name: string;
   Default: TDateTime): TDateTime;
@@ -723,11 +743,23 @@ begin
   Ini.WriteFloat(Section, Name, Value);
 end;
 
+{$IFDEF INIFILE_READWRITE_INTEGER}
+
 procedure TCnIniFile.WriteInteger(const Section, Ident: string;
   Value: Integer);
 begin
   Ini.WriteInteger(Section, Ident, Value);
 end;
+
+{$ELSE}
+
+procedure TCnIniFile.WriteInteger(const Section, Ident: string;
+  Value: LongInt);
+begin
+  Ini.WriteInteger(Section, Ident, Value);
+end;
+
+{$ENDIF}
 
 procedure TCnIniFile.WriteTime(const Section, Name: string;
   Value: TDateTime);

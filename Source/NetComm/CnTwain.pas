@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2022 CnPack 开发组                       }
+{                   (C)Copyright 2001-2023 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -185,9 +185,9 @@ const
   CAP_FEEDPAGE = $1009;
   CAP_REWINDPAGE = $100a;
   CAP_INDICATORS = $100b;    //Added 1.1
-  CAP_SUPPORTEDCAPSEXT = $100c; 	// Added 1.6
-  CAP_PAPERDETECTABLE = $100d; 	// Added 1.6
-  CAP_UICONTROLLABLE = $100e; 	// Added 1.6
+  CAP_SUPPORTEDCAPSEXT = $100c;  // Added 1.6
+  CAP_PAPERDETECTABLE = $100d;   // Added 1.6
+  CAP_UICONTROLLABLE = $100e;    // Added 1.6
    // image data sources MAY support these caps
   ICAP_AUTOBRIGHT = $1100;
   ICAP_BRIGHTNESS = $1101;

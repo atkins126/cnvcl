@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2022 CnPack 开发组                       }
+{                   (C)Copyright 2001-2023 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -54,7 +54,7 @@ interface
 
 uses
   Windows, SysUtils, Classes, Forms, MMSystem, CnClasses, CnConsts, CnCompConsts,
-  CnNativeDecl;
+  CnNative;
 
 type
 
@@ -313,7 +313,7 @@ begin
   inherited Destroy;
 end;
 
-procedure MMTimerProc(uTimerID, uMessage: UINT; dwUser, dw1, dw2: TCnNativePointer) stdcall;
+procedure MMTimerProc(uTimerID, uMessage: UINT; dwUser, dw1, dw2: TCnNativeUInt) stdcall;
 begin
   TCnTimerMgr(dwUser).Timer;
 end;  
@@ -328,7 +328,7 @@ begin
     FTimerRes := tc.wPeriodMin;
     if timeBeginPeriod(FTimerRes) = TIMERR_NOERROR then
     begin
-      FTimerID := timeSetEvent(tc.wPeriodMin, 0, MMTimerProc, Cardinal(Self),
+      FTimerID := timeSetEvent(tc.wPeriodMin, 0, MMTimerProc, TCnNativeUInt(Self),
         TIME_PERIODIC);
       Result := FTimerID <> 0;
     end

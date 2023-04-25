@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2022 CnPack 开发组                       }
+{                   (C)Copyright 2001-2023 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -52,7 +52,7 @@ interface
 {$I CnPack.inc}
 
 uses
-  SysUtils, Classes {$IFDEF MSWINDOWS}, Windows {$ENDIF};
+  SysUtils, Classes, CnNative {$IFDEF MSWINDOWS}, Windows {$ENDIF};
 
 //------------------------------------------------------------------------------
 // CRC8 系列函数（CCITT），初始值 00，结果异或值 00，多项式为 x8+x2+x+1
@@ -61,13 +61,13 @@ uses
 function CalcCRC8Byte(OrgCRC8: Byte; B: Byte): Byte;
 {* CRC8 计算单个字节，供特殊需求使用}
 
-function CRC8Calc(const OrgCRC8: Byte; const Data; Len: LongWord): Byte;
+function CRC8Calc(const OrgCRC8: Byte; const Data; ByteLength: Cardinal): Byte;
 {* 计算 CRC8 值
  |<PRE>
-   OrgCRC8: Byte    - 起始 CRC8 值，默认可传 0
-   const Data       - 要计算的数据块，一般不传地址
-   Len: DWORD       - 数据块长度
-   Result: Byte     - 返回 CRC8 计算结果
+   OrgCRC8: Byte            - 起始 CRC8 值，默认可传 0
+   const Data               - 要计算的数据块，一般不传地址，传变量本身
+   ByteLength: Cardinal     - 数据块长度
+   Result: Byte             - 返回 CRC8 计算结果
  |</PRE>}
 
 function StrCRC8(const OrgCRC8: Byte; const Text: string): Byte;
@@ -76,21 +76,17 @@ function StrCRC8(const OrgCRC8: Byte; const Text: string): Byte;
 function StrCRC8A(const OrgCRC8: Byte; const Text: AnsiString): Byte;
 {* 计算 AnsiString 字符串的 CRC8 值 }
 
-{$IFDEF TBYTES_DEFINED}
-
 function BytesCRC8(const OrgCRC8: Byte; Data: TBytes): Byte;
-{* 计算 TBytes 的 CRC8 值}
+{* 计算字节数组的 CRC8 值}
 
-{$ENDIF}
-
-function FileCRC8(const FileName: string; var CRC: Byte; StartPos: Int64 = 0;
-  Len: Int64 = 0): Boolean;
+function FileCRC8(const Filename: string; var CRC: Byte; StartPos: Int64 = 0;
+  ByteLength: Int64 = 0): Boolean;
 {* 计算文件 CRC8 值，支持超过 4G 的大文件
  |<PRE>
    const FileName: string   - 目标文件名
    var CRC: Byte            - CRC8 值，变量参数，传入原始值，默认可为 0，输出计算值
    StartPos: Int64 = 0      - 文件起始位置，默认从头开始
-   Len: Int64 = 0           - 计算长度，为零默认为整个文件
+   ByteLength: Int64 = 0    - 计算长度，为零默认为整个文件
    Result: Boolean          - 返回成功标志，文件打开失败或指定长度无效时返回 False
  |</PRE>}
 
@@ -101,36 +97,32 @@ function FileCRC8(const FileName: string; var CRC: Byte; StartPos: Int64 = 0;
 function CalcCRC16Byte(OrgCRC16: Word; B: Byte): Word;
 {* CRC16 计算单个字节，供特殊需求使用}
 
-function CRC16Calc(const OrgCRC16: Word; const Data; Len: LongWord): Word;
+function CRC16Calc(const OrgCRC16: Word; const Data; ByteLength: Cardinal): Word;
 {* 计算 CRC16 值
  |<PRE>
-   OrgCRC16: WORD  - 起始 CRC16 值，默认可传 0
-   const Data       - 要计算的数据块，一般不传地址
-   Len: DWORD       - 数据块长度
-   Result: WORD    - 返回 CRC16 计算结果
+   OrgCRC16: WORD           - 起始 CRC16 值，默认应传 0，内部会求反变成 FFFF 以符合 CCITT 的要求
+   const Data               - 要计算的数据块，一般不传地址
+   ByteLength: Cardinal     - 数据块长度
+   Result: WORD             - 返回 CRC16 计算结果
  |</PRE>}
 
 function StrCRC16(const OrgCRC16: Word; const Text: string): Word;
-{* 计算字符串的 CRC16 值 }
+{* 计算字符串的 CRC16 值}
 
 function StrCRC16A(const OrgCRC16: Word; const Text: AnsiString): Word;
-{* 计算 AnsiString 字符串的 CRC16 值 }
-
-{$IFDEF TBYTES_DEFINED}
+{* 计算 AnsiString 字符串的 CRC16 值}
 
 function BytesCRC16(const OrgCRC16: Word; Data: TBytes): Word;
-{* 计算 TBytes 的 CRC16 值}
-
-{$ENDIF}
+{* 计算字节数组的 CRC16 值}
 
 function FileCRC16(const FileName: string; var CRC: Word; StartPos: Int64 = 0;
-  Len: Int64 = 0): Boolean;
+  ByteLength: Int64 = 0): Boolean;
 {* 计算文件 CRC16 值，支持超过 4G 的大文件
  |<PRE>
    const FileName: string   - 目标文件名
-   var CRC: DWORD           - CRC16 值，变量参数，传入原始值，默认可为 0，输出计算值
+   var CRC: Cardinal        - CRC16 值，变量参数，传入原始值，默认可为 0，输出计算值
    StartPos: Int64 = 0      - 文件起始位置，默认从头开始
-   Len: Int64 = 0           - 计算长度，为零默认为整个文件
+   ByteLength: Int64 = 0    - 计算长度，为零默认为整个文件
    Result: Boolean          - 返回成功标志，文件打开失败或指定长度无效时返回 False
  |</PRE>}
 
@@ -139,39 +131,35 @@ function FileCRC16(const FileName: string; var CRC: Word; StartPos: Int64 = 0;
 // 多项式为 x32+x26+x23+x22+x16+x12+x11+x10+x8+x7+x5+x4+x2+x+1
 //------------------------------------------------------------------------------
 
-function CalcCRC32Byte(OrgCRC32: LongWord; B: Byte): LongWord;
+function CalcCRC32Byte(OrgCRC32: Cardinal; B: Byte): Cardinal;
 {* CRC32 计算单个字节，供特殊需求使用}
 
-function CRC32Calc(const OrgCRC32: LongWord; const Data; Len: LongWord): LongWord;
+function CRC32Calc(const OrgCRC32: Cardinal; const Data; ByteLength: Cardinal): Cardinal;
 {* 计算 CRC32 值
  |<PRE>
-   OrgCRC32: DWORD  - 起始 CRC32 值，默认可传 0
-   const Data       - 要计算的数据块，一般不传地址
-   Len: DWORD       - 数据块长度
-   Result: DWORD    - 返回 CRC32 计算结果
+   OrgCRC32: Cardinal       - 起始 CRC32 值，默认应传 0，内部会求反变成 FFFFFFFF 以符合 CCITT 的要求
+   const Data               - 要计算的数据块，一般不传地址
+   ByteLength: Cardinal     - 数据块长度
+   Result: Cardinal         - 返回 CRC32 计算结果，已与 FFFFFFFF 异或过了以符合 CCITT 的要求
  |</PRE>}
 
-function StrCRC32(const OrgCRC32: LongWord; const Text: string): LongWord;
-{* 计算字符串的 CRC32 值 }
+function StrCRC32(const OrgCRC32: Cardinal; const Text: string): Cardinal;
+{* 计算字符串的 CRC32 值}
 
-function StrCRC32A(const OrgCRC32: LongWord; const Text: AnsiString): LongWord;
-{* 计算 AnsiString 字符串的 CRC32 值 }
+function StrCRC32A(const OrgCRC32: Cardinal; const Text: AnsiString): Cardinal;
+{* 计算 AnsiString 字符串的 CRC32 值}
 
-{$IFDEF TBYTES_DEFINED}
+function BytesCRC32(const OrgCRC32: Cardinal; Data: TBytes): Cardinal;
+{* 计算字节数组的 CRC32 值}
 
-function BytesCRC32(const OrgCRC32: LongWord; Data: TBytes): LongWord;
-{* 计算 TBytes 的 CRC32 值}
-
-{$ENDIF}
-
-function FileCRC32(const FileName: string; var CRC: LongWord; StartPos: Int64 = 0;
-  Len: Int64 = 0): Boolean;
+function FileCRC32(const FileName: string; var CRC: Cardinal; StartPos: Int64 = 0;
+  ByteLength: Int64 = 0): Boolean;
 {* 计算文件 CRC32 值，支持超过 4G 的大文件
  |<PRE>
    const FileName: string   - 目标文件名
-   var CRC: DWORD           - CRC32 值，变量参数，传入原始值，默认可为 0，输出计算值
+   var CRC: Cardinal        - CRC32 值，变量参数，传入原始值，默认可为 0，输出计算值
    StartPos: Int64 = 0      - 文件起始位置，默认从头开始
-   Len: Int64 = 0           - 计算长度，为零默认为整个文件
+   ByteLength: Int64 = 0    - 计算长度，为零默认为整个文件
    Result: Boolean          - 返回成功标志，文件打开失败或指定长度无效时返回 False
  |</PRE>}
 
@@ -182,13 +170,13 @@ function FileCRC32(const FileName: string; var CRC: LongWord; StartPos: Int64 = 
 // x32+x31+x29+x27+x24+x23+x22+x21+x19+x17+x13+x12+x10+x9+x7+x4+x+1
 //------------------------------------------------------------------------------
 
-function CRC64Calc(const OrgCRC64: Int64; const Data; Len: LongWord): Int64;
+function CRC64Calc(const OrgCRC64: Int64; const Data; ByteLength: Cardinal): Int64;
 {* 计算 CRC64 值
  |<PRE>
-   OrgCRC64: Int64  - 起始 CRC64 值，默认可传 0
-   const Data       - 要计算的数据块
-   Len: DWORD       - 数据块长度
-   Result: Int64    - 返回 CRC64 计算结果
+   OrgCRC64: Int64          - 起始 CRC64 值，默认应传 0，内部会求反变成 FFFFFFFFFFFFFFFF 以符合 CCITT 的要求
+   const Data               - 要计算的数据块
+   ByteLength: Cardinal     - 数据块长度
+   Result: Int64            - 返回 CRC64 计算结果，已与 FFFFFFFFFFFFFFFF 异或过了以符合 CCITT 的要求
  |</PRE>}
 
 function StrCRC64(const OrgCRC64: Int64; const Text: string): Int64;
@@ -197,37 +185,39 @@ function StrCRC64(const OrgCRC64: Int64; const Text: string): Int64;
 function StrCRC64A(const OrgCRC64: Int64; const Text: AnsiString): Int64;
 {* 计算 AnsiString 字符串的 CRC64 值 }
 
-{$IFDEF TBYTES_DEFINED}
-
-function BytesCRC64(const OrgCRC64: LongWord; Data: TBytes): LongWord;
-{* 计算 TBytes 的 CRC64 值}
-
-{$ENDIF}
+function BytesCRC64(const OrgCRC64: Cardinal; Data: TBytes): Cardinal;
+{* 计算字节数组的 CRC64 值}
 
 function FileCRC64(const FileName: string; var CRC: Int64; StartPos: Int64 = 0;
-  Len: Int64 = 0): Boolean;
+  ByteLength: Int64 = 0): Boolean;
 {* 计算文件 CRC64 值，支持超过 4G 的大文件
  |<PRE>
    const FileName: string   - 目标文件名
    var CRC: Int64           - CRC64 值，变量参数，传入原始值，默认可为 0，输出计算值
    StartPos: Int64 = 0      - 文件起始位置，默认从头开始
-   Len: Int64 = 0           - 计算长度，为零默认为整个文件
+   ByteLength: Int64 = 0    - 计算长度，为零默认为整个文件
    Result: Boolean          - 返回成功标志，文件打开失败或指定长度无效时返回 False
  |</PRE>}
 
 function CRC32Hmac(Key: PAnsiChar; KeyLength: Integer; Input: PAnsiChar;
-  Length: LongWord): LongWord;
+  ByteLength: Cardinal): Cardinal;
+{* 计算数据块的 CRC32Hmac 值.
+  Key 为密码地址，KeyLength 为密码字节长度，超过 4 字节时将其计算成 4 字节 CRC32 值
+  Input 为数据块地址，ByteLength 为数据块字节长度}
 
 function CRC64Hmac(Key: PAnsiChar; KeyLength: Integer; Input: PAnsiChar;
-  Length: LongWord): Int64;
+  ByteLength: Cardinal): Int64;
+{* 计算数据块的 CRC64Hmac 值。
+  Key 为密码地址，KeyLength 为密码字节长度，超过 4 字节时将其计算成 8 字节 CRC64 值并取前 4 字节
+  Input 为数据块地址，ByteLength 为数据块字节长度}
 
 {* Hash-based Message Authentication Code (based on CRC32/CRC64) }
 
 implementation
 
 const
-  csBuff_Size = 4096;
-  csCRC64 = $C96C5795D7870F42;
+  BUFF_SIZE = 4096;
+  CODE_CRC64 = $C96C5795D7870F42;
 
   HMAC_CRC32_BLOCK_SIZE_BYTE = 4;
   HMAC_CRC32_OUTPUT_LENGTH_BYTE = 4;
@@ -238,7 +228,7 @@ const
 type
   // 文件缓冲区
   PBuff = ^TBuff;
-  TBuff = array[0..csBuff_Size - 1] of Byte;
+  TBuff = array[0..BUFF_SIZE - 1] of Byte;
 
   // CRC8 表
   TCRC8Table = array[0..255] of Byte;
@@ -247,7 +237,7 @@ type
   TCRC16Table = array[0..255] of Word;
 
   // CRC32 表
-  TCRC32Table = array[0..255] of LongWord;
+  TCRC32Table = array[0..255] of Cardinal;
 
   // CRC64 表
   TCRC64Table = array[0..255] of Int64;
@@ -400,28 +390,28 @@ begin
 end;
 
 // 计算 CRC8 值
-function DoCRC8Calc(const OrgCRC8: Byte; const Data; Len: LongWord): Byte;
+function DoCRC8Calc(const OrgCRC8: Byte; const Data; ByteLength: Cardinal): Byte;
 var
   P: PByte;
 begin
   Result := OrgCRC8;
-  if (@Data = nil) or (Len = 0) then
+  if (@Data = nil) or (ByteLength = 0) then
     Exit;
 
   P := PByte(@Data);
-  while Len > 0 do
+  while ByteLength > 0 do
   begin
     Result := CRC8Table[Result xor P^];
 
     Inc(P);
-    Dec(Len);
+    Dec(ByteLength);
   end;
 end;
 
 // 计算 CRC8 值
-function CRC8Calc(const OrgCRC8: Byte; const Data; Len: LongWord): Byte;
+function CRC8Calc(const OrgCRC8: Byte; const Data; ByteLength: Cardinal): Byte;
 begin
-  Result := DoCRC8Calc(OrgCRC8, Data, Len); // CRC8 初始值为 0，无需求反
+  Result := DoCRC8Calc(OrgCRC8, Data, ByteLength); // CRC8 初始值为 0，无需求反
 end;
 
 // 计算字符串的 CRC8 值
@@ -436,15 +426,11 @@ begin
   Result := CRC8Calc(OrgCRC8, PAnsiChar(Text)^, Length(Text));
 end;
 
-{$IFDEF TBYTES_DEFINED}
-
 // 计算 TBytes 的 CRC8 值
 function BytesCRC8(const OrgCRC8: Byte; Data: TBytes): Byte;
 begin
   Result := CRC8Calc(OrgCRC8, PAnsiChar(Data[0])^, Length(Data));
 end;
-
-{$ENDIF}
 
 function InternalCRC8Stream(Stream: TStream; const BufSize: Cardinal;
   var CRC: Byte): Boolean;
@@ -489,7 +475,7 @@ end;
 
 // 计算文件 CRC 值，参数分别为：文件名、CRC 值、起始地址、计算长度
 function FileCRC8(const FileName: string; var CRC: Byte; StartPos: Int64 = 0;
-  Len: Int64 = 0): Boolean;
+  ByteLength: Int64 = 0): Boolean;
 var
 {$IFDEF MSWINDOWS}
   Handle: THandle;
@@ -510,13 +496,13 @@ begin
   if Result then
   try
     Int64Rec(Size).Lo := GetFileSize(Handle, @Int64Rec(Size).Hi);
-    if Size < StartPos + Len then
+    if Size < StartPos + ByteLength then
     begin
       Result := False;                  // 超过文件长度
       Exit;
     end;
-    if Len > 0 then
-      Count := Len
+    if ByteLength > 0 then
+      Count := ByteLength
     else
       Count := Size - StartPos;         // 长度为零，计算到文件尾
 
@@ -528,7 +514,7 @@ begin
         ReadCount := SizeOf(Buff)
       else
         ReadCount := Count;
-      ReadFile(Handle, Buff, ReadCount, LongWord(ReadCount), nil);
+      ReadFile(Handle, Buff, ReadCount, Cardinal(ReadCount), nil);
       CRC := DoCrc8Calc(CRC, Buff, ReadCount);
       Dec(Count, ReadCount);
     end;
@@ -556,7 +542,7 @@ begin
 end;
 
 // 计算 CRC16 值
-function DoCRC16Calc(const OrgCRC16: Word; const Data; Len: LongWord): Word;
+function DoCRC16Calc(const OrgCRC16: Word; const Data; Len: Cardinal): Word;
 var
   P: PByte;
 begin
@@ -577,10 +563,10 @@ begin
 end;
 
 // 计算 CRC16 值
-function CRC16Calc(const OrgCRC16: Word; const Data; Len: LongWord): Word;
+function CRC16Calc(const OrgCRC16: Word; const Data; ByteLength: Cardinal): Word;
 begin
   Result := not OrgCRC16;   // 该 CRC16 初始值为 FFFF
-  Result := DoCRC16Calc(Result, Data, Len);
+  Result := DoCRC16Calc(Result, Data, ByteLength);
 end;
 
 // 计算字符串的 CRC16 值
@@ -595,15 +581,11 @@ begin
   Result := CRC16Calc(OrgCRC16, PAnsiChar(Text)^, Length(Text));
 end;
 
-{$IFDEF TBYTES_DEFINED}
-
 // 计算 TBytes 的 CRC16 值
 function BytesCRC16(const OrgCRC16: Word; Data: TBytes): Word;
 begin
   Result := CRC16Calc(OrgCRC16, PAnsiChar(Data[0])^, Length(Data));
 end;
-
-{$ENDIF}
 
 function InternalCRC16Stream(Stream: TStream; const BufSize: Cardinal;
   var CRC: Word): Boolean;
@@ -648,7 +630,7 @@ end;
 
 // 计算文件 CRC 值，参数分别为：文件名、CRC 值、起始地址、计算长度
 function FileCRC16(const FileName: string; var CRC: Word; StartPos: Int64 = 0;
-  Len: Int64 = 0): Boolean;
+  ByteLength: Int64 = 0): Boolean;
 var
 {$IFDEF MSWINDOWS}
   Handle: THandle;
@@ -669,13 +651,13 @@ begin
   if Result then
   try
     Int64Rec(Size).Lo := GetFileSize(Handle, @Int64Rec(Size).Hi);
-    if Size < StartPos + Len then
+    if Size < StartPos + ByteLength then
     begin
       Result := False;                  // 超过文件长度
       Exit;
     end;
-    if Len > 0 then
-      Count := Len
+    if ByteLength > 0 then
+      Count := ByteLength
     else
       Count := Size - StartPos;         // 长度为零，计算到文件尾
 
@@ -687,7 +669,7 @@ begin
         ReadCount := SizeOf(Buff)
       else
         ReadCount := Count;
-      ReadFile(Handle, Buff, ReadCount, LongWord(ReadCount), nil);
+      ReadFile(Handle, Buff, ReadCount, Cardinal(ReadCount), nil);
       CRC := DoCrc16Calc(CRC, Buff, ReadCount);
       Dec(Count, ReadCount);
     end;
@@ -709,13 +691,13 @@ end;
 // CRC32 系列函数
 //------------------------------------------------------------------------------
 
-function CalcCRC32Byte(OrgCRC32: LongWord; B: Byte): LongWord;
+function CalcCRC32Byte(OrgCRC32: Cardinal; B: Byte): Cardinal;
 begin
   Result := ((OrgCRC32 shr 8) and $FFFFFF) xor CRC32Table[(OrgCRC32 and $FF) xor B];
 end;
 
 // 计算 CRC32 值
-function DoCRC32Calc(const OrgCRC32: LongWord; const Data; Len: LongWord): LongWord;
+function DoCRC32Calc(const OrgCRC32: Cardinal; const Data; Len: Cardinal): Cardinal;
 var
   P: PByte;
 begin
@@ -734,37 +716,33 @@ begin
 end;
 
 // 计算 CRC32 值
-function CRC32Calc(const OrgCRC32: LongWord; const Data; Len: LongWord): LongWord;
+function CRC32Calc(const OrgCRC32: Cardinal; const Data; ByteLength: Cardinal): Cardinal;
 begin
   Result := not OrgCRC32;   // 该 CRC32 算法起始值 FFFFFFFF
-  Result := DoCRC32Calc(Result, Data, Len);
+  Result := DoCRC32Calc(Result, Data, ByteLength);
   Result := not Result;     // 该 CRC32 算法结果异或值 FFFFFFFF
 end;
 
 // 计算字符串的 CRC32 值
-function StrCRC32(const OrgCRC32: LongWord; const Text: string): LongWord;
+function StrCRC32(const OrgCRC32: Cardinal; const Text: string): Cardinal;
 begin
   Result := CRC32Calc(OrgCRC32, PChar(Text)^, Length(Text) * SizeOf(Char));
 end;
 
 // 计算 AnsiString 字符串的 CRC32 值
-function StrCRC32A(const OrgCRC32: LongWord; const Text: AnsiString): LongWord;
+function StrCRC32A(const OrgCRC32: Cardinal; const Text: AnsiString): Cardinal;
 begin
   Result := CRC32Calc(OrgCRC32, PAnsiChar(Text)^, Length(Text));
 end;
 
-{$IFDEF TBYTES_DEFINED}
-
 // 计算 TBytes 的 CRC32 值
-function BytesCRC32(const OrgCRC32: LongWord; Data: TBytes): LongWord;
+function BytesCRC32(const OrgCRC32: Cardinal; Data: TBytes): Cardinal;
 begin
   Result := CRC32Calc(OrgCRC32, PAnsiChar(Data[0])^, Length(Data));
 end;
 
-{$ENDIF}
-
 function InternalCRC32Stream(Stream: TStream; const BufSize: Cardinal;
-  var CRC: LongWord): Boolean;
+  var CRC: Cardinal): Boolean;
 var
   Buf: PAnsiChar;
   BufLen: Cardinal;
@@ -805,8 +783,8 @@ begin
 end;
 
 // 计算文件 CRC 值，参数分别为：文件名、CRC 值、起始地址、计算长度
-function FileCRC32(const FileName: string; var CRC: LongWord; StartPos: Int64 = 0;
-  Len: Int64 = 0): Boolean;
+function FileCRC32(const FileName: string; var CRC: Cardinal; StartPos: Int64 = 0;
+  ByteLength: Int64 = 0): Boolean;
 var
 {$IFDEF MSWINDOWS}
   Handle: THandle;
@@ -827,13 +805,13 @@ begin
   if Result then
   try
     Int64Rec(Size).Lo := GetFileSize(Handle, @Int64Rec(Size).Hi);
-    if Size < StartPos + Len then
+    if Size < StartPos + ByteLength then
     begin
       Result := False;                  // 超过文件长度
       Exit;
     end;
-    if Len > 0 then
-      Count := Len
+    if ByteLength > 0 then
+      Count := ByteLength
     else
       Count := Size - StartPos;         // 长度为零，计算到文件尾
 
@@ -845,7 +823,7 @@ begin
         ReadCount := SizeOf(Buff)
       else
         ReadCount := Count;
-      ReadFile(Handle, Buff, ReadCount, LongWord(ReadCount), nil);
+      ReadFile(Handle, Buff, ReadCount, Cardinal(ReadCount), nil);
       CRC := DoCrc32Calc(CRC, Buff, ReadCount);
       Dec(Count, ReadCount);
     end;
@@ -878,7 +856,7 @@ begin
     for J := 0 to 7 do
     begin
       if (Data and 1) <> 0 then
-        Data := Data shr 1 xor csCRC64
+        Data := Data shr 1 xor CODE_CRC64
       else
         Data := Data shr 1;
 
@@ -887,7 +865,7 @@ begin
   end;
 end;
 
-function DoCRC64Calc(const OrgCRC64: Int64; const Data; Len: LongWord): Int64;
+function DoCRC64Calc(const OrgCRC64: Int64; const Data; Len: Cardinal): Int64;
 var
   I: Integer;
   P: PByte;
@@ -906,10 +884,10 @@ begin
 end;
 
 // 计算 CRC64 值
-function CRC64Calc(const OrgCRC64: Int64; const Data; Len: LongWord): Int64;
+function CRC64Calc(const OrgCRC64: Int64; const Data; ByteLength: Cardinal): Int64;
 begin
   Result := not OrgCRC64;   // 该 CRC64 算法起始值 FFFFFFFFFFFFFFFF
-  Result := DoCRC64Calc(Result, Data, Len);
+  Result := DoCRC64Calc(Result, Data, ByteLength);
   Result := not Result;     // 该 CRC64 算法结果异或值 FFFFFFFFFFFFFFFF
 end;
 
@@ -925,15 +903,11 @@ begin
   Result := CRC64Calc(OrgCRC64, PAnsiChar(Text)^, Length(Text));
 end;
 
-{$IFDEF TBYTES_DEFINED}
-
 // 计算 TBytes 的 CRC64 值
-function BytesCRC64(const OrgCRC64: LongWord; Data: TBytes): LongWord;
+function BytesCRC64(const OrgCRC64: Cardinal; Data: TBytes): Cardinal;
 begin
   Result := CRC64Calc(OrgCRC64, PAnsiChar(Data[0])^, Length(Data));
 end;
-
-{$ENDIF}
 
 function InternalCRC64Stream(Stream: TStream; const BufSize: Cardinal;
   var CRC: Int64): Boolean;
@@ -978,7 +952,7 @@ end;
 
 // 计算文件 CRC64 值，参数分别为：文件名、CRC 值、起始地址、计算长度
 function FileCRC64(const FileName: string; var CRC: Int64; StartPos: Int64 = 0;
-  Len: Int64 = 0): Boolean;
+  ByteLength: Int64 = 0): Boolean;
 var
 {$IFDEF MSWINDOWS}
   Handle: THandle;
@@ -999,13 +973,13 @@ begin
   if Result then
   try
     Int64Rec(Size).Lo := GetFileSize(Handle, @Int64Rec(Size).Hi);
-    if Size < StartPos + Len then
+    if Size < StartPos + ByteLength then
     begin
       Result := False;                  // 超过文件长度
       Exit;
     end;
-    if Len > 0 then
-      Count := Len
+    if ByteLength > 0 then
+      Count := ByteLength
     else
       Count := Size - StartPos;         // 长度为零，计算到文件尾
 
@@ -1017,7 +991,7 @@ begin
         ReadCount := SizeOf(Buff)
       else
         ReadCount := Count;
-      ReadFile(Handle, Buff, ReadCount, LongWord(ReadCount), nil);
+      ReadFile(Handle, Buff, ReadCount, Cardinal(ReadCount), nil);
       CRC := DoCrc64Calc(CRC, Buff, ReadCount);
       Dec(Count, ReadCount);
     end;
@@ -1037,11 +1011,11 @@ begin
 end;
 
 function CRC32Hmac(Key: PAnsiChar; KeyLength: Integer; Input: PAnsiChar;
-  Length: LongWord): LongWord;
+  ByteLength: Cardinal): Cardinal;
 var
   I: Integer;
   Ipad, Opad: array[0..3] of Byte;
-  Sum, Res: LongWord;
+  Sum, Res: Cardinal;
 begin
   if KeyLength > HMAC_CRC32_BLOCK_SIZE_BYTE then
   begin
@@ -1061,7 +1035,7 @@ begin
 
   Res := $FFFFFFFF;
   Res := DoCRC32Calc(Res, Ipad[0], HMAC_CRC32_BLOCK_SIZE_BYTE);
-  Res := DoCRC32Calc(Res, Input^, Length);
+  Res := DoCRC32Calc(Res, Input^, ByteLength);
   Res := not Res;
 
   Result := $FFFFFFFF;
@@ -1071,7 +1045,7 @@ begin
 end;
 
 function CRC64Hmac(Key: PAnsiChar; KeyLength: Integer; Input: PAnsiChar;
-  Length: LongWord): Int64;
+  ByteLength: Cardinal): Int64;
 var
   I: Integer;
   Ipad, Opad: array[0..7] of Byte;
@@ -1095,7 +1069,7 @@ begin
 
   Res := $FFFFFFFF;
   Res := DoCRC64Calc(Res, Ipad[0], HMAC_CRC64_BLOCK_SIZE_BYTE);
-  Res := DoCRC64Calc(Res, Input^, Length);
+  Res := DoCRC64Calc(Res, Input^, ByteLength);
   Res := not Res;
 
   Result := $FFFFFFFF;

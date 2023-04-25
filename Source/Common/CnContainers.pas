@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2022 CnPack 开发组                       }
+{                   (C)Copyright 2001-2023 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -71,7 +71,7 @@ interface
 
 uses
   SysUtils, Classes, Contnrs, SyncObjs
-  {$IFDEF MACOS}, System.Generics.Collections {$ENDIF};
+  {$IFDEF POSIX}, System.Generics.Collections {$ENDIF};
 
 {$DEFINE MULTI_THREAD} // 数学对象池支持多线程，性能略有下降，如不需要，注释此行即可
 
@@ -271,18 +271,13 @@ type
     property List: PRefObjectList read FList;
   end;
 
-{$IFDEF MACOS}
+{$IFDEF POSIX}
 
-  // MACOS 下的 TCnUInt32/64List 没有 IgnoreDuplicated 功能，需要手工去重
+  // MACOS/LINUX 等平台下的 TList 没有 IgnoreDuplicated 功能，需要手工去重
   TCnInternalList<T> = class(TList<T>)
   public
     procedure RemoveDuplictedElements;
   end;
-
-  // 以下俩定义只在 MACOS 下有效，不与 CnClasses 中的同名类冲突
-  TCnUInt32List = class(TCnInternalList<Cardinal>);
-
-  TCnUInt64List = class(TCnInternalList<UInt64>);
 
 {$ENDIF}
 
@@ -298,11 +293,15 @@ procedure CnRefObjectListCopy(Dst, Src: TCnRefObjectList);
 implementation
 
 uses
-  CnNativeDecl;
+  CnNative;
 
 resourcestring
   SCnInt64ListError = 'Int64 List Error. %d';
   SCnRefObjectListError = 'Reference Object List Error. %d';
+  SCnEmptyPopFromBackError = 'Ring Buffer Empty. Can NOT Pop From Back.';
+  SCnEmptyPopFromFrontError = 'Ring Buffer Empty. Can NOT Pop From Front.';
+  SCnFullPushToBackError = 'Ring Buffer Full. Can NOT Push To Back.';
+  SCnFullPushToFrontError = 'Ring Buffer Full. Can NOT Push To Front.';
 
 type
   TCnNode = class
@@ -478,7 +477,8 @@ begin
   inherited;
 end;
 
-procedure TCnObjectRingBuffer.Dump(List: TList; out FrontIdx: Integer; out BackIdx: Integer);
+procedure TCnObjectRingBuffer.Dump(List: TList; out FrontIdx: Integer;
+  out BackIdx: Integer);
 var
   I: Integer;
 begin
@@ -497,15 +497,17 @@ begin
   Result := FCount;
 end;
 
+{$HINTS OFF}
+
 function TCnObjectRingBuffer.PopFromBack: TObject;
 begin
-  Result := nil;
+  Result := nil;  // 不加则低版本 Delphi 有警告，加则高版本 Delphi 有警告
   if FMultiThread then
     FLock.Enter;
 
   try
     if FCount <= 0 then
-      raise ECnRingBufferEmptyException.Create('Ring Buffer Empty. Can NOT Pop From Back.');
+      raise ECnRingBufferEmptyException.Create(SCnEmptyPopFromBackError);
 
     Dec(FBackIdx);
     if FBackIdx < 0 then
@@ -521,13 +523,13 @@ end;
 
 function TCnObjectRingBuffer.PopFromFront: TObject;
 begin
-  Result := nil;
+  Result := nil; // 不加则低版本 Delphi 有警告，加则高版本 Delphi 有警告
   if FMultiThread then
     FLock.Enter;
 
   try
     if FCount <= 0 then
-      raise ECnRingBufferEmptyException.Create('Ring Buffer Empty. Can NOT Pop From Front.');
+      raise ECnRingBufferEmptyException.Create(SCnEmptyPopFromFrontError);
 
     Result := TObject(FList[FFrontIdx]);
     FList[FFrontIdx] := nil;
@@ -542,6 +544,8 @@ begin
   end;
 end;
 
+{$HINTS ON}
+
 procedure TCnObjectRingBuffer.PushToBack(AObject: TObject);
 begin
   if FMultiThread then
@@ -549,7 +553,7 @@ begin
 
   try
     if not FFullOverwrite and (FCount >= FSize) then
-      raise ECnRingBufferFullException.Create('Ring Buffer Full. Can NOT Push To Back.');
+      raise ECnRingBufferFullException.Create(SCnFullPushToBackError);
 
     FList[FBackIdx] := AObject;
     Inc(FBackIdx);
@@ -571,7 +575,7 @@ begin
 
   try
     if not FFullOverwrite and (FCount >= FSize) then
-      raise ECnRingBufferFullException.Create('Ring Buffer Full. Can NOT Push To Front.');
+      raise ECnRingBufferFullException.Create(SCnFullPushToFrontError);
 
     Dec(FFrontIdx);
     if FFrontIdx < 0 then
@@ -1112,7 +1116,7 @@ begin
   end;
 end;
 
-{$IFDEF MACOS}
+{$IFDEF POSIX}
 
 { TCnInternalList<T> }
 

@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2022 CnPack 开发组                       }
+{                   (C)Copyright 2001-2023 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -39,7 +39,7 @@ interface
 
 uses
   SysUtils, Windows, Classes, Messages, Controls, Graphics, StdCtrls, ExtCtrls,
-  Dialogs, SysConst, Forms, Clipbrd, CnTextControl, CnCommon;
+  Dialogs, SysConst, Forms, Clipbrd, CnNative, CnTextControl, CnCommon;
 
 type
 {$IFDEF UNICODE}
@@ -80,7 +80,6 @@ type
     FOnChanging: TNotifyEvent;
     FAutoWrap: Boolean;
     FWrapWidth: Integer;
-    procedure ExchangeItems(Index1, Index2: Integer);
     procedure Grow;
     procedure SetAutoWrap(const Value: Boolean);
     procedure SetWrapWidth(const Value: Integer);
@@ -113,6 +112,7 @@ type
 
     function GetText: PChar; virtual;
     procedure Insert(Index: Integer; const S: string); virtual;
+    procedure ExchangeItems(Index1, Index2: Integer); virtual;
     procedure LoadFromFile(const FileName: string); virtual;
     procedure LoadFromStream(Stream: TStream); virtual;
     procedure Move(CurIndex, NewIndex: Integer); virtual;
@@ -136,7 +136,6 @@ type
     property OnChanging: TNotifyEvent read FOnChanging write FOnChanging;
   end;
 
-type
   TCnStringsControl = class(TCnVirtualTextControl)
   {* 有具体字符串列表显示功能的文本组件}
   private
@@ -181,9 +180,9 @@ type
   {* 有字符串编辑功能的文本组件}
   private
     FReadOnly: Boolean;
+{$IFNDEF UNICODE}
     FPrevChar: Char;
-    procedure DisableStringsChange;
-    procedure EnableStringsChange;
+{$ENDIF}
     function DeleteText(StartRow, StartCol, EndRow, EndCol: Integer): Boolean;
     {* 删除起始行列到结束行列间的内容}
     function InsertTextAt(const Text: string; ARow, ACol: Integer;
@@ -193,6 +192,8 @@ type
     procedure WMKeyChar(var Message: TMessage); message WM_CHAR;
     procedure KeyDown(var Key: WORD; Shift: TShiftState); override;
 
+    procedure DisableStringsChange;
+    procedure EnableStringsChange;
   public
     procedure DeleteSelection;
     {* 删除选择区，但不重画}
@@ -345,16 +346,16 @@ end;
 
 procedure TCnEditorStringList.ExchangeItems(Index1, Index2: Integer);
 var
-  Temp: Integer;
+  Temp: TCnNativeInt;
   Item1, Item2: PCnEditorStringItem;
   TempMark: TCnEditorStringMark;
 begin
   Item1 := @FList^[Index1];
   Item2 := @FList^[Index2];
-  Temp := Integer(Item1^.FString);
+  Temp := TCnNativeInt(Item1^.FString);
 
-  Integer(Item1^.FString) := Integer(Item2^.FString);
-  Integer(Item2^.FString) := Temp;
+  TCnNativeInt(Item1^.FString) := TCnNativeInt(Item2^.FString);
+  TCnNativeInt(Item2^.FString) := Temp;
 
   TempMark := Item1^.FMark;
   Item1^.FMark := Item2^.FMark;
@@ -507,6 +508,8 @@ begin
   SetTextStr(Text);
 end;
 
+{$WARNINGS OFF}
+
 procedure TCnEditorStringList.SetTextStr(const Value: string);
 var
   P, Start: PChar;
@@ -534,6 +537,8 @@ begin
     EndUpdate;
   end;
 end;
+
+{$WARNINGS ON}
 
 procedure TCnEditorStringList.SetUpdateState(Updating: Boolean);
 begin
@@ -679,10 +684,13 @@ end;
 function TCnStringsControl.CalcColumnFromPixelOffsetInLine(ARow, VirtualX: Integer;
   out Col: Integer; out LeftHalf, DoubleWidth: Boolean): Boolean;
 var
-  I, L, X, OldX, W2, T: Integer;
+  I, L, X, OldX, W2: Integer;
   W, DirectCalc: Boolean;
   S: string;
+{$IFNDEF UNICODE}
+  T: Integer;
   SW: WideString;
+{$ENDIF}
   C: WideChar;
   Size: TSize;
 begin
@@ -786,9 +794,12 @@ function TCnStringsControl.CalcPixelOffsetFromColumnInLine(ARow, ACol: Integer;
   out Rect: TRect; out DoubleWidth: Boolean): Boolean;
 var
   W, DirectCalc: Boolean;
-  I, W2, X, OldX, Col, OldCol, T, L: Integer;
+  I, W2, X, OldX, Col, OldCol, L: Integer;
   S: string;
+{$IFNDEF UNICODE}
+  T: Integer;
   SW: WideString;
+{$ENDIF}
   C: WideChar;
   Size: TSize;
 begin
@@ -1688,6 +1699,8 @@ begin
     InsertText(S);
 end;
 
+{$WARNINGS OFF}
+
 procedure TCnMemo.WMKeyChar(var Message: TMessage);
 var
   Key: Word;
@@ -1705,7 +1718,7 @@ begin
   begin
     // TODO: 处理 Tab
   end
-  else if Ord(Ch) >= Ord(20) then
+  else if Ord(Ch) >= 20 then
   begin
 {$IFDEF UNICODE}
     InsertText(string(Ch)); // Unicode 时输入法敲出来的双字节字符直接通过一个 WM_CHAR 发来
@@ -1728,5 +1741,7 @@ begin
 {$ENDIF}
   end;
 end;
+
+{$WARNINGS ON}
 
 end.

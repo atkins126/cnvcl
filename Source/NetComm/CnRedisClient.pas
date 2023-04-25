@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2022 CnPack 开发组                       }
+{                   (C)Copyright 2001-2023 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -389,8 +389,8 @@ type
       TCnRedisMultiBulkNode): Boolean;
     procedure SetRecvBufferSize(Value: Cardinal);
     function GetConnecting: Boolean;
-    function CreateSocketOfClassName(const Name: string): ICnRedisSocket;
   protected
+    function CreateSocketOfClassName(const Name: string): ICnRedisSocket;
     function Connect: Boolean; virtual;
     function SendAndReceive(const Send: string; Recv: TCnRedisMultiBulkNode;
       Force: Boolean = False): Boolean; virtual;
@@ -2493,12 +2493,12 @@ end;
 function TCnRedisClient.PUBSUB(const Command, Arguments: string; Value: TStrings):
   Integer;
 begin
-
+  Result := 0; // Nothing
 end;
 
 function TCnRedisClient.PUNSUBSCRIBE(const patterns: string): string;
 begin
-
+  Result := '';
 end;
 
 function TCnRedisClient.AUTH(const Password: string): Boolean;
@@ -2691,7 +2691,6 @@ end;
 function TCnRedisClient.SCAN(cursor: Integer; MATCH: string; Count: Integer):
   TCnRedisMultiBulk;
 var
-  Reply: TCnRedisMultiBulk;
   _Cmd: string;
 begin
   _Cmd := Format('SCAN %d', [cursor]);

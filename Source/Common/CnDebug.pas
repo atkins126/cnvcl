@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2022 CnPack 开发组                       }
+{                   (C)Copyright 2001-2023 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -27,11 +27,16 @@ unit CnDebug;
 * 备    注：该单元定义并实现了 CnDebugger 输出信息的接口内容，
 *           支持 Win32 和 Win64 以及 Unicode 与非 Unicode
 *           部分接口内容引用了 overseer 的 udbg 单元内容
+*           注：MAC 下只支持到文件，且不支持时钟周期的计时模式
 * 开发平台：PWin2000Pro + Delphi 7
 * 兼容测试：PWin9X/2000/XP + Delphi 5/6/7 + C++Builder 5/6
 * 本 地 化：该单元中的字符串均符合本地化处理方式
-* 修改记录：2020.05.08
-*               用 CnRTLUtils 取代 JCL 的堆栈捕获功能，留行号获取功能，待测试
+* 修改记录：2022.12.03
+*               支持 FMX，但在 MACOS 下只支持文件输出的方式
+*           2022.08.18
+*               用 CnPE 取代 JCL 的行号获取功能，待测试
+*           2020.05.08
+*               用 CnRTL 取代 JCL 的堆栈捕获功能，留行号获取功能，待测试
 *           2019.03.25
 *               移植部分功能包括写文件到 MACOS
 *           2018.07.29
@@ -102,6 +107,9 @@ interface
 // 自动启动相应的 DebugViewer 时也将通过命令行参数指定非全局。
 // Define this flag to use local session, not global.
 
+// {$DEFINE CAPTURE_STACK}
+// 定义此条件可启用堆栈抓取与行号获取功能，之前的 USE_JCL 废止。专家包可按需在工程选项中定义
+
 {$IFDEF NDEBUG}
   {$UNDEF DEBUG}
   {$UNDEF USE_JCL}
@@ -115,21 +123,31 @@ interface
   {$DEFINE SUPPORT_EVALUATE}
 {$ENDIF}
 
+// 如果 FMX 框架下，请手工定义 ENABLE_FMX。如果是 MACOS，下文会自动定义 ENABLE_FMX
+// {$DEFINE ENABLE_FMX}
+
 {$IFDEF MACOS}
-  {$UNDEF USE_JCL} // JCL Does NOT Support MACOS.
+  {$UNDEF CAPTURE_STACK}   // CnRTL Does NOT Support MACOS.
   {$UNDEF SUPPORT_EVALUATE}
+  {$DEFINE ENABLE_FMX}     // MAC 下只能支持 FMX
+  {$IFNDEF DUMP_TO_FILE}
+    {$DEFINE DUMP_TO_FILE} // MAC 下只能支持到文件，干脆直接支持
+  {$ENDIF}
 {$ENDIF}
-{$IFDEF WIN64}
-  {$UNDEF USE_JCL} // JCL Does NOT Support WIN64.
+
+{$IFDEF ENABLE_FMX}
+  {$UNDEF SUPPORT_EVALUATE}
 {$ENDIF}
 
 uses
   SysUtils, Classes, TypInfo
-  {$IFDEF MSWINDOWS}, Windows, Controls, Graphics, Registry, Messages, Forms
-  {$ELSE}, System.Types, System.UITypes, System.SyncObjs, System.UIConsts,
-  Posix.Unistd, Posix.Pthread, FMX.Controls, FMX.Forms {$ENDIF}
+  {$IFDEF ENABLE_FMX}, System.Types, System.UITypes, System.SyncObjs, System.UIConsts
+  {$IFDEF MSWINDOWS}, Winapi.Windows, Winapi.Messages, Vcl.Controls, System.Win.Registry
+  {$ELSE}, Posix.Unistd, Posix.Pthread {$ENDIF},
+  FMX.Controls, FMX.Forms, FMX.Graphics, FMX.Types
+  {$ELSE}, Windows, Registry, Messages, Controls, Graphics, Forms {$ENDIF}
   {$IFDEF SUPPORT_ENHANCED_RTTI}, Rtti {$ENDIF}
-  {$IFDEF USE_JCL}, JclDebug, CnRtlUtils {$ENDIF USE_JCL};
+  {$IFDEF CAPTURE_STACK}, CnPE, CnRTL {$ENDIF};
 
 const
   CnMaxTagLength = 8; // 不可改变
@@ -168,15 +186,15 @@ type
   {* 放入数据区的每条信息的头描述结构 }
     Level:     Integer;                            // 自定义 Level 数，供用户过滤用
     Indent:    Integer;                            // 缩进数目，由 Enter 和 Leave 控制
-    ProcessId: LongWord;                           // 调用者的进程 ID
-    ThreadId:  LongWord;                           // 调用者的线程 ID
+    ProcessId: Cardinal;                           // 调用者的进程 ID
+    ThreadId:  Cardinal;                           // 调用者的线程 ID
     Tag: array[0..CnMaxTagLength - 1] of AnsiChar; // 自定义 Tag 值，供用户过滤用
-    MsgType:   LongWord;                           // 消息类型
+    MsgType:   Cardinal;                           // 消息类型
     MsgCPInterval: Int64;                          // 计时结束时的 CPU 周期数
-    TimeStampType: LongWord;                       // 消息输出的时间戳类型
+    TimeStampType: Cardinal;                       // 消息输出的时间戳类型
     case Integer of
       1: (MsgDateTime:   TDateTime);               // 消息输出的时间戳值 DateTime
-      2: (MsgTickCount:  LongWord);                // 消息输出的时间戳值 TickCount
+      2: (MsgTickCount:  Cardinal);                // 消息输出的时间戳值 TickCount
       3: (MsgCPUPeriod:  Int64);                   // 消息输出的时间戳值 CPU 周期
   end;
 
@@ -194,13 +212,13 @@ type
   {$NODEFINE PCnMapFilter}
   TCnMapFilter = packed record
   {* 用内存映射文件传送数据时的内存区头中的过滤器格式}
-    NeedRefresh: LongWord;                         // 非 0 时需要更新
+    NeedRefresh: Cardinal;                         // 非 0 时需要更新
     Enabled: Integer;                              // 非 0 时表示使能
     Level: Integer;                                // 限定的 Level
     Tag: array[0..CnMaxTagLength - 1] of AnsiChar; // 限定的 Tag
     case Integer of
       0: (MsgTypes: TCnMsgTypes);                  // 限定的 MsgTypes
-      1: (DummyPlace: LongWord);
+      1: (DummyPlace: Cardinal);
   end;
   PCnMapFilter = ^TCnMapFilter;
 
@@ -209,8 +227,8 @@ type
   TCnMapHeader = packed record
   {* 用内存映射文件传送数据时的内存区头格式}
     MagicName:  array[0..CnDebugMagicLength - 1] of AnsiChar;  // 'CNDEBUG'
-    MapEnabled: LongWord;           // 为一 CnDebugMapEnabled 时，表示区域可用
-    MapSize:    LongWord;           // 整个 Map 的大小，不包括尾保护区
+    MapEnabled: Cardinal;           // 为一 CnDebugMapEnabled 时，表示区域可用
+    MapSize:    Cardinal;           // 整个 Map 的大小，不包括尾保护区
     DataOffset: Integer;            // 数据区相对于头部的偏移量，目前定为 64
     QueueFront: Integer;            // 队列头指针，是相对于数据区的偏移量
     QueueTail:  Integer;            // 队列尾指针，是相对于数据区的偏移量
@@ -236,7 +254,9 @@ type
 
   TCnAnsiCharSet = set of AnsiChar; // 32 字节大小
 {$IFDEF UNICODE}
+  {$WARNINGS OFF}
   TCnWideCharSet = set of WideChar; // D2009 以上的 set 支持 WideChar 但实际上是裁剪到 AnsiChar，大小仍然是 32
+  {$WARNINGS ON}
 {$ENDIF}
 
   TCnTimeDesc = packed record
@@ -288,9 +308,10 @@ type
     FFindAbort: Boolean;
     FComponentFindList: TList;
     FOnFindComponent: TCnFindComponentEvent;
-{$IFDEF MSWINDOWS}
     FControlFindList: TList;
     FOnFindControl: TCnFindControlEvent;
+{$IFDEF CAPTURE_STACK}
+    FIsInExcption: Boolean;
 {$ENDIF}
     procedure CreateChannel;
 
@@ -323,10 +344,8 @@ type
     function GetEnumTypeStr<T>: string;
 {$ENDIF}
     procedure InternalFindComponent(AComponent: TComponent);
-{$IFDEF MSWINDOWS}
     procedure InternalFindControl(AControl: TControl);
-{$ENDIF}
-{$IFDEF USE_JCL}
+{$IFDEF CAPTURE_STACK}
      procedure ExceptionRecorder(ExceptObj: Exception; ExceptAddr: Pointer;
       IsOSException: Boolean; StackList: TCnStackInfoList);
 {$ENDIF}
@@ -337,9 +356,9 @@ type
     {* 检测当前输出信息是否被允许输出，True 允许，False 允许 }
 
     // 处理 Indent
-    function GetCurrentIndent(ThrdID: LongWord): Integer;
-    function IncIndent(ThrdID: LongWord): Integer;
-    function DecIndent(ThrdID: LongWord): Integer;
+    function GetCurrentIndent(ThrdID: Cardinal): Integer;
+    function IncIndent(ThrdID: Cardinal): Integer;
+    function DecIndent(ThrdID: Cardinal): Integer;
 
     // 处理计时
     function IndexOfTime(const ATag: string): PCnTimeDesc;
@@ -357,7 +376,7 @@ type
     procedure GetTraceFromAddr(StackBaseAddr: Pointer; Strings: TStrings);
 
     procedure InternalOutputMsg(const AMsg: PAnsiChar; Size: Integer; const ATag: AnsiString;
-      ALevel, AIndent: Integer; AType: TCnMsgType; ThreadID: LongWord; CPUPeriod: Int64);
+      ALevel, AIndent: Integer; AType: TCnMsgType; ThreadID: Cardinal; CPUPeriod: Int64);
     procedure InternalOutput(var Data; Size: Integer);
   public
     constructor Create;
@@ -566,10 +585,9 @@ type
 
     procedure FindComponent;
     {* 全局范围内发起 Component 遍历，每个组件触发 OnFindComponent 事件，用于查找}
-{$IFDEF MSWINDOWS}
+
     procedure FindControl;
     {* 全局范围内发起 Control 遍历，每个组件触发 OnFindComponent 事件，用于查找}
-{$ENDIF}
 
     procedure Enable;
     procedure Disable;
@@ -602,10 +620,8 @@ type
 
     property OnFindComponent: TCnFindComponentEvent read FOnFindComponent write FOnFindComponent;
     {* 全局遍历 Component 时的回调}
-{$IFDEF MSWINDOWS}
     property OnFindControl: TCnFindControlEvent read FOnFindControl write FOnFindControl;
     {* 全局遍历 Control 时的回调}
-{$ENDIF}
   end;
 
   TCnDebugChannel = class(TObject)
@@ -748,14 +764,14 @@ const
   CnDebugStartingEventTime = 5000; // 启动 Viewer 的 Event 的等待时间顶多 5 秒
   CnDebugFlushEventTime = 100;     // 写队列后等待读取完成的时间顶多 0.1 秒
 
-{$IFDEF WIN64}
+{$IFDEF CPUX64}
   CN_HEX_DIGITS = 16;
 {$ELSE}
   CN_HEX_DIGITS = 8;
 {$ENDIF}
 
 type
-{$IFDEF WIN64}
+{$IFDEF CPUX64}
   TCnNativeInt = NativeInt;
 {$ELSE}
   TCnNativeInt = Integer;
@@ -781,6 +797,11 @@ var
 
   FUseLocalSession: Boolean = {$IFDEF LOCAL_SESSION}True{$ELSE}False{$ENDIF};
 
+{$IFDEF CAPTURE_STACK}
+  FInProcessCriticalSection: TCnCriticalSection;
+  FInProcessModuleList: TCnInProcessModuleList = nil;
+{$ENDIF}
+
 procedure CnEnterCriticalSection(Section: TCnCriticalSection);
 begin
 {$IFDEF MSWINDOWS}
@@ -799,6 +820,8 @@ begin
 {$ENDIF}
 end;
 
+{$IFNDEF MACOS}
+
 function GetEBP: Pointer;
 asm
         MOV     EAX, EBP
@@ -809,6 +832,8 @@ asm
   DB 0FH;
   DB 031H;
 end;
+
+{$ENDIF}
 
 procedure FixCallingCPUPeriod;
 var
@@ -923,6 +948,62 @@ begin
       Result := Result + ' <- ';
   end;
 end;
+
+{$IFDEF CAPTURE_STACK}
+
+function GetLocationInfoStr(const Address: Pointer): string;
+var
+  Info: TCnModuleDebugInfo;
+  MN, UN, PN: string;
+  LN, OL, OP: Integer;
+begin
+  Result := '';
+  if FInProcessModuleList = nil then
+  begin
+    CnEnterCriticalSection(FInProcessCriticalSection);
+    try
+      if FInProcessModuleList = nil then
+        FInProcessModuleList := CreateInProcessAllModulesList;
+    finally
+      CnLeaveCriticalSection(FInProcessCriticalSection);
+    end;
+  end;
+
+  Info := FInProcessModuleList.CreateDebugInfoFromAddress(Address);
+  if Info = nil then
+    Exit;
+
+  // (地址) [模块名| 基址]
+{$IFDEF CPUX64}
+  Result := Format('(%16.16x) [%-14s | $%16.16x] ', [TCnNativeInt(Address),
+    ExtractFileName(Info.ModuleFile), Info.ModuleHandle]);
+{$ELSE}
+  Result := Format('(%8.8x) [%-14s | $%8.8x] ', [TCnNativeInt(Address),
+    ExtractFileName(Info.ModuleFile), Info.ModuleHandle]);
+{$ENDIF}
+
+  if Info.GetDebugInfoFromAddr(Address, MN, UN, PN, LN, OL, OP) then
+  begin
+    if PN <> '' then
+    begin
+      Result := Result + PN;
+      if OP > 0 then
+        Result := Result + Format(' + $%x', [OP]);
+    end;
+
+    if UN <> '' then
+    begin
+      Result := Result + ' ("' + UN + '"';
+      if LN > 0 then
+        Result := Result + Format(' #%d', [LN]);
+      if OL > 0 then
+        Result := Result + Format(' + $%x', [OL]);
+      Result := Result + ')';
+    end;
+  end;
+end;
+
+{$ENDIF}
 
 // 移植自 uDbg
 procedure AddObjectToStringList(PropOwner: TObject; List: TStrings; Level: Integer);
@@ -1189,6 +1270,7 @@ end;
 
 function GetBitmapPixelBytesCount(APixelFormat: TPixelFormat): Integer;
 begin
+{$IFNDEF ENABLE_FMX}
   case APixelFormat of
     pf8bit: Result := 1;
     pf15bit, pf16bit: Result := 2;
@@ -1197,7 +1279,12 @@ begin
   else
     raise Exception.Create('NOT Suppport');
   end;
+{$ELSE}
+  Result := PixelFormatBytes[APixelFormat];
+{$ENDIF}
 end;
+
+{$IFDEF MSWINDOWS}
 
 function IsWin64: Boolean;
 const
@@ -1205,8 +1292,8 @@ const
   PROCESSOR_ARCHITECTURE_IA64 = 6;
 var
   Kernel32Handle: THandle;
-  IsWow64Process: function(Handle: Windows.THandle; var Res: Windows.BOOL): Windows.BOOL; stdcall;
-  GetNativeSystemInfo : procedure(var lpSystemInfo: TSystemInfo); stdcall; isWoW64 :BOOL;SystemInfo :  TSystemInfo;
+  IsWow64Process: function(Handle: THandle; var Res: BOOL): BOOL; stdcall;
+  GetNativeSystemInfo : procedure(var lpSystemInfo: TSystemInfo); stdcall; isWoW64:BOOL; SystemInfo :  TSystemInfo;
 begin
   Result := False;
   Kernel32Handle := GetModuleHandle(kernel32);
@@ -1232,6 +1319,15 @@ begin
     end;
   end;
 end;
+
+{$ELSE}
+
+function IsWin64: Boolean;
+begin
+  Result := False;
+end;
+
+{$ENDIF}
 
 function CnDebugger: TCnDebugger;
 begin
@@ -1315,7 +1411,7 @@ begin
   FFilter := TCnDebugFilter.Create;
   FFilter.FLevel := CurrentLevel;
 
-  {$IFDEF USE_JCL}
+  {$IFDEF CAPTURE_STACK}
   FExceptTracking := True;
   FExceptFilter := TStringList.Create;
   FExceptFilter.Duplicates := dupIgnore;
@@ -1349,7 +1445,7 @@ begin
   end;
 end;
 
-function TCnDebugger.DecIndent(ThrdID: LongWord): Integer;
+function TCnDebugger.DecIndent(ThrdID: Cardinal): Integer;
 var
   Indent, Index: Integer;
 begin
@@ -1422,7 +1518,7 @@ begin
 {$ENDIF}
 end;
 
-function TCnDebugger.GetCurrentIndent(ThrdID: LongWord): Integer;
+function TCnDebugger.GetCurrentIndent(ThrdID: Cardinal): Integer;
 var
   Index: Integer;
 begin
@@ -1450,7 +1546,7 @@ begin
 {$ENDIF}
 end;
 
-function TCnDebugger.IncIndent(ThrdID: LongWord): Integer;
+function TCnDebugger.IncIndent(ThrdID: Cardinal): Integer;
 var
   Indent, Index: Integer;
 begin
@@ -1516,7 +1612,7 @@ end;
 
 procedure TCnDebugger.InternalOutputMsg(const AMsg: PAnsiChar; Size: Integer;
   const ATag: AnsiString; ALevel, AIndent: Integer; AType: TCnMsgType;
-  ThreadID: LongWord; CPUPeriod: Int64);
+  ThreadID: Cardinal; CPUPeriod: Int64);
 var
   TagLen, MsgLen: Integer;
   MsgDesc: TCnMsgDesc;
@@ -1549,7 +1645,11 @@ var
     case TimeStampType of
       ttDateTime: MsgDesc.Annex.MsgDateTime := Date + Time;
       ttTickCount: MsgDesc.Annex.MsgTickCount := {$IFNDEF MSWINDOWS}TThread.{$ENDIF}GetTickCount;
+{$IFDEF MSWINDOWS}
       ttCPUPeriod: MsgDesc.Annex.MsgCPUPeriod := GetCPUPeriod;
+{$ELSE}
+      ttCPUPeriod: MsgDesc.Annex.MsgCPUPeriod := 0;
+{$ENDIF}
     else
       MsgDesc.Annex.MsgCPUPeriod := 0; // 设为全 0
     end;
@@ -1560,7 +1660,7 @@ var
     Move(Pointer(ATag)^, MsgDesc.Annex.Tag, TagLen);
     Move(Pointer(MsgBuf)^, MsgDesc.Msg, MsgLen);
 
-    MsgLen := MsgLen + SizeOf(MsgDesc.Annex) + SizeOf(LongWord);
+    MsgLen := MsgLen + SizeOf(MsgDesc.Annex) + SizeOf(Cardinal);
     MsgDesc.Length := MsgLen;
   end;
 
@@ -1637,11 +1737,21 @@ begin
       if not FAfterFirstWrite then // 第一回写时需要判断是否重写
       begin
         if FUseAppend then
-          FDumpFile.Seek(0, soFromEnd)
+        begin
+{$IFDEF MSWINDOWS}
+          FDumpFile.Seek(0, soFromEnd);
+{$ELSE}
+          FDumpFile.Seek(0, soEnd);
+{$ENDIF}
+        end
         else
         begin
           FDumpFile.Size := 0;
+{$IFDEF MSWINDOWS}
           FDumpFile.Seek(0, soFromBeginning);
+{$ELSE}
+          FDumpFile.Seek(0, soBeginning);
+{$ENDIF}
         end;
         FAfterFirstWrite := True; // 后续写就无需判断了
       end;
@@ -1743,7 +1853,7 @@ procedure TCnDebugger.LogComponentWithTag(AComponent: TComponent;
 {$IFDEF DEBUG}
 var
   InStream, OutStream: TMemoryStream;
-  ThrdID: LongWord;
+  ThrdID: Cardinal;
 {$ENDIF}
 begin
 {$IFDEF DEBUG}
@@ -1755,7 +1865,11 @@ begin
     if Assigned(AComponent) then
     begin
       InStream.WriteComponent(AComponent);
+{$IFDEF MSWINDOWS}
       InStream.Seek(0, soFromBeginning);
+{$ELSE}
+      InStream.Seek(0, soBeginning);
+{$ENDIF}
       ObjectBinaryToText(InStream, OutStream);
       ThrdID := GetCurrentThreadId;
       InternalOutputMsg(PAnsiChar(OutStream.Memory), OutStream.Size, AnsiString(ATag), CurrentLevel,
@@ -1873,7 +1987,7 @@ procedure TCnDebugger.LogFull(const AMsg, ATag: string; ALevel: Integer;
 {$IFDEF DEBUG}
 {$IFNDEF NDEBUG}
 var
-  ThrdID: LongWord;
+  ThrdID: Cardinal;
 {$IFDEF UNICODE}
   Msg: AnsiString;
 {$ENDIF}
@@ -2028,7 +2142,7 @@ end;
 procedure TCnDebugger.LogMemDump(AMem: Pointer; Size: Integer);
 {$IFDEF DEBUG}
 var
-  ThrdID: LongWord;
+  ThrdID: Cardinal;
 {$ENDIF}
 begin
 {$IFDEF DEBUG}
@@ -2042,16 +2156,32 @@ procedure TCnDebugger.LogBitmapMemory(ABmp: TBitmap);
 {$IFDEF DEBUG}
 var
   H, B: Integer;
+  E: Boolean;
+{$IFDEF ENABLE_FMX}
+  D: TBitmapData;
+{$ENDIF}
 {$ENDIF}
 begin
 {$IFDEF DEBUG}
-  if (ABmp <> nil) and not (ABmp.Empty) then
+  {$IFDEF ENABLE_FMX}
+  E := (ABmp <> nil) and ABmp.IsEmpty;
+  {$ELSE}
+  E := (ABmp <> nil) and ABmp.Empty;
+  {$ENDIF}
+
+  if (ABmp <> nil) and not E then
   begin
     LogFmt('Bmp Width %d, Height %d.', [ABmp.Width, ABmp.Height]);
 
     B := GetBitmapPixelBytesCount(ABmp.PixelFormat);
+{$IFDEF ENABLE_FMX}
+    if ABmp.Map(TMapAccess.Read, D) then
+      for H := 0 to ABmp.Height - 1 do
+        LogMemDump(D.GetScanline(H), ABmp.Width * B);
+{$ELSE}
     for H := 0 to ABmp.Height - 1 do
       LogMemDump(ABmp.ScanLine[H], ABmp.Width * B);
+{$ENDIF}
   end;
 {$ENDIF}
 end;
@@ -2293,14 +2423,14 @@ end;
 
 procedure TCnDebugger.LogCurrentStack(const AMsg: string);
 {$IFDEF DEBUG}
-{$IFDEF USE_JCL}
+{$IFDEF CAPTURE_STACK}
 var
   Strings: TStrings;
 {$ENDIF}
 {$ENDIF}
 begin
 {$IFDEF DEBUG}
-{$IFDEF USE_JCL}
+{$IFDEF CAPTURE_STACK}
   Strings := nil;
 
   try
@@ -2393,7 +2523,7 @@ procedure TCnDebugger.SetExceptTracking(const Value: Boolean);
 begin
 {$IFNDEF NDEBUG}
   FExceptTracking := Value;
-  {$IFDEF USE_JCL}
+  {$IFDEF CAPTURE_STACK}
   if FExceptTracking then
     CnHookException
   else
@@ -2430,7 +2560,11 @@ begin
 
     // 最后记录当时的 CPU 周期
     Inc(ADesc^.PassCount);
+{$IFDEF MSWINDOWS}
     ADesc^.StartTime := GetCPUPeriod;
+{$ELSE}
+    ADesc^.StartTime := 0;
+{$ENDIF}
   end;
 {$ENDIF}
 end;
@@ -2450,7 +2584,12 @@ var
 begin
 {$IFNDEF NDEBUG}
   // 马上记录当时的 CPU 周期
+{$IFDEF MSWINDOWS}
   Period := GetCPUPeriod;
+{$ELSE}
+  Period := 0;
+{$ENDIF}
+
   ADesc := IndexOfTime(ATag);
   if ADesc <> nil then
   begin
@@ -2554,7 +2693,7 @@ procedure TCnDebugger.TraceComponentWithTag(AComponent: TComponent;
 {$IFNDEF NDEBUG}
 var
   InStream, OutStream: TMemoryStream;
-  ThrdID: LongWord;
+  ThrdID: Cardinal;
 {$ENDIF}
 begin
 {$IFNDEF NDEBUG}
@@ -2566,7 +2705,11 @@ begin
     if Assigned(AComponent) then
     begin
       InStream.WriteComponent(AComponent);
+{$IFDEF MSWINDOWS}
       InStream.Seek(0, soFromBeginning);
+{$ELSE}
+      InStream.Seek(0, soBeginning);
+{$ENDIF}
       ObjectBinaryToText(InStream, OutStream);
       ThrdID := GetCurrentThreadId;
       InternalOutputMsg(PAnsiChar(OutStream.Memory), OutStream.Size, AnsiString(ATag), CurrentLevel,
@@ -2650,7 +2793,7 @@ procedure TCnDebugger.TraceFull(const AMsg, ATag: string; ALevel: Integer;
   AType: TCnMsgType; CPUPeriod: Int64 = 0);
 {$IFNDEF NDEBUG}
 var
-  ThrdID: LongWord;
+  ThrdID: Cardinal;
 {$IFDEF UNICODE}
   Msg: AnsiString;
 {$ENDIF}
@@ -2784,7 +2927,7 @@ end;
 procedure TCnDebugger.TraceMemDump(AMem: Pointer; Size: Integer);
 {$IFNDEF NDEBUG}
 var
-  ThrdID: LongWord;
+  ThrdID: Cardinal;
 {$ENDIF}
 begin
 {$IFNDEF NDEBUG}
@@ -2798,16 +2941,32 @@ procedure TCnDebugger.TraceBitmapMemory(ABmp: TBitmap);
 {$IFNDEF NDEBUG}
 var
   H, B: Integer;
+  E: Boolean;
+{$IFDEF ENABLE_FMX}
+  D: TBitmapData;
+{$ENDIF}
 {$ENDIF}
 begin
 {$IFNDEF NDEBUG}
-  if (ABmp <> nil) and not (ABmp.Empty) then
+  {$IFDEF ENABLE_FMX}
+  E := (ABmp <> nil) and ABmp.IsEmpty;
+  {$ELSE}
+  E := (ABmp <> nil) and ABmp.Empty;
+  {$ENDIF}
+
+  if (ABmp <> nil) and not E then
   begin
     TraceFmt('Bmp Width %d, Height %d.', [ABmp.Width, ABmp.Height]);
 
     B := GetBitmapPixelBytesCount(ABmp.PixelFormat);
+{$IFDEF ENABLE_FMX}
+    if ABmp.Map(TMapAccess.Read, D) then
+      for H := 0 to ABmp.Height - 1 do
+        TraceMemDump(D.GetScanline(H), ABmp.Width * B);
+{$ELSE}
     for H := 0 to ABmp.Height - 1 do
       TraceMemDump(ABmp.ScanLine[H], ABmp.Width * B);
+{$ENDIF}
   end;
 {$ENDIF}
 end;
@@ -3024,12 +3183,12 @@ end;
 {$ENDIF}
 
 procedure TCnDebugger.TraceCurrentStack(const AMsg: string);
-{$IFDEF USE_JCL}
+{$IFDEF CAPTURE_STACK}
 var
   Strings: TStrings;
 {$ENDIF}
 begin
-{$IFDEF USE_JCL}
+{$IFDEF CAPTURE_STACK}
   Strings := nil;
 
   try
@@ -3632,9 +3791,22 @@ begin
       FAfterFirstWrite := False; // 重新开另一文件，需要重新判断
 
       if FUseAppend then   // 追加则定位到结尾
-        FDumpFile.Seek(0, soFromEnd)
+      begin
+{$IFDEF MSWINDOWS}
+        FDumpFile.Seek(0, soFromEnd);
+{$ELSE}
+        FDumpFile.Seek(0, soEnd);
+{$ENDIF}
+      end
       else
+      begin
+{$IFDEF MSWINDOWS}
         FDumpFile.Seek(0, soFromBeginning); // 移动到开头
+{$ELSE}
+        FDumpFile.Seek(0, soBeginning);
+{$ENDIF}
+      end;
+
     end;
   end;
 {$ENDIF}
@@ -3669,9 +3841,21 @@ begin
         FAfterFirstWrite := False; // 重新开文件，需要重新判断
 
         if FUseAppend then // 追加则定位到结尾
-          FDumpFile.Seek(0, soFromEnd)
+        begin
+{$IFDEF MSWINDOWS}
+          FDumpFile.Seek(0, soFromEnd);
+{$ELSE}
+          FDumpFile.Seek(0, soEnd);
+{$ENDIF}
+        end
         else
+        begin
+{$IFDEF MSWINDOWS}
           FDumpFile.Seek(0, soFromBeginning); // 移动到开头
+{$ELSE}
+          FDumpFile.Seek(0, soBeginning);
+{$ENDIF}
+        end;
       except
         ;
       end;
@@ -4006,7 +4190,7 @@ begin
 end;
 
 procedure TCnDebugger.GetCurrentTrace(Strings: TStrings);
-{$IFDEF USE_JCL}
+{$IFDEF CAPTURE_STACK}
 var
   I: Integer;
   List: TCnStackInfoList;
@@ -4016,7 +4200,7 @@ begin
     Exit;
   Strings.Clear;
 
-{$IFDEF USE_JCL}
+{$IFDEF CAPTURE_STACK}
   List := nil;
   try
     List := TCnCurrentStackInfoList.Create;
@@ -4027,7 +4211,7 @@ begin
     end;
 
     for I := 0 to List.Count - 1 do
-      Strings.Add(GetLocationInfoStr(List.Items[I].CallerAddr, True, True, True, False));
+      Strings.Add(GetLocationInfoStr(List.Items[I].CallerAddr));
   finally
     List.Free;
   end;
@@ -4037,7 +4221,7 @@ begin
 end;
 
 procedure TCnDebugger.GetTraceFromAddr(StackBaseAddr: Pointer; Strings: TStrings);
-{$IFDEF USE_JCL}
+{$IFDEF CAPTURE_STACK}
 var
   I: Integer;
   List: TCnStackInfoList;
@@ -4053,12 +4237,12 @@ begin
     Exit;
   end;
 
-{$IFDEF USE_JCL}
+{$IFDEF CAPTURE_STACK}
   List := nil;
   try
     List := TCnManualStackInfoList.Create(StackBaseAddr, nil);
     for I := 0 to List.Count - 1 do
-      Strings.Add(GetLocationInfoStr(List.Items[I].CallerAddr, True, True, True, False));
+      Strings.Add(GetLocationInfoStr(List.Items[I].CallerAddr));
   finally
     List.Free;
   end;
@@ -4070,18 +4254,18 @@ end;
 procedure TCnDebugger.LogStackFromAddress(Addr: Pointer;
   const AMsg: string);
 {$IFDEF DEBUG}
-{$IFDEF USE_JCL}
+{$IFDEF CAPTURE_STACK}
 var
   Strings: TStringList;
 {$ENDIF}
 {$ENDIF}
 begin
 {$IFDEF DEBUG}
-{$IFDEF USE_JCL}
+{$IFDEF CAPTURE_STACK}
   Strings := nil;
   try
     Strings := TStringList.Create;
-    Strings.Add(GetLocationInfoStr(Addr, True, True, True, False));
+    Strings.Add(GetLocationInfoStr(Addr));
     GetTraceFromAddr(Addr, Strings);
     LogMsgWithType(Format('Address $%p with Stack: %s', [Addr, AMsg + SCnCRLF + Strings.Text]), cmtInformation);
   finally
@@ -4095,16 +4279,16 @@ end;
 
 procedure TCnDebugger.TraceStackFromAddress(Addr: Pointer;
   const AMsg: string);
-{$IFDEF USE_JCL}
+{$IFDEF CAPTURE_STACK}
 var
   Strings: TStringList;
 {$ENDIF}
 begin
-{$IFDEF USE_JCL}
+{$IFDEF CAPTURE_STACK}
   Strings := nil;
   try
     Strings := TStringList.Create;
-    Strings.Add(GetLocationInfoStr(Addr, True, True, True, False));
+    Strings.Add(GetLocationInfoStr(Addr));
     GetTraceFromAddr(Addr, Strings);
     TraceMsgWithType(Format('Address $%p with Stack: %s', [Addr, AMsg + SCnCRLF + Strings.Text]), cmtInformation);
   finally
@@ -4251,28 +4435,30 @@ begin
   if FFindAbort then
     Exit;
 
-{$IFDEF MSWINDOWS}
-  for I := 0 to Screen.CustomFormCount - 1 do
-  begin
-    InternalFindComponent(Screen.CustomForms[I]);
-    if FFindAbort then
-      Exit;
-  end;
-{$ELSE}
+{$IFDEF ENABLE_FMX}
   for I := 0 to Screen.FormCount - 1 do
   begin
     InternalFindComponent(Screen.Forms[I]);
     if FFindAbort then
       Exit;
   end;
+{$ELSE}
+  for I := 0 to Screen.CustomFormCount - 1 do
+  begin
+    InternalFindComponent(Screen.CustomForms[I]);
+    if FFindAbort then
+      Exit;
+  end;
 {$ENDIF}
 end;
-
-{$IFDEF MSWINDOWS}
 
 procedure TCnDebugger.FindControl;
 var
   I: Integer;
+{$IFDEF ENABLE_FMX}
+  J: Integer;
+  F: TCustomForm;
+{$ENDIF}
 begin
   if FControlFindList = nil then
     FControlFindList := TList.Create
@@ -4280,15 +4466,32 @@ begin
     FControlFindList.Clear;
 
   FFindAbort := False;
+{$IFDEF ENABLE_FMX}
+  for I := 0 to Screen.FormCount - 1 do
+  begin
+    if Screen.Forms[I] is TCustomForm then
+    begin
+      F := Screen.Forms[I] as TCustomForm;
+      for J := 0 to F.ChildrenCount - 1 do
+      begin
+        if F.Children[J] is TControl then
+        begin
+          InternalFindControl(F.Children[J] as TControl);
+          if FFindAbort then
+            Exit;
+        end;
+      end;
+    end;
+  end;
+{$ELSE}
   for I := 0 to Screen.CustomFormCount - 1 do
   begin
     InternalFindControl(Screen.CustomForms[I]);
     if FFindAbort then
       Exit;
   end;
-end;
-
 {$ENDIF}
+end;
 
 procedure TCnDebugger.InternalFindComponent(AComponent: TComponent);
 var
@@ -4309,8 +4512,6 @@ begin
     InternalFindComponent(AComponent.Components[I]);
 end;
 
-{$IFDEF MSWINDOWS}
-
 procedure TCnDebugger.InternalFindControl(AControl: TControl);
 var
   I: Integer;
@@ -4326,14 +4527,17 @@ begin
       Exit;
   end;
 
+{$IFDEF ENABLE_FMX}
+    for I := 0 to AControl.ControlsCount - 1 do
+      InternalFindControl(AControl.Controls[I]);
+{$ELSE}
   if AControl is TWinControl then
     for I := 0 to TWinControl(AControl).ControlCount - 1 do
       InternalFindControl(TWinControl(AControl).Controls[I]);
+{$ENDIF}
 end;
 
-{$ENDIF}
-
-{$IFDEF USE_JCL}
+{$IFDEF CAPTURE_STACK}
 
 procedure TCnDebugger.ExceptionRecorder(ExceptObj: Exception; ExceptAddr: Pointer;
   IsOSException: Boolean; StackList: TCnStackInfoList);
@@ -4354,13 +4558,21 @@ begin
     FCnDebugger.TraceMsgWithType(ExceptObj.ClassName + ': ' + ExceptObj.Message,
       cmtError);
 
+  if FIsInExcption then
+  begin
+    FCnDebugger.TraceMsgWithType('!!! Exception Reraised in CnDebug Handler !!!', cmtError);
+    Exit;
+  end;
+
   Strings := TStringList.Create;
+  FIsInExcption := True;
   try
     for I := 0 to StackList.Count - 1 do
-      Strings.Add(GetLocationInfoStr(StackList.Items[I].CallerAddr, True, True, True));
+      Strings.Add(GetLocationInfoStr(StackList.Items[I].CallerAddr));
     FCnDebugger.TraceMsgWithType('Exception call stack:' + SCnCRLF +
       Strings.Text, cmtException);
   finally
+    FIsInExcption := False;
     Strings.Free;
   end;
 end;
@@ -4512,7 +4724,11 @@ begin
   if (FMap <> 0) and (FMapHeader <> nil) then
   begin
     Header := FMapHeader;
+{$IFDEF CPUX64}
+    FMsgBase := Pointer(Header^.DataOffset + NativeInt(FMapHeader));
+{$ELSE}
     FMsgBase := Pointer(Header^.DataOffset + Integer(FMapHeader));
+{$ENDIF}
     FMapSize := Header^.MapSize;
     FQueueSize := FMapSize - Header^.DataOffset;
     Result := (Header^.MapEnabled = CnDebugMapEnabled) and
@@ -4545,7 +4761,7 @@ begin
 
     Filter.Enabled := Header^.Filter.Enabled <> 0;
     Filter.Level := Header^.Filter.Level;
-    Filter.Tag := TagArray;
+    Filter.Tag := string(TagArray);
     Filter.MsgTypes := Header^.Filter.MsgTypes;
     Header^.Filter.NeedRefresh := 0;
   end;
@@ -4567,7 +4783,7 @@ end;
 procedure TCnMapFileChannel.SendContent(var MsgDesc; Size: Integer);
 var
   Mutex: THandle;
-  Res: LongWord;
+  Res: Cardinal;
   MsgLen, RestLen: Integer;
   IsFull: Boolean;
   MsgBuf : array[0..255] of Char;
@@ -4617,7 +4833,11 @@ begin
       // 锁定并删队列头元素，直到有足够的空间来容纳本 Size 为止
       IsFull := True;
       repeat
+{$IFDEF CPUX64}
+        MsgLen := PInteger(NativeInt(FMsgBase) + FFront)^;
+{$ELSE}
         MsgLen := PInteger(Integer(FMsgBase) + FFront)^;
+{$ENDIF}
         FFront := (FFront + MsgLen) mod FQueueSize;
       until not BufferFull;
       // 删完毕，进入写步骤 -- 以上可以考虑改成直接清空队列
@@ -4625,18 +4845,40 @@ begin
 
     // 先写数据再改指针
     if FTail + Size < FQueueSize then
-      CopyMemory(Pointer(Integer(FMsgBase) + FTail), @MsgDesc, Size)
+    begin
+{$IFDEF CPUX64}
+      CopyMemory(Pointer(NativeInt(FMsgBase) + FTail), @MsgDesc, Size);
+{$ELSE}
+      CopyMemory(Pointer(Integer(FMsgBase) + FTail), @MsgDesc, Size);
+{$ENDIF}
+    end
     else
     begin
       RestLen := FQueueSize - FTail;
       if RestLen < SizeOf(Integer) then // 剩余空间不足以容纳信息头的 Length 字段
-        CopyMemory(Pointer(Integer(FMsgBase) + FTail), @MsgDesc, SizeOf(Integer))
-        // 强行复制，要求队列超出QueueSize外的尾部至少有 SizeOf(Integer)的空余缓冲
+      begin
+{$IFDEF CPUX64}
+        CopyMemory(Pointer(NativeInt(FMsgBase) + FTail), @MsgDesc, SizeOf(Integer));
+{$ELSE}
+        CopyMemory(Pointer(Integer(FMsgBase) + FTail), @MsgDesc, SizeOf(Integer));
+{$ENDIF}
+        // 强行复制，要求队列超出 QueueSize 外的尾部至少有 SizeOf(Integer) 的空余缓冲
         // 可不如此做，但会增加 Viewer 读取长度时的回溯困难
+      end
       else
+      begin
+{$IFDEF CPUX64}
+        CopyMemory(Pointer(NativeInt(FMsgBase) + FTail), @MsgDesc, RestLen);
+{$ELSE}
         CopyMemory(Pointer(Integer(FMsgBase) + FTail), @MsgDesc, RestLen);
+{$ENDIF}
+      end;
 
+{$IFDEF CPUX64}
+      CopyMemory(FMsgBase, Pointer(NativeInt(@MsgDesc) + RestLen), Size - RestLen);
+{$ELSE}
       CopyMemory(FMsgBase, Pointer(Integer(@MsgDesc) + RestLen), Size - RestLen);
+{$ENDIF}
     end;
 
     Inc(FTail, Size);
@@ -4703,7 +4945,7 @@ begin
   // 判断是否支持 64 位
   if IsWin64 then
   begin
-    S := LowerCase(ViewerExe);
+    S := LowerCase(string(ViewerExe));
     Len := Length(S);
 
     if Len > Length(SCnDotExe) + 4 then
@@ -4723,7 +4965,7 @@ begin
       begin
         if Copy(S, Len - Length(Subfix64) + 1, MaxInt) <> Subfix64 then // 但末尾不是 64.exe
         begin
-          S := ViewerExe;
+          S := string(ViewerExe);
           Insert('64', S, Len - Length(Subfix) + 1);
           if FileExists(S) then
             Insert('64', ViewerExe, Len - Length(Subfix) + 1); // 把 64 插点前面并且判断文件存在不
@@ -4771,14 +5013,20 @@ initialization
 
   InitializeCriticalSection(FStartCriticalSection);
   InitializeCriticalSection(FCnDebuggerCriticalSection);
+  {$IFDEF CAPTURE_STACK}
+  InitializeCriticalSection(FInProcessCriticalSection);
+  {$ENDIF}
   {$ELSE}
   FStartCriticalSection := TCnCriticalSection.Create;
   FCnDebuggerCriticalSection := TCnCriticalSection.Create;
+  {$IFDEF CAPTURE_STACK}
+  FInProcessCriticalSection := TCnCriticalSection.Create;
+  {$ENDIF}
   {$ENDIF}
   FCnDebugger := TCnDebugger.Create;
   FixCallingCPUPeriod;
 
-  {$IFDEF USE_JCL}
+  {$IFDEF CAPTURE_STACK}
   CnSetAdditionalExceptionRecorder(FCnDebugger.ExceptionRecorder);
   CnHookException;
   {$ENDIF}
@@ -4788,13 +5036,19 @@ initialization
 
 finalization
   {$IFDEF MSWINDOWS}
+  {$IFDEF CAPTURE_STACK}
+  DeleteCriticalSection(FInProcessCriticalSection);
+  {$ENDIF}
   DeleteCriticalSection(FCnDebuggerCriticalSection);
   DeleteCriticalSection(FStartCriticalSection);
   {$ELSE}
+  {$IFDEF CAPTURE_STACK}
+  FInProcessCriticalSection.Free;
+  {$ENDIF}
   FCnDebuggerCriticalSection.Free;
   FStartCriticalSection.Free;
   {$ENDIF}
-{$IFDEF USE_JCL}
+{$IFDEF CAPTURE_STACK}
   CnUnHookException;
 {$ENDIF}
   FreeAndNil(FCnDebugger);

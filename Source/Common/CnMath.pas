@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2022 CnPack 开发组                       }
+{                   (C)Copyright 2001-2023 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -25,7 +25,6 @@ unit CnMath;
 * 单元名称：数学计算的算法单元
 * 单元作者：刘啸
 * 备    注：旨在脱离 Math 库，先不太管运行效率
-*           遗留问题：高斯勒让德大数精度不够
 * 开发平台：Win 7 + Delphi 5.0
 * 兼容测试：暂未进行
 * 本 地 化：该单元无需本地化处理
@@ -85,6 +84,12 @@ function FloatGaussLegendrePi(RoundCount: Integer = 3): string;
 function GaussLegendrePi(RoundCount: Integer = 8): string;
 {* 大浮点数用高斯勒让德公式计算 Pi，8 次迭代精度就到了 100 多位，12 轮耗时 5 秒}
 
+function XavierGourdonEuler(BlockSize: Integer = 1000): string;
+{* 用 Xavier Gourdon 法计算欧拉常数 e 的值，参数为计算轮数}
+
+function FloatAlmostZero(F: Extended): Boolean;
+{* 判断一浮点数是否离 0 足够近}
+
 implementation
 
 uses
@@ -107,6 +112,8 @@ begin
     Result := F;
 end;
 
+{$HINTS OFF}
+
 function Int64Sqrt(N: Int64): Extended;
 var
   X0: Extended;
@@ -114,6 +121,7 @@ begin
   if N < 0 then
     raise ERangeError.Create(SCN_SQRT_RANGE_ERROR);
 
+  Result := 0;
   if (N = 0) or (N = 1) then
   begin
     Result := N;
@@ -138,6 +146,7 @@ begin
   if F < 0 then
     raise ERangeError.Create(SCN_SQRT_RANGE_ERROR);
 
+  Result := 0;
   if (F = 0) or (F = 1) then
   begin
     Result := F;
@@ -154,6 +163,8 @@ begin
     X0 := Result;
   end;
 end;
+
+{$HINTS ON}
 
 function Int64LogN(N: Int64): Extended;
 var
@@ -282,85 +293,146 @@ var
   X1, X2: TCnBigDecimal;
   Res: TCnBigDecimal;
 begin
-  A0 := TCnBigDecimal.Create;
-  B0 := TCnBigDecimal.Create;
-  T0 := TCnBigDecimal.Create;
-  P0 := TCnBigDecimal.Create;
+  A0 := nil;
+  B0 := nil;
+  T0 := nil;
+  P0 := nil;
 
-  A1 := TCnBigDecimal.Create;
-  B1 := TCnBigDecimal.Create;
-  T1 := TCnBigDecimal.Create;
-  P1 := TCnBigDecimal.Create;
+  A1 := nil;
+  B1 := nil;
+  T1 := nil;
+  P1 := nil;
 
-  Res := TCnBigDecimal.Create;
+  Res := nil;
+  X1 := nil;
+  X2 := nil;
 
-  // 临时变量
-  X1 := TCnBigDecimal.Create;
-  X1.SetWord(2);
-  X2 := TCnBigDecimal.Create;
+  try
+    A0 := TCnBigDecimal.Create;
+    B0 := TCnBigDecimal.Create;
+    T0 := TCnBigDecimal.Create;
+    P0 := TCnBigDecimal.Create;
 
-  P := 1 shl RoundCount;  // 根据 Round 数量提前确定精度
-  if P < 16 then
-    P := 16;
+    A1 := TCnBigDecimal.Create;
+    B1 := TCnBigDecimal.Create;
+    T1 := TCnBigDecimal.Create;
+    P1 := TCnBigDecimal.Create;
 
-  A0.SetOne;
-  B0.SetWord(2);
-  BigDecimalSqrt(B0, B0, P);  
-  BigDecimalDiv(B0, B0, X1, P);
-  T0.SetExtended(0.25);
-  P0.SetOne;
+    Res := TCnBigDecimal.Create;
 
-  Res.SetZero;
-  for I := 1 to RoundCount do
+    // 临时变量
+    X1 := TCnBigDecimal.Create;
+    X1.SetWord(2);
+    X2 := TCnBigDecimal.Create;
+
+    P := 1 shl RoundCount;  // 根据 Round 数量提前确定精度
+    if P < 16 then
+      P := 16;
+
+    A0.SetOne;
+    B0.SetWord(2);
+    BigDecimalSqrt(B0, B0, P);
+    BigDecimalDiv(B0, B0, X1, P);
+    T0.SetExtended(0.25);
+    P0.SetOne;
+
+    Res.SetZero;
+    for I := 1 to RoundCount do
+    begin
+      // A1 := (A0 + B0) / 2;
+      BigDecimalAdd(A1, A0, B0);
+      BigDecimalDiv(A1, A1, X1, P);
+
+      // B1 := Sqrt(A0 * B0);
+      BigDecimalMul(B1, A0, B0);
+      BigDecimalSqrt(B1, B1, P);
+
+      // T1 := T0 - P0 * (A0 - A1) * (A0 - A1);
+      BigDecimalSub(T1, A0, A1);
+      BigDecimalMul(T1, T1, T1);
+      BigDecimalMul(T1, T1, P0);
+      BigDecimalSub(T1, T0, T1);
+
+      // P1 := P0 * 2;
+      BigDecimalAdd(P1, P0, P0);
+
+      // Res := (A1 + B1) * (A1 + B1) / (T1 * 4);
+      BigDecimalAdd(Res, A1, B1);
+      BigDecimalMul(Res, Res, Res);
+      BigDecimalAdd(X2, T1, T1);
+      BigDecimalAdd(X2, X2, X2);
+
+      BigDecimalDiv(Res, Res, X2, P);
+
+      // 准备下一轮迭代
+      BigDecimalCopy(A0, A1);
+      BigDecimalCopy(B0, B1);
+      BigDecimalCopy(T0, T1);
+      BigDecimalCopy(P0, P1);
+    end;
+
+    Result := Res.ToString;
+  finally
+    X1.Free;
+    X2.Free;
+
+    Res.Free;
+
+    A1.Free;
+    B1.Free;
+    T1.Free;
+    P1.Free;
+
+    A0.Free;
+    B0.Free;
+    T0.Free;
+    P0.Free;
+  end;
+end;
+
+function XavierGourdonEuler(BlockSize: Integer = 1000): string;
+var
+  N, M, X: Integer;
+  A: array of Integer;
+begin
+  if BlockSize <= 0 then
+    Exit;
+
+  SetLength(A, BlockSize);
+  N := BlockSize;
+  M := BlockSize;
+  Dec(N);
+  A[0] := 0;
+  while N <> 0 do
   begin
-    // A1 := (A0 + B0) / 2;
-    BigDecimalAdd(A1, A0, B0);
-    BigDecimalDiv(A1, A1, X1, P);
+    A[N] := 1;
+    Dec(N);
+  end;
+  A[1] := 2;
+  X := 65536; // X 竟然随便是几甚至没初始化貌似都行？
 
-    // B1 := Sqrt(A0 * B0);
-    BigDecimalMul(B1, A0, B0);
-    BigDecimalSqrt(B1, B1, P);
+  while M > 9 do
+  begin
+    N := M;
+    Dec(M);
+    Dec(N);
+    while N <> 0 do
+    begin
+      A[N] := X mod N;
+      X := 10 * A[N - 1] + X div N;
+      Dec(N);
+    end;
 
-    // T1 := T0 - P0 * (A0 - A1) * (A0 - A1);
-    BigDecimalSub(T1, A0, A1);
-    BigDecimalMul(T1, T1, T1);
-    BigDecimalMul(T1, T1, P0);
-    BigDecimalSub(T1, T0, T1);
-
-    // P1 := P0 * 2;
-    BigDecimalAdd(P1, P0, P0);
-
-    // Res := (A1 + B1) * (A1 + B1) / (T1 * 4);
-    BigDecimalAdd(Res, A1, B1);
-    BigDecimalMul(Res, Res, Res);
-    BigDecimalAdd(X2, T1, T1);
-    BigDecimalAdd(X2, X2, X2);
-
-    BigDecimalDiv(Res, Res, X2, P);
-
-    // 准备下一轮迭代
-    BigDecimalCopy(A0, A1);
-    BigDecimalCopy(B0, B1);
-    BigDecimalCopy(T0, T1);
-    BigDecimalCopy(P0, P1);
+    Result := Result + IntToStr(X);
   end;
 
-  Result := Res.ToString;
+  if Length(Result) > 2 then
+    Insert('.', Result, 2);
+end;
 
-  X1.Free;
-  X2.Free;
-
-  Res.Free;
-
-  A1.Free;
-  B1.Free;
-  T1.Free;
-  P1.Free;
-
-  A0.Free;
-  B0.Free;
-  T0.Free;
-  P0.Free;
+function FloatAlmostZero(F: Extended): Boolean;
+begin
+  Result := CnAbs(F) < SCN_EXTEND_GAP;
 end;
 
 end.

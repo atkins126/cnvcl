@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2022 CnPack 开发组                       }
+{                   (C)Copyright 2001-2023 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -53,11 +53,12 @@ interface
 {$ENDIF}
 
 uses
-  SysUtils, Classes, TypInfo, CnNativeDecl, CnBigNumber, CnTree
+  SysUtils, Classes, TypInfo, CnNative, CnBigNumber, CnTree
   {$IFDEF DEBUG}
-    {$IFDEF MSWINDOWS}, ComCtrls  {$ENDIF}
+    {$IFDEF MSWINDOWS}, ComCtrls  {$ENDIF} // 如果 Windows 下编译错误找不到该单元，请在编译选项里加 Vcl 前缀
     {$IFDEF SUPPORT_FMX}, FMX.TreeView {$ENDIF}
   {$ENDIF};
+  // If ComCtrls not found, please add 'Vcl' to 'Unit Scope Names' in Project Options.
 
 const
   CN_BER_TAG_TYPE_MASK                      = $C0;
@@ -114,10 +115,6 @@ type
 
   TCnBerTags = set of TCnBerTag;
 
-{$IFNDEF COMPILER6_UP}
-  PByte         = ^Byte;
-{$ENDIF}
-
   TCnBerReadNode = class(TCnLeaf)
   {* 描述一解析出来的 ASN.1 节点}
   private
@@ -140,7 +137,7 @@ type
     procedure CopyHeadTo(DestBuf: Pointer);
     {* 将节点头部也就是 TL 内容复制至缓冲区，缓冲区尺寸至少需要 BerLength - BerDataLength 大}
     procedure CopyTLVTo(DestBuf: Pointer);
-    {* 将节点全部内容复制至缓冲区，，缓冲区尺寸至少需要 BerLength 大}
+    {* 将节点全部内容复制至缓冲区，缓冲区尺寸至少需要 BerLength 大}
 
     function AsBoolean: Boolean;
     function AsShortInt: ShortInt;
@@ -160,6 +157,8 @@ type
 
     function AsRawString: string;
     {* 直接返回字符串，不限制类型}
+    function AsAnsiString: AnsiString;
+    {* 返回 Ansi 字符串}
     function AsString: string;
     {* 返回字符串，限制为几种字符串类型}
     function AsPrintableString: string;
@@ -319,8 +318,13 @@ type
     destructor Destroy; override;
 
     procedure SaveTo(DestBuf: Pointer);
+    {* 将 BER 内容保存至 DestBuf 所指的内存区，内存区大小至少需要 GetTotalSize}
+
     procedure SaveToFile(const FileName: string);
+    {* 将 BER 内容保存至指定文件}
+
     procedure SaveToStream(Stream: TStream);
+    {* 将 BER 内容保存至流}
 
 {$IFDEF DEBUG}
   {$IFDEF MSWINDOWS}
@@ -351,6 +355,7 @@ type
     {* 添加一个原始节点，此节点的 Tag 值直接由 RawTag 指定，
        后面的长度内容等不计算了，直接由 RawLV 与 LVLen 的区域指定}
     property TotalSize: Integer read GetTotalSize;
+    {* 整棵树的总尺寸，字节为单位}
   end;
 
 function CompareObjectIdentifier(Node: TCnBerReadNode; OIDAddr: Pointer;
@@ -359,9 +364,10 @@ function CompareObjectIdentifier(Node: TCnBerReadNode; OIDAddr: Pointer;
 
 function AddBigNumberToWriter(Writer: TCnBerWriter; Num: TCnBigNumber;
   Parent: TCnBerWriteNode): TCnBerWriteNode;
-{* 将一个大数的内容写入一个新增的 Ber 整型格式的节点}
+{* 将一个大数的内容写入一个新增的 Ber 整型格式的节点，无需指定固定长度，
+  节点会根据最高位的实际情况决定是否加一个字节 0}
 
-procedure PutIndexedBigIntegerToBigInt(Node: TCnBerReadNode; BigNumber: TCnBigNumber);
+procedure PutIndexedBigIntegerToBigNumber(Node: TCnBerReadNode; BigNumber: TCnBigNumber);
 {* 将一个 Ber 整型格式的节点写入一个大数的内容}
 
 implementation
@@ -458,7 +464,7 @@ begin
   FreeMemory(P);
 end;
 
-procedure PutIndexedBigIntegerToBigInt(Node: TCnBerReadNode; BigNumber: TCnBigNumber);
+procedure PutIndexedBigIntegerToBigNumber(Node: TCnBerReadNode; BigNumber: TCnBigNumber);
 var
   P: Pointer;
 begin
@@ -629,11 +635,11 @@ begin
         if ALeaf.BerTag = CN_BER_TAG_BIT_STRING then
         begin
           // BIT_STRING 数据区第一个内容字节是该 BIT_STRING 凑成 8 的倍数所缺少的 Bit 数，这里跳过
-          ParseArea(ALeaf, PByteArray(Cardinal(AData) + Run + 1),
+          ParseArea(ALeaf, PByteArray(TCnNativeUInt(AData) + Run + 1),
             ALeaf.BerDataLength - 1, ALeaf.BerDataOffset + 1);
         end
         else
-          ParseArea(ALeaf, PByteArray(Cardinal(AData) + Run),
+          ParseArea(ALeaf, PByteArray(TCnNativeUInt(AData) + Run),
             ALeaf.BerDataLength, ALeaf.BerDataOffset);
       except
         ; // 如果内嵌解析失败，不终止，当做普通节点
@@ -659,7 +665,7 @@ end;
 
 function TCnBerReadNode.AsPrintableString: string;
 begin
-  Result := InternalAsString([CN_BER_TAG_PRINTABLESTRING]);
+  Result := string(InternalAsString([CN_BER_TAG_PRINTABLESTRING]));
 end;
 
 function TCnBerReadNode.InternalAsInteger(ByteSize: Integer): Integer;
@@ -779,19 +785,19 @@ end;
 
 function TCnBerReadNode.AsIA5String: string;
 begin
-  Result := InternalAsString([CN_BER_TAG_IA5STRING]);
+  Result := string(InternalAsString([CN_BER_TAG_IA5STRING]));
 end;
 
 function TCnBerReadNode.AsString: string;
 begin
-  Result := InternalAsString(CN_TAG_SET_STRING + CN_TAG_SET_TIME);
+  Result := string(InternalAsString(CN_TAG_SET_STRING + CN_TAG_SET_TIME));
 end;
 
 function TCnBerReadNode.AsDateTime: TDateTime;
 var
   S: string;
 begin
-  S := InternalAsString(CN_TAG_SET_TIME);
+  S := string(InternalAsString(CN_TAG_SET_TIME));
   // TODO: YYMMDDhhmm 后面加 Z 或 ss 或 +- 时区
 
   Result := StrToDateTime(S);
@@ -863,6 +869,11 @@ begin
 end;
 
 function TCnBerReadNode.AsRawString: string;
+begin
+  Result := string(InternalAsString([]));
+end;
+
+function TCnBerReadNode.AsAnsiString: AnsiString;
 begin
   Result := InternalAsString([]);
 end;
@@ -993,7 +1004,8 @@ begin
   Mem := TMemoryStream.Create;
   try
     SaveToStream(Mem);
-    Mem.Write(DestBuf^, Mem.Size);
+    Mem.Position := 0;
+    Mem.Read(DestBuf^, Mem.Size);
   finally
     Mem.Free;
   end;

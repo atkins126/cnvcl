@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2022 CnPack 开发组                       }
+{                   (C)Copyright 2001-2023 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -22,16 +22,22 @@ unit CnECC;
 {* |<PRE>
 ================================================================================
 * 软件名称：开发包基础库
-* 单元名称：椭圆曲线算法单元
+* 单元名称：Weierstrass 椭圆曲线算法单元
 * 单元作者：刘啸
 * 备    注：目前实现了 Int64 范围内以及大数形式的形如 y^2 = x^3 + Ax + B mod p
-*           这类椭圆曲线的计算，x 和 y 限于有限素域。
+*           这类 Weierstrass 椭圆曲线的计算，x 和 y 限于有限素域。
+*           不包括 Montgomery 椭圆曲线 y^2 = x^3 + A*X^2 + x
+*           也没有扭曲 Edwards 椭圆曲线 au^2 + v^2 = 1 + d * u^2 * v^2
 *           概念：椭圆曲线的阶是曲线上的总点数（似乎不包括无限远点）
 *           基点的阶是基点标量乘多少等于无限远点。两者是倍数整除关系，可能相等
 * 开发平台：WinXP + Delphi 5.0
-* 兼容测试：暂未进行
+* 兼容测试：暂未进行，注意部分辅助函数缺乏固定长度处理，待修正，但 ASN.1 包装无需指定固定长度
 * 本 地 化：该单元无需本地化处理
-* 修改记录：2021.12.22 V1.9
+* 修改记录：2022.11.01 V2.1
+*               增加校验公私钥是否配对的函数
+*           2022.06.10 V2.0
+*               点乘改为默认使用仿射坐标以加速，点加不变
+*           2021.12.22 V1.9
 *               增加 In64 与大数范围内仿射坐标与雅可比坐标的加减法与乘法
 *           2021.12.07 V1.8
 *               增加 SM9 与 WAPI 的两条曲线定义
@@ -72,12 +78,12 @@ interface
 
 uses
   SysUtils, Classes, Contnrs, {$IFDEF MSWINDOWS} Windows, {$ENDIF}
-  CnNativeDecl, CnPrimeNumber, CnBigNumber,
+  CnNative, CnPrimeNumber, CnBigNumber, CnMatrix,
   CnPolynomial, CnPemUtils, CnBerUtils, CnMD5, CnSHA1, CnSHA2, CnSM3;
 
 const
   // ecPublicKey 的 OID
-  OID_EC_PUBLIC_KEY: array [0..6] of Byte = (               // 1.2.840.10045.2.1
+  CN_OID_EC_PUBLIC_KEY: array [0..6] of Byte = (               // 1.2.840.10045.2.1
     $2A, $86, $48, $CE, $3D, $02, $01
   );
 
@@ -86,9 +92,6 @@ type
   {* ECC 签名所支持的数字摘要算法，不支持无摘要的方式}
 
   ECnEccException = class(Exception);
-
-  TCnEccPrimeType = (pt4U3, pt8U5, pt8U1);
-  {* 素数类型，mod 4 余 3、mod 8 余 5、mod 8 余 1，用于椭圆曲线方程中快速求 Y}
 
   TCnInt64EccPoint = packed record
   {* Int64 范围内的椭圆曲线上的点描述结构}
@@ -118,7 +121,7 @@ type
     FFiniteFieldSize: Int64;
     FOrder: Int64;
     FSizeUFactor: Int64;
-    FSizePrimeType: TCnEccPrimeType;
+    FSizePrimeType: TCnPrimeType;
     F2Inverse: Int64; // 2 针对 FFiniteFieldSize 的模反，供雅可比坐标计算
   protected
     // Tonelli-Shanks 模素数二次剩余求解，返回 False 表示失败，调用者需自行保证 P 为素数
@@ -186,6 +189,8 @@ type
     {* 基点的阶数}
   end;
 
+  TCnEcc = class;
+
   TCnEccPoint = class(TPersistent)
   {* 有限素域上的椭圆曲线上的点描述类}
   private
@@ -207,8 +212,11 @@ type
 
     function ToString: string; {$IFDEF OBJECT_HAS_TOSTRING} override; {$ENDIF}
 
-    procedure SetHex(const Buf: AnsiString); // 有 03 04 前缀的处理
+    procedure SetHex(const Buf: AnsiString; Ecc: TCnEcc = nil); // 有 02 03 04 前缀的处理
     function ToHex(FixedLen: Integer = 0): string;
+
+    procedure SetBase64(const Buf: AnsiString; Ecc: TCnEcc = nil); // 有 02 03 04 前缀的处理
+    function ToBase64(FixedLen: Integer = 0): string;
 
     property X: TCnBigNumber read FX write SetX;
     property Y: TCnBigNumber read FY write SetY;
@@ -227,9 +235,19 @@ type
     constructor Create; virtual;
     destructor Destroy; override;
 
+    procedure Assign(Source: TPersistent); override;
+
+    function IsZero: Boolean;
+    {* 是否为无穷远点也即 0 点}
+    procedure SetZero;
+    {* 设为无穷远点也即 0 点}
+
+    function ToString: string; {$IFDEF OBJECT_HAS_TOSTRING} override; {$ELSE} virtual; {$ENDIF}
+
     property X: TCnBigNumber read FX write SetX;
     property Y: TCnBigNumber read FY write SetY;
     property Z: TCnBigNumber read FZ write SetZ;
+    {* Z 如果为 0 则表示是无穷远点}
   end;
 
   TCnEccPublicKey = class(TCnEccPoint);
@@ -237,6 +255,42 @@ type
 
   TCnEccPrivateKey = class(TCnBigNumber);
   {* 椭圆曲线的私钥，计算次数 k 次}
+
+  TCnEccSignature = class(TPersistent)
+  {* 椭圆曲线的签名，两个大数 R S}
+  private
+    FR: TCnBigNumber;
+    FS: TCnBigNumber;
+  public
+    constructor Create; virtual;
+    destructor Destroy; override;
+
+    procedure Assign(Source: TPersistent); override;
+
+    function ToHex(FixedLen: Integer = 0): string;
+    {* 转换为十六进制字符串，内部 R S 简单拼接，注意需要从十六进制中恢复时
+      宜指定 FixedLen 为对应椭圆曲线的 BytesCount，避免存在前导 0 字节而出错}
+    procedure SetHex(const Buf: AnsiString);
+    {* 从十六进制字符串中加载，内部对半拆分}
+
+    function ToBase64(FixedLen: Integer = 0): string;
+    {* 转换为 Base64 字符串，内部 R S 简单拼接后转换，
+      宜指定 FixedLen 为对应椭圆曲线的 BytesCount，避免存在前导 0 字节而被截断}
+
+    function SetBase64(const Buf: AnsiString): Boolean;
+    {* 从 Base64 字符串中加载，内部对半拆分。返回设置是否成功}
+
+    function ToAsn1Hex: string;
+    {* 将 R S 拼接包装为 ASN1 的 BER/DER 格式的十六进制字符串}
+
+    function SetAsn1Hex(const Buf: AnsiString): Boolean;
+    {* 从 ASN1 的 BER/DER 格式的十六进制字符串中加载 R S，返回加载是否成功}
+
+    property R: TCnBigNumber read FR;
+    {* 签名 R 值}
+    property S: TCnBigNumber read FS;
+    {* 签名 S 值}
+  end;
 
   TCnEccCurveType = (ctCustomized, ctSM2, ctSM2Example192, ctSM2Example256,
     ctRfc4754ECDSAExample256, ctSecp224r1, ctSecp224k1, ctSecp256k1, ctPrime256v1,
@@ -252,7 +306,7 @@ type
     FFiniteFieldSize: TCnBigNumber;
     FGenerator: TCnEccPoint;
     FSizeUFactor: TCnBigNumber;
-    FSizePrimeType: TCnEccPrimeType;
+    FSizePrimeType: TCnPrimeType;
     FCoFactor: Integer;
     F2Inverse: TCnBigNumber;
     function GetBitsCount: Integer;
@@ -281,17 +335,20 @@ type
     procedure JacobianPointSubPoint(P, Q, Diff: TCnEcc3Point);
     {* 使用雅可比坐标系进行点减，避免取模拟元导致的开销}
 
-    procedure AffineMultiplePoint(K: TCnBigNumber; Point: TCnEcc3Point);
+    procedure AffineMultiplePoint(K: TCnBigNumber; Point: TCnEcc3Point); virtual;
     {* 使用仿射坐标系进行点乘，避免取模拟元导致的开销}
-    procedure JacobianMultiplePoint(K: TCnBigNumber; Point: TCnEcc3Point);
+    procedure JacobianMultiplePoint(K: TCnBigNumber; Point: TCnEcc3Point); virtual;
     {* 使用雅可比坐标系进行点乘，避免取模拟元导致的开销}
 
     procedure MultiplePoint(K: Int64; Point: TCnEccPoint); overload;
     {* 计算某点 P 的 k * P 值，值重新放入 P}
     procedure MultiplePoint(K: TCnBigNumber; Point: TCnEccPoint); overload;
+    {* 计算某点 P 的 k * P 值，值重新放入 P，内部用仿射坐标点乘进行加速}
+
+    procedure NormalMultiplePoint(K: TCnBigNumber; Point: TCnEccPoint);
     {* 计算某点 P 的 k * P 值，值重新放入 P}
     procedure PointAddPoint(P, Q, Sum: TCnEccPoint);
-    {* 计算 P + Q，值放入 Sum 中，Sum 可以是 P、Q 之一，P、Q 可以相同}
+    {* 计算 P + Q，值放入 Sum 中，Sum 可以是 P、Q 之一，P、Q 可以相同，内部普通实现}
     procedure PointSubPoint(P, Q, Diff: TCnEccPoint);
     {* 计算 P - Q，值放入 Diff 中，Diff 可以是 P、Q 之一，P、Q 可以相同}
     procedure PointInverse(P: TCnEccPoint);
@@ -338,6 +395,36 @@ type
 
   TCnEccKeyType = (cktPKCS1, cktPKCS8);
   {* ECC 密钥文件格式}
+
+  TCnEcc2Matrix = class(TCn2DObjectList)
+  {* 容纳 TCnEccPoint 的二维数组对象}
+  private
+    function GetValueObject(Row, Col: Integer): TCnEccPoint;
+    procedure SetValueObject(Row, Col: Integer; const Value: TCnEccPoint);
+
+  protected
+
+  public
+    constructor Create(ARow, ACol: Integer); override;
+
+    property ValueObject[Row, Col: Integer]: TCnEccPoint read GetValueObject write SetValueObject; default;
+    {* 二维数组值}
+  end;
+
+  TCnEcc3Matrix = class(TCn2DObjectList)
+  {* 容纳 TCnEcc3Point 的二维数组对象}
+  private
+    function GetValueObject(Row, Col: Integer): TCnEcc3Point;
+    procedure SetValueObject(Row, Col: Integer; const Value: TCnEcc3Point);
+
+  protected
+
+  public
+    constructor Create(ARow, ACol: Integer); override;
+
+    property ValueObject[Row, Col: Integer]: TCnEcc3Point read GetValueObject write SetValueObject; default;
+    {* 二维数组值}
+  end;
 
   TCnInt64PolynomialEccPoint = class(TPersistent)
   {* 有限扩域上的椭圆曲线上的多项式点描述类}
@@ -521,7 +608,7 @@ type
        Schoof 算法中，本原多项式为指定阶数的可除多项式，以构造多项式环来降低运算次数，初步验证通过}
 
     class procedure RationalMultiplePoint(K: Integer; MX, MY: TCnBigNumberRationalPolynomial;
-      A, B, APrime: TCnBigNumber; APrimitive: TCnBigNumberPolynomial = nil);
+      A, B, APrime: TCnBigNumber; APrimitive: TCnBigNumberPolynomial = nil); overload;
     {* 供外界直接调用的多倍点方法，使用可除多项式直接计算点（x, 1 * y) 的 k * P 值，值放入 MX, MY * y
        注意本方法中并不把除法转换为乘法，所有内容包括斜率等内容需要用分式表示，结果也以分式形式输出
        PX、PY、QX、QY、SX、SY均为分子分母为纯 x 多项式的分式，，SX、SY 不能是 PX、PY、QX、QY
@@ -575,8 +662,19 @@ function CnEcc3PointToString(const P: TCnEcc3Point): string;
 function CnEcc3PointToHex(const P: TCnEcc3Point): string;
 {* 将一个 TCnEcc3Point 点坐标转换为十六进制字符串}
 
+function CnAffineEcc3PointEqual(P1, P2: TCnEcc3Point; Prime: TCnBigNumber = nil): Boolean;
+{* 判断两个 TCnEcc3Point 点是否相等，如 Prime 为 nil 则只判断值，不做 Z 的除法
+  否则根据射影坐标点计算判断}
+
 function CnEccSchoof(Res, A, B, Q: TCnBigNumber): Boolean;
 {* 用 Schoof 算法求椭圆曲线 y^2 = x^3 + Ax + B 在素域 Fq 上的点总数，参数支持大数}
+
+function CnEccSchoof2(Res, A, B, Q: TCnBigNumber): Boolean;
+{* 用 Wikipedia 上的改进型 Schoof 算法求椭圆曲线 y^2 = x^3 + Ax + B 在素域 Fq 上的点总数，参数支持大数
+  运算速度较上面的原始版本无明显提升}
+
+function CnEccFastSchoof(Res, A, B, Q: TCnBigNumber): Boolean;
+{* 用增强型 GCD 的 Schoof 算法求椭圆曲线 y^2 = x^3 + Ax + B 在素域 Fq 上的点总数，参数支持大数}
 
 function CnInt64EccGenerateParams(var FiniteFieldSize, CoefficientA, CoefficientB,
   GX, GY, Order: Int64): Boolean;
@@ -639,6 +737,14 @@ function CnEccPointToStream(P: TCnEccPoint; Stream: TStream; FixedLen: Integer =
   FixedLen 表示椭圆曲线点内大数内容不够 FixedLen 长度时高位补足 0
   以保证 Stream 中输出固定 FixedLen 的长度，内部大数长度超过 FixedLen 时按大数实际长度写}
 
+function CnEccVerifyKeys(Ecc: TCnEcc; PrivateKey: TCnEccPrivateKey;
+  PublicKey: TCnEccPublicKey): Boolean; overload;
+{* 校验某曲线的公私钥是否配对}
+
+function CnEccVerifyKeys(CurveType: TCnEccCurveType; PrivateKey: TCnEccPrivateKey;
+  PublicKey: TCnEccPublicKey): Boolean; overload;
+{* 校验某曲线的公私钥是否配对}
+
 // ======================= 椭圆曲线密钥 PEM 读写实现 ===========================
 
 function CnEccLoadKeysFromPem(const PemFileName: string; PrivateKey: TCnEccPrivateKey;
@@ -693,15 +799,25 @@ function CnEccVerifyFile(const InFileName, InSignFileName: string; CurveType: TC
    并用公钥解密签名内容并解开 PKCS1 补齐再解开 BER 编码得到散列算法与散列值，
    并比对两个二进制散列值是否相同，返回验证是否通过}
 
+function CnEccRecoverPublicKeyFromFile(const InFileName, InSignFileName: string;
+  Ecc: TCnEcc; OutPublicKey1, OutPublicKey2: TCnEccPublicKey;
+  SignType: TCnEccSignDigestType = esdtMD5): Boolean; overload;
+{* 从指定文件及其签名文件中还原椭圆曲线公钥值，有一奇一偶两个。Ecc 中需要预先指定曲线。}
+
+function CnEccRecoverPublicKeyFromFile(const InFileName, InSignFileName: string;
+  CurveType: TCnEccCurveType; OutPublicKey1, OutPublicKey2: TCnEccPublicKey;
+  SignType: TCnEccSignDigestType = esdtMD5): Boolean; overload;
+{* 用预定义曲线从指定文件及其签名文件中还原椭圆曲线公钥值，有一奇一偶两个}
+
 function CnEccSignStream(InStream: TMemoryStream; OutSignStream: TMemoryStream;
   Ecc: TCnEcc; PrivateKey: TCnEccPrivateKey;
   SignType: TCnEccSignDigestType = esdtMD5): Boolean; overload;
-{* 用私钥签名指定内存流，Ecc 中需要预先指定曲线}
+{* 用私钥签名指定内存流，Ecc 中需要预先指定曲线，签名格式是 ASN1/BER 包装的 R S}
 
 function CnEccSignStream(InStream: TMemoryStream; OutSignStream: TMemoryStream;
   CurveType: TCnEccCurveType; PrivateKey: TCnEccPrivateKey;
   SignType: TCnEccSignDigestType = esdtMD5): Boolean; overload;
-{* 用预定义曲线与私钥签名指定内存流}
+{* 用预定义曲线与私钥签名指定内存流，签名格式是 ASN1/BER 包装的 R S}
 
 function CnEccVerifyStream(InStream: TMemoryStream; InSignStream: TMemoryStream;
   Ecc: TCnEcc; PublicKey: TCnEccPublicKey;
@@ -712,6 +828,18 @@ function CnEccVerifyStream(InStream: TMemoryStream; InSignStream: TMemoryStream;
   CurveType: TCnEccCurveType; PublicKey: TCnEccPublicKey;
   SignType: TCnEccSignDigestType = esdtMD5): Boolean; overload;
 {* 用预定义曲线与公钥与签名值验证指定内存流}
+
+function CnEccRecoverPublicKeyFromStream(InStream: TMemoryStream; InSignStream: TMemoryStream;
+  Ecc: TCnEcc; OutPublicKey1, OutPublicKey2: TCnEccPublicKey;
+  SignType: TCnEccSignDigestType = esdtMD5): Boolean; overload;
+{* 从指定内存流及其内存流签名中还原椭圆曲线公钥值，有一奇一偶两个
+  Ecc 中需要预先指定曲线。}
+
+function CnEccRecoverPublicKeyFromStream(InStream: TMemoryStream; InSignStream: TMemoryStream;
+  CurveType: TCnEccCurveType; OutPublicKey1, OutPublicKey2: TCnEccPublicKey;
+  SignType: TCnEccSignDigestType = esdtMD5): Boolean; overload;
+{* 用预定义曲线从指定内存流及其内存流签名中还原椭圆曲线公钥值，有一奇一偶两个
+  Ecc 中需要预先指定曲线。}
 
 // ===================== 基于有限扩域的多项式椭圆曲线运算 ======================
 
@@ -792,7 +920,7 @@ procedure RationalMultiplePointY(Res, PX, PY: TCnBigNumberRationalPolynomial; K:
 implementation
 
 uses
-  CnContainers, CnRandom;
+  CnContainers, CnRandom, CnBase64;
 
 resourcestring
   SCnEccErrorCurveType = 'Invalid Curve Type.';
@@ -917,9 +1045,9 @@ const
   ECC_PRIVATEKEY_TYPE_MASK  = $80;
 
   // 公钥的存储形式
-  EC_PUBLICKEY_COMPRESSED1  = 02;
-  EC_PUBLICKEY_COMPRESSED2  = 03;
-  EC_PUBLICKEY_UNCOMPRESSED = 04;
+  EC_PUBLICKEY_COMPRESSED_EVEN  = 02; // 省略了 Y，其中 Y 是偶数
+  EC_PUBLICKEY_COMPRESSED_ODD   = 03; // 省略了 Y，其中 Y 是奇数
+  EC_PUBLICKEY_UNCOMPRESSED     = 04; // X Y 都有
 
   // 预定义的椭圆曲线类型的 OID 及其最大长度
   EC_CURVE_TYPE_OID_MAX_LENGTH = 8;
@@ -996,6 +1124,58 @@ end;
 function CnEcc3PointToHex(const P: TCnEcc3Point): string;
 begin
   Result := Format('%s,%s,%s', [P.X.ToHex, P.Y.ToHex, P.Z.ToHex]);
+end;
+
+// 判断两个 TCnEcc3Point 点是否相等，暂时只判断值，不做 Z 的除法
+function CnAffineEcc3PointEqual(P1, P2: TCnEcc3Point; Prime: TCnBigNumber): Boolean;
+var
+  T1, T2, Z1, Z2: TCnBigNumber;
+begin
+  if P1 = P2 then
+    Result := True
+  else
+  begin
+    Result := (BigNumberCompare(P1.X, P2.X) = 0) and (BigNumberCompare(P1.Y, P2.Y) = 0)
+      and (BigNumberCompare(P1.Z, P2.Z) = 0);
+    if Result or (Prime = nil) then
+      Exit;
+
+    // 算 X/Z 和 Y/Z 是否相等
+    Z1 := nil;
+    Z2 := nil;
+    T1 := nil;
+    T2 := nil;
+
+    try
+      Z1 := FEccBigNumberPool.Obtain;
+      Z2 := FEccBigNumberPool.Obtain;
+
+      BigNumberModularInverse(Z1, P1.Z, Prime);
+      BigNumberModularInverse(Z2, P2.Z, Prime);
+
+      T1 := FEccBigNumberPool.Obtain;
+      T2 := FEccBigNumberPool.Obtain;
+
+      BigNumberDirectMulMod(T1, P1.X, Z1, Prime);
+      BigNumberDirectMulMod(T2, P2.X, Z2, Prime);
+
+      if not BigNumberEqual(T1, T2) then // X 不等
+        Exit;
+
+      BigNumberDirectMulMod(T1, P1.Y, Z1, Prime);
+      BigNumberDirectMulMod(T2, P2.Y, Z2, Prime);
+
+      if not BigNumberEqual(T1, T2) then // Y 不等
+        Exit;
+
+      Result := True;
+    finally
+      FEccBigNumberPool.Recycle(T2);
+      FEccBigNumberPool.Recycle(T1);
+      FEccBigNumberPool.Recycle(Z2);
+      FEccBigNumberPool.Recycle(Z1);
+    end;
+  end;
 end;
 
 // 将一个 TCnPolynomialEccPoint 点坐标转换为字符串
@@ -1641,6 +1821,8 @@ begin
   end;
 end;
 
+{$WARNINGS OFF}
+
 function TCnInt64Ecc.PlainToPoint(Plain: Int64;
   var OutPoint: TCnInt64EccPoint): Boolean;
 var
@@ -1734,6 +1916,8 @@ begin
     end;
   end;
 end;
+
+{$WARNINGS ON}
 
 procedure TCnInt64Ecc.PointAddPoint(var P, Q, Sum: TCnInt64EccPoint);
 var
@@ -1979,19 +2163,28 @@ begin
   Result := FX.IsZero and FY.IsZero;
 end;
 
-procedure TCnEccPoint.SetHex(const Buf: AnsiString);
+procedure TCnEccPoint.SetBase64(const Buf: AnsiString; Ecc: TCnEcc);
+var
+  B: TBytes;
+begin
+  if Base64Decode(string(Buf), B) = ECN_BASE64_OK then
+    SetHex(AnsiString(BytesToHex(B)), Ecc);
+end;
+
+procedure TCnEccPoint.SetHex(const Buf: AnsiString; Ecc: TCnEcc);
 var
   C: Integer;
   S: AnsiString;
+  P: TCnEccPoint;
 begin
   if Length(Buf) < 4 then
     raise ECnEccException.Create(SCnEccErrorKeyData);
 
-  C := StrToIntDef(Copy(Buf, 1, 2), 0);
+  C := StrToIntDef(string(Copy(Buf, 1, 2)), 0);
   S := Copy(Buf, 3, MaxInt);
 
-  if (C = EC_PUBLICKEY_UNCOMPRESSED) or (C = EC_PUBLICKEY_COMPRESSED1) or
-    (C = EC_PUBLICKEY_COMPRESSED2) then
+  if (C = EC_PUBLICKEY_UNCOMPRESSED) or (C = EC_PUBLICKEY_COMPRESSED_ODD) or
+    (C = EC_PUBLICKEY_COMPRESSED_EVEN) then
   begin
     // 前导字节后面的内容，要不就是一半公钥一半私钥，长度得相等，要不就是公钥 X，均要求被 4 整除
     if (Length(S) mod 4) <> 0 then
@@ -2013,10 +2206,30 @@ begin
         FX.SetHex(Copy(S, 1, C));
         FY.SetHex(Copy(S, C + 1, MaxInt));
       end
-      else if (C = EC_PUBLICKEY_COMPRESSED1) or (C = EC_PUBLICKEY_COMPRESSED2) then
+      else if (C = EC_PUBLICKEY_COMPRESSED_EVEN) or (C = EC_PUBLICKEY_COMPRESSED_ODD) then
       begin
         FX.SetHex(S);
-        FY.SetZero;  // 压缩格式全是公钥 X，Y 先 0，外部再去求解
+        FY.SetZero;  // 压缩格式全是公钥 X，Y 先 0，再去求解
+
+        if Ecc <> nil then
+        begin
+          P := TCnEccPoint.Create;
+          try
+            // 将 Y 是奇偶的信息带出去供外界在求得的两个 Y 值中求解
+            if Ecc.PlainToPoint(FX, P) then
+            begin
+              if P.Y.IsOdd and (C = EC_PUBLICKEY_COMPRESSED_ODD) then
+                BigNumberCopy(FY, P.Y)
+              else
+              begin
+                Ecc.PointInverse(P);
+                BigNumberCopy(FY, P.Y);
+              end;
+            end;
+          finally
+            P.Free;
+          end;
+        end;
       end
       else  // 前导字节内容非法
         raise ECnEccException.Create(SCnEccErrorKeyData);
@@ -2049,10 +2262,34 @@ begin
   FY.SetZero;
 end;
 
+function TCnEccPoint.ToBase64(FixedLen: Integer): string;
+var
+  B: Byte;
+  Stream: TMemoryStream;
+begin
+  if FY.IsZero then
+    B := 3          // 不知道 Y 具体值，无法确定奇偶，暂时写 03
+  else
+    B := 4;
+
+  Stream := TMemoryStream.Create;
+  try
+    Stream.Write(B, SizeOf(B));
+    BigNumberWriteBinaryToStream(FX, Stream, FixedLen);
+
+    if not FY.IsZero then
+      BigNumberWriteBinaryToStream(FY, Stream, FixedLen);
+
+    Base64Encode(Stream.Memory, Stream.Size, Result);
+  finally
+    Stream.Free;
+  end;
+end;
+
 function TCnEccPoint.ToHex(FixedLen: Integer): string;
 begin
   if FY.IsZero then
-    Result := '03' + FY.ToHex(FixedLen)
+    Result := '03' + FX.ToHex(FixedLen) // 不知道 Y 具体值，无法确定奇偶，暂时写 03
   else
     Result := '04' + FX.ToHex(FixedLen) + FY.ToHex(FixedLen);
 end;
@@ -2187,26 +2424,32 @@ end;
 
 function TCnEcc.IsPointOnCurve(P: TCnEccPoint): Boolean;
 var
-  X, Y, A: TCnBigNumber;
+  X, Y: TCnBigNumber;
 begin
-  X := FEccBigNumberPool.Obtain;
-  Y := FEccBigNumberPool.Obtain;
-  A := FEccBigNumberPool.Obtain;
+  Result := False;
+  X := nil;
+  Y := nil;
 
   try
-    BigNumberCopy(X, P.X);
-    BigNumberCopy(Y, P.Y);
+    X := FEccBigNumberPool.Obtain;
+    if BigNumberCopy(X, P.X) = nil then
+      Exit;
 
-    BigNumberMul(Y, Y, Y);                // Y: Y^2
-    BigNumberMod(Y, Y, FFiniteFieldSize); // Y^2 mod P
+    Y := FEccBigNumberPool.Obtain;
+    if BigNumberCopy(Y, P.Y) = nil then
+      Exit;
+
+    if not BigNumberDirectMulMod(Y, Y, Y, FFiniteFieldSize) then // Y: Y^2 mod P
+      Exit;
 
     CalcX3AddAXAddB(X);                   // X: X^3 + A*X + B
-    BigNumberMod(X, X, FFiniteFieldSize); // X: (X^3 + A*X + B) mod P
+    if not BigNumberMod(X, X, FFiniteFieldSize) then // X: (X^3 + A*X + B) mod P
+      Exit;
+
     Result := BigNumberCompare(X, Y) = 0;
   finally
-    FEccBigNumberPool.Recycle(X);
     FEccBigNumberPool.Recycle(Y);
-    FEccBigNumberPool.Recycle(A);
+    FEccBigNumberPool.Recycle(X);
   end;
 end;
 
@@ -2215,7 +2458,7 @@ begin
   Load(ECC_PRE_DEFINED_PARAMS[Predefined].A, ECC_PRE_DEFINED_PARAMS[Predefined].B,
     ECC_PRE_DEFINED_PARAMS[Predefined].P, ECC_PRE_DEFINED_PARAMS[Predefined].X,
     ECC_PRE_DEFINED_PARAMS[Predefined].Y, ECC_PRE_DEFINED_PARAMS[Predefined].N,
-    StrToIntDef(ECC_PRE_DEFINED_PARAMS[Predefined].H, 1));
+    StrToIntDef(string(ECC_PRE_DEFINED_PARAMS[Predefined].H), 1));
 end;
 
 procedure TCnEcc.Load(const A, B, FieldPrime, GX, GY, Order: AnsiString; H: Integer);
@@ -2262,14 +2505,19 @@ begin
   end;
 end;
 
-procedure TCnEcc.MultiplePoint(K: TCnBigNumber; Point: TCnEccPoint);
+function TCnEcc.GetBytesCount: Integer;
+begin
+  Result := FFiniteFieldSize.GetBytesCount;
+end;
+
+procedure TCnEcc.NormalMultiplePoint(K: TCnBigNumber; Point: TCnEccPoint);
 var
-  I: Integer;
+  I, C: Integer;
   E, R: TCnEccPoint;
 begin
   if BigNumberIsNegative(K) then
   begin
-    BigNumberSetNegative(K, False);
+    // BigNumberSetNegative(K, False);
     PointInverse(Point);
   end;
 
@@ -2287,32 +2535,37 @@ begin
   try
     R := TCnEccPoint.Create;
     E := TCnEccPoint.Create;
+
+    // R 被创建时默认为无穷远点
     E.X := Point.X;
     E.Y := Point.Y;
 
-    for I := 0 to BigNumberGetBitsCount(K) - 1 do
+    C := BigNumberGetBitsCount(K);
+    for I := 0 to C - 1 do
     begin
       if BigNumberIsBitSet(K, I) then
         PointAddPoint(R, E, R);
-      PointAddPoint(E, E, E);
+
+      if I < C - 1 then
+        PointAddPoint(E, E, E);
     end;
 
     Point.X := R.X;
     Point.Y := R.Y;
   finally
-    R.Free;
     E.Free;
+    R.Free;
   end;
 end;
 
 procedure TCnEcc.AffineMultiplePoint(K: TCnBigNumber; Point: TCnEcc3Point);
 var
-  I: Integer;
+  I, C: Integer;
   E, R: TCnEcc3Point;
 begin
   if BigNumberIsNegative(K) then
   begin
-    BigNumberSetNegative(K, False);
+    // BigNumberSetNegative(K, False);
     AffinePointInverse(Point);
   end;
 
@@ -2337,11 +2590,14 @@ begin
     E.Y := Point.Y;
     E.Z := Point.Z;
 
-    for I := 0 to BigNumberGetBitsCount(K) - 1 do
+    C := BigNumberGetBitsCount(K);
+    for I := 0 to C - 1 do
     begin
       if BigNumberIsBitSet(K, I) then
         AffinePointAddPoint(R, E, R);
-      AffinePointAddPoint(E, E, E);
+
+      if I < C - 1 then // 最后一次循环无需加 E
+        AffinePointAddPoint(E, E, E);
     end;
 
     Point.X := R.X;
@@ -2355,12 +2611,12 @@ end;
 
 procedure TCnEcc.JacobianMultiplePoint(K: TCnBigNumber; Point: TCnEcc3Point);
 var
-  I: Integer;
+  I, C: Integer;
   E, R: TCnEcc3Point;
 begin
   if BigNumberIsNegative(K) then
   begin
-    BigNumberSetNegative(K, False);
+    // BigNumberSetNegative(K, False);
     JacobianPointInverse(Point);
   end;
 
@@ -2385,11 +2641,14 @@ begin
     E.Y := Point.Y;
     E.Z := Point.Z;
 
-    for I := 0 to BigNumberGetBitsCount(K) - 1 do
+    C := BigNumberGetBitsCount(K);
+    for I := 0 to C - 1 do
     begin
       if BigNumberIsBitSet(K, I) then
         JacobianPointAddPoint(R, E, R);
-      JacobianPointAddPoint(E, E, E);
+
+      if I < C - 1 then
+        JacobianPointAddPoint(E, E, E);
     end;
 
     Point.X := R.X;
@@ -2414,10 +2673,24 @@ begin
   end;
 end;
 
+procedure TCnEcc.MultiplePoint(K: TCnBigNumber; Point: TCnEccPoint);
+var
+  P3: TCnEcc3Point;
+begin
+  P3 := TCnEcc3Point.Create;
+  try
+    CnEccPointToEcc3Point(Point, P3);
+    AffineMultiplePoint(K, P3);
+    CnAffinePointToEccPoint(P3, Point, FFiniteFieldSize);
+  finally
+    P3.Free;
+  end;
+end;
+
 function TCnEcc.PlainToPoint(Plain: TCnBigNumber;
   OutPoint: TCnEccPoint): Boolean;
 var
-  X, Y, Z, U, R, T, L, X3, C, M: TCnBigNumber;
+  X, Y, Z, U, R, T, X3: TCnBigNumber;
 begin
   Result := False;
   if Plain.IsNegative then
@@ -2432,10 +2705,7 @@ begin
   Z := nil;
   R := nil;
   T := nil;
-  L := nil;
   X3 := nil;
-  C := nil;
-  M := nil;
 
   try
     X := FEccBigNumberPool.Obtain;
@@ -2466,7 +2736,7 @@ begin
           // 结果是 g^(u+1) mod p
           BigNumberAddWord(U, 1);
           BigNumberMontgomeryPowerMod(Y, X, U, FFiniteFieldSize);
-          BigNumberMulMod(Z, Y, Y, FFiniteFieldSize);
+          BigNumberDirectMulMod(Z, Y, Y, FFiniteFieldSize);
           if BigNumberCompare(Z, X) = 0 then
           begin
             BigNumberCopy(OutPoint.X, Plain);
@@ -2510,7 +2780,7 @@ begin
               BigNumberMulWord(X, 4);
               T := FEccBigNumberPool.Obtain;
               BigNumberMontgomeryPowerMod(T, X, FSizeUFactor, FFiniteFieldSize); // T: (4g)^u mod p
-              BigNumberMulMod(Y, R, T, FFiniteFieldSize);
+              BigNumberDirectMulMod(Y, R, T, FFiniteFieldSize);
 
               BigNumberCopy(OutPoint.X, Plain);
               BigNumberCopy(OutPoint.Y, Y);
@@ -2542,10 +2812,7 @@ begin
     FEccBigNumberPool.Recycle(U);
     FEccBigNumberPool.Recycle(R);
     FEccBigNumberPool.Recycle(T);
-    FEccBigNumberPool.Recycle(L);
     FEccBigNumberPool.Recycle(X3);
-    FEccBigNumberPool.Recycle(C);
-    FEccBigNumberPool.Recycle(M);
   end;
 end;
 
@@ -2598,7 +2865,7 @@ begin
       BigNumberModularInverse(Y, A, FFiniteFieldSize); // Y := Y^-1
 
       // K := X * Y mod FFiniteFieldSize;
-      BigNumberMulMod(K, X, Y, FFiniteFieldSize);      // 得到斜率
+      BigNumberDirectMulMod(K, X, Y, FFiniteFieldSize);      // 得到斜率
     end
     else // 是不同点
     begin
@@ -2628,7 +2895,7 @@ begin
       A := FEccBigNumberPool.Obtain;
       BigNumberCopy(A, X);
       BigNumberModularInverse(X, A, FFiniteFieldSize);
-      BigNumberMulMod(K, Y, X, FFiniteFieldSize);      // 得到斜率
+      BigNumberDirectMulMod(K, Y, X, FFiniteFieldSize);      // 得到斜率
     end;
 
     BigNumberCopy(X, K);
@@ -3104,9 +3371,7 @@ var
 begin
   Inv := TCnEccPoint.Create;
   try
-    Inv.X := Q.X;
-    Inv.Y := Q.Y;
-
+    Inv.Assign(Q);
     PointInverse(Inv);
     PointAddPoint(P, Inv, Diff);
   finally
@@ -3254,6 +3519,41 @@ begin
     + BigNumberWriteBinaryToStream(P.Y, Stream, FixedLen);
 end;
 
+function CnEccVerifyKeys(Ecc: TCnEcc; PrivateKey: TCnEccPrivateKey;
+  PublicKey: TCnEccPublicKey): Boolean;
+var
+  P: TCnEccPoint;
+begin
+  Result := False;
+  if (Ecc = nil) or (PrivateKey = nil) or (PublicKey = nil) then
+    Exit;
+
+  P := TCnEccPoint.Create;
+  try
+    P.Assign(Ecc.Generator);
+    Ecc.MultiplePoint(PrivateKey, P);
+    Result := CnEccPointsEqual(P, PublicKey);
+  finally
+    P.Free;
+  end;
+end;
+
+function CnEccVerifyKeys(CurveType: TCnEccCurveType; PrivateKey: TCnEccPrivateKey;
+  PublicKey: TCnEccPublicKey): Boolean;
+var
+  Ecc: TCnEcc;
+begin
+  if CurveType = ctCustomized then
+    raise ECnEccException.Create(SCnEccErrorCurveType);
+
+  Ecc := TCnEcc.Create(CurveType);
+  try
+    Result := CnEccVerifyKeys(Ecc, PrivateKey, PublicKey);
+  finally
+    Ecc.Free;
+  end;
+end;
+
 function GetCurveTypeFromOID(Data: PAnsiChar; DataLen: Cardinal): TCnEccCurveType;
 var
   P: PByte;
@@ -3334,7 +3634,7 @@ begin
 
     Result := True;
   end
-  else if (B^ = EC_PUBLICKEY_COMPRESSED1) or (B^ = EC_PUBLICKEY_COMPRESSED2) then
+  else if (B^ = EC_PUBLICKEY_COMPRESSED_ODD) or (B^ = EC_PUBLICKEY_COMPRESSED_EVEN) then
   begin
     Inc(B);
     // 压缩格式，全是公钥 X
@@ -3362,8 +3662,10 @@ begin
     Cnt := Cnt + PublicKey.Y.GetBytesCount;
     B := EC_PUBLICKEY_UNCOMPRESSED;
   end
+  else if PublicKey.Y.IsOdd then
+    B := EC_PUBLICKEY_COMPRESSED_ODD
   else
-    B := EC_PUBLICKEY_COMPRESSED2;
+    B := EC_PUBLICKEY_COMPRESSED_EVEN;
 
   OP := GetMemory(Cnt + 1);
   P := OP;
@@ -3413,7 +3715,7 @@ begin
       begin
         // 2 要判断是否公钥
         Node := Reader.Items[2];
-        if (Node.BerLength <> SizeOf(OID_EC_PUBLIC_KEY)) or not CompareMem(@OID_EC_PUBLIC_KEY[0],
+        if (Node.BerLength <> SizeOf(CN_OID_EC_PUBLIC_KEY)) or not CompareMem(@CN_OID_EC_PUBLIC_KEY[0],
           Node.BerAddress, Node.BerLength) then
           Exit;
 
@@ -3479,7 +3781,7 @@ begin
         begin
           // 2 是私钥
           if PrivateKey <> nil then
-            PutIndexedBigIntegerToBigInt(Reader.Items[2], PrivateKey);
+            PutIndexedBigIntegerToBigNumber(Reader.Items[2], PrivateKey);
 
           // 4 又是曲线类型
           Node := Reader.Items[4];
@@ -3594,8 +3896,8 @@ begin
     Node := Writer.AddContainerNode(CN_BER_TAG_SEQUENCE, Root);
 
     // 给 Node 加 ECPublicKey 与 曲线类型的 ObjectIdentifier
-    Writer.AddBasicNode(CN_BER_TAG_OBJECT_IDENTIFIER, @OID_EC_PUBLIC_KEY[0],
-      SizeOf(OID_EC_PUBLIC_KEY), Node);
+    Writer.AddBasicNode(CN_BER_TAG_OBJECT_IDENTIFIER, @CN_OID_EC_PUBLIC_KEY[0],
+      SizeOf(CN_OID_EC_PUBLIC_KEY), Node);
     Writer.AddBasicNode(CN_BER_TAG_OBJECT_IDENTIFIER, OIDPtr, OIDLen, Node);
     WriteEccPublicKeyToBitStringNode(Writer, Node, PublicKey);
 
@@ -3610,41 +3912,41 @@ begin
   end;
 end;
 
-// ECC 签名与验证
+// ============================ ECC 签名与验证 =================================
 
 // 根据指定数字摘要算法计算指定流的二进制散列值并写入 Stream
 function CalcDigestStream(InStream: TStream; SignType: TCnEccSignDigestType;
   outStream: TStream): Boolean;
 var
-  Md5: TMD5Digest;
-  Sha1: TSHA1Digest;
-  Sha256: TSHA256Digest;
-  Sm3Dig: TSM3Digest;
+  Md5: TCnMD5Digest;
+  Sha1: TCnSHA1Digest;
+  Sha256: TCnSHA256Digest;
+  Sm3Dig: TCnSM3Digest;
 begin
   Result := False;
   case SignType of
     esdtMD5:
       begin
         Md5 := MD5Stream(InStream);
-        outStream.Write(Md5, SizeOf(TMD5Digest));
+        outStream.Write(Md5, SizeOf(TCnMD5Digest));
         Result := True;
       end;
     esdtSHA1:
       begin
         Sha1 := SHA1Stream(InStream);
-        outStream.Write(Sha1, SizeOf(TSHA1Digest));
+        outStream.Write(Sha1, SizeOf(TCnSHA1Digest));
         Result := True;
       end;
     esdtSHA256:
       begin
         Sha256 := SHA256Stream(InStream);
-        outStream.Write(Sha256, SizeOf(TSHA256Digest));
+        outStream.Write(Sha256, SizeOf(TCnSHA256Digest));
         Result := True;
       end;
     esdtSM3:
       begin
         Sm3Dig := SM3Stream(InStream);
-        outStream.Write(Sm3Dig, SizeOf(TSM3Digest));
+        outStream.Write(Sm3Dig, SizeOf(TCnSM3Digest));
         Result := True;
       end;
   end;
@@ -3654,35 +3956,35 @@ end;
 function CalcDigestFile(const FileName: string; SignType: TCnEccSignDigestType;
   outStream: TStream): Boolean;
 var
-  Md5: TMD5Digest;
-  Sha1: TSHA1Digest;
-  Sha256: TSHA256Digest;
-  Sm3Dig: TSM3Digest;
+  Md5: TCnMD5Digest;
+  Sha1: TCnSHA1Digest;
+  Sha256: TCnSHA256Digest;
+  Sm3Dig: TCnSM3Digest;
 begin
   Result := False;
   case SignType of
     esdtMD5:
       begin
         Md5 := MD5File(FileName);
-        outStream.Write(Md5, SizeOf(TMD5Digest));
+        outStream.Write(Md5, SizeOf(TCnMD5Digest));
         Result := True;
       end;
     esdtSHA1:
       begin
         Sha1 := SHA1File(FileName);
-        outStream.Write(Sha1, SizeOf(TSHA1Digest));
+        outStream.Write(Sha1, SizeOf(TCnSHA1Digest));
         Result := True;
       end;
     esdtSHA256:
       begin
         Sha256 := SHA256File(FileName);
-        outStream.Write(Sha256, SizeOf(TSHA256Digest));
+        outStream.Write(Sha256, SizeOf(TCnSHA256Digest));
         Result := True;
       end;
     esdtSM3:
       begin
         Sm3Dig := SM3File(FileName);
-        outStream.Write(Sm3Dig, SizeOf(TSM3Digest));
+        outStream.Write(Sm3Dig, SizeOf(TCnSM3Digest));
         Result := True;
       end;
   end;
@@ -3691,8 +3993,14 @@ end;
 {
   按维基百科上说明的 ECDSA 算法进行签名：
   https://en.wikipedia.org/wiki/Elliptic_Curve_Digital_Signature_Algorithm
+
+  r = 随机k * G点（的 x）
+  s = (r * Private + 明文) / k
+
+  均对椭圆曲线的阶求模，并非对有限域求模
 }
-function EccSignValue(Ecc: TCnEcc; PrivateKey: TCnEccPrivateKey; InE, OutR, OutS: TCnBigNumber): Boolean;
+function EccSignValue(Ecc: TCnEcc; PrivateKey: TCnEccPrivateKey; InE: TCnBigNumber;
+  OutSignature: TCnEccSignature): Boolean;
 var
   K, X, KInv: TCnBigNumber;
   P: TCnEccPoint;
@@ -3716,29 +4024,28 @@ begin
       if not BigNumberRandRange(K, Ecc.Order) then // 生成重要的随机 K
         Exit;
 
-      // K.SetHex('9E56F509196784D963D1C0A401510EE7ADA3DCC5DEE04B154BF61AF1D5A6DECE');   // 指定随机值时做测试
-
       P.Assign(Ecc.Generator);
       Ecc.MultiplePoint(K, P);
 
-      if not BigNumberNonNegativeMod(OutR, P.X, Ecc.Order) then
+      if not BigNumberNonNegativeMod(OutSignature.R, P.X, Ecc.Order) then
         Exit;
 
-      if OutR.IsZero then
+      if OutSignature.R.IsZero then
         Continue;
       // 算出了签名的一部分 R
 
-      if not BigNumberMul(X, PrivateKey, OutR) then   // X <= r * PrivateKey
+      if not BigNumberMul(X, PrivateKey, OutSignature.R) then   // X <= r * PrivateKey
         Exit;
       if not BigNumberAdd(X, X, InE) then             // X <= X + z
         Exit;
-      BigNumberModularInverse(KInv, K, Ecc.Order);
+      if not BigNumberModularInverse(KInv, K, Ecc.Order) then
+        Exit;
       if not BigNumberMul(X, KInv, X) then            // X <= K^-1 * X
         Exit;
-      if not BigNumberNonNegativeMod(OutS, X, Ecc.Order) then  // OutS <= K^-1 * (z + r * PrivateKey) mod N
+      if not BigNumberNonNegativeMod(OutSignature.S, X, Ecc.Order) then  // OutS <= K^-1 * (z + r * PrivateKey) mod N
         Exit;
 
-      if OutS.IsZero then
+      if OutSignature.S.IsZero then
         Continue;
 
       Break;
@@ -3752,11 +4059,75 @@ begin
   end;
 end;
 
+{
+  从数据块与签名等信息还原出 SM2 公钥，返回是否还原成功。注意结果有两个，需要外部判断
+
+  因为 r = 随机k * G点（的 x），且 s = (r * Private + 明文z) / k
+
+  两边同时乘以 k 得 k*s*G = (r*Private + 明文)*G
+
+  组合 s*(k*G) = r*Private*G+ 明文*G
+
+  s*(kG) = r*Public + 明文*G
+
+  Public = r^-1 * (s*(kG) - 明文*G)，其中 k*G 的 x 坐标是 r，可求出两个 y 来
+}
+function CnEccRecoverPublicKey(Ecc: TCnEcc; InE: TCnBigNumber; InSignature: TCnEccSignature;
+  OutPublicKey1, OutPublicKey2: TCnEccPublicKey): Boolean;
+var
+  P, Q, T: TCnEccPoint;
+  RInv: TCnBigNumber;
+begin
+  Result := False;
+
+  RInv := nil;
+  P := nil;
+  Q := nil;
+  T := nil;
+
+  try
+    RInv := TCnBigNumber.Create;
+    if not BigNumberModularInverse(RInv, InSignature.R, Ecc.Order) then
+      Exit;
+
+    P := TCnEccPoint.Create;
+    if not Ecc.PlainToPoint(InSignature.R, P) then  // P.Y 是一个 y ，所以此处 P 是 k*G 的一个取值
+      Exit;
+
+    Q := TCnEccPoint.Create;
+    Q.Assign(Ecc.Generator);
+    Ecc.MultiplePoint(InE, Q); // 得到明文*G
+    Ecc.PointInverse(Q);       // Q 得到 -明文 * G
+
+    T := TCnEccPoint.Create;
+    T.Assign(P);
+    Ecc.MultiplePoint(InSignature.S, T);    // T 得到 s*(k*G)
+
+    Ecc.PointAddPoint(Q, T, OutPublicKey1);
+    Ecc.MultiplePoint(RInv, OutPublicKey1); // PublicKey1 得到 r^-1 * (s*(kG) - 明文*G)
+
+    Ecc.PointInverse(P);
+    T.Assign(P);
+    Ecc.MultiplePoint(InSignature.S, T);    // T 再次得到 s* 另一个(k*G)
+
+    Ecc.PointAddPoint(Q, T, OutPublicKey2);
+    Ecc.MultiplePoint(RInv, OutPublicKey2); // PublicKey2 得到 r^-1 * (s*(kG) - 明文*G)
+
+    Result := True;
+  finally
+    T.Free;
+    Q.Free;
+    P.Free;
+    RInv.Free;
+  end;
+end;
+
 function CnEccSignFile(const InFileName, OutSignFileName: string; Ecc: TCnEcc;
   PrivateKey: TCnEccPrivateKey; SignType: TCnEccSignDigestType = esdtMD5): Boolean;
 var
   Stream: TMemoryStream;
-  E, R, S: TCnBigNumber;
+  E: TCnBigNumber;
+  Sig: TCnEccSignature;
   Writer: TCnBerWriter;
   Root: TCnBerWriteNode;
 begin
@@ -3764,27 +4135,24 @@ begin
   Stream := nil;
   Writer := nil;
   E := nil;
-  R := nil;
-  S := nil;
+  Sig := nil;
 
   try
     Stream := TMemoryStream.Create;
-
     if not CalcDigestFile(InFileName, SignType, Stream) then // 计算文件的散列值
       Exit;
+
     E := TCnBigNumber.Create;
     E.SetBinary(Stream.Memory, Stream.Size);
 
-    R := TCnBigNumber.Create;
-    S := TCnBigNumber.Create;
-
-    if EccSignValue(Ecc, PrivateKey, E, R, S) then
+    Sig := TCnEccSignature.Create;
+    if EccSignValue(Ecc, PrivateKey, E, Sig) then
     begin
       // 然后按格式进行 BER 编码
       Writer := TCnBerWriter.Create;
       Root := Writer.AddContainerNode(CN_BER_TAG_SEQUENCE);
-      AddBigNumberToWriter(Writer, R, Root);
-      AddBigNumberToWriter(Writer, S, Root);
+      AddBigNumberToWriter(Writer, Sig.R, Root);
+      AddBigNumberToWriter(Writer, Sig.S, Root);
 
       Writer.SaveToFile(OutSignFileName);
       Result := True;
@@ -3792,8 +4160,7 @@ begin
   finally
     Stream.Free;
     E.Free;
-    R.Free;
-    S.Free;
+    Sig.Free;
     Writer.Free;
   end;
 end;
@@ -3818,7 +4185,8 @@ end;
   按维基百科上说明的 ECDSA 算法进行签名验证：
   https://en.wikipedia.org/wiki/Elliptic_Curve_Digital_Signature_Algorithm
 }
-function EccVerifyValue(Ecc: TCnEcc; PublicKey: TCnEccPublicKey; InE, InR, InS: TCnBigNumber): Boolean;
+function EccVerifyValue(Ecc: TCnEcc; PublicKey: TCnEccPublicKey; InE: TCnBigNumber;
+  InSignature: TCnEccSignature): Boolean;
 var
   U1, U2, SInv: TCnBigNumber;
   P1, P2: TCnEccPoint;
@@ -3837,7 +4205,7 @@ begin
 
   try
     SInv := TCnBigNumber.Create;
-    BigNumberModularInverse(SInv, InS, Ecc.Order);
+    BigNumberModularInverse(SInv, InSignature.S, Ecc.Order);
     U1 := TCnBigNumber.Create;
     if not BigNumberMul(U1, InE, SInv) then
       Exit;
@@ -3845,7 +4213,7 @@ begin
       Exit;
 
     U2 := TCnBigNumber.Create;
-    if not BigNumberMul(U2, InR, SInv) then
+    if not BigNumberMul(U2, InSignature.R, SInv) then
       Exit;
     if not BigNumberNonNegativeMod(U1, U1, Ecc.Order) then // u2 = (r * s^-1) mod N
       Exit;
@@ -3864,7 +4232,7 @@ begin
     if not BigNumberNonNegativeMod(P1.X, P1.X, Ecc.Order) then // 计算 P1.X mod N
       Exit;
 
-    if not BigNumberNonNegativeMod(P1.Y, InR, Ecc.Order) then  // 计算 r mod N
+    if not BigNumberNonNegativeMod(P1.Y, InSignature.R, Ecc.Order) then  // 计算 r mod N
       Exit;
 
     Result := BigNumberCompare(P1.X, P1.Y) = 0;
@@ -3878,18 +4246,18 @@ begin
 end;
 
 function CnEccVerifyFile(const InFileName, InSignFileName: string; Ecc: TCnEcc;
-  PublicKey: TCnEccPublicKey; SignType: TCnEccSignDigestType = esdtMD5): Boolean;
+  PublicKey: TCnEccPublicKey; SignType: TCnEccSignDigestType): Boolean;
 var
   Stream: TMemoryStream;
-  E, R, S: TCnBigNumber;
+  E: TCnBigNumber;
+  Sig: TCnEccSignature;
   Reader: TCnBerReader;
 begin
   Result := False;
   Stream := nil;
   Reader := nil;
   E := nil;
-  R := nil;
-  S := nil;
+  Sig := nil;
 
   try
     Stream := TMemoryStream.Create;
@@ -3908,23 +4276,21 @@ begin
     if Reader.TotalCount <> 3 then
       Exit;
 
-    R := TCnBigNumber.Create;
-    S := TCnBigNumber.Create;
-    PutIndexedBigIntegerToBigInt(Reader.Items[1], R);
-    PutIndexedBigIntegerToBigInt(Reader.Items[2], S);
+    Sig := TCnEccSignature.Create;
+    PutIndexedBigIntegerToBigNumber(Reader.Items[1], Sig.R);
+    PutIndexedBigIntegerToBigNumber(Reader.Items[2], Sig.S);
 
-    Result := EccVerifyValue(Ecc, PublicKey, E, R, S);
+    Result := EccVerifyValue(Ecc, PublicKey, E, Sig);
   finally
     Stream.Free;
     Reader.Free;
     E.Free;
-    R.Free;
-    S.Free;
+    Sig.Free
   end;
 end;
 
 function CnEccVerifyFile(const InFileName, InSignFileName: string; CurveType: TCnEccCurveType;
-  PublicKey: TCnEccPublicKey; SignType: TCnEccSignDigestType = esdtMD5): Boolean;
+  PublicKey: TCnEccPublicKey; SignType: TCnEccSignDigestType): Boolean;
 var
   Ecc: TCnEcc;
 begin
@@ -3939,6 +4305,69 @@ begin
   end;
 end;
 
+function CnEccRecoverPublicKeyFromFile(const InFileName, InSignFileName: string;
+  Ecc: TCnEcc; OutPublicKey1, OutPublicKey2: TCnEccPublicKey;
+  SignType: TCnEccSignDigestType): Boolean; overload;
+var
+  Stream: TMemoryStream;
+  E: TCnBigNumber;
+  Sig: TCnEccSignature;
+  Reader: TCnBerReader;
+begin
+  Result := False;
+  Stream := nil;
+  Reader := nil;
+  E := nil;
+  Sig := nil;
+
+  try
+    Stream := TMemoryStream.Create;
+
+    if not CalcDigestFile(InFileName, SignType, Stream) then // 计算文件的散列值
+      Exit;
+
+    E := TCnBigNumber.Create;
+    E.SetBinary(Stream.Memory, Stream.Size);
+
+    Stream.Clear;
+    Stream.LoadFromFile(InSignFileName);
+    Reader := TCnBerReader.Create(Stream.Memory, Stream.Size);
+    Reader.ParseToTree;
+
+    if Reader.TotalCount <> 3 then
+      Exit;
+
+    Sig := TCnEccSignature.Create;
+    PutIndexedBigIntegerToBigNumber(Reader.Items[1], Sig.R);
+    PutIndexedBigIntegerToBigNumber(Reader.Items[2], Sig.S);
+
+    Result := CnEccRecoverPublicKey(Ecc, E, Sig, OutPublicKey1, OutPublicKey2);
+  finally
+    Stream.Free;
+    Reader.Free;
+    E.Free;
+    Sig.Free
+  end;
+end;
+
+function CnEccRecoverPublicKeyFromFile(const InFileName, InSignFileName: string;
+  CurveType: TCnEccCurveType; OutPublicKey1, OutPublicKey2: TCnEccPublicKey;
+  SignType: TCnEccSignDigestType): Boolean; overload;
+var
+  Ecc: TCnEcc;
+begin
+  if CurveType = ctCustomized then
+    raise ECnEccException.Create(SCnEccErrorCurveType);
+
+  Ecc := TCnEcc.Create(CurveType);
+  try
+    Result := CnEccRecoverPublicKeyFromFile(InFileName, InSignFileName, Ecc,
+      OutPublicKey1, OutPublicKey2, SignType);
+  finally
+    Ecc.Free;
+  end;
+end;
+
 {
   ECC 签名输出的 BER 格式如下，直接存成二进制文件即可
   SEQUENCE (2 elem)
@@ -3947,10 +4376,11 @@ end;
 }
 function CnEccSignStream(InStream: TMemoryStream; OutSignStream: TMemoryStream;
   Ecc: TCnEcc; PrivateKey: TCnEccPrivateKey;
-  SignType: TCnEccSignDigestType = esdtMD5): Boolean;
+  SignType: TCnEccSignDigestType): Boolean;
 var
   Stream: TMemoryStream;
-  E, R, S: TCnBigNumber;
+  E: TCnBigNumber;
+  Sig: TCnEccSignature;
   Writer: TCnBerWriter;
   Root: TCnBerWriteNode;
 begin
@@ -3958,27 +4388,24 @@ begin
   Stream := nil;
   Writer := nil;
   E := nil;
-  R := nil;
-  S := nil;
+  Sig := nil;
 
   try
     Stream := TMemoryStream.Create;
-
     if not CalcDigestStream(InStream, SignType, Stream) then // 计算流的散列值
       Exit;
+
     E := TCnBigNumber.Create;
     E.SetBinary(Stream.Memory, Stream.Size);
 
-    R := TCnBigNumber.Create;
-    S := TCnBigNumber.Create;
-
-    if EccSignValue(Ecc, PrivateKey, E, R, S) then
+    Sig := TCnEccSignature.Create;
+    if EccSignValue(Ecc, PrivateKey, E, Sig) then
     begin
       // 然后按格式进行 BER 编码
       Writer := TCnBerWriter.Create;
       Root := Writer.AddContainerNode(CN_BER_TAG_SEQUENCE);
-      AddBigNumberToWriter(Writer, R, Root);
-      AddBigNumberToWriter(Writer, S, Root);
+      AddBigNumberToWriter(Writer, Sig.R, Root);
+      AddBigNumberToWriter(Writer, Sig.S, Root);
 
       Writer.SaveToStream(OutSignStream);
       Result := True;
@@ -3986,8 +4413,7 @@ begin
   finally
     Stream.Free;
     E.Free;
-    R.Free;
-    S.Free;
+    Sig.Free;
     Writer.Free;
   end;
 end;
@@ -4011,22 +4437,21 @@ end;
 
 function CnEccVerifyStream(InStream: TMemoryStream; InSignStream: TMemoryStream;
   Ecc: TCnEcc; PublicKey: TCnEccPublicKey;
-  SignType: TCnEccSignDigestType = esdtMD5): Boolean;
+  SignType: TCnEccSignDigestType): Boolean;
 var
   Stream: TMemoryStream;
-  E, R, S: TCnBigNumber;
+  E: TCnBigNumber;
+  Sig: TCnEccSignature;
   Reader: TCnBerReader;
 begin
   Result := False;
   Stream := nil;
   Reader := nil;
   E := nil;
-  R := nil;
-  S := nil;
+  Sig := nil;
 
   try
     Stream := TMemoryStream.Create;
-
     if not CalcDigestStream(InStream, SignType, Stream) then // 计算流的散列值
       Exit;
 
@@ -4041,18 +4466,16 @@ begin
     if Reader.TotalCount <> 3 then
       Exit;
 
-    R := TCnBigNumber.Create;
-    S := TCnBigNumber.Create;
-    PutIndexedBigIntegerToBigInt(Reader.Items[1], R);
-    PutIndexedBigIntegerToBigInt(Reader.Items[2], S);
+    Sig := TCnEccSignature.Create;
+    PutIndexedBigIntegerToBigNumber(Reader.Items[1], Sig.R);
+    PutIndexedBigIntegerToBigNumber(Reader.Items[2], Sig.S);
 
-    Result := EccVerifyValue(Ecc, PublicKey, E, R, S);
+    Result := EccVerifyValue(Ecc, PublicKey, E, Sig);
   finally
     Stream.Free;
     Reader.Free;
     E.Free;
-    R.Free;
-    S.Free;
+    Sig.Free;
   end;
 end;
 
@@ -4068,6 +4491,68 @@ begin
   Ecc := TCnEcc.Create(CurveType);
   try
     Result := CnEccVerifyStream(InStream, InSignStream, Ecc, PublicKey, SignType);
+  finally
+    Ecc.Free;
+  end;
+end;
+
+function CnEccRecoverPublicKeyFromStream(InStream: TMemoryStream; InSignStream: TMemoryStream;
+  Ecc: TCnEcc; OutPublicKey1, OutPublicKey2: TCnEccPublicKey;
+  SignType: TCnEccSignDigestType): Boolean; overload;
+var
+  Stream: TMemoryStream;
+  E: TCnBigNumber;
+  Sig: TCnEccSignature;
+  Reader: TCnBerReader;
+begin
+  Result := False;
+  Stream := nil;
+  Reader := nil;
+  E := nil;
+  Sig := nil;
+
+  try
+    Stream := TMemoryStream.Create;
+    if not CalcDigestStream(InStream, SignType, Stream) then // 计算流的散列值
+      Exit;
+
+    E := TCnBigNumber.Create;
+    E.SetBinary(Stream.Memory, Stream.Size);
+
+    Stream.Clear;
+    Stream.LoadFromStream(InSignStream);
+    Reader := TCnBerReader.Create(Stream.Memory, Stream.Size);
+    Reader.ParseToTree;
+
+    if Reader.TotalCount <> 3 then
+      Exit;
+
+    Sig := TCnEccSignature.Create;
+    PutIndexedBigIntegerToBigNumber(Reader.Items[1], Sig.R);
+    PutIndexedBigIntegerToBigNumber(Reader.Items[2], Sig.S);
+
+    Result := CnEccRecoverPublicKey(Ecc, E, Sig, OutPublicKey1, OutPublicKey2);
+  finally
+    Stream.Free;
+    Reader.Free;
+    E.Free;
+    Sig.Free;
+  end;
+end;
+
+function CnEccRecoverPublicKeyFromStream(InStream: TMemoryStream; InSignStream: TMemoryStream;
+  CurveType: TCnEccCurveType; OutPublicKey1, OutPublicKey2: TCnEccPublicKey;
+  SignType: TCnEccSignDigestType): Boolean; overload;
+var
+  Ecc: TCnEcc;
+begin
+  if CurveType = ctCustomized then
+    raise ECnEccException.Create(SCnEccErrorCurveType);
+
+  Ecc := TCnEcc.Create(CurveType);
+  try
+    Result := CnEccRecoverPublicKeyFromStream(InStream, InSignStream, Ecc,
+      OutPublicKey1, OutPublicKey2, SignType);
   finally
     Ecc.Free;
   end;
@@ -4106,11 +4591,6 @@ begin
   else
     Result := '<Unknown>';
   end;
-end;
-
-function TCnEcc.GetBytesCount: Integer;
-begin
-  Result := FFiniteFieldSize.GetBytesCount;
 end;
 
 { TCnInt64PolynomialEccPoint }
@@ -5061,7 +5541,7 @@ var
   var
     N: Integer;
     MI, T: TCnBigNumber;
-    F1, F2, F3, F4, F5: TCnBigNumberPolynomial;  // 从递归 GetInt64GaloisDivisionPolynomial 拿到的引用，不允许改动
+    F1, F2, F3, F4, F5: TCnBigNumberPolynomial;  // 从递归 GetGaloisDivisionPolynomial 拿到的引用，不允许改动
     D1, D2, D3, Y4: TCnBigNumberPolynomial;      // 计算中间结果，要创建要释放
   begin
     if PolynomialList[Degree] <> nil then // 如果有缓存就返回缓存的
@@ -5450,8 +5930,8 @@ begin
   // 求 x^q -x 与 x^3 + Ax + B 的公因式，如果是 1 则 t2 = 1，否则 t2 = 0，
   // 这里 t2 是 List 中针对素数 2 的元素，并非下标，后面同
 
-  Pa := TCnInt64List.Create;
-  Ta := TCnInt64List.Create;
+  Pa := nil;
+  Ta := nil;
 
   Y2 := FEccInt64PolynomialPool.Obtain;
   P1 := FEccInt64PolynomialPool.Obtain;
@@ -5915,7 +6395,7 @@ end;
 procedure TCnPolynomialEcc.MultiplePoint(K: TCnBigNumber;
   Point: TCnPolynomialEccPoint);
 var
-  I: Integer;
+  I, C: Integer;
   E, R: TCnPolynomialEccPoint;
 begin
   if K.IsZero then
@@ -5939,12 +6419,14 @@ begin
     R.SetZero;
     E.Assign(Point);
 
-    for I := 0 to BigNumberGetBitsCount(K) - 1 do
+    C := BigNumberGetBitsCount(K);
+    for I := 0 to C - 1 do
     begin
       if BigNumberIsBitSet(K, I) then
         PointAddPoint(R, E, R);
 
-      PointAddPoint(E, E, E);
+      if I < C - 1 then
+        PointAddPoint(E, E, E);
     end;
 
     Point.Assign(R);
@@ -6110,13 +6592,13 @@ begin
   if Neg then
     K := -K;
 
-  if K = 1 then // 没乘，原封不动返回 x 和 1
+  if K = 1 then // 没乘，原封不动返回 MX 和 MY，不做改动
   begin
-    MX.Nominator.SetCoefficents([0, 1]);
-    MX.Denominator.SetOne;
-
-    MY.Nominator.SetOne;
-    MY.Denominator.SetOne;
+//    MX.Nominator.SetCoefficents([0, 1]);
+//    MX.Denominator.SetOne;
+//
+//    MY.Nominator.SetOne;
+//    MY.Denominator.SetOne;
   end
   else
   begin
@@ -6543,7 +7025,7 @@ var
   QMul, QMax, BQ: TCnBigNumber;
   L, K: Int64;
   I, J: Integer;
-  F, G, Y2, P1, P2, LDP: TCnBigNumberPolynomial;
+  G, Y2, P1, P2, LDP: TCnBigNumberPolynomial;
   Pi2PX, Pi2PY, PiPX, PiPY, KPX, KPY, LSX, LSY, RSX, RSY, TSX, TSY: TCnBigNumberRationalPolynomial;
   DPs: TObjectList;
 begin
@@ -6556,45 +7038,66 @@ begin
   if Q.IsZero or Q.IsNegative then
     Exit;
 
-  Pa := TCnInt64List.Create;
-  Ta := TCnInt64List.Create;
-
-  Y2 := FEccPolynomialPool.Obtain;
-  P1 := FEccPolynomialPool.Obtain;
-  P2 := FEccPolynomialPool.Obtain;
-
-  F := FEccPolynomialPool.Obtain;
-  G := FEccPolynomialPool.Obtain;
-
-  QMax := FEccBigNumberPool.Obtain;
-  QMul := FEccBigNumberPool.Obtain;
-  BQ := FEccBigNumberPool.Obtain;
-
-  if not BigNumberSqrt(QMax, Q) then
-    Exit;
-
-  BigNumberAddWord(QMax, 1);
-  BigNumberMulWord(QMax, 4);
-  QMul.SetOne;
-  I := Low(CN_PRIME_NUMBERS_SQRT_UINT32);
-
+  Pa := nil;
+  Ta := nil;
   DPs := nil;
-  Pi2PX := FEccRationalPolynomialPool.Obtain;
-  Pi2PY := FEccRationalPolynomialPool.Obtain;
-  PiPX := FEccRationalPolynomialPool.Obtain;
-  PiPY := FEccRationalPolynomialPool.Obtain;
-  KPX := FEccRationalPolynomialPool.Obtain;
-  KPY := FEccRationalPolynomialPool.Obtain;
-  LSX := FEccRationalPolynomialPool.Obtain;
-  LSY := FEccRationalPolynomialPool.Obtain;
-  RSX := FEccRationalPolynomialPool.Obtain;
-  RSY := FEccRationalPolynomialPool.Obtain;
-  TSX := FEccRationalPolynomialPool.Obtain;
-  TSY := FEccRationalPolynomialPool.Obtain;
+  Pi2PX := nil;
+  Pi2PY := nil;
+  PiPX := nil;
+  PiPY := nil;
+  KPX := nil;
+  KPY := nil;
+  LSX := nil;
+  LSY := nil;
+  RSX := nil;
+  RSY := nil;
+  TSX := nil;
+  TSY := nil;
+
+  Y2 := nil;
+  P1 := nil;
+  P2 := nil;
+
+  G := nil;
+
+  QMax := nil;
+  QMul := nil;
+  BQ := nil;
 
   try
     Pa := TCnInt64List.Create;
     Ta := TCnInt64List.Create;
+
+    Y2 := FEccPolynomialPool.Obtain;
+    P1 := FEccPolynomialPool.Obtain;
+    P2 := FEccPolynomialPool.Obtain;
+
+    G := FEccPolynomialPool.Obtain;
+
+    QMax := FEccBigNumberPool.Obtain;
+    QMul := FEccBigNumberPool.Obtain;
+    BQ := FEccBigNumberPool.Obtain;
+
+    if not BigNumberSqrt(QMax, Q) then
+      Exit;
+
+    BigNumberAddWord(QMax, 1);
+    BigNumberMulWord(QMax, 4);
+    QMul.SetOne;
+    I := Low(CN_PRIME_NUMBERS_SQRT_UINT32);
+
+    Pi2PX := FEccRationalPolynomialPool.Obtain;
+    Pi2PY := FEccRationalPolynomialPool.Obtain;
+    PiPX := FEccRationalPolynomialPool.Obtain;
+    PiPY := FEccRationalPolynomialPool.Obtain;
+    KPX := FEccRationalPolynomialPool.Obtain;
+    KPY := FEccRationalPolynomialPool.Obtain;
+    LSX := FEccRationalPolynomialPool.Obtain;
+    LSY := FEccRationalPolynomialPool.Obtain;
+    RSX := FEccRationalPolynomialPool.Obtain;
+    RSY := FEccRationalPolynomialPool.Obtain;
+    TSX := FEccRationalPolynomialPool.Obtain;
+    TSY := FEccRationalPolynomialPool.Obtain;
 
     while (BigNumberCompare(QMul, QMax) <= 0) and (I <= High(CN_PRIME_NUMBERS_SQRT_UINT32)) do
     begin
@@ -6628,7 +7131,7 @@ begin
     DPs := TObjectList.Create(True);
     CnGenerateGaloisDivisionPolynomials(A, B, Q, Pa[Pa.Count - 1] + 2, DPs);
 
-    for I := 1 to Ta.Count - 1 do  // 针对每一个 L
+    for I := 1 to Ta.Count - 1 do  // 针对每一个 L，都满足 π^2(P) + K * (P) = J * π^(P) mod L阶可除多项式
     begin
       L := Pa[I];
       K := BigNumberModWord(Q, L);
@@ -6737,7 +7240,6 @@ begin
     FEccPolynomialPool.Recycle(P2);
 
     FEccPolynomialPool.Recycle(G);
-    FEccPolynomialPool.Recycle(F);
 
     FEccBigNumberPool.Recycle(QMax);
     FEccBigNumberPool.Recycle(QMul);
@@ -6762,10 +7264,854 @@ begin
   end;
 end;
 
+function CnEccSchoof2(Res, A, B, Q: TCnBigNumber): Boolean;
+var
+  Pa, Ta: TCnInt64List;
+  QMul, QMax, BQ: TCnBigNumber;
+  L, W, K: Int64;
+  I, J: Integer;
+  G, Y2, P1, P2, LDP: TCnBigNumberPolynomial;
+  Pi2PX, Pi2PY, PiPX, PiPY, KPX, KPY, LSX, LSY, RSX, RSY, TSX, TSY, WPiPX, WPiPY: TCnBigNumberRationalPolynomial;
+  DPs: TObjectList;
+begin
+  // 用 Schoof 算法求椭圆曲线 y^2 = x^3 + Ax + B 在素域 Fq 上的点总数
+  // 先建个 List，存所需的 2 ~ lmax 的素数，其中 3 * ... * lmax 刚好 > 4 倍根号 q
+  // 求 x^q -x 与 x^3 + Ax + B 的公因式，如果是 1 则 t2 = 1，否则 t2 = 0，
+  // 这里 t2 是 List 中针对素数 2 的元素，并非下标，后面同
+
+  Result := False;
+  if Q.IsZero or Q.IsNegative then
+    Exit;
+
+  Pa := nil;
+  Ta := nil;
+  DPs := nil;
+  Pi2PX := nil;
+  Pi2PY := nil;
+  PiPX := nil;
+  PiPY := nil;
+  KPX := nil;
+  KPY := nil;
+  LSX := nil;
+  LSY := nil;
+  RSX := nil;
+  RSY := nil;
+  TSX := nil;
+  TSY := nil;
+  WPiPX := nil;
+  WPiPY := nil;
+
+  Y2 := nil;
+  P1 := nil;
+  P2 := nil;
+
+  G := nil;
+
+  QMax := nil;
+  QMul := nil;
+  BQ := nil;
+
+  try
+    Pa := TCnInt64List.Create;
+    Ta := TCnInt64List.Create;
+
+    Y2 := FEccPolynomialPool.Obtain;
+    P1 := FEccPolynomialPool.Obtain;
+    P2 := FEccPolynomialPool.Obtain;
+
+    G := FEccPolynomialPool.Obtain;
+
+    QMax := FEccBigNumberPool.Obtain;
+    QMul := FEccBigNumberPool.Obtain;
+    BQ := FEccBigNumberPool.Obtain;
+
+    if not BigNumberSqrt(QMax, Q) then
+      Exit;
+
+    BigNumberAddWord(QMax, 1);
+    BigNumberMulWord(QMax, 4);
+    QMul.SetOne;
+    I := Low(CN_PRIME_NUMBERS_SQRT_UINT32);
+
+    Pi2PX := FEccRationalPolynomialPool.Obtain;
+    Pi2PY := FEccRationalPolynomialPool.Obtain;
+    PiPX := FEccRationalPolynomialPool.Obtain;
+    PiPY := FEccRationalPolynomialPool.Obtain;
+    KPX := FEccRationalPolynomialPool.Obtain;
+    KPY := FEccRationalPolynomialPool.Obtain;
+    LSX := FEccRationalPolynomialPool.Obtain;
+    LSY := FEccRationalPolynomialPool.Obtain;
+    RSX := FEccRationalPolynomialPool.Obtain;
+    RSY := FEccRationalPolynomialPool.Obtain;
+    TSX := FEccRationalPolynomialPool.Obtain;
+    TSY := FEccRationalPolynomialPool.Obtain;
+    WPiPX := FEccRationalPolynomialPool.Obtain;
+    WPiPY := FEccRationalPolynomialPool.Obtain;
+
+    while (BigNumberCompare(QMul, QMax) <= 0) and (I <= High(CN_PRIME_NUMBERS_SQRT_UINT32)) do
+    begin
+      BigNumberMulWord(QMul, CN_PRIME_NUMBERS_SQRT_UINT32[I]);
+      Pa.Add(CN_PRIME_NUMBERS_SQRT_UINT32[I]);
+      Ta.Add(0);
+      Inc(I);
+    end;
+
+    if I > High(CN_PRIME_NUMBERS_SQRT_UINT32) then
+      raise ECnEccException.Create('Prime Number is Too Large.');
+
+    Y2.SetCoefficents([B, A, 0, 1]);
+
+    // Ta 与 Pa 数组已准备好，先处理 t = 2 的情况
+    P1.SetCoefficents([0, 1]); // P1 := X
+    BigNumberPolynomialGaloisPower(P1, P1, Q, Q, Y2); // X^q 先 mod Y^2
+
+    P2.SetCoefficents([0, 1]); // P2 := X
+    BigNumberPolynomialGaloisSub(P1, P1, P2, Q); // P1 := (X^q mod Y^2) - x
+
+    // 求最大公约式
+    BigNumberPolynomialGaloisGreatestCommonDivisor(G, P1, Y2, Q);
+
+    if G.IsOne then
+      Ta[0] := 1
+    else
+      Ta[0] := 0;   // 求得 T2。理解了并且基本算对了
+
+    // 提前算好最大素数 + 2 阶的可除多项式们以及准备好 Y^2
+    DPs := TObjectList.Create(True);
+    CnGenerateGaloisDivisionPolynomials(A, B, Q, Pa[Pa.Count - 1] + 2, DPs);
+
+    for I := 1 to Ta.Count - 1 do  // 针对每一个 L，都满足 π^2(P) + K * (P) = J * π^(P) mod L阶可除多项式
+    begin
+      L := Pa[I];
+      K := BigNumberModWord(Q, L);
+
+      // 先得到 L 阶可除多项式，作为后续计算的模多项式
+      LDP := TCnBigNumberPolynomial(DPs[L]);
+
+      Pi2PX.SetOne;                           // 原始点
+      Pi2PX.Nominator.SetCoefficents([0, 1]); // x
+      Pi2PY.Setone;                           // 1 * y
+
+      // 算得 π^2 的 X 坐标在 LDP 环内的表达分式，也就是 Q*Q 个 x 相乘再 mod LDP
+      BigNumberPolynomialGaloisPower(Pi2PX.Nominator, Pi2PX.Nominator, Q, Q, LDP);
+      BigNumberPolynomialGaloisPower(Pi2PX.Nominator, Pi2PX.Nominator, Q, Q, LDP);  // 直接 Q*Q 容易溢出，分步算
+
+      // 算得 π^2 的 Y 坐标在 LDP 环内的表达分式，Q*Q 个 y 相乘等于 y * [(Q*Q shr 1) 个 y^2 相乘]，而 y^2 可替换成 x^3+Ax+B
+      BigNumberMul(BQ, Q, Q);
+      BigNumberShiftRightOne(BQ, BQ);
+      BigNumberPolynomialGaloisPower(Pi2PY.Nominator, Y2, BQ, Q, LDP);
+
+      KPX.SetOne;                             // 原始点
+      KPX.Nominator.SetCoefficents([0, 1]);   // x
+      KPY.SetOne;                             // 1 * y
+
+      // 算得 K * P 的 X Y 坐标，这里 K 相当于 Wikepedia 步骤中的 q 杆
+      TCnPolynomialEcc.RationalMultiplePoint(K, KPX, KPY, A, B, Q, LDP);
+
+      // 此处 Wikipedia 上增加了 KPX 与 Pi2PX 是否相同的判断，相同则可以用二次剩余判断
+      if BigNumberRationalPolynomialGaloisEqual(KPX, Pi2PX, Q) then
+      begin
+        // 两点的 X 坐标相同，求平方剩余 w^2 = K mod L
+        W := CnInt64SquareRoot(K, L);
+        if W = 0 then // 不存在二次剩余，t 为 0
+        begin
+          Ta[I] := 0;
+          Continue;
+        end;
+
+        // 存在二次剩余，t 为正负 2W，判断其符号，要计算 W *  π的 X 和 Y 坐标
+
+        PiPX.SetOne;                            // 原始点
+        PiPX.Nominator.SetCoefficents([0, 1]);  // x
+        PiPY.Setone;                            // 1 * y
+
+        // 算得 π的 X 坐标在 LDP 环内的表达分式，也就是 Q 个 x 相乘再 mod LDP
+        BigNumberPolynomialGaloisPower(PiPX.Nominator, PiPX.Nominator, Q, Q, LDP);
+
+        // 算得 π的 Y 坐标在 LDP 环内的表达分式，Q 个 y 相乘等于 y * [(Q shr 1) 个 y^2 相乘]，而 y^2 可替换成 x^3+Ax+B
+        BigNumberShiftRightOne(BQ, Q);
+        BigNumberPolynomialGaloisPower(PiPY.Nominator, Y2, BQ, Q, LDP);
+
+        // 复制过去后乘 W 倍点
+        BigNumberRationalPolynomialCopy(WPiPX, PiPX);
+        BigNumberRationalPolynomialCopy(WPiPY, PiPY);
+
+        TCnPolynomialEcc.RationalMultiplePoint(W, WPiPX, WPiPY, A, B, Q, LDP);
+
+        if BigNumberRationalPolynomialGaloisEqual(WPiPX, Pi2PX, Q, LDP) then
+        begin
+          if BigNumberRationalPolynomialGaloisEqual(WPiPY, Pi2PY, Q, LDP) then
+           Ta[I] := 2 * W
+          else
+          begin
+           BigNumberRationalPolynomialGaloisNegate(WPiPY, Q);
+           if BigNumberRationalPolynomialGaloisEqual(WPiPY, Pi2PY, Q, LDP) then
+             Ta[I] := L - 2 * W
+           else
+             Ta[I] := 0;
+          end;
+        end
+        else
+          Ta[I] := 0;
+      end
+      else
+      begin
+        // 不同，还是要累加
+        // 求 π^2(P) + K * (P) 的和点 SX SY
+        TCnPolynomialEcc.RationalPointAddPoint(Pi2PX, Pi2PY, KPX, KPY, LSX, LSY, A, B, Q, LDP);
+
+        PiPX.SetOne;                            // 原始点
+        PiPX.Nominator.SetCoefficents([0, 1]);  // x
+        PiPY.Setone;                            // 1 * y
+
+        // 算得 π的 X 坐标在 LDP 环内的表达分式，也就是 Q 个 x 相乘再 mod LDP
+        BigNumberPolynomialGaloisPower(PiPX.Nominator, PiPX.Nominator, Q, Q, LDP);
+
+        // 算得 π的 Y 坐标在 LDP 环内的表达分式，Q 个 y 相乘等于 y * [(Q shr 1) 个 y^2 相乘]，而 y^2 可替换成 x^3+Ax+B
+        BigNumberShiftRightOne(BQ, Q);
+        BigNumberPolynomialGaloisPower(PiPY.Nominator, Y2, BQ, Q, LDP);
+
+        BigNumberRationalPolynomialCopy(RSX, PiPX);
+        BigNumberRationalPolynomialCopy(RSY, PiPY);
+
+        for J := 1 to (L + 1) shr 1 do
+        begin
+          // 本来可以直接用可除多项式计算 RSX := J * (PiPX, PiPY) 的 X，但似乎还会比点加慢，还是用点加
+          // RationalMultiplePointX(RSX, PiPX, J, A, B, Q, DPs, LDP);
+
+          if BigNumberRationalPolynomialGaloisEqual(LSX, RSX, Q, LDP) then
+          begin
+            // 本来可以直接用可除多项式计算 RSY := J * (PiPX, PiPY) 的 Y，但似乎还会比点加慢，还是用点加
+            // RationalMultiplePointY(RSY, PiPX, PiPY, J, A, B, Q, DPs, LDP);
+
+            if BigNumberRationalPolynomialGaloisEqual(LSY, RSY, Q, LDP) then
+              Ta[I] := J
+            else
+              Ta[I] := L - J;
+            Break;
+          end;
+
+          TCnPolynomialEcc.RationalPointAddPoint(RSX, RSY, PiPX, PiPY, TSX, TSY, A, B, Q, LDP);
+          BigNumberRationalPolynomialCopy(RSX, TSX);
+          BigNumberRationalPolynomialCopy(RSY, TSY);
+        end;
+      end;
+    end;
+
+    // 求出各个余数后，用中国剩余定理求最终解
+    BigNumberChineseRemainderTheorem(Res, Ta, Pa);
+
+    // 注意求出的 T 必须满足 Hasse 定理：T 的绝对值 <= 2 * 根号 Q，如超出范围，还得修正
+    BigNumberSqrt(QMax, Q);
+    QMax.AddWord(1);
+    QMax.ShiftLeftOne;     // QMax 复用，是 2 根号 Q + 1，其绝对值必须比 Res 大
+
+    if BigNumberUnsignedCompare(Res, QMax) >= 0 then
+    begin
+      // 中国剩余定理求出的一般是最小正数，需要减去全体 Pa 的乘积
+      QMul.SetOne;
+      for J := 0 to Pa.Count - 1 do
+      begin
+        BQ.SetInt64(Pa[J]);
+        BigNumberMul(QMul, QMul, BQ);
+      end;
+
+      if Res.IsNegative then
+        BigNumberAdd(Res, Res, QMul)
+      else
+        BigNumberSub(Res, Res, QMul);
+    end;
+
+    Res.Negate;
+    BigNumberAdd(Res, Res, Q);
+    Res.AddWord(1); // Q + 1 - L
+    Result := True;
+  finally
+    FEccPolynomialPool.Recycle(Y2);
+    FEccPolynomialPool.Recycle(P1);
+    FEccPolynomialPool.Recycle(P2);
+
+    FEccPolynomialPool.Recycle(G);
+
+    FEccBigNumberPool.Recycle(QMax);
+    FEccBigNumberPool.Recycle(QMul);
+    FEccBigNumberPool.Recycle(BQ);
+
+    FEccRationalPolynomialPool.Recycle(Pi2PX);
+    FEccRationalPolynomialPool.Recycle(Pi2PY);
+    FEccRationalPolynomialPool.Recycle(PiPX);
+    FEccRationalPolynomialPool.Recycle(PiPY);
+    FEccRationalPolynomialPool.Recycle(KPX);
+    FEccRationalPolynomialPool.Recycle(KPY);
+    FEccRationalPolynomialPool.Recycle(LSX);
+    FEccRationalPolynomialPool.Recycle(LSY);
+    FEccRationalPolynomialPool.Recycle(RSX);
+    FEccRationalPolynomialPool.Recycle(RSY);
+    FEccRationalPolynomialPool.Recycle(TSX);
+    FEccRationalPolynomialPool.Recycle(TSY);
+    FEccRationalPolynomialPool.Recycle(WPiPX);
+    FEccRationalPolynomialPool.Recycle(WPiPY);
+
+    DPs.Free;
+    Pa.Free;
+    Ta.Free;
+  end;
+end;
+
+function CnEccFastSchoof(Res, A, B, Q: TCnBigNumber): Boolean;
+var
+  Pa, Ta: TCnInt64List;
+  QMul, QMax, BQ, Q12, Q32, Q23: TCnBigNumber;
+  L, K, W: Int64;
+  I, J, T: Integer;
+  G, Y2, P1, P2, LDP: TCnBigNumberPolynomial;
+  PXP2X, PXPX, NPXP2X, PXP2XPX, P16, P17, P18, P19X, P19Y, T1, T2, T3, T4, PAlpha, PBeta: TCnBigNumberPolynomial;
+  DPs: TObjectList;
+
+  function F(DPIdx: Integer): TCnBigNumberPolynomial; // 简化的得到 Division Polynomial 的
+  begin
+    Result := TCnBigNumberPolynomial(DPs[DPIdx]);
+  end;
+
+begin
+  // 用 Schoof 算法求椭圆曲线 y^2 = x^3 + Ax + B 在素域 Fq 上的点总数
+  // 先建个 List，存所需的 2 ~ lmax 的素数，其中 3 * ... * lmax 刚好 > 4 倍根号 q
+  // 求 x^q -x 与 x^3 + Ax + B 的公因式，如果是 1 则 t2 = 1，否则 t2 = 0，
+  // 这里 t2 是 List 中针对素数 2 的元素，并非下标，后面同
+
+  Result := False;
+  if Q.IsZero or Q.IsNegative then
+    Exit;
+
+  Pa := nil;
+  Ta := nil;
+  DPs := nil;
+
+  Y2 := nil;
+  P1 := nil;
+  P2 := nil;
+
+  G := nil;
+
+  QMax := nil;
+  QMul := nil;
+  BQ := nil;
+  Q12 := nil;
+  Q32 := nil;
+  Q23 := nil;
+
+  PXP2X := nil;
+  PXPX := nil;
+  NPXP2X := nil;
+  PXP2XPX := nil;
+  T1 := nil;
+  T2 := nil;
+  T3 := nil;
+  T4 := nil;
+  P16 := nil;
+  P17 := nil;
+  P18 := nil;
+  P19X := nil;
+  P19Y := nil;
+  PAlpha := nil;
+  PBeta := nil;
+
+  try
+    Y2 := FEccPolynomialPool.Obtain;
+    P1 := FEccPolynomialPool.Obtain;
+    P2 := FEccPolynomialPool.Obtain;
+
+    G := FEccPolynomialPool.Obtain;
+
+    QMax := FEccBigNumberPool.Obtain;
+    QMul := FEccBigNumberPool.Obtain;
+    BQ := FEccBigNumberPool.Obtain;
+    Q12 := FEccBigNumberPool.Obtain;
+    Q32 := FEccBigNumberPool.Obtain;
+
+    if not BigNumberSqrt(QMax, Q) then
+      Exit;
+
+    BigNumberAddWord(QMax, 1);
+    BigNumberMulWord(QMax, 4);
+    QMul.SetOne;
+    I := Low(CN_PRIME_NUMBERS_SQRT_UINT32);
+
+    Pa := TCnInt64List.Create;
+    Ta := TCnInt64List.Create;
+
+    PXP2X := FEccPolynomialPool.Obtain;
+    PXPX := FEccPolynomialPool.Obtain;
+    T1 := FEccPolynomialPool.Obtain;
+    T2 := FEccPolynomialPool.Obtain;
+    T3 := FEccPolynomialPool.Obtain;
+    T4 := FEccPolynomialPool.Obtain;
+    P16 := FEccPolynomialPool.Obtain;
+    P17 := FEccPolynomialPool.Obtain;
+    P18 := FEccPolynomialPool.Obtain;
+    P19X := FEccPolynomialPool.Obtain;
+    P19Y := FEccPolynomialPool.Obtain;
+
+    while (BigNumberCompare(QMul, QMax) <= 0) and (I <= High(CN_PRIME_NUMBERS_SQRT_UINT32)) do
+    begin
+      BigNumberMulWord(QMul, CN_PRIME_NUMBERS_SQRT_UINT32[I]);
+      Pa.Add(CN_PRIME_NUMBERS_SQRT_UINT32[I]);
+      Ta.Add(0);
+      Inc(I);
+    end;
+
+    if I > High(CN_PRIME_NUMBERS_SQRT_UINT32) then
+      raise ECnEccException.Create('Prime Number is Too Large.');
+
+    // 准备好 Y2，等于 x^3 + Ax + B
+    Y2.SetCoefficents([B, A, 0, 1]);
+
+    // Ta 与 Pa 数组已准备好，先处理 t = 2 的情况
+    P1.SetCoefficents([0, 1]); // P1 := X
+    BigNumberPolynomialGaloisPower(P1, P1, Q, Q, Y2); // X^q 先 mod Y^2
+
+    P2.SetCoefficents([0, 1]); // P2 := X
+    BigNumberPolynomialGaloisSub(P1, P1, P2, Q); // P1 := (X^q mod Y^2) - x
+
+    // 求最大公约式
+    BigNumberPolynomialGaloisGreatestCommonDivisor(G, P1, Y2, Q);
+
+    if G.IsOne then
+      Ta[0] := 1
+    else
+      Ta[0] := 0;   // 求得 T2。理解了并且基本算对了
+
+    // 提前算好最大素数 + 2 阶的可除多项式们以及准备好 Y^2
+    DPs := TObjectList.Create(True);
+    CnGenerateGaloisDivisionPolynomials(A, B, Q, Pa[Pa.Count - 1] + 2, DPs);
+
+    for I := 1 to Ta.Count - 1 do  // 针对每一个 L，都满足 π^2(P) + K * (P) = J * π^(P) mod L阶可除多项式
+    begin
+      L := Pa[I];
+      K := BigNumberModWord(Q, L);
+
+      // 先得到 L 阶可除多项式，作为后续计算的模多项式
+      LDP := F(L);
+
+      // 准备好 PXP2X 和 Y2，分别等于 x^(q^2) - x 和 x^3 + Ax + B
+      PXP2X.SetCoefficents([0, 1]); // PXP2X := X
+      BigNumberPolynomialGaloisPower(PXP2X, PXP2X, Q, Q, LDP); // X^q
+      BigNumberPolynomialGaloisPower(PXP2X, PXP2X, Q, Q, LDP); // X^(q^2)
+      T1.SetCoefficents([0, 1]);   // T1 = x
+      BigNumberPolynomialGaloisSub(PXP2X, PXP2X, T1, Q, LDP);  // X^(q^2) - X
+
+      // 准备好 PXPX，等于 x^q - x
+      PXPX.SetCoefficents([0, 1]); // PXP2X := X
+      BigNumberPolynomialGaloisPower(PXPX, PXPX, Q, Q, LDP); // X^q
+      T1.SetCoefficents([0, 1]);   // T1 = x
+      BigNumberPolynomialGaloisSub(PXPX, PXPX, T1, Q, LDP);  // X^(q^2) - X
+
+      // 判断是否存在 L 阶扭点 P，使得 π^2(P) = 正负 K * (P)，分 K 是奇偶来分别计算 P16
+      if K and 1 <> 0 then
+      begin
+        // K 是奇数，P16 = (X^(q^2) - X) * F[K]^2 + F[K-1] * F[K+1] * (x^3 + Ax + B)
+        BigNumberPolynomialGaloisMul(T1, F(K), F(K), Q, LDP);
+        BigNumberPolynomialGaloisMul(T1, T1, PXP2X, Q, LDP);
+
+        BigNumberPolynomialGaloisMul(T2, F(K - 1), F(K + 1), Q, LDP);
+        BigNumberPolynomialGaloisMul(T2, T2, Y2, Q, LDP);
+
+        BigNumberPolynomialGaloisAdd(P16, T1, T2, Q, LDP);
+      end
+      else
+      begin
+        // K 是偶数，P16 = (X^(q^2) - X) * F[K]^2 * (x^3 + Ax + B) + F[K-1] * F[K+1]
+        BigNumberPolynomialGaloisMul(T1, F(K),
+          F(K), Q, LDP);
+        BigNumberPolynomialGaloisMul(T1, T1, Y2, Q, LDP);
+        BigNumberPolynomialGaloisMul(T1, T1, PXP2X, Q, LDP);
+
+        BigNumberPolynomialGaloisMul(T2, F(K - 1),
+          F(K + 1), Q, LDP);
+
+        BigNumberPolynomialGaloisAdd(P16, T1, T2, Q, LDP);
+      end;
+
+      // 得到 P16 后计算公因式
+      BigNumberPolynomialGaloisGreatestCommonDivisor(T1, P16, LDP, Q);
+
+      if not T1.IsOne then // 有公因式，所以 π^2(P) = 正负 K * (P)
+      begin
+        // 分正负两种情况处理。如果正，则求 W^2 = K mod L，W 存在则说明 K 是 L 的二次剩余
+        W := CnInt64SquareRoot(K, L);
+        if W = 0 then // 不存在二次剩余，t 为 0
+        begin
+          Ta[I] := 0;
+          Continue;
+        end;
+
+        // 存在二次剩余，t 为正负 2W，判断其符号，要计算 P17
+        if W and 1 <> 0 then
+        begin
+          // W 是奇数，P17 = (X^q - X) * F[W]^2 + F[W-1] * F[W+1] * (x^3 + Ax + B)
+          BigNumberPolynomialGaloisMul(T1, F(W), F(W), Q, LDP);
+          BigNumberPolynomialGaloisMul(T1, T1, PXPX, Q, LDP);
+
+          BigNumberPolynomialGaloisMul(T2, F(W - 1), F(W + 1), Q, LDP);
+          BigNumberPolynomialGaloisMul(T2, T2, Y2, Q, LDP);
+
+          BigNumberPolynomialGaloisAdd(P17, T1, T2, Q, LDP);
+        end
+        else
+        begin
+          // W 是偶数，P17 = (X^q - X) * F[W]^2 * (x^3 + Ax + B) + F[W-1] * F[W+1]
+          BigNumberPolynomialGaloisMul(T1, F(W), F(W), Q, LDP);
+          BigNumberPolynomialGaloisMul(T1, T1, Y2, Q, LDP);
+          BigNumberPolynomialGaloisMul(T1, T1, PXPX, Q, LDP);
+
+          BigNumberPolynomialGaloisMul(T2, F(W - 1), F(W + 1), Q, LDP);
+
+          BigNumberPolynomialGaloisAdd(P17, T1, T2, Q, LDP);
+        end;
+
+        // 得到 P17 后计算公因式
+        BigNumberPolynomialGaloisGreatestCommonDivisor(T1, P17, LDP, Q);
+        if T1.IsOne then // 互素，t 为 0
+        begin
+          Ta[I] := 0;
+          Continue;
+        end;
+
+        // 否则 t 是正负 2W，再判断正负号，求 P18
+        BigNumberCopy(Q12, Q);
+        Q12.SubWord(1);
+        Q12.ShiftRightOne;   // 得到 (Q - 1) / 2
+
+        BigNumberCopy(Q32, Q);
+        Q32.SubWord(3);
+        Q32.ShiftRightOne;   // 得到 (Q - 3) / 2
+
+        if W and 1 <> 0 then
+        begin
+          // W 是奇数，P18 = 4*(x^3 + Ax + B)^(Q-1)/2) * F[W]^3 - F[W+2]^2 * F[W-1] + F[W-2]^2 * F[W+1]
+          BigNumberPolynomialGaloisPower(T1, Y2, Q12, Q, LDP);
+        end
+        else
+        begin
+          // W 是偶数，P18 = 4*(x^3 + Ax + B)^(Q+3)/2) * F[W]^3 - F[W+2]^2 * F[W-1] + F[W-2]^2 * F[W+1]
+          BigNumberPolynomialGaloisPower(T1, Y2, Q32, Q, LDP);
+        end;
+        BigNumberPolynomialGaloisMulWord(T1, 4, Q);
+        BigNumberPolynomialGaloisPower(T2, F(W), 3, Q, LDP);
+        BigNumberPolynomialGaloisMul(T1, T1, T2, Q, LDP); // T1 得到第一项大乘
+
+        BigNumberPolynomialGaloisMul(T2, F(W + 2),
+          F(W + 2), Q, LDP);  // T2 得到减项
+        BigNumberPolynomialGaloisMul(T2, T2, F(W - 1), Q, LDP);
+
+        BigNumberPolynomialGaloisMul(T3, F(W - 2),
+          F(W - 2), Q, LDP);  // T3 得到加项
+        BigNumberPolynomialGaloisMul(T3, T3, F(W + 1), Q, LDP);
+
+        BigNumberPolynomialGaloisSub(P18, T1, T2, Q, LDP);
+        BigNumberPolynomialGaloisAdd(P18, P18, T3, Q, LDP);
+
+        // 得到 P18 后计算公因式
+        BigNumberPolynomialGaloisGreatestCommonDivisor(T1, P17, LDP, Q);
+        if T1.IsOne then
+          Ta[I] := L - 2 * W
+        else
+          Ta[I] := 2 * W;
+      end
+      else // 不等于正负
+      begin
+        PAlpha := FEccPolynomialPool.Obtain;
+        PBeta := FEccPolynomialPool.Obtain;
+
+        BigNumberPolynomialGaloisMul(T1, F(K - 1), F(K - 1), Q, LDP);
+        BigNumberPolynomialGaloisMul(T1, T1, F(K + 2), Q, LDP);
+
+        BigNumberPolynomialGaloisMul(T2, F(K + 1), F(K + 1), Q, LDP);
+        BigNumberPolynomialGaloisMul(T2, T2, F(K - 2), Q, LDP);
+
+        BigNumberPolynomialGaloisSub(T1, T1, T2, Q, LDP); // T1 是减式，释放 T2
+
+        Q23 := FEccBigNumberPool.Obtain;
+        BigNumberMul(Q23, Q, Q);
+        Q23.AddWord(3);
+        Q23.ShiftRightOne;  // 得到 (Q^2 + 3)/2，用来做 Y^2 的指数
+
+        BigNumberPolynomialGaloisPower(T2, Y2, Q23, Q, LDP);
+        BigNumberPolynomialGaloisPower(T3, F(K), 3, Q, LDP);
+        BigNumberPolynomialGaloisMul(T2, T2, T3, Q, LDP);
+        BigNumberPolynomialGaloisMulWord(T2, 4, Q); // 得到第三个减式
+
+        BigNumberPolynomialSub(PAlpha, T1, T2);
+
+        NPXP2X := FEccPolynomialPool.Obtain;
+        BigNumberPolynomialCopy(NPXP2X, PXP2X);
+        BigNumberPolynomialGaloisNegate(NPXP2X, Q); // NPXPX 得到 x - x^(q^2)
+
+        BigNumberPolynomialGaloisMul(T1, F(K), F(K), Q, LDP); // T1 得到 Fk^2
+        BigNumberPolynomialGaloisMul(T1, NPXP2X, T1, Q, LDP); // T1 得到 Fk^2 * (x - x^(q^2))，备下面使用
+
+        BigNumberPolynomialGaloisMul(T2, F(K - 1), F(K + 1), Q, LDP); // T2 得到 F(k-1)* F(k+1)
+
+        // 另外准备好 x^(p^2) + x^p + x
+        PXP2XPX := FEccPolynomialPool.Obtain;
+        PXP2XPX.SetCoefficents([0, 2]);        // 得到 2x
+        BigNumberPolynomialGaloisAdd(PXP2XPX, PXP2X, PXP2XPX, Q, LDP); // 与旧的加一下得到 x^(p^2) + x
+
+        T3.SetCoefficents([0, 1]);
+        BigNumberPolynomialGaloisPower(T3, T3, Q, Q, LDP);
+        BigNumberPolynomialGaloisAdd(PXP2XPX, PXP2XPX, T3, Q, LDP);   // 得到 x^(p^2) + x^p + x
+
+        if K and 1 <> 0 then
+        begin
+          // K 是奇数，对应的 Alpha 是纯 x 的系数，Beta 则需要乘一个 y
+          // Alpha = Y^2 * 上面的 PAlpha
+          BigNumberPolynomialGaloisMul(PAlpha, PAlpha, Y2, Q, LDP); // Alpha 计算完毕
+
+          // 再计算 Beta，T2 要乘以 Y2
+          BigNumberPolynomialGaloisMul(T2, T2, Y2, Q, LDP);
+
+          BigNumberPolynomialGaloisSub(T1, T1, T2, Q, LDP); // T1 得到减的结果
+
+          // 再乘以 4Fk
+          BigNumberPolynomialGaloisMul(PBeta, T1, F(K), Q, LDP);
+          BigNumberPolynomialGaloisMulWord(PBeta, 4, Q);
+          // 得到的 PBeta 在使用时需要乘以一个 y，同时释放 T1 T2 T3 等
+
+          for T := 1 to L - 1 do
+          begin
+            // K 是奇数的情况下也挨个计算 P19X，当其 mod LDP = 0 且和 LDP 的最大公约式 <> 1 时，有正负 T 符合要求
+            // K 奇 t 奇的情况下 P19X = 以下ａ表示 alpha，b 表示 beta
+            // Ft^2p * (b^2 * Y^2 * (Y^2 * Fk-1 * Fk+1 - Fk^2 *(x^(p^2) + x^p + x) + a^2 * Fk^2)) + Fk^2 * b^2 * Y^2 * (Ft-1 * Ft+1)^p * (Y^2)^p
+            // t 偶的情况下 P19X 变成（均可变为纯 x 多项式）
+            // Ft^2p * (Y^2)^p * (b^2 * Y^2 * (Y^2 * Fk-1 * Fk+1 - Fk^2 *(x^(p^2) + x^p + x) + a^2 * Fk^2)) + Fk^2 * b^2 * Y^2 * (Ft-1 * Ft+1)^p
+
+            // 先计算前后各项，但不包括前后的 Y^2p，之后再根据 T 的奇偶性各自乘上
+            // 先计算 Fk^2 * b^2 * Y^2 * (Ft-1 * Ft+1)^p 放到 T3 里
+            BigNumberPolynomialGaloisMul(T1, F(K), F(K), Q, LDP);
+            BigNumberPolynomialGaloisMul(T2, PBeta, PBeta, Q, LDP);
+            BigNumberPolynomialGaloisMul(T1, T1, T2, Q, LDP);
+            BigNumberPolynomialGaloisMul(T1, T1, Y2, Q, LDP); // T1 得到 Fk^2 * b^2 * Y^2
+
+            BigNumberPolynomialGaloisMul(T2, F(T - 1), F(T + 1), Q, LDP);
+            BigNumberPolynomialGaloisPower(T2, T2, Q, Q, LDP);
+
+            BigNumberPolynomialGaloisMul(T3, T1, T2, Q, LDP); // T3 得到 Fk^2 * b^2 * Y^2 * (Ft-1 * Ft+1)^p，释放 T1 T2
+            if T and 1 <> 0 then // T 为奇数时要多乘一项
+            begin
+              BigNumberPolynomialGaloisPower(T1, Y2, Q, Q, LDP);
+              BigNumberPolynomialGaloisMul(T3, T3, T1, Q, LDP);
+            end;
+
+            // 计算前面的加项，不能用 T3
+            BigNumberPolynomialGaloisMul(T1, F(K - 1), F(K + 1), Q, LDP);
+            BigNumberPolynomialGaloisMul(T1, T1, Y2, Q, LDP); // T1 得到 Y^2 * Fk-1 * Fk+1
+
+            BigNumberPolynomialGaloisMul(T2, F(K), F(K), Q, LDP);
+            BigNumberPolynomialGaloisMul(T2, T2, PXP2XPX, Q, LDP); // T2 得到 Fk^2 *(x^(p^2) + x^p + x)
+
+            BigNumberPolynomialGaloisSub(T1, T1, T2, Q, LDP); // T1 减后释放 T2
+
+            BigNumberPolynomialGaloisMul(T2, F(K), PAlpha, Q, LDP);
+            BigNumberPolynomialGaloisMul(T2, T2, T2, Q, LDP); // T2 得到 a^2 * Fk^2
+
+            BigNumberPolynomialGaloisAdd(T1, T1, T2, Q, LDP); // T1 得到全减式，释放 T2
+
+            BigNumberPolynomialGaloisMul(T2, PBeta, PBeta, Q, LDP);
+            BigNumberPolynomialGaloisMul(T2, T2, Y2, Q, LDP); // T2 得到 b^2 * Y^2
+
+            BigNumberPolynomialGaloisMul(T1, T1, T2, Q, LDP); // 全减式乘后放入 T1，释放 T2
+
+            BigNumberPolynomialGaloisMul(T2, F(T), F(T), Q, LDP);        // T2 得到 Ft^2
+
+            BigNumberPolynomialGaloisPower(T2, T2, Q, Q, LDP);// T2 得到 (Ft^2)^p = Ft^2p
+
+            if T and 1 = 0 then // T 为偶数时 T2 要多乘一项 (Y^2)^p
+            begin
+              BigNumberPolynomialGaloisPower(T4, Y2, Q, Q, LDP);
+              BigNumberPolynomialGaloisMul(T2, T2, T4, Q, LDP);
+            end;
+
+            BigNumberPolynomialGaloisMul(T1, T1, T2, Q, LDP); // T1 得到加号左边的，和右边相加
+            BigNumberPolynomialGaloisAdd(P19X, T1, T3, Q, LDP);  // 加后得到 P19X
+
+            BigNumberPolynomialGaloisGreatestCommonDivisor(T1, P19X, LDP, Q);
+
+            if T1.IsOne then // 不为 1 时存在符合要求的点。为 1 时不存在，本轮 T 不符合要求，下一循环
+              Continue;
+
+            // 不为 1 时，正负 T 都符合要求，再求 P19Y
+            raise ECnEccException.Create('NOT Implemented');
+
+          end;
+        end
+        else
+        begin
+          // K 是偶数，对应的 Alpha 是需要乘一个 y，Beta 则是纯 x 的系数
+
+          // Alpha 计算完毕，后面用的时候需要乘以一个 y
+          // 再计算 Beta，T1 要乘以 Y2
+          BigNumberPolynomialGaloisMul(T1, T1, Y2, Q, LDP);
+
+          BigNumberPolynomialGaloisAdd(T1, T1, T2, Q, LDP); // T1 得到加的结果
+
+          // 再乘以 4Fk
+          BigNumberPolynomialGaloisMul(PBeta, T1, F(K), Q, LDP);
+          BigNumberPolynomialGaloisMulWord(PBeta, 4, Q);
+
+          BigNumberPolynomialGaloisMul(PBeta, PBeta, Y2, Q, LDP);
+          // 得到纯 X 的 PBeta，同时释放 T1 T2 T3 等
+
+          for T := 1 to L - 1 do
+          begin
+            // K 偶 t 奇的情况下 P19X = 以下ａ表示 alpha，b 表示 beta
+            // Ft^2p * (b^2 * (Fk-1 * Fk+1 - Y^2 * Fk^2 *(x^(p^2) + x^p + x) + (Y^2)^2 * a^2 * Fk^2)) + Fk^2 * b^2 * Y^2 *(Ft-1 * Ft+1)^p * (Y^2)^p
+            // t 偶的情况下 P19X 变成（均可变为纯 x 多项式）
+            // Ft^2p * (Y^2)^p * (b^2 * (Fk-1 * Fk+1 - Y^2 * Fk^2 *(x^(p^2) + x^p + x) + (Y^2)^2 * a^2 * Fk^2)) + Fk^2 * b^2 * Y^2 *(Ft-1 * Ft+1)^p
+
+            // 先计算前后各项，但不包括前后的 Y^2p，之后再根据 T 的奇偶性各自乘上
+            // 先计算 Fk^2 * b^2 * Y^2 * (Ft-1 * Ft+1)^p 放到 T3 里
+            BigNumberPolynomialGaloisMul(T1, F(K), F(K), Q, LDP);
+            BigNumberPolynomialGaloisMul(T2, PBeta, PBeta, Q, LDP);
+            BigNumberPolynomialGaloisMul(T1, T1, T2, Q, LDP);
+            BigNumberPolynomialGaloisMul(T1, T1, Y2, Q, LDP); // T1 得到 Fk^2 * b^2 * Y^2
+
+            BigNumberPolynomialGaloisMul(T2, F(T - 1), F(T + 1), Q, LDP);
+            BigNumberPolynomialGaloisPower(T2, T2, Q, Q, LDP);
+
+            BigNumberPolynomialGaloisMul(T3, T1, T2, Q, LDP); // T3 得到 Fk^2 * b^2 * Y^2 * (Ft-1 * Ft+1)^p，释放 T1 T2
+            if T and 1 <> 0 then // T 为奇数时要多乘一项
+            begin
+              BigNumberPolynomialGaloisPower(T1, Y2, Q, Q, LDP);
+              BigNumberPolynomialGaloisMul(T3, T3, T1, Q, LDP);
+            end;
+
+            // 计算前面的加项，不能用 T3
+            BigNumberPolynomialGaloisMul(T1, F(K - 1),
+              F(K + 1), Q, LDP);    // T1 得到 Fk-1 * Fk+1
+
+            BigNumberPolynomialGaloisMul(T2, F(K), F(K), Q, LDP);
+            BigNumberPolynomialGaloisMul(T2, T2, PXP2XPX, Q, LDP);
+            BigNumberPolynomialGaloisMul(T2, T2, Y2, Q, LDP);  // T2 得到 y^2 * Fk^2 *(x^(p^2) + x^p + x)
+
+            BigNumberPolynomialGaloisSub(T1, T1, T2, Q, LDP); // T1 减后释放 T2
+
+            BigNumberPolynomialGaloisMul(T2, F(K), PAlpha, Q, LDP);
+            BigNumberPolynomialGaloisMul(T2, T2, T2, Q, LDP); // T2 得到 a^2 * Fk^2
+            BigNumberPolynomialGaloisMul(T2, T2, Y2, Q, LDP);
+            BigNumberPolynomialGaloisMul(T2, T2, Y2, Q, LDP); // T2 得到 (Y^2)^2 * a^2 * Fk^2
+
+            BigNumberPolynomialGaloisAdd(T1, T1, T2, Q, LDP); // T1 得到全减式，释放 T2
+
+            BigNumberPolynomialGaloisMul(T2, PBeta, PBeta, Q, LDP);
+            BigNumberPolynomialGaloisMul(T1, T1, T2, Q, LDP); // 全减式乘 Beta^2 后放入 T1，释放 T2
+
+            BigNumberPolynomialGaloisMul(T2, F(T), F(T), Q, LDP);        // T2 得到 Ft^2
+
+            BigNumberPolynomialGaloisPower(T2, T2, Q, Q, LDP);// T2 得到 (Ft^2)^p = Ft^2p
+
+            if T and 1 = 0 then // T 为偶数时 T2 要多乘一项 (Y^2)^p
+            begin
+              BigNumberPolynomialGaloisPower(T4, Y2, Q, Q, LDP);
+              BigNumberPolynomialGaloisMul(T2, T2, T4, Q, LDP);
+            end;
+
+            BigNumberPolynomialGaloisMul(T1, T1, T2, Q, LDP); // T1 得到加号左边的，和右边相加
+            BigNumberPolynomialGaloisAdd(P19X, T1, T3, Q, LDP);  // 加后得到 P19X
+
+            BigNumberPolynomialGaloisGreatestCommonDivisor(T1, P19X, LDP, Q);
+
+            if T1.IsOne then // 不为 1 时存在符合要求的点。为 1 时不存在，本轮 T 不符合要求，下一循环
+              Continue;
+
+            // 不为 1 时，正负 T 都符合要求，再求 P19Y
+            raise ECnEccException.Create('NOT Implemented');
+
+          end;
+        end;
+      end;
+    end;
+
+    // 求出各个余数后，用中国剩余定理求最终解
+    BigNumberChineseRemainderTheorem(Res, Ta, Pa);
+
+    // 注意求出的 T 必须满足 Hasse 定理：T 的绝对值 <= 2 * 根号 Q，如超出范围，还得修正
+    BigNumberSqrt(QMax, Q);
+    QMax.AddWord(1);
+    QMax.ShiftLeftOne;     // QMax 复用，是 2 根号 Q + 1，其绝对值必须比 Res 大
+
+    if BigNumberUnsignedCompare(Res, QMax) >= 0 then
+    begin
+      // 中国剩余定理求出的一般是最小正数，需要减去全体 Pa 的乘积
+      QMul.SetOne;
+      for J := 0 to Pa.Count - 1 do
+      begin
+        BQ.SetInt64(Pa[J]);
+        BigNumberMul(QMul, QMul, BQ);
+      end;
+
+      if Res.IsNegative then
+        BigNumberAdd(Res, Res, QMul)
+      else
+        BigNumberSub(Res, Res, QMul);
+    end;
+
+    Res.Negate;
+    BigNumberAdd(Res, Res, Q);
+    Res.AddWord(1); // Q + 1 - L
+    Result := True;
+  finally
+    FEccPolynomialPool.Recycle(PXP2X);
+    FEccPolynomialPool.Recycle(PXPX);
+    FEccPolynomialPool.Recycle(NPXP2X);
+    FEccPolynomialPool.Recycle(PXP2XPX);
+    FEccPolynomialPool.Recycle(T1);
+    FEccPolynomialPool.Recycle(T2);
+    FEccPolynomialPool.Recycle(T3);
+    FEccPolynomialPool.Recycle(T4);
+    FEccPolynomialPool.Recycle(P16);
+    FEccPolynomialPool.Recycle(P17);
+    FEccPolynomialPool.Recycle(P18);
+    FEccPolynomialPool.Recycle(P19X);
+    FEccPolynomialPool.Recycle(P19Y);
+    FEccPolynomialPool.Recycle(PAlpha);
+    FEccPolynomialPool.Recycle(PBeta);
+
+    FEccPolynomialPool.Recycle(Y2);
+    FEccPolynomialPool.Recycle(P1);
+    FEccPolynomialPool.Recycle(P2);
+
+    FEccPolynomialPool.Recycle(G);
+
+    FEccBigNumberPool.Recycle(QMax);
+    FEccBigNumberPool.Recycle(QMul);
+    FEccBigNumberPool.Recycle(BQ);
+    FEccBigNumberPool.Recycle(Q12);
+    FEccBigNumberPool.Recycle(Q32);
+    FEccBigNumberPool.Recycle(Q23);
+
+    DPs.Free;
+    Pa.Free;
+    Ta.Free;
+  end;
+end;
+
 { TCnEcc3Point }
+
+procedure TCnEcc3Point.Assign(Source: TPersistent);
+begin
+  if Source is TCnEcc3Point then
+  begin
+    BigNumberCopy(FX, (Source as TCnEcc3Point).X);
+    BigNumberCopy(FY, (Source as TCnEcc3Point).Y);
+    BigNumberCopy(FZ, (Source as TCnEcc3Point).Z);
+  end
+  else
+    inherited;
+end;
 
 constructor TCnEcc3Point.Create;
 begin
+  inherited;
   FX := TCnBigNumber.Create;
   FY := TCnBigNumber.Create;
   FZ := TCnBigNumber.Create;
@@ -6777,6 +8123,11 @@ begin
   FY.Free;
   FX.Free;
   inherited;
+end;
+
+function TCnEcc3Point.IsZero: Boolean;
+begin
+  Result := Z.IsZero;
 end;
 
 procedure TCnEcc3Point.SetX(const Value: TCnBigNumber);
@@ -6792,6 +8143,191 @@ end;
 procedure TCnEcc3Point.SetZ(const Value: TCnBigNumber);
 begin
   BigNumberCopy(FZ, Value);
+end;
+
+procedure TCnEcc3Point.SetZero;
+begin
+  X.SetZero;
+  Y.SetZero;
+  Z.SetZero;
+end;
+
+function TCnEcc3Point.ToString: string;
+begin
+  Result := CnEcc3PointToHex(Self);
+end;
+
+{ TCnEccSignature }
+
+procedure TCnEccSignature.Assign(Source: TPersistent);
+begin
+  if Source is TCnEccSignature then
+  begin
+    BigNumberCopy(FR, (Source as TCnEccSignature).R);
+    BigNumberCopy(FS, (Source as TCnEccSignature).S);
+  end
+  else
+    inherited;
+end;
+
+constructor TCnEccSignature.Create;
+begin
+  inherited;
+  FR := TCnBigNumber.Create;
+  FS := TCnBigNumber.Create;
+end;
+
+destructor TCnEccSignature.Destroy;
+begin
+  FS.Free;
+  FR.Free;
+  inherited;
+end;
+
+function TCnEccSignature.SetAsn1Hex(const Buf: AnsiString): Boolean;
+var
+  B: TBytes;
+  Reader: TCnBerReader;
+  NR, NS: TCnBerReadNode;
+begin
+  Result := False;
+  B := HexToBytes(string(Buf));
+  if Length(B) <= 1 then
+    Exit;
+
+  Reader := nil;
+  try
+    Reader := TCnBerReader.Create(PByte(@B[0]), Length(B));
+    Reader.ParseToTree;
+
+    if Reader.TotalCount = 3 then
+    begin
+      NR := Reader.Items[1];
+      NS := Reader.Items[2];
+
+      PutIndexedBigIntegerToBigNumber(NR, FR);
+      PutIndexedBigIntegerToBigNumber(NS, FS);
+      Result := True;
+    end;
+  finally
+    Reader.Free;
+  end;
+end;
+
+function TCnEccSignature.SetBase64(const Buf: AnsiString): Boolean;
+var
+  B: TBytes;
+begin
+  Result := False;
+  if Base64Decode(string(Buf), B) = ECN_BASE64_OK then
+  begin
+    SetHex(AnsiString(BytesToHex(B)));
+    Result := True;
+  end;
+end;
+
+procedure TCnEccSignature.SetHex(const Buf: AnsiString);
+var
+  C: Integer;
+begin
+  if (Length(Buf) < 4) or ((Length(Buf) mod 4) <> 0) then
+    raise ECnEccException.Create(SCnEccErrorKeyData);
+
+  // 一半一半，长度得相等
+  C := Length(Buf) div 2;
+  FR.SetHex(Copy(Buf, 1, C));
+  FS.SetHex(Copy(Buf, C + 1, MaxInt));
+end;
+
+function TCnEccSignature.ToAsn1Hex: string;
+var
+  Writer: TCnBerWriter;
+  Root: TCnBerWriteNode;
+  Stream: TMemoryStream;
+begin
+  Writer := nil;
+  Stream := nil;
+
+  try
+    Writer := TCnBerWriter.Create;
+
+    Root := Writer.AddContainerNode(CN_BER_TAG_SEQUENCE);
+    AddBigNumberToWriter(Writer, FR, Root);
+    AddBigNumberToWriter(Writer, FS, Root);
+
+    Stream := TMemoryStream.Create;
+    Writer.SaveToStream(Stream);
+
+    Result := DataToHex(Stream.Memory, Stream.Size);
+  finally
+    Writer.Free;
+    Stream.Free;
+  end;
+end;
+
+function TCnEccSignature.ToBase64(FixedLen: Integer): string;
+var
+  M: TMemoryStream;
+begin
+  M := TMemoryStream.Create;
+  try
+    FR.SaveToStream(M, FixedLen);
+    FS.SaveToStream(M, FixedLen);
+    Base64Encode(M.Memory, M.Size, Result);
+  finally
+    M.Free;
+  end;
+end;
+
+function TCnEccSignature.ToHex(FixedLen: Integer): string;
+begin
+  Result := FR.ToHex(FixedLen) + FS.ToHex(FixedLen);
+end;
+
+{ TCnEcc2Matrix }
+
+constructor TCnEcc2Matrix.Create(ARow, ACol: Integer);
+var
+  I, J: Integer;
+begin
+  inherited;
+  for I := 0 to RowCount - 1 do
+    for J := 0 to ColCount - 1 do
+      ValueObject[I, J] := TCnEccPoint.Create;
+end;
+
+function TCnEcc2Matrix.GetValueObject(Row, Col: Integer): TCnEccPoint;
+begin
+  Result := TCnEccPoint(inherited GetValueObject(Row, Col));
+end;
+
+procedure TCnEcc2Matrix.SetValueObject(Row, Col: Integer;
+  const Value: TCnEccPoint);
+begin
+  inherited SetValueObject(Row, Col, Value);
+end;
+
+{ TCnEcc3Matrix }
+
+constructor TCnEcc3Matrix.Create(ARow, ACol: Integer);
+var
+  I, J: Integer;
+begin
+  inherited;
+  for I := 0 to RowCount - 1 do
+    for J := 0 to ColCount - 1 do
+      ValueObject[I, J] := TCnEcc3Point.Create;
+end;
+
+function TCnEcc3Matrix.GetValueObject(Row, Col: Integer): TCnEcc3Point;
+begin
+  Result := TCnEcc3Point(inherited GetValueObject(Row, Col));
+end;
+
+procedure TCnEcc3Matrix.SetValueObject(Row, Col: Integer;
+  const Value: TCnEcc3Point);
+begin
+  inherited SetValueObject(Row, Col, Value);
 end;
 
 initialization

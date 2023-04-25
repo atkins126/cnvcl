@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2022 CnPack 开发组                       }
+{                   (C)Copyright 2001-2023 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -24,7 +24,7 @@ unit CnBigRational;
 * 软件名称：开发包基础库
 * 单元名称：无限精度有理数实现单元
 * 单元作者：刘啸（liuxiao@cnpack.org）
-* 备    注：用大整数的比值表示有理数
+* 备    注：用大整数的比值表示有理数，支持跨平台
 * 开发平台：PWin7 + Delphi 5.0
 * 兼容测试：暂未进行
 * 本 地 化：该单元无需本地化处理
@@ -631,8 +631,8 @@ begin
   begin
     N := Copy(Value, 1, P - 1);
     D := Copy(Value, P + 1, MaxInt);
-    FNominator.SetDec(N);
-    FDenominator.SetDec(D);
+    FNominator.SetDec(AnsiString(N));
+    FDenominator.SetDec(AnsiString(D));
     Reduce;
   end
   else
@@ -643,7 +643,7 @@ begin
       // 处理小数点
       N := Copy(Value, 1, P - 1);
       D := Copy(Value, P + 1, MaxInt);
-      FNominator.SetDec(N + D);
+      FNominator.SetDec(AnsiString(N + D));
       FDenominator.SetOne;
       for P := 1 to Length(D) do
         FDenominator.MulWord(10);
@@ -651,7 +651,7 @@ begin
     end
     else
     begin
-      FNominator.SetDec(Value);
+      FNominator.SetDec(AnsiString(Value));
       FDenominator.SetOne;
     end;
   end;
@@ -667,8 +667,8 @@ end;
 procedure TCnBigRational.SetValue(const ANominator,
   ADenominator: string);
 begin
-  FNominator.SetDec(ANominator);
-  FDenominator.SetDec(ADenominator);
+  FNominator.SetDec(AnsiString(ANominator));
+  FDenominator.SetDec(AnsiString(ADenominator));
 end;
 
 procedure TCnBigRational.SetZero;

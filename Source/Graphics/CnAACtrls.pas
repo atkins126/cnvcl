@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2022 CnPack 开发组                       }
+{                   (C)Copyright 2001-2023 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -419,7 +419,7 @@ type
     property ScrollDelay: Word read FScrollDelay write SetScrollDelay default 60;
     {* 滚动时的延时，单位为毫秒}
     property ScrollStep: Integer read FScrollStep write SetScrollStep default 1;
-    {* 一次滚动的象素数，如果设定为负数将向下滚动}
+    {* 一次滚动的像素数，如果设定为负数将向下滚动}
     property RepeatCount: TBorderWidth read FRepeatCount write SetRepeatCount default 0;
     {* 允许循环次数，指定次数的循环结束将自动停止滚动，并产生 OnComplete 事件。
      |<BR> 该值设为 0 将无限循环。}

@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2022 CnPack 开发组                       }
+{                   (C)Copyright 2001-2023 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -48,7 +48,7 @@ interface
 {$I CnPack.inc}
 
 uses
-  SysUtils, Classes, CnRandom, CnKDF, CnBase64, CnAES, CnDES;
+  SysUtils, Classes, CnNative, CnRandom, CnKDF, CnBase64, CnAES, CnDES;
 
 const
   CN_PKCS1_BLOCK_TYPE_PRIVATE_00       = 00;
@@ -92,13 +92,16 @@ function RemovePKCS1Padding(InData: Pointer; InDataLen: Integer; OutBuf: Pointer
 {* 去掉 PKCS1 的 Padding，返回成功与否。OutBuf 所指区域的可用长度需调用者自行保证
   如成功，OutLen 返回原文数据长度}
 
-procedure AddPKCS7Padding(Stream: TMemoryStream; BlockSize: Byte);
+function GetPKCS7PaddingByteLength(OrignalByteLen: Integer; BlockSize: Integer): Integer;
+{* 根据原始长度与块长度计算 PKCS7 对齐后的长度}
+
+procedure AddPKCS7Padding(Stream: TMemoryStream; BlockSize: Integer);
 {* 给数据末尾加上 PKCS7 规定的填充“几个几”的填充数据}
 
 procedure RemovePKCS7Padding(Stream: TMemoryStream);
 {* 去除 PKCS7 规定的末尾填充“几个几”的填充数据}
 
-function StrAddPKCS7Padding(const Str: AnsiString; BlockSize: Byte): AnsiString;
+function StrAddPKCS7Padding(const Str: AnsiString; BlockSize: Integer): AnsiString;
 {* 给字符串末尾加上 PKCS7 规定的填充“几个几”的填充数据}
 
 function StrRemovePKCS7Padding(const Str: AnsiString): AnsiString;
@@ -116,9 +119,7 @@ function StrAddPKCS5Padding(const Str: AnsiString): AnsiString;
 function StrRemovePKCS5Padding(const Str: AnsiString): AnsiString;
 {* 去除 PKCS5 规定的字符串末尾填充“几个几”的填充数据，遵循 PKCS7 规范但块大小固定为 8 字节}
 
-{$IFDEF TBYTES_DEFINED}
-
-procedure BytesAddPKCS7Padding(var Data: TBytes; BlockSize: Byte);
+procedure BytesAddPKCS7Padding(var Data: TBytes; BlockSize: Integer);
 {* 给字节数组末尾加上 PKCS7 规定的填充“几个几”的填充数据}
 
 procedure BytesRemovePKCS7Padding(var Data: TBytes);
@@ -129,8 +130,6 @@ procedure BytesAddPKCS5Padding(var Data: TBytes);
 
 procedure BytesRemovePKCS5Padding(var Data: TBytes);
 {* 去除 PKCS7 规定的字节数组末尾填充“几个几”的填充数据，遵循 PKCS7 规范但块大小固定为 8 字节}
-
-{$ENDIF}
 
 implementation
 
@@ -163,47 +162,6 @@ begin
     Result := A
   else
     Result := B;
-end;
-
-function StrToHex(Value: PAnsiChar; Len: Integer): AnsiString;
-var
-  I: Integer;
-begin
-  Result := '';
-  for I := 0 to Len - 1 do
-    Result := Result + IntToHex(Ord(Value[I]), 2);
-end;
-
-function HexToInt(Hex: AnsiString): Integer;
-var
-  I, Res: Integer;
-  ch: AnsiChar;
-begin
-  Res := 0;
-  for I := 0 to Length(Hex) - 1 do
-  begin
-    ch := Hex[I + 1];
-    if (ch >= '0') and (ch <= '9') then
-      Res := Res * 16 + Ord(ch) - Ord('0')
-    else if (ch >= 'A') and (ch <= 'F') then
-      Res := Res * 16 + Ord(ch) - Ord('A') + 10
-    else if (ch >= 'a') and (ch <= 'f') then
-      Res := Res * 16 + Ord(ch) - Ord('a') + 10
-    else raise Exception.Create('Error: not a Hex String');
-  end;
-  Result := Res;
-end;
-
-function HexToStr(Value: AnsiString): AnsiString;
-var
-  I: Integer;
-begin
-  Result := '';
-  for I := 1 to Length(Value) do
-  begin
-    if ((I mod 2) = 1) then
-      Result := Result + AnsiChar(HexToInt(Copy(Value, I, 2)));
-  end;
 end;
 
 function AddPKCS1Padding(PaddingType, BlockSize: Integer; Data: Pointer;
@@ -324,7 +282,18 @@ begin
   end;
 end;
 
-procedure AddPKCS7Padding(Stream: TMemoryStream; BlockSize: Byte);
+function GetPKCS7PaddingByteLength(OrignalByteLen: Integer; BlockSize: Integer): Integer;
+var
+  R: Byte;
+begin
+  R := OrignalByteLen mod BlockSize;
+  R := BlockSize - R;
+  if R = 0 then
+    R := R + BlockSize;
+  Result := OrignalByteLen + R;
+end;
+
+procedure AddPKCS7Padding(Stream: TMemoryStream; BlockSize: Integer);
 var
   R: Byte;
   Buf: array[0..255] of Byte;
@@ -366,16 +335,25 @@ begin
   end;
 end;
 
-function StrAddPKCS7Padding(const Str: AnsiString; BlockSize: Byte): AnsiString;
+function StrAddPKCS7Padding(const Str: AnsiString; BlockSize: Integer): AnsiString;
 var
+  I, L: Integer;
   R: Byte;
 begin
-  R := Length(Str) mod BlockSize;
+  L := Length(Str);
+  R := L mod BlockSize;
   R := BlockSize - R;
   if R = 0 then
     R := R + BlockSize;
 
-  Result := Str + AnsiString(StringOfChar(Chr(R), R));
+  SetLength(Result, L + R);
+  if L > 0 then
+    Move(Str[1], Result[1], L);
+
+  for I := 1 to R do
+    Result[L + I] := AnsiChar(R);
+
+  // Result := Str + AnsiString(StringOfChar(Chr(R), R));
 end;
 
 function StrRemovePKCS7Padding(const Str: AnsiString): AnsiString;
@@ -414,9 +392,7 @@ begin
   Result := StrRemovePKCS7Padding(Str);
 end;
 
-{$IFDEF TBYTES_DEFINED}
-
-procedure BytesAddPKCS7Padding(var Data: TBytes; BlockSize: Byte);
+procedure BytesAddPKCS7Padding(var Data: TBytes; BlockSize: Integer);
 var
   R: Byte;
   L, I: Integer;
@@ -457,8 +433,6 @@ begin
   BytesRemovePKCS7Padding(Data);
 end;
 
-{$ENDIF}
-
 function EncryptPemStream(KeyHash: TCnKeyHashMethod; KeyEncrypt: TCnKeyEncryptMethod;
   Stream: TStream; const Password: string; out EncryptedHead: string): Boolean;
 const
@@ -468,13 +442,13 @@ var
   Keys: array[0..31] of Byte; // 最长的 Key 也只有 32 字节
   IvStr: AnsiString;
   HexIv: string;
-  AESKey128: TAESKey128;
-  AESKey192: TAESKey192;
-  AESKey256: TAESKey256;
-  AesIv: TAESBuffer;
-  DesKey: TDESKey;
-  Des3Key: T3DESKey;
-  DesIv: TDESIv;
+  AESKey128: TCnAESKey128;
+  AESKey192: TCnAESKey192;
+  AESKey256: TCnAESKey256;
+  AesIv: TCnAESBuffer;
+  DesKey: TCnDESKey;
+  Des3Key: TCn3DESKey;
+  DesIv: TCnDESIv;
 begin
   Result := False;
 
@@ -485,7 +459,7 @@ begin
   // 生成随机 Iv
   SetLength(IvStr, ENC_TYPE_BLOCK_SIZE[KeyEncrypt]);
   CnRandomFillBytes(@(IvStr[1]), ENC_TYPE_BLOCK_SIZE[KeyEncrypt]);
-  HexIv := UpperCase(StrToHex(@(IvStr[1]), ENC_TYPE_BLOCK_SIZE[KeyEncrypt]));
+  HexIv := DataToHex(@(IvStr[1]), ENC_TYPE_BLOCK_SIZE[KeyEncrypt], True); // 要求大写
 
   EncryptedHead := ENC_HEAD_PROCTYPE + ' ' +  ENC_HEAD_PROCTYPE_NUM + ',' + ENC_HEAD_ENCRYPTED + CRLF;
   EncryptedHead := EncryptedHead + ENC_HEAD_DEK + ' ' + ENC_TYPE_STRS[KeyEncrypt]
@@ -497,12 +471,12 @@ begin
   try
     if KeyHash = ckhMd5 then
     begin
-      if not CnGetDeriveKey(Password, IvStr, @Keys[0], SizeOf(Keys)) then
+      if not CnGetDeriveKey(AnsiString(Password), IvStr, @Keys[0], SizeOf(Keys)) then
         Exit;
     end
     else if KeyHash = ckhSha256 then
     begin
-      if not CnGetDeriveKey(Password, IvStr, @Keys[0], SizeOf(Keys), ckdSha256) then
+      if not CnGetDeriveKey(AnsiString(Password), IvStr, @Keys[0], SizeOf(Keys), ckdSha256) then
         Exit;
     end
     else
@@ -511,40 +485,40 @@ begin
     case KeyEncrypt of
       ckeDES:
         begin
-          Move(Keys[0], DesKey[0], SizeOf(TDESKey));
-          Move(IvStr[1], DesIv[0], SizeOf(TDESIv));
+          Move(Keys[0], DesKey[0], SizeOf(TCnDESKey));
+          Move(IvStr[1], DesIv[0], SizeOf(TCnDESIv));
 
           DESEncryptStreamCBC(Stream, Stream.Size, DesKey, DesIv, ES);
           Result := True;
         end;
       cke3DES:
         begin
-          Move(Keys[0], Des3Key[0], SizeOf(T3DESKey));
-          Move(IvStr[1], DesIv[0], SizeOf(T3DESIv));
+          Move(Keys[0], Des3Key[0], SizeOf(TCn3DESKey));
+          Move(IvStr[1], DesIv[0], SizeOf(TCn3DESIv));
 
           TripleDESEncryptStreamCBC(Stream, Stream.Size, Des3Key, DesIv, ES);
           Result := True;
         end;
       ckeAES128:
         begin
-          Move(Keys[0], AESKey128[0], SizeOf(TAESKey128));
-          Move(IvStr[1], AesIv[0], SizeOf(TAESBuffer));
+          Move(Keys[0], AESKey128[0], SizeOf(TCnAESKey128));
+          Move(IvStr[1], AesIv[0], SizeOf(TCnAESBuffer));
 
           EncryptAESStreamCBC(Stream, Stream.Size, AESKey128, AesIv, ES);
           Result := True;
         end;
       ckeAES192:
         begin
-          Move(Keys[0], AESKey192[0], SizeOf(TAESKey192));
-          Move(IvStr[1], AesIv[0], SizeOf(TAESBuffer));
+          Move(Keys[0], AESKey192[0], SizeOf(TCnAESKey192));
+          Move(IvStr[1], AesIv[0], SizeOf(TCnAESBuffer));
 
           EncryptAESStreamCBC(Stream, Stream.Size, AESKey192, AesIv, ES);
           Result := True;
         end;
       ckeAES256:
         begin
-          Move(Keys[0], AESKey256[0], SizeOf(TAESKey256));
-          Move(IvStr[1], AesIv[0], SizeOf(TAESBuffer));
+          Move(Keys[0], AESKey256[0], SizeOf(TCnAESKey256));
+          Move(IvStr[1], AesIv[0], SizeOf(TCnAESBuffer));
 
           EncryptAESStreamCBC(Stream, Stream.Size, AESKey256, AesIv, ES);
           Result := True;
@@ -569,14 +543,14 @@ function DecryptPemString(const S, M1, M2, HexIv, Password: string; Stream: TMem
 var
   DS: TMemoryStream;
   Keys: array[0..31] of Byte; // 最长的 Key 也只有 32 字节
-  AESKey128: TAESKey128;
-  AESKey192: TAESKey192;
-  AESKey256: TAESKey256;
+  AESKey128: TCnAESKey128;
+  AESKey192: TCnAESKey192;
+  AESKey256: TCnAESKey256;
   IvStr: AnsiString;
-  AesIv: TAESBuffer;
-  DesKey: TDESKey;
-  Des3Key: T3DESKey;
-  DesIv: TDESIv;
+  AesIv: TCnAESBuffer;
+  DesKey: TCnDESKey;
+  Des3Key: TCn3DESKey;
+  DesIv: TCnDESIv;
 begin
   Result := False;
   DS := nil;
@@ -586,22 +560,24 @@ begin
 
   try
     DS := TMemoryStream.Create;
-    if BASE64_OK <> Base64Decode(S, DS, False) then
+    if ECN_BASE64_OK <> Base64Decode(AnsiString(S), DS, False) then
       Exit;
 
     DS.Position := 0;
-    IvStr := HexToStr(HexIv);
+    SetLength(IvStr, HexToData(HexIv));
+    if Length(IvStr) > 0 then
+      HexToData(HexIv, @IvStr[1]);
 
     // 根据密码明文与 Salt 以及 Hash 算法计算出加解密的 Key
     FillChar(Keys[0], SizeOf(Keys), 0);
     if KeyHash = ckhMd5 then
     begin
-      if not CnGetDeriveKey(Password, IvStr, @Keys[0], SizeOf(Keys)) then
+      if not CnGetDeriveKey(AnsiString(Password), IvStr, @Keys[0], SizeOf(Keys)) then
         Exit;
     end
     else if KeyHash = ckhSha256 then
     begin
-      if not CnGetDeriveKey(Password, IvStr, @Keys[0], SizeOf(Keys), ckdSha256) then
+      if not CnGetDeriveKey(AnsiString(Password), IvStr, @Keys[0], SizeOf(Keys), ckdSha256) then
         Exit;
     end
     else
@@ -611,8 +587,8 @@ begin
     if (M1 = ENC_TYPE_AES256) and (M2 = ENC_BLOCK_CBC) then
     begin
       // 解开 AES-256-CBC 加密的密文
-      Move(Keys[0], AESKey256[0], SizeOf(TAESKey256));
-      Move(IvStr[1], AesIv[0], Min(SizeOf(TAESBuffer), Length(IvStr)));
+      Move(Keys[0], AESKey256[0], SizeOf(TCnAESKey256));
+      Move(IvStr[1], AesIv[0], Min(SizeOf(TCnAESBuffer), Length(IvStr)));
 
       DecryptAESStreamCBC(DS, DS.Size, AESKey256, AesIv, Stream);
       RemovePKCS7Padding(Stream);
@@ -621,8 +597,8 @@ begin
     else if (M1 = ENC_TYPE_AES192) and (M2 = ENC_BLOCK_CBC) then
     begin
       // 解开 AES-192-CBC 加密的密文
-      Move(Keys[0], AESKey192[0], SizeOf(TAESKey192));
-      Move(IvStr[1], AesIv[0], Min(SizeOf(TAESBuffer), Length(IvStr)));
+      Move(Keys[0], AESKey192[0], SizeOf(TCnAESKey192));
+      Move(IvStr[1], AesIv[0], Min(SizeOf(TCnAESBuffer), Length(IvStr)));
 
       DecryptAESStreamCBC(DS, DS.Size, AESKey192, AesIv, Stream);
       RemovePKCS7Padding(Stream);
@@ -631,8 +607,8 @@ begin
     else if (M1 = ENC_TYPE_AES128) and (M2 = ENC_BLOCK_CBC) then
     begin
       // 解开 AES-128-CBC 加密的密文，但 D5 下貌似可能碰到编译器的 Bug 导致出 AV。
-      Move(Keys[0], AESKey128[0], SizeOf(TAESKey128));
-      Move(IvStr[1], AesIv[0], Min(SizeOf(TAESBuffer), Length(IvStr)));
+      Move(Keys[0], AESKey128[0], SizeOf(TCnAESKey128));
+      Move(IvStr[1], AesIv[0], Min(SizeOf(TCnAESBuffer), Length(IvStr)));
 
       DecryptAESStreamCBC(DS, DS.Size, AESKey128, AesIv, Stream);
       RemovePKCS7Padding(Stream);
@@ -641,8 +617,8 @@ begin
     else if (M1 = ENC_TYPE_DES) and (M2 = ENC_BLOCK_CBC) then
     begin
       // 解开 DES-CBC 加密的密文
-      Move(Keys[0], DesKey[0], SizeOf(TDESKey));
-      Move(IvStr[1], DesIv[0], Min(SizeOf(TDESIv), Length(IvStr)));
+      Move(Keys[0], DesKey[0], SizeOf(TCnDESKey));
+      Move(IvStr[1], DesIv[0], Min(SizeOf(TCnDESIv), Length(IvStr)));
 
       DESDecryptStreamCBC(DS, DS.Size, DesKey, DesIv, Stream);
       RemovePKCS7Padding(Stream);
@@ -651,8 +627,8 @@ begin
     else if (M1 = ENC_TYPE_3DES) and (M2 = ENC_BLOCK_CBC) then
     begin
       // 解开 3DES-CBC 加密的密文
-      Move(Keys[0], Des3Key[0], SizeOf(T3DESKey));
-      Move(IvStr[1], DesIv[0], Min(SizeOf(T3DESIv), Length(IvStr)));
+      Move(Keys[0], Des3Key[0], SizeOf(TCn3DESKey));
+      Move(IvStr[1], DesIv[0], Min(SizeOf(TCn3DESIv), Length(IvStr)));
 
       TripleDESDecryptStreamCBC(DS, DS.Size, Des3Key, DesIv, Stream);
       RemovePKCS7Padding(Stream);
@@ -784,7 +760,7 @@ begin
 
           // To De Base64 S
           MemoryStream.Clear;
-          Result := (BASE64_OK = Base64Decode(S, MemoryStream, False));
+          Result := (ECN_BASE64_OK = Base64Decode(AnsiString(S), MemoryStream, False));
         end;
       end;
     finally
@@ -850,7 +826,7 @@ begin
         Exit;
     end;
 
-    if Base64_OK = Base64Encode(MemoryStream, S) then
+    if ECN_BASE64_OK = Base64Encode(MemoryStream, S) then
     begin
       List := TStringList.Create;
       try

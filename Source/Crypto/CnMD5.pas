@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2022 CnPack 开发组                       }
+{                   (C)Copyright 2001-2023 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -73,27 +73,26 @@ interface
 {$I CnPack.inc}
 
 uses
-  Classes, SysUtils {$IFDEF MSWINDOWS}, Windows {$ENDIF};
+  Classes, SysUtils, CnNative {$IFDEF MSWINDOWS}, Windows {$ENDIF};
 
 type
-  PMD5Digest = ^TMD5Digest;
+  PMD5Digest = ^TCnMD5Digest;
 
-  TMD5Count = array[0..1] of LongWord;
-  TMD5State = array[0..3] of LongWord;
-  TMD5Block = array[0..15] of LongWord;
-  TMD5CBits = array[0..7] of Byte;
-  TMD5Digest = array[0..15] of Byte;
-  TMD5Buffer = array[0..63] of Byte;
+  TCnMD5Count = array[0..1] of Cardinal;
+  TCnMD5State = array[0..3] of Cardinal;
+  TCnMD5Block = array[0..15] of Cardinal;
+  TCnMD5Digest = array[0..15] of Byte;
+  TCnMD5Buffer = array[0..63] of Byte;
 
-  TMD5Context = record
-    State   : TMD5State;
-    Count   : TMD5Count;
-    Buffer  : TMD5Buffer;
+  TCnMD5Context = record
+    State   : TCnMD5State;
+    Count   : TCnMD5Count;
+    Buffer  : TCnMD5Buffer;
     Ipad    : array[0..63] of Byte;      {!< HMAC: inner padding        }
     Opad    : array[0..63] of Byte;      {!< HMAC: outer padding        }
   end;
 
-  TMD5CalcProgressFunc = procedure (ATotal, AProgress: Int64;
+  TCnMD5CalcProgressFunc = procedure (ATotal, AProgress: Int64;
     var Cancel: Boolean) of object;
   {* 进度回调事件类型声明}
 
@@ -101,50 +100,46 @@ type
 // 用户 API 函数定义
 //----------------------------------------------------------------
 
-function MD5Buffer(const Buffer; Count: LongWord): TMD5Digest;
+function MD5Buffer(const Buffer; Count: Cardinal): TCnMD5Digest;
 {* 对数据块进行 MD5 计算
  |<PRE>
    const Buffer     - 要计算的数据块，一般传个地址
-   Count: LongWord  - 数据块长度
+   Count: Cardinal  - 数据块长度
  |</PRE>}
 
-{$IFDEF TBYTES_DEFINED}
-
-function MD5Bytes(Data: TBytes): TMD5Digest;
+function MD5Bytes(Data: TBytes): TCnMD5Digest;
 {* 对 TBytes 进行 MD5 计算
  |<PRE>
    Data     - 要计算的字节数组
  |</PRE>}
 
-{$ENDIF}
-
-function MD5String(const Str: string): TMD5Digest;
+function MD5String(const Str: string): TCnMD5Digest;
 {* 对 String 类型数据进行 MD5 计算。注意 D2009 或以上版本的 string 为 UnicodeString，
    代码中会将其转换成 AnsiString 进行计算
  |<PRE>
    Str: string       - 要计算的字符串
  |</PRE>}
 
-function MD5StringA(const Str: AnsiString): TMD5Digest;
+function MD5StringA(const Str: AnsiString): TCnMD5Digest;
 {* 对 AnsiString 类型数据进行 MD5 计算
  |<PRE>
    Str: AnsiString       - 要计算的字符串
  |</PRE>}
 
-function MD5StringW(const Str: WideString): TMD5Digest;
+function MD5StringW(const Str: WideString): TCnMD5Digest;
 {* 对 WideString 类型数据进行 MD5 计算，计算前会调用 WideCharToMultyByte 进行转换
  |<PRE>
    Str: WideString       - 要计算的宽字符串
  |</PRE>}
 
-function MD5UnicodeString(const Str: {$IFDEF UNICODE} string {$ELSE} WideString {$ENDIF}): TMD5Digest;
+function MD5UnicodeString(const Str: {$IFDEF UNICODE} string {$ELSE} WideString {$ENDIF}): TCnMD5Digest;
 {* 对 UnicodeString 类型数据进行直接的 MD5 计算，不进行转换
  |<PRE>
    Str: UnicodeString/WideString       - 要计算的宽字符串
  |</PRE>}
 
 function MD5File(const FileName: string;
-  CallBack: TMD5CalcProgressFunc = nil): TMD5Digest;
+  CallBack: TCnMD5CalcProgressFunc = nil): TCnMD5Digest;
 {* 对指定文件内容进行 MD5 计算
  |<PRE>
    FileName: string  - 要计算的文件名
@@ -152,36 +147,47 @@ function MD5File(const FileName: string;
  |</PRE>}
 
 function MD5Stream(Stream: TStream;
-  CallBack: TMD5CalcProgressFunc = nil): TMD5Digest;
+  CallBack: TCnMD5CalcProgressFunc = nil): TCnMD5Digest;
 {* 对指定流数据进行 MD5 计算
  |<PRE>
    Stream: TStream  - 要计算的流内容
    CallBack: TMD5CalcProgressFunc - 进度回调函数，默认为空
  |</PRE>}
 
-function MD5Print(const Digest: TMD5Digest): string;
+function MD5Print(const Digest: TCnMD5Digest): string;
 {* 以十六进制格式输出 MD5 计算值
  |<PRE>
    Digest: TMD5Digest  - 指定的 MD5 计算值
  |</PRE>}
 
-function MD5Match(const D1, D2: TMD5Digest): Boolean;
+function MD5Match(const D1, D2: TCnMD5Digest): Boolean;
 {* 比较两个 MD5 计算值是否相等
  |<PRE>
    D1: TMD5Digest   - 需要比较的 MD5 计算值
    D2: TMD5Digest   - 需要比较的 MD5 计算值
  |</PRE>}
 
-function MD5DigestToStr(aDig: TMD5Digest): string;
+function MD5DigestToStr(aDig: TCnMD5Digest): string;
 {* MD5 计算值转 string
  |<PRE>
    aDig: TMD5Digest   - 需要转换的 MD5 计算值
  |</PRE>}
 
 procedure MD5Hmac(Key: PAnsiChar; KeyLength: Integer; Input: PAnsiChar;
-  Length: LongWord; var Output: TMD5Digest);
+  ByteLength: Cardinal; var Output: TCnMD5Digest);
+{* Hash-based Message Authentication Code (based on MD5)}
 
-{* Hash-based Message Authentication Code (based on MD5) }
+// 以下三个函数用于外部持续对数据进行零散的 MD5 计算，MD5Update 可多次被调用
+
+procedure MD5Init(var Context: TCnMD5Context);
+{* 初始化一轮 MD5 计算上下文，准备计算 MD5 结果}
+
+procedure MD5Update(var Context: TCnMD5Context; Input: PAnsiChar; ByteLength: Cardinal);
+{* 以初始化后的上下文对一块数据进行 MD5 计算。
+  可多次调用以连续计算不同的数据块，无需将不同的数据块拼凑在连续的内存中}
+
+procedure MD5Final(var Context: TCnMD5Context; var Digest: TCnMD5Digest);
+{* 结束本轮计算，将 MD5 结果返回至 Digest 中}
 
 implementation
 
@@ -192,8 +198,11 @@ const
   HMAC_MD5_BLOCK_SIZE_BYTE = 64;
   HMAC_MD5_OUTPUT_LENGTH_BYTE = 16;
 
+type
+  TMD5CBits = array[0..7] of Byte;
+
 var
-  PADDING: TMD5Buffer = (
+  PADDING: TCnMD5Buffer = (
     $80, $00, $00, $00, $00, $00, $00, $00,
     $00, $00, $00, $00, $00, $00, $00, $00,
     $00, $00, $00, $00, $00, $00, $00, $00,
@@ -204,78 +213,53 @@ var
     $00, $00, $00, $00, $00, $00, $00, $00
   );
 
-function F(x, y, z: LongWord): LongWord;
+function F(x, y, z: Cardinal): Cardinal;
 begin
   Result := (x and y) or ((not x) and z);
-//  AND EDX, EAX
-//  NOT EAX
-//  AND EAX, ECX
-//  OR EAX, EDX
 end;
 
-function G(x, y, z: LongWord): LongWord;
+function G(x, y, z: Cardinal): Cardinal;
 begin
   Result := (x and z) or (y and (not z));
-//  AND EAX, ECX
-//  NOT ECX
-//  AND EDX, ECX
-//  OR EAX, EDX
 end;
 
-function H(x, y, z: LongWord): LongWord;
+function H(x, y, z: Cardinal): Cardinal;
 begin
   Result := x xor y xor z;
-//  XOR EAX, EDX
-//  XOR EAX, ECX
 end;
 
-function I(x, y, z: LongWord): LongWord;
+function I(x, y, z: Cardinal): Cardinal;
 begin
   Result := y xor (x or (not z));
-//  NOT ECX
-//  OR EAX, ECX
-//  XOR EAX, EDX
 end;
 
-
-procedure ROT(var x: LongWord; n: BYTE);
+procedure ROT(var x: Cardinal; n: BYTE);
 begin
   x := (x shl n) or (x shr (32 - n));
-//  PUSH EBX
-//  MOV CL, $20
-//  SUB CL, DL
-//  MOV EBX, [EAX]
-//  SHR EBX, CL
-//  MOV ECX, EDX
-//  MOV EDX, [EAX]
-//  SHL EDX, CL
-//  OR EBX, EDX
-//  MOV [EAX], EBX
-//  POP EBX
 end;
 
-procedure FF(var a: LongWord; b, c, d, x: LongWord; s: BYTE; ac: LongWord);
+procedure FF(var a: Cardinal; b, c, d, x: Cardinal; s: BYTE; ac: Cardinal);
 begin
   Inc(a, F(b, c, d) + x + ac);
   ROT(a, s);
   Inc(a, b);
 end;
 
-procedure GG(var a: LongWord; b, c, d, x: LongWord; s: BYTE; ac: LongWord);
+procedure GG(var a: Cardinal; b, c, d, x: Cardinal; s: BYTE; ac: Cardinal);
 begin
   Inc(a, G(b, c, d) + x + ac);
   ROT(a, s);
   Inc(a, b);
 end;
 
-procedure HH(var a: LongWord; b, c, d, x: LongWord; s: BYTE; ac: LongWord);
+procedure HH(var a: Cardinal; b, c, d, x: Cardinal; s: BYTE; ac: Cardinal);
 begin
   Inc(a, H(b, c, d) + x + ac);
   ROT(a, s);
   Inc(a, b);
 end;
 
-procedure II(var a: LongWord; b, c, d, x: LongWord; s: BYTE; ac: LongWord);
+procedure II(var a: Cardinal; b, c, d, x: Cardinal; s: BYTE; ac: Cardinal);
 begin
   Inc(a, I(b, c, d) + x + ac);
   ROT(a, s);
@@ -283,11 +267,11 @@ begin
 end;
 
 // Encode Count bytes at Source into (Count / 4) DWORDs at Target
-procedure Encode(Source, Target: pointer; Count: LongWord);
+procedure Encode(Source, Target: Pointer; Count: Cardinal);
 var
   S: PByte;
-  T: PLongWord;
-  I: LongWord;
+  T: PCardinal;
+  I: Cardinal;
 begin
   S := Source;
   T := Target;
@@ -306,11 +290,11 @@ begin
 end;
 
 // Decode Count DWORDs at Source into (Count * 4) Bytes at Target
-procedure Decode(Source, Target: pointer; Count: LongWord);
+procedure Decode(Source, Target: Pointer; Count: Cardinal);
 var
-  S: PLongWord;
+  S: PCardinal;
   T: PByte;
-  I: LongWord;
+  I: Cardinal;
 begin
   S := Source;
   T := Target;
@@ -329,10 +313,10 @@ begin
 end;
 
 // Transform State according to first 64 bytes at Buffer
-procedure Transform(Buffer: pointer; var State: TMD5State);
+procedure Transform(Buffer: Pointer; var State: TCnMD5State);
 var
-  a, b, c, d: LongWord;
-  Block: TMD5Block;
+  a, b, c, d: Cardinal;
+  Block: TCnMD5Block;
 begin
   Encode(Buffer, @Block, 64);
   a := State[0];
@@ -410,7 +394,7 @@ begin
 end;
 
 // Initialize given Context
-procedure MD5Init(var Context: TMD5Context);
+procedure MD5Init(var Context: TCnMD5Context);
 begin
   with Context do
   begin
@@ -421,32 +405,32 @@ begin
     Count[0] := 0;
     Count[1] := 0;
     // ZeroMemory(@Buffer, SizeOf(TMD5Buffer));
-    FillChar(Buffer, SizeOf(TMD5Buffer), 0);
+    FillChar(Buffer, SizeOf(TCnMD5Buffer), 0);
   end;
 end;
 
 // Update given Context to include Length bytes of Input
-procedure MD5Update(var Context: TMD5Context; Input: PAnsiChar; Length: LongWord);
+procedure MD5Update(var Context: TCnMD5Context; Input: PAnsiChar; ByteLength: Cardinal);
 var
-  Index: LongWord;
-  PartLen: LongWord;
-  I: LongWord;
+  Index: Cardinal;
+  PartLen: Cardinal;
+  I: Cardinal;
 begin
   with Context do
   begin
-    Index := (Count[0] shr 3) and $3f;
-    Inc(Count[0], Length shl 3);
-    if Count[0] < (Length shl 3) then Inc(Count[1]);
-    Inc(Count[1], Length shr 29);
+    Index := (Count[0] shr 3) and $3F;
+    Inc(Count[0], ByteLength shl 3);
+    if Count[0] < (ByteLength shl 3) then Inc(Count[1]);
+    Inc(Count[1], ByteLength shr 29);
   end;
 
   PartLen := 64 - Index;
-  if Length >= PartLen then
+  if ByteLength >= PartLen then
   begin
     Move(Input^, Context.Buffer[Index], PartLen);
     Transform(@Context.Buffer, Context.State);
     I := PartLen;
-    while I + 63 < Length do
+    while I + 63 < ByteLength do
     begin
       Transform(@Input[I], Context.State);
       Inc(I, 64);
@@ -456,10 +440,10 @@ begin
   else
     I := 0;
 
-  Move(Input[I], Context.Buffer[Index], Length - I);
+  Move(Input[I], Context.Buffer[Index], ByteLength - I);
 end;
 
-procedure MD5UpdateW(var Context: TMD5Context; Input: PWideChar; CharLength: LongWord);
+procedure MD5UpdateW(var Context: TCnMD5Context; Input: PWideChar; CharLength: Cardinal);
 var
 {$IFDEF MSWINDOWS}
   pContent: PAnsiChar;
@@ -486,11 +470,11 @@ begin
 end;
 
 // Finalize given Context, create Digest
-procedure MD5Final(var Context: TMD5Context; var Digest: TMD5Digest);
+procedure MD5Final(var Context: TCnMD5Context; var Digest: TCnMD5Digest);
 var
   Bits: TMD5CBits;
-  Index: LongWord;
-  PadLen: LongWord;
+  Index: Cardinal;
+  PadLen: Cardinal;
 begin
   Decode(@Context.Count, @Bits, 2);
   Index := (Context.Count[0] shr 3) and $3f;
@@ -504,9 +488,9 @@ begin
 end;
 
 function InternalMD5Stream(Stream: TStream; const BufSize: Cardinal; var D:
-  TMD5Digest; CallBack: TMD5CalcProgressFunc = nil): Boolean;
+  TCnMD5Digest; CallBack: TCnMD5CalcProgressFunc = nil): Boolean;
 var
-  Context: TMD5Context;
+  Context: TCnMD5Context;
   Buf: PAnsiChar;
   BufLen: Cardinal;
   Size: Int64;
@@ -559,30 +543,26 @@ end;
 //----------------------------------------------------------------
 
 // 对数据块进行 MD5 计算
-function MD5Buffer(const Buffer; Count: Longword): TMD5Digest;
+function MD5Buffer(const Buffer; Count: Cardinal): TCnMD5Digest;
 var
-  Context: TMD5Context;
+  Context: TCnMD5Context;
 begin
   MD5Init(Context);
   MD5Update(Context, PAnsiChar(Buffer), Count);
   MD5Final(Context, Result);
 end;
 
-{$IFDEF TBYTES_DEFINED}
-
-function MD5Bytes(Data: TBytes): TMD5Digest;
+function MD5Bytes(Data: TBytes): TCnMD5Digest;
 var
-  Context: TMD5Context;
+  Context: TCnMD5Context;
 begin
   MD5Init(Context);
   MD5Update(Context, PAnsiChar(@Data[0]), Length(Data));
   MD5Final(Context, Result);
 end;
 
-{$ENDIF}
-
 // 对 String 类型数据进行 MD5 计算
-function MD5String(const Str: string): TMD5Digest;
+function MD5String(const Str: string): TCnMD5Digest;
 var
   AStr: AnsiString;
 begin
@@ -591,9 +571,9 @@ begin
 end;
 
 // 对 AnsiString 类型数据进行 MD5 计算
-function MD5StringA(const Str: AnsiString): TMD5Digest;
+function MD5StringA(const Str: AnsiString): TCnMD5Digest;
 var
-  Context: TMD5Context;
+  Context: TCnMD5Context;
 begin
   MD5Init(Context);
   MD5Update(Context, PAnsiChar(Str), Length(Str));
@@ -601,9 +581,9 @@ begin
 end;
 
 // 对 WideString 类型数据进行 MD5 计算
-function MD5StringW(const Str: WideString): TMD5Digest;
+function MD5StringW(const Str: WideString): TCnMD5Digest;
 var
-  Context: TMD5Context;
+  Context: TCnMD5Context;
 begin
   MD5Init(Context);
   MD5UpdateW(Context, PWideChar(Str), Length(Str));
@@ -611,9 +591,9 @@ begin
 end;
 
 // 对 UnicodeString 类型数据进行直接的 MD5 计算，不进行转换
-function MD5UnicodeString(const Str: {$IFDEF UNICODE} string {$ELSE} WideString {$ENDIF}): TMD5Digest;
+function MD5UnicodeString(const Str: {$IFDEF UNICODE} string {$ELSE} WideString {$ENDIF}): TCnMD5Digest;
 var
-  Context: TMD5Context;
+  Context: TCnMD5Context;
 begin
   MD5Init(Context);
   MD5Update(Context, PAnsiChar(@Str[1]), Length(Str) * SizeOf(WideChar));
@@ -622,13 +602,13 @@ end;
 
 // 对指定文件内容进行 MD5 计算
 function MD5File(const FileName: string;
-  CallBack: TMD5CalcProgressFunc): TMD5Digest;
+  CallBack: TCnMD5CalcProgressFunc): TCnMD5Digest;
 var
 {$IFDEF MSWINDOWS}
   FileHandle: THandle;
   MapHandle: THandle;
   ViewPointer: Pointer;
-  Context: TMD5Context;
+  Context: TCnMD5Context;
 {$ENDIF}
   Stream: TStream;
   FileIsZeroSize: Boolean;
@@ -719,27 +699,19 @@ end;
 
 // 对指定流进行 MD5 计算
 function MD5Stream(Stream: TStream;
-  CallBack: TMD5CalcProgressFunc = nil): TMD5Digest;
+  CallBack: TCnMD5CalcProgressFunc = nil): TCnMD5Digest;
 begin
   InternalMD5Stream(Stream, 4096 * 1024, Result, CallBack);
 end;
 
 // 以十六进制格式输出 MD5 计算值
-function MD5Print(const Digest: TMD5Digest): string;
-var
-  I: Byte;
-const
-  Digits: array[0..15] of AnsiChar = ('0', '1', '2', '3', '4', '5', '6', '7',
-                                  '8', '9', 'A', 'B', 'C', 'D', 'E', 'F');
+function MD5Print(const Digest: TCnMD5Digest): string;
 begin
-  Result := '';
-  for I := 0 to 15 do
-    Result := Result + {$IFDEF UNICODE}string{$ENDIF}(Digits[(Digest[I] shr 4) and $0F] +
-              Digits[Digest[I] and $0F]);
+  Result := DataToHex(@Digest[0], SizeOf(TCnMD5Digest));
 end;
 
 // 比较两个 MD5 计算值是否相等
-function MD5Match(const D1, D2: TMD5Digest): Boolean;
+function MD5Match(const D1, D2: TCnMD5Digest): Boolean;
 var
   I: Integer;
 begin
@@ -753,7 +725,7 @@ begin
 end;
 
 // MD5 计算值转 string
-function MD5DigestToStr(aDig: TMD5Digest): string;
+function MD5DigestToStr(aDig: TCnMD5Digest): string;
 var
   I: Integer;
 begin
@@ -762,10 +734,10 @@ begin
     Result[I] := Chr(aDig[I - 1]);
 end;
 
-procedure MD5HmacInit(var Ctx: TMD5Context; Key: PAnsiChar; KeyLength: Integer);
+procedure MD5HmacInit(var Ctx: TCnMD5Context; Key: PAnsiChar; KeyLength: Integer);
 var
   I: Integer;
-  Sum: TMD5Digest;
+  Sum: TCnMD5Digest;
 begin
   if KeyLength > HMAC_MD5_BLOCK_SIZE_BYTE then
   begin
@@ -787,15 +759,15 @@ begin
   MD5Update(Ctx, @(Ctx.Ipad[0]), HMAC_MD5_BLOCK_SIZE_BYTE);
 end;
 
-procedure MD5HmacUpdate(var Ctx: TMD5Context; Input: PAnsiChar; Length: LongWord);
+procedure MD5HmacUpdate(var Ctx: TCnMD5Context; Input: PAnsiChar; Length: Cardinal);
 begin
   MD5Update(Ctx, Input, Length);
 end;
 
-procedure MD5HmacFinal(var Ctx: TMD5Context; var Output: TMD5Digest);
+procedure MD5HmacFinal(var Ctx: TCnMD5Context; var Output: TCnMD5Digest);
 var
   Len: Integer;
-  TmpBuf: TMD5Digest;
+  TmpBuf: TCnMD5Digest;
 begin
   Len := HMAC_MD5_OUTPUT_LENGTH_BYTE;
   MD5Final(Ctx, TmpBuf);
@@ -806,12 +778,12 @@ begin
 end;
 
 procedure MD5Hmac(Key: PAnsiChar; KeyLength: Integer; Input: PAnsiChar;
-  Length: LongWord; var Output: TMD5Digest);
+  ByteLength: Cardinal; var Output: TCnMD5Digest);
 var
-  Ctx: TMD5Context;
+  Ctx: TCnMD5Context;
 begin
   MD5HmacInit(Ctx, Key, KeyLength);
-  MD5HmacUpdate(Ctx, Input, Length);
+  MD5HmacUpdate(Ctx, Input, ByteLength);
   MD5HmacFinal(Ctx, Output);
 end;
 

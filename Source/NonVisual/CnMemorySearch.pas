@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2022 CnPack 开发组                       }
+{                   (C)Copyright 2001-2023 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -40,7 +40,7 @@ interface
 {$IFDEF WIN32}
 
 uses
-  Classes, SysUtils, Tlhelp32, Windows, CnNativeDecl;
+  Classes, SysUtils, Tlhelp32, Windows, CnNative;
 
 type
   TSearchMethodList = (smlSearchMemory, smlSearchFile); //搜索方法
@@ -177,7 +177,7 @@ begin
   CopyMemory(@_DosHead, aFileStream.Memory, Sizeof(_DosHead));
   if _DosHead.e_magic = IMAGE_DOS_SIGNATURE then
   begin
-    CopyMemory(@_NtHead, Pointer(DWORD(aFileStream.Memory) + _DosHead._lfanew), SizeOf(_NtHead));
+    CopyMemory(@_NtHead, Pointer(TCnNativeInt(aFileStream.Memory) + _DosHead._lfanew), SizeOf(_NtHead));
     Result.CodeHeadSize := _NtHead.OptionalHeader.SizeOfHeaders;
     Result.CodeStartAddr := _NtHead.OptionalHeader.SizeOfHeaders + 1;
     Result.CodeSize := _NtHead.OptionalHeader.SizeOfCode;
@@ -222,7 +222,7 @@ begin
           begin
 
             ReadProcessMemory(_Handle,
-              Pointer(DWORD(_Me32.modBaseAddr) + _DosHead._lfanew),
+              Pointer(TCnNativeInt(_Me32.modBaseAddr) + _DosHead._lfanew),
               @_NtHead, SizeOf(_NtHead),
               _lpr);
 
@@ -251,7 +251,7 @@ begin
 
   for _ItemIndex := 0 to FOwner.GetCount - 1 do //枚举所有待查数据表内数据
   begin
-    _FileName := FOwner.FDataList[_ItemIndex].FileName; //内存搜索不需要全路径名
+    _FileName := string(FOwner.FDataList[_ItemIndex].FileName); //内存搜索不需要全路径名
     _ModuleInfo := GetModuleInfo(_FileName); //取得模块信息
     if (_ModuleInfo.CodeStartAddr <= 0) or (_ModuleInfo.CodeSize <= 0) then
     begin
@@ -302,7 +302,7 @@ begin
   try
     for _ItemIndex := 0 to FOwner.GetCount - 1 do //枚举所有待查数据表内数据
     begin
-      _FileName := FOwner.Directory + FOwner.FDataList[_ItemIndex].FileName;
+      _FileName := FOwner.Directory + string(FOwner.FDataList[_ItemIndex].FileName);
       if not FileExists(_FileName) then //文件不存在
       begin
         FOwner.DoErrEvent(elFileErr, Format('%s,文件打开错误!', [FOwner.FDataList[_ItemIndex].FileName]));

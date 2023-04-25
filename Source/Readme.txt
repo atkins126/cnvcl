@@ -56,11 +56,14 @@ cnpack\Source 目录内容说明：
   CnFitCurve.pas
     曲线拟合实现单元
 
-  CnFloatConvert.pas
+  CnFloat.pas
     浮点数转换为二、八、十六进制的实现单元
 
   CnFmxUtils.pas
     FMX 辅助库单元
+
+  CnGB18030.pas
+    支持 GB18030 中文大字符集处理以及与 Unicode 互相转换的工具单元
 
   CnGraph.pas
     有向图与无向图实现单元
@@ -92,6 +95,9 @@ cnpack\Source 目录内容说明：
   CnLinkedList.pas
     双向链表实现单元
 
+  CnMath.pas
+    数学计算库
+
   CnMatrix.pas
     整数以及有理数矩阵运算的实现单元
 
@@ -116,6 +122,9 @@ cnpack\Source 目录内容说明：
   CnPackRegister.pas
     组件包注册单元
 
+  CnPE.pas
+    PE 文件解析实现单元
+
   CnPropEditors.pas
     开发包属性组件编辑器
 
@@ -124,6 +133,9 @@ cnpack\Source 目录内容说明：
 
   CnRopes.pas
     Ropes 数据结构实现单元
+
+  CnRTL.pas
+    运行期异常捕捉实现单元
 
   CnShellUtils.pas
     Shell 工具单元
@@ -179,9 +191,15 @@ cnpack\Source 目录内容说明：
   CnZip.pas
     Zip 压缩文件实现单元
 
-              58 文件
+              66 文件
 
 \Crypto - 加解密算法目录
+
+  Cn25519.pas
+    Curve25519/Ed25519 系列椭圆曲线实现单元
+
+  CnAEAD.pas
+    AEAD 关联数据认证加密算法单元
 
   CnAES.pas
     AES 算法单元
@@ -197,6 +215,9 @@ cnpack\Source 目录内容说明：
 
   CnCertificateAuthority.pas
     证书签名验证的实现单元
+
+  CnChaCha20.pas
+    ChaCha20 算法实现单元
 
   CnComplex.pas
     浮点复数实现单元
@@ -214,7 +235,13 @@ cnpack\Source 目录内容说明：
     椭圆曲线加密算法实现单元
 
   CnFEC.pas
-    前向纠错编码解码单元的部分实现
+    前向纠错编码解码算法的部分实现单元
+
+  CnFNV.pas
+    FNV 杂凑算法的实现单元
+
+  CnInt128.pas
+    128 位整数及其运算实现单元
 
   CnKDF.pas
     密码生成算法单元
@@ -222,17 +249,20 @@ cnpack\Source 目录内容说明：
   CnMD5.pas
     MD5 算法单元
 
-  CnNativeDecl.pas
+  CnNative.pas
     Win32/64 的部分通用声明单元
 
   CnOTP.pas
     动态口令实现单元
 
-  CnPaillier
+  CnPaillier.pas
     加法同态 Paillier 算法实现单元
 
   CnPemUtils.pas
     PEM 格式处理工具单元
+
+  CnPoly1305.pas
+    Poly1305 算法实现单元
 
   CnPolynomial.pas
     多项式运算单元
@@ -246,7 +276,7 @@ cnpack\Source 目录内容说明：
   CnRSA.pas
     RSA 算法实现单元
 
-  CnSecretSharing
+  CnSecretSharing.pas
     秘密共享场景的 Shamir 门限方案实现单元
 
   CnSHA1.pas
@@ -276,7 +306,7 @@ cnpack\Source 目录内容说明：
   CnZUC.pas
     祖冲之算法实现单元
 
-                共 28 文件
+                共 38 文件
 
 \DbReport －数据库组件与报表库目录
 
@@ -341,11 +371,14 @@ cnpack\Source 目录内容说明：
   CnAutoOption.pas
     自动参数设置类定义单元
 
-  CnCheckTreeView.pas
-    带复选框的 TreeView 组件实现单元
+  CnButtonEdit.pas
+    带按钮的编辑框控件实现单元
 
   CnButtons.pas
     CnButton 和 CnBitBtn 的自画按钮实现单元
+
+  CnCheckTreeView.pas
+    带复选框的 TreeView 组件实现单元
 
   CnColorGrid.pas
     颜色网格实现单元
@@ -374,6 +407,12 @@ cnpack\Source 目录内容说明：
   CnHexEditor.pas
     CnHexEditor 十六进制查看编辑单元
 
+  CnHint.pas
+    CnHint 提示控件实现单元
+
+  CnIconUtils.pas
+    Ico 图标处理辅助单元
+
   CnImage.pas
     调试用界面控件 TCnImage、TCnPaintBox 单元
 
@@ -383,11 +422,23 @@ cnpack\Source 目录内容说明：
   CnListBox.pas
     支持自画效果的 CnListBox 控件实现单元
 
+  CnMandelbrotImage.pas
+    曼德布罗集图实现单元
+
+  CnMemo.pas
+    CnMemo 控件实现单元
+
   CnMonthCalendar.pas
     中文月历的界面组件实现单元
 
+  CnOpenGLPaintBox.pas
+    利用 OpenGL 硬件加速的画布控件实现单元
+
   CnPanel.pas
     带透明效果的Panel实现单元
+
+  CnSearchCombo.pas
+    带下拉搜索匹配的 ComboBox 控件单元
 
   CnShellCtrls.pas
     移植的 ShellCtrls 控件单元
@@ -397,6 +448,15 @@ cnpack\Source 目录内容说明：
 
   CnSpin.pas
     CnSpin 控件单元
+
+  CnSplitter.pas
+    CnSplitter 分隔条实现单元
+
+  CnTabSet.pas
+    CnTabSet 组件实现单元
+
+  CnTextControl.pas
+    基础文本编辑控件实现单元
 
   CnValidateImage.pas
     简单的验证码生成图片单元
@@ -410,7 +470,7 @@ cnpack\Source 目录内容说明：
   CnWizardImage.pas
     向导界面图像控件
 
-               28 文件
+               39 文件
 
 \Lang\2052
 \Lang\1028
@@ -509,7 +569,7 @@ cnpack\Source 目录内容说明：
   CnNetConsts.pas
     网络部分的资源字符串定义单元
 
-  CnNetDecls.pas
+  CnNetwork.pas
     网络部分的各种协议包头格式定义单元
 
   CnNetPropEditor.pas
@@ -530,6 +590,9 @@ cnpack\Source 目录内容说明：
   CnRS232Dialog.pas
     CnRS232Dialog 串口设置对话框组件及窗体单元
 
+  CnSocket.pas
+    封装跨平台的 Socket 操作函数的单元
+
   CnTCPClient.pas
     TCP 客户端控件实现单元
 
@@ -545,7 +608,7 @@ cnpack\Source 目录内容说明：
   CnUDP.pas
     UDP 通讯组件单元
 
-                23 文件
+                24 文件
 
 \NonVisual －不可视组件
 

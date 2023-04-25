@@ -1,13 +1,13 @@
 ﻿**********************************************************************
                      CnPack For Delphi/C++Builder
                 A Free, Open Source Project from China
-                 (C)Copyright 2001-2022 CnPack Team
+                 (C)Copyright 2001-2023 CnPack Team
 **********************************************************************
 
                     CnPack Component Package (Alpha)
-                           Version 2022.04.05
+                           Version 2023.04.05
                         =======================
-                          CnPack Team 2022.04
+                          CnPack Team 2023.04
 
 
 =====================================================

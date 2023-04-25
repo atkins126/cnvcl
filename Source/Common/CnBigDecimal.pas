@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2022 CnPack 开发组                       }
+{                   (C)Copyright 2001-2023 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -47,7 +47,7 @@ interface
 
 uses
   SysUtils, Classes, SysConst,
-  CnNativeDecl, CnFloatConvert, CnContainers, CnBigRational, CnBigNumber;
+  CnNative, CnFloat, CnContainers, CnBigRational, CnBigNumber;
 
 const
   CN_BIG_DECIMAL_DEFAULT_PRECISION = 12;         // 大浮点数乘除法的小数点后的默认精度
@@ -92,7 +92,7 @@ type
     procedure Negate;
     {* 负号设置反}
 
-    function SetWord(W: TCnLongWord32): Boolean;
+    function SetWord(W: Cardinal): Boolean;
     {* 设置为一个 UInt32}
     function SetInt64(W: Int64): Boolean;
     {* 设置为一个 Int64}
@@ -105,13 +105,13 @@ type
     procedure SetExtended(Value: Extended);
     {* 扩展精度浮点值}
 
-    procedure AddWord(W: TCnLongWord32);
+    procedure AddWord(W: Cardinal);
     {* 加上一个 UInt32}
-    procedure SubWord(W: TCnLongWord32);
+    procedure SubWord(W: Cardinal);
     {* 减去一个 UInt32}
-    procedure MulWord(W: TCnLongWord32);
+    procedure MulWord(W: Cardinal);
     {* 乘以一个 UInt32}
-    procedure DivWord(W: TCnLongWord32; DivPrecision: Integer = 0);
+    procedure DivWord(W: Cardinal; DivPrecision: Integer = 0);
     {* 除以一个 UInt32。DivPrecision 表示除法精度最多保留小数点后几位，0 表示按默认设置来}
 
     function IsNegative: Boolean;
@@ -164,7 +164,7 @@ type
     procedure Negate;
     {* 负号设置反}
 
-    function SetWord(W: TCnLongWord32): Boolean;
+    function SetWord(W: Cardinal): Boolean;
     {* 设置为一个 UInt32}
     function SetInt64(W: Int64): Boolean;
     {* 设置为一个 Int64}
@@ -179,13 +179,13 @@ type
     procedure SetBigNumber(Value: TCnBigNumber);
     {* 大整数值}
 
-    procedure AddWord(W: TCnLongWord32);
+    procedure AddWord(W: Cardinal);
     {* 加上一个 UInt32}
-    procedure SubWord(W: TCnLongWord32);
+    procedure SubWord(W: Cardinal);
     {* 减去一个 UInt32}
-    procedure MulWord(W: TCnLongWord32);
+    procedure MulWord(W: Cardinal);
     {* 乘以一个 UInt32}
-    procedure DivWord(W: TCnLongWord32; DivPrecision: Integer = 0);
+    procedure DivWord(W: Cardinal; DivPrecision: Integer = 0);
     {* 除以一个 UInt32。DivPrecision 表示除法精度最多保留小数点后几位，0 表示按默认设置来}
 
     procedure ShiftLeft(N: Integer);
@@ -225,7 +225,7 @@ procedure BigDecimalClear(const Num: TCnBigDecimal);
 function BigDecimalSetDec(const Buf: string; const Res: TCnBigDecimal): Boolean;
 {* 为大浮点数对象设置字符串值}
 
-function BigDecimalSetWord(W: TCnLongWord32; const Res: TCnBigDecimal): Boolean;
+function BigDecimalSetWord(W: Cardinal; const Res: TCnBigDecimal): Boolean;
 {* 为大浮点数对象设置整数值}
 
 function BigDecimalSetInt64(W: Int64; const Res: TCnBigDecimal): Boolean;
@@ -334,7 +334,7 @@ procedure BigBinaryClear(const Num: TCnBigBinary);
 function BigBinarySetDec(const Buf: string; const Res: TCnBigBinary): Boolean;
 {* 为大二进制浮点数对象设置字符串值}
 
-function BigBinarySetWord(W: TCnLongWord32; const Res: TCnBigBinary): Boolean;
+function BigBinarySetWord(W: Cardinal; const Res: TCnBigBinary): Boolean;
 {* 为大二进制浮点数对象设置整数值}
 
 function BigBinarySetInt64(W: Int64; const Res: TCnBigBinary): Boolean;
@@ -441,7 +441,7 @@ const
   SCN_EXTEND_GAP = '0.000000001';
 
   SCN_FIVE_POWER_UINT32 = 13;
-  SCN_POWER_FIVES32: array[0..13] of TCnLongWord32 = (
+  SCN_POWER_FIVES32: array[0..13] of Cardinal = (
     1,                               // 5 ^ 0
     5,                               // 5 ^ 1
     25,                              // 5 ^ 2
@@ -459,7 +459,7 @@ const
   );
 
   SCN_TEN_POWER_UINT32 = 9;
-  SCN_POWER_TENS32: array[0..9] of TCnLongWord32 = (
+  SCN_POWER_TENS32: array[0..9] of Cardinal = (
     1,                               // 10 ^ 0
     10,                              // 10 ^ 1
     100,                             // 10 ^ 2
@@ -709,7 +709,7 @@ begin
   DC := DC - E; // 结合指数一起计算小数部分长度给 DC
 
   Res.FScale := DC;
-  Res.FValue.SetDec(V);
+  Res.FValue.SetDec(AnsiString(V));
 
   if (not Res.FValue.IsNegative) and Neg then
     Res.FValue.SetNegative(True);
@@ -717,7 +717,7 @@ begin
   Result := True;
 end;
 
-function BigDecimalSetWord(W: TCnLongWord32; const Res: TCnBigDecimal): Boolean;
+function BigDecimalSetWord(W: Cardinal; const Res: TCnBigDecimal): Boolean;
 begin
   Res.FValue.SetWord(W);
   Res.FScale := 0;
@@ -1610,7 +1610,7 @@ end;
 
 { TCnBigDecimal }
 
-procedure TCnBigDecimal.AddWord(W: TCnLongWord32);
+procedure TCnBigDecimal.AddWord(W: Cardinal);
 var
   T: TCnBigDecimal;
 begin
@@ -1635,7 +1635,7 @@ begin
   inherited;
 end;
 
-procedure TCnBigDecimal.DivWord(W: TCnLongWord32; DivPrecision: Integer);
+procedure TCnBigDecimal.DivWord(W: Cardinal; DivPrecision: Integer);
 var
   T: TCnBigDecimal;
 begin
@@ -1673,7 +1673,7 @@ begin
   Result := FValue.IsZero;
 end;
 
-procedure TCnBigDecimal.MulWord(W: TCnLongWord32);
+procedure TCnBigDecimal.MulWord(W: Cardinal);
 begin
   FValue.MulWord(W);
 end;
@@ -1725,7 +1725,7 @@ begin
   BigDecimalSetSingle(Value, Self);
 end;
 
-function TCnBigDecimal.SetWord(W: TCnLongWord32): Boolean;
+function TCnBigDecimal.SetWord(W: Cardinal): Boolean;
 begin
   Result := BigDecimalSetWord(W, Self);
 end;
@@ -1736,7 +1736,7 @@ begin
   FScale := 0;
 end;
 
-procedure TCnBigDecimal.SubWord(W: TCnLongWord32);
+procedure TCnBigDecimal.SubWord(W: Cardinal);
 var
   T: TCnBigDecimal;
 begin
@@ -1840,7 +1840,7 @@ begin
   if not Assigned(DotPos) and (C <> 'e') and (C <> 'E') then
   begin
     // 如果没小数点又没有指数，说明是整数
-    Res.FValue.SetDec(V);
+    Res.FValue.SetDec(AnsiString(V));
     if (not Res.FValue.IsNegative) and Neg then
       Res.FValue.SetNegative(True);
 
@@ -1880,12 +1880,12 @@ begin
   // 这里得到的值是没有小数点的 V，以及指示其中应该有十进制小数点位置的 DC，分开处理
   if DC = 0 then
   begin
-    Res.FValue.SetDec(V);
+    Res.FValue.SetDec(AnsiString(V));
     Res.FScale := 0;
   end
   else if DC < 0 then // 还要乘以 10^-DC，还是整数
   begin
-    Res.FValue.SetDec(V);
+    Res.FValue.SetDec(AnsiString(V));
     BigNumberMulPower10(Res.FValue, -DC);
   end
   else // DC > 0，说明有小数
@@ -1919,7 +1919,7 @@ begin
       P10.SetOne;
       BigNumberMulPower10(P10, Length(V)); // 每次乘后要和 P10 比较以决定这一位是不是 1
 
-      T.SetDec(V);
+      T.SetDec(AnsiString(V));
       I := 0;
       DRes.SetZero;
 
@@ -1942,7 +1942,7 @@ begin
       end;
 
       // 得到 I 位二进制值，在 DRes 里，就是小数点后的小数部分了，和整数部分拼起来
-      T.SetDec(S);
+      T.SetDec(AnsiString(S));
       T.ShiftLeft(I);
       BigNumberAdd(Res.FValue, T, DRes);
       Res.FScale := I;
@@ -1959,7 +1959,7 @@ begin
   Result := True;
 end;
 
-function BigBinarySetWord(W: TCnLongWord32; const Res: TCnBigBinary): Boolean;
+function BigBinarySetWord(W: Cardinal; const Res: TCnBigBinary): Boolean;
 begin
   Res.FValue.SetWord(W);
   Res.FScale := 0;
@@ -2698,7 +2698,7 @@ end;
 
 { TCnBigBinary }
 
-procedure TCnBigBinary.AddWord(W: TCnLongWord32);
+procedure TCnBigBinary.AddWord(W: Cardinal);
 var
   T: TCnBigBinary;
 begin
@@ -2723,7 +2723,7 @@ begin
   inherited;
 end;
 
-procedure TCnBigBinary.DivWord(W: TCnLongWord32; DivPrecision: Integer);
+procedure TCnBigBinary.DivWord(W: Cardinal; DivPrecision: Integer);
 var
   T: TCnBigBinary;
 begin
@@ -2768,7 +2768,7 @@ begin
   Result := FValue.IsZero;
 end;
 
-procedure TCnBigBinary.MulWord(W: TCnLongWord32);
+procedure TCnBigBinary.MulWord(W: Cardinal);
 begin
   FValue.MulWord(W);
 end;
@@ -2824,7 +2824,7 @@ begin
   BigBinarySetSingle(Value, Self);
 end;
 
-function TCnBigBinary.SetWord(W: TCnLongWord32): Boolean;
+function TCnBigBinary.SetWord(W: Cardinal): Boolean;
 begin
   Result := BigBinarySetWord(W, Self);
 end;
@@ -2845,7 +2845,7 @@ begin
   BigBinaryShiftRight(Self, N);
 end;
 
-procedure TCnBigBinary.SubWord(W: TCnLongWord32);
+procedure TCnBigBinary.SubWord(W: Cardinal);
 var
   T: TCnBigBinary;
 begin

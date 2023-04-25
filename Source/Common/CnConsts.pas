@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2022 CnPack 开发组                       }
+{                   (C)Copyright 2001-2023 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -23,7 +23,7 @@ unit CnConsts;
 ================================================================================
 * 软件名称：开发包基础库
 * 单元名称：公共资源字符串定义单元
-* 单元作者：CnPack开发组
+* 单元作者：CnPack 开发组
 * 备    注：
 * 开发平台：PWin98SE + Delphi 5.0
 * 兼容测试：PWin9X/2000/XP + Delphi 5/6
@@ -78,7 +78,7 @@ var
 const
   // CnPack Information
   SCnPackAbout = 'CnPack';
-  SCnPackVer = 'Ver 0.1.2.2';
+  SCnPackVer = 'Ver 0.1.2.6';
   SCnPackStr = SCnPackAbout + ' ' + SCnPackVer;
   SCnPackUrl = 'http://www.cnpack.org';
   SCnPackBbsUrl = 'http://bbs.cnpack.org';
@@ -91,7 +91,7 @@ const
   SCnPackDonationUrl = 'http://www.cnpack.org/foundation.php';
   SCnPackDonationUrlSF = 'http://sourceforge.net/donate/index.php?group_id=110999';
   SCnPackGroup = 'CnPack Team';
-  SCnPackCopyright = '(C)Copyright 2001-2022 ' + SCnPackGroup;
+  SCnPackCopyright = '(C)Copyright 2001-2023 ' + SCnPackGroup;
 
   // CnPropEditors
   SCopyrightFmtStr =
@@ -226,7 +226,7 @@ threadvar
 
 function CnGetLastError: Integer;
 begin
-  Result := CnErrorCode
+  Result := CnErrorCode;
 end;
 
 procedure _CnSetLastError(Err: Integer);

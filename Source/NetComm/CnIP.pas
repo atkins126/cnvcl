@@ -23,16 +23,18 @@ unit CnIP;
 ================================================================================
 * 软件名称：网络通讯组件包
 * 单元名称：IP 基础函数实现单元
-* 单元作者：胡昌洪Sesame (sesamehch@163.com)
-* 备    注：
-*           收集整理了网络使用IP时常见的实现函数,增加IP地址计算功能
+* 单元作者：胡昌洪 Sesame (sesamehch@163.com)
+* 备    注：支持 Windows 与 POSIX
+*           收集整理了网络使用 IP 时常见的实现函数，增加 IP 地址计算功能
 * 开发平台：PWin2000Pro + Delphi 5.01
 * 兼容测试：PWin9X/2000/XP + Delphi 5/6/7 + C++Builder 5/6
 * 本 地 化：该单元中的字符串均符合本地化处理方式
-* 修改记录：2019.03.03 V1.3
+* 修改记录：2022.12.17 V1.4
+*                增加对 MacOS 的支持，部分功能不可用
+*           2019.03.03 V1.3
 *                将部分函数改为 class 以外部也可调用
 *           2011.05.15 V1.2
-*                修正将127.0.0.1作为默认地址的问题
+*                修正将 127.0.0.1 作为默认地址的问题
 *           2009.08.14 V1.1
 *                增加对 D2009 的支持
 *           2008.04.14 V1.0
@@ -45,8 +47,11 @@ interface
 {$I CnPack.inc}
 
 uses
-  Windows, SysUtils, Classes, Controls, Winsock, StdCtrls, //Sockets,
-  CnClasses, CnConsts, CnNetConsts;
+  {$IFDEF MSWINDOWS} Windows, Winsock, Nb30, {$ELSE}
+  System.Net.Socket, Posix.NetinetIn, Posix.NetDB, Posix.ArpaInet, Posix.SysSocket,
+  Posix.NetIf, Posix.StrOpts, Posix.Errno, {$ENDIF}
+  SysUtils, Classes, Controls, StdCtrls,
+  CnClasses, CnConsts, CnNetConsts, CnNative, CnSocket;
 
 const
   MAXIPNOTE = 255;
@@ -67,25 +72,27 @@ const
 
 type
   TIPNotes = array[1..4] of Byte;
-  {* IP地址的各子节点,如192.168.20.102,其中Note[1]=192 ... Note[4]=102}
+  {* IP 地址的各子节点,如 192.168.20.102，其中 Note[1]=192 ... Note[4]=102}
 
   TIP_NetType = (iptNone, iptANet, iptBNet, iptCNet, iptDNet, iptENet,
     iptBroadCast, iptKeepAddr);
-  {* IP地址分类, 不是IP地址, A类地址, B类地址, C类地址, D类地址, E类地址,
-    广播地址, 保留地址(如127等)}
+  {* IP 地址分类：不是IP地址、A 类地址、B 类地址、C 类地址、D 类地址、E 类地址、
+    广播地址、保留地址（如 127 等）}
 
   TIP_Info = packed record
-    IPAddress: Cardinal;                 // IP地址,此处用整形存储
-    SubnetMask: Cardinal;                // 子网掩码,此处用整形存储
-    BroadCast: Cardinal;                 // 广播地址,此处用整形存储
+    IPAddress: Cardinal;                 // IP地址，此处用整形存储
+    SubnetMask: Cardinal;                // 子网掩码，此处用整形存储
+    BroadCast: Cardinal;                 // 广播地址，此处用整形存储
     HostName: array[0..255] of AnsiChar; // 主机名
-    NetType: TIP_NetType;                // IP地址的网络类型
-    Notes: TIPNotes;                     // IP地址的各子节点
+    NetType: TIP_NetType;                // IP 地址的网络类型
+    Notes: TIPNotes;                     // IP 地址的各子节点
     UpState: Boolean;                    // 启用状态
     Loopback: Boolean;                   // 是否环回地址
     SupportBroadcast: Boolean;           // 是否支持广播
   end;
-  TIPGroup = array of TIP_Info; //IP地址组
+  TIPGroup = array of TIP_Info;          // IP地址组
+
+{$IFDEF MSWINDOWS}
 
   sockaddr_gen = packed record
     AddressIn: sockaddr_in;
@@ -93,11 +100,13 @@ type
   end;
 
   TINTERFACE_INFO = packed record
-    iiFlags: u_long; // Interface flags
+    iiFlags:  u_long; // Interface flags
     iiAddress: sockaddr_gen; // Interface address
     iiBroadcastAddress: sockaddr_gen; // Broadcast address
     iiNetmask: sockaddr_gen; // Network mask
   end;
+
+{$ENDIF}
 
   { TCnIp }
 
@@ -106,8 +115,9 @@ type
     FIP: TIP_Info;
     FLocalIPs: TIPGroup;
     FNotes: TIPNotes;
+{$IFDEF MSWINDOWS}
     FWSAData: TWSAData;
-
+{$ENDIF}
     function GetIPAddress: string;
     procedure SetIPAddress(const Value: string);
     function GetBroadCastIP: string;
@@ -115,49 +125,50 @@ type
     procedure SetSubnetMask(const Value: string);
     function GetHosts: Cardinal;
     class function GetIPNotes(const aIP: string; var aResult: TIPNotes): Boolean;
-    {* 分解IP地址各结点,IP错误时将抛出错误信息}
+    {* 分解 IP 地址各结点，IP 错误时将抛出错误信息}
     function GetLocalIPCount: Integer;
     function GetComputerName: string;
     function GetMacAddress: string;
   protected
     procedure GetComponentInfo(var AName, Author, Email, Comment: string);
       override;
-    function EnumLocalIP(var aLocalIP: TIPGroup): Integer;
-    {* 枚举本机所有IP及其子网掩码等,返回值为IP地址数}
+    class function EnumLocalIP(var aLocalIP: TIPGroup): Integer;
+    {* 枚举本机所有 IP 及其子网掩码等，返回值为 IP 地址数}
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
+
     property LocalIPGroup: TIPGroup read FLocalIPs;
-    {* 本机IP地址相关信息, 包含本机实际IP及127.0.0.1}
+    {* 本机 IP 地址相关信息，包含本机实际 IP 及 127.0.0.1}
     property LocalIPCount: Integer read GetLocalIPCount;
-    {* 本机IP地址数,已经排除127.0.0.1}
+    {* 本机 IP 地址数，已经排除 127.0.0.1}
     class function IPTypeCheck(const aIP: string): TIP_NetType;
-    {* 检查IP地址类型以及是否合法}
+    {* 检查 IP 地址类型以及是否合法}
     class function IPToInt(const aIP: string): Cardinal;
-    {* 转换IP地址为整数}
+    {* 转换 IP 地址为整数}
     class function IntToIP(const aIP: Cardinal): string;
-    {* 转换整数为IP地址}
+    {* 转换整数为 IP 地址}
     function NextIP(const aIP: string): string;
-    {* 取下一个IP地址}
+    {* 取下一个 IP 地址}
     function PrevIP(const aIP: string): string;
-    {* 取前一个IP地址}
+    {* 取前一个 IP 地址}
     function GetIpNum(const aStartIP, aEndIP: string): Integer;
-    {* 计算两个IP地址之间的IP数}
+    {* 计算两个 IP 地址之间的 IP 数}
     property Hosts: Cardinal read GetHosts;
-    {* 返回指定的IP地址和子网掩码时主机数}
-    function GetIPByName(var aIp: string; const aName: string = ''): Boolean;
-    {* 通过主机名称得到IP, aName=''表示取本机名称}
-    function GetNameByIP(var aName: string; const aIP: string = ''): Boolean;
-    {* 通过IP得到主机名称, aIpAddr=''表示取本机IP}
+    {* 返回指定的 IP 地址和子网掩码时主机数}
+    class function GetIPByName(var aIp: string; const aName: string = ''): Boolean;
+    {* 通过主机名称得到 IP，aName='' 表示取本机名称}
+    class function GetNameByIP(var aName: string; const aIP: string = ''): Boolean;
+    {* 通过 IP 得到主机名称，aIpAddr='' 表示取本机 IP}
   published
     property IPAddress: string read GetIPAddress write SetIPAddress;
-    {* IP地址字符串形式,默认为本机 IP 地址}
+    {* IP 地址字符串形式，默认为本机 IP 地址}
     property SubnetMask: string read GetSubnetMask write SetSubnetMask;
-    {* IP地址的子网掩码}
+    {* IP 地址的子网掩码}
     property ComputerName: string read GetComputerName;
     {* 本机名称}
     property MacAddress: string read GetMacAddress;
-    {* 本机Mac地址}
+    {* 本机 Mac 地址}
     property BroadCastIP: string read GetBroadCastIP;
     {* 广播地址}
   end;
@@ -166,11 +177,13 @@ implementation
 
 {$R-}
 
+{$IFDEF MSWINDOWS}
+
 const
   WS2_32DLL = 'WS2_32.DLL';
 
 type
-  { 从Winsock 2.0导入函数WSAIOCtl -- 在Win98/ME/2K/Xp and 95 OSR2, NT srv pack #3下才有Winsock 2 }
+  { 从 Winsock 2.0 导入函数 WSAIOCtl -- 在 Win98/ME/2K/Xp and 95 OSR2, NT srv pack #3下才有 Winsock 2 }
   TWSAIoctl = function (s: TSocket; cmd: DWORD; lpInBuffer: PByte; dwInBufferLen:
                         DWORD; lpOutBuffer: PByte; dwOutBufferLen: DWORD;
                         lpdwOutBytesReturned: LPDWORD; lpOverLapped: POINTER;
@@ -194,6 +207,24 @@ begin
   if WS2_32DllHandle <> 0 then
     FreeLibrary(WS2_32DllHandle);
 end;  
+
+{$ELSE}
+
+type
+  sockaddr_dl = record
+    sdl_len: Byte;    //* Total length of sockaddr */
+    sdl_family: Byte; //* AF_LINK */
+    sdl_index: Word;  //* if != 0, system given index for interface */
+    sdl_type: Byte;   //* interface type */
+    sdl_nlen: Byte;   //* interface name length, no trailing 0 reqd. */
+    sdl_alen: Byte;   //* link level address length */
+    sdl_slen: Byte;   //* link layer selector length */
+    sdl_data: array[0..11] of AnsiChar; //* minimum work area, can be larger;
+                                        //contains both if name and ll address */
+  end;
+  Psockaddr_dl = ^sockaddr_dl;
+
+{$ENDIF}
 
 { TCnIp }
 
@@ -300,7 +331,7 @@ begin
   Result := 0;
   if IPTypeCheck(aIP) = iptNone then
   begin
-    //raise Exception.Create(SCnErrorAddress);
+    // raise Exception.Create(SCnErrorAddress);
     Exit;
   end;
   if GetIPNotes(aIP, Notes) then
@@ -395,26 +426,78 @@ begin
 end;
 
 function TCnIp.GetComputerName: string;
+{$IFDEF MSWINDOWS}
 var
   sName: array[0..255] of AnsiChar;
+{$ENDIF}
 begin
+{$IFDEF MSWINDOWS}
   WSAStartup(2, FWSAData);
   try
     GetHostName(@sName, SizeOf(sName));
-    Result := {$IFDEF UNICODE}String{$ENDIF}(sName);
+    Result := {$IFDEF UNICODE}string{$ENDIF}(sName);
   finally
     WSACleanup;
   end;
+{$ELSE}
+  Result := CnGetHostName;
+{$ENDIF}
 end;
 
 function TCnIp.GetMacAddress: string;
 var
+{$IFDEF MSWINDOWS}
+{$IFDEF WIN32}
   Lib: Cardinal;
   Func: function(GUID: PGUID): Longint; stdcall;
   GUID1, GUID2: TGUID;
+{$ENDIF}
+  AdapterList: TLanaEnum;
+  NCB: TNCB;
+{$ELSE}
+  OldPif, Pif: Pifaddrs;
+  Ifn: PAnsiChar;
+  pAddrInet: sockaddr_in;
+  Sdl: Psockaddr_dl;
+{$ENDIF}
+
+{$IFDEF MSWINDOWS}
+  function GetAdapterInfo(Lana: AnsiChar): string;
+  var
+    Adapter: TAdapterStatus;
+    NCB: TNCB;
+  begin
+    Result := '';
+    FillChar(NCB, SizeOf(NCB), 0);
+    NCB.ncb_command := AnsiChar(NCBRESET);
+    NCB.ncb_lana_num := Lana;
+    if Netbios(@NCB) <> AnsiChar(NRC_GOODRET) then
+      Exit;
+
+    FillChar(NCB, SizeOf(NCB), 0);
+    NCB.ncb_command := AnsiChar(NCBASTAT);
+    NCB.ncb_lana_num := Lana;
+    NCB.ncb_callname := '*';
+
+    FillChar(Adapter, SizeOf(Adapter), 0);
+    NCB.ncb_buffer := @Adapter;
+    NCB.ncb_length := SizeOf(Adapter);
+    if Netbios(@NCB) <> AnsiChar(NRC_GOODRET) then
+      Exit;
+
+    Result :=
+      IntToHex(Byte(Adapter.adapter_address[0]), 2) + '-'+
+      IntToHex(Byte(Adapter.adapter_address[1]), 2) + '-'+
+      IntToHex(Byte(Adapter.adapter_address[2]), 2) + '-'+
+      IntToHex(Byte(Adapter.adapter_address[3]), 2) + '-'+
+      IntToHex(Byte(Adapter.adapter_address[4]), 2) + '-'+
+      IntToHex(Byte(Adapter.adapter_address[5]), 2) ;
+  end;
+{$ENDIF}
 begin
   Result := '';
-  Lib := LoadLibrary('rpcrt4.dll');
+{$IFDEF WIN32}
+  Lib := LoadLibrary('rpcrt4.dll'); // 该方法只在 Win32 下有效
   if Lib <> 0 then
   try
     if Win32Platform <> VER_PLATFORM_WIN32_NT then
@@ -444,76 +527,170 @@ begin
   finally
     FreeLibrary(Lib);
   end;
+{$ENDIF}
+
+  if Result <> '' then
+    Exit;
+
+{$IFDEF MSWINDOWS}
+  // Win32 失败后，或 Win64 下，拿 MAC 地址
+  FillChar(NCB, SizeOf(NCB), 0);
+  NCB.ncb_command := AnsiChar(NCBENUM);
+  NCB.ncb_buffer := @AdapterList;
+  NCB.ncb_length := SizeOf(AdapterList);
+  Netbios(@NCB);
+  if Byte(AdapterList.length) > 0 then
+    Result := GetAdapterInfo(AdapterList.lana[0])
+{$ELSE}
+  // POSIX 下拿 MAC 地址
+  getifaddrs(Pif);
+  OldPif := Pif;
+  Ifn := nil;
+
+  while Pif <> nil do
+  begin
+    if (Pif^.ifa_addr.sa_family = AF_INET) and ((Pif^.ifa_flags and IFF_LOOPBACK) = 0)
+      and (Pif^.ifa_name <> nil) then
+    begin
+      if Ifn = nil then
+        Ifn := PAnsiChar(Pif^.ifa_name);
+
+      // 拿 IP，如果不是 127.0.0.1 则用它
+      pAddrInet := Psockaddr_in(Pif^.ifa_addr)^;
+      if inet_ntoa(pAddrInet.sin_addr) <> '127.0.0.1' then
+      begin
+        Ifn := PAnsiChar(Pif^.ifa_name);
+        Break;
+      end;
+    end;
+    Pif := Pif^.ifa_next;
+  end;
+
+  if Ifn = nil then
+    Exit;
+
+  Pif := OldPif;
+  while Pif <> nil do
+  begin
+    if (Pif^.ifa_addr.sa_family = AF_LINK) and
+      (StrComp(Ifn, PAnsiChar(Pif^.ifa_name)) = 0) then
+    begin
+      Sdl := Psockaddr_dl(Pif^.ifa_addr);
+      if Sdl <> nil  then
+      begin
+        // Sdl^.sdl_data[Sdl^.sdl_nlen] 开始的 Sdl^.sdl_alen 字节就是 MAC 地址
+        if Sdl^.sdl_alen = 6 then
+        begin
+        Result :=
+          IntToHex(Ord(Sdl^.sdl_data[Sdl^.sdl_nlen]), 2) + '-' +
+          IntToHex(Ord(Sdl^.sdl_data[Sdl^.sdl_nlen + 1]), 2) + '-' +
+          IntToHex(Ord(Sdl^.sdl_data[Sdl^.sdl_nlen + 2]), 2) + '-' +
+          IntToHex(Ord(Sdl^.sdl_data[Sdl^.sdl_nlen + 3]), 2) + '-' +
+          IntToHex(Ord(Sdl^.sdl_data[Sdl^.sdl_nlen + 4]), 2) + '-' +
+          IntToHex(Ord(Sdl^.sdl_data[Sdl^.sdl_nlen + 5]), 2);
+        end;
+      end;
+    end;
+    Pif := Pif^.ifa_next;
+  end;
+{$ENDIF}
 end;
 
-function TCnIp.GetIPByName(var aIP: string; const aName: string): Boolean;
+class function TCnIp.GetIPByName(var aIP: string; const aName: string): Boolean;
+{$IFDEF MSWINDOWS}
 var
+  aWSAData: TWSAData;
   pHost: PHostEnt;
   sName: array[0..256] of Char;
+{$ENDIF}
 begin
-  StrPCopy(sName, aName);
-  WSAStartup($101, FWSAData);
+{$IFDEF MSWINDOWS}
+  sName[256] := #0;
+  StrPLCopy(sName, aName, 255);
+
+  WSAStartup($101, aWSAData);
   try
     if sName = '' then
       GetHostName(PAnsiChar({$IFDEF UNICODE}AnsiString{$ELSE}string{$ENDIF}(sName)), SizeOf(sName));
     pHost := GetHostByName(@sName);
     Result := pHost <> nil;
     if Result then
-      aIP := {$IFDEF UNICODE}String{$ENDIF}(inet_ntoa(PInAddr(pHost^.h_addr_list^)^));
+      aIP := {$IFDEF UNICODE}string{$ENDIF}(inet_ntoa(PInAddr(pHost^.h_addr_list^)^));
   finally
     WSACleanup;
   end;
+{$ELSE}
+  aIP := TIPAddress.LookupName(aName).Address;
+  Result := aIP <> '';
+{$ENDIF}
 end;
 
-function TCnIp.GetNameByIP(var aName: string; const aIP: string): Boolean;
+class function TCnIp.GetNameByIP(var aName: string; const aIP: string): Boolean;
 var
+{$IFDEF MSWINDOWS}
+  aWSAData: TWSAData;
+{$ENDIF}
   HostEnt: PHostEnt;
-  InetAddr: dword;
+  InetAddr: Cardinal;
   sIP: string;
 begin
-  Result := False;
   sIP := aIP;
   aName := '';
   if sIP = '' then
-    Exit;
-  WSAStartup(2, FWSAData);
+    sIP := '127.0.0.1';
+
+{$IFDEF MSWINDOWS}
+  WSAStartup(2, aWSAData);
+{$ENDIF}
   try
     InetAddr := inet_addr(PAnsiChar({$IFDEF UNICODE}AnsiString{$ENDIF}(sIP)));
-    HostEnt := GetHostByAddr(@InetAddr, Length(sIP), PF_Inet);
+{$IFDEF MSWINDOWS}
+    HostEnt := gethostbyaddr(@InetAddr, SizeOf(InetAddr), PF_INET);
+{$ELSE}
+    HostEnt := gethostbyaddr(InetAddr, SizeOf(InetAddr), PF_INET);
+{$ENDIF}
     Result := HostEnt <> nil;
     if Result then
-      aName := {$IFDEF UNICODE}String{$ENDIF}(StrPas(Hostent^.h_name));
+      aName := {$IFDEF UNICODE}string{$ENDIF}(StrPas(HostEnt^.h_name));
   finally
+{$IFDEF MSWINDOWS}
     WSACleanup;
+{$ENDIF}
   end;
 end;
 
 {-------------------------------------------------------------------
-1. 创建一个Socket
-2. 调用WSAIOCtl获取网络连接
-3. 对每个连接，获取它的IP、掩码、广播地址、状态
-4. 将信息填充到IP数组中
-5. 结束关闭Socket
+1. 创建一个 Socket
+2. 调用 WSAIOCtl 获取网络连接
+3. 对每个连接，获取它的 IP、掩码、广播地址、状态
+4. 将信息填充到 IP 数组中
+5. 结束关闭 Socket
 --------------------------------------------------------------------}
-function TCnIp.EnumLocalIP(var aLocalIP: TIPGroup): Integer;
+class function TCnIp.EnumLocalIP(var aLocalIP: TIPGroup): Integer;
 var
-  skLocal: TSocket;
   iIP: Integer;
+  pAddrInet: sockaddr_in;
+{$IFDEF MSWINDOWS}
+  aWSAData: TWSAData;
+  skLocal: TSocket;
   PtrA: pointer;
   BytesReturned, SetFlags: u_long;
-  pAddrInet: Sockaddr_IN;
   Buffer: array[0..20] of TINTERFACE_INFO;
+{$ELSE}
+  OldPif, Pif: Pifaddrs;
+  SetFlags: Cardinal;
+{$ENDIF}
 begin
   Result := 0;
-
-  WSAStartup($101, FWSAData);
+{$IFDEF MSWINDOWS}
+  WSAStartup($101, aWSAData);
   try
     skLocal := Socket(AF_INET, SOCK_STREAM, 0); // Open a socket
     if (skLocal = INVALID_SOCKET) then
       Exit;
 
     try // Call WSAIoCtl
-      PtrA := @bytesReturned;
+      PtrA := @BytesReturned;
       if (WSAIoCtl(skLocal, SIO_GET_INTERFACE_LIST, nil, 0, @Buffer, 1024, PtrA,
         nil, nil) <> SOCKET_ERROR) then
       begin // If ok, find out how
@@ -522,11 +699,11 @@ begin
         for iIP := 0 to Result - 1 do // For every interface
         begin
           pAddrInet := Buffer[iIP].iiAddress.AddressIn;
-          aLocalIP[iIP].IPAddress := IPToInt({$IFDEF UNICODE}String{$ENDIF}(inet_ntoa(pAddrInet.sin_addr)));
+          aLocalIP[iIP].IPAddress := IPToInt({$IFDEF UNICODE}string{$ENDIF}(inet_ntoa(pAddrInet.sin_addr)));
           pAddrInet := Buffer[iIP].iiNetMask.AddressIn;
-          aLocalIP[iIP].SubnetMask := IPToInt({$IFDEF UNICODE}String{$ENDIF}(inet_ntoa(pAddrInet.sin_addr)));
+          aLocalIP[iIP].SubnetMask := IPToInt({$IFDEF UNICODE}string{$ENDIF}(inet_ntoa(pAddrInet.sin_addr)));
           pAddrInet := Buffer[iIP].iiBroadCastAddress.AddressIn;
-          aLocalIP[iIP].BroadCast := IPToInt({$IFDEF UNICODE}String{$ENDIF}(inet_ntoa(pAddrInet.sin_addr)));
+          aLocalIP[iIP].BroadCast := IPToInt({$IFDEF UNICODE}string{$ENDIF}(inet_ntoa(pAddrInet.sin_addr)));
           SetFlags := Buffer[iIP].iiFlags;
           aLocalIP[iIP].UpState := (SetFlags and IFF_UP) = IFF_UP;
           aLocalIP[iIP].Loopback := (SetFlags and IFF_LOOPBACK) = IFF_LOOPBACK;
@@ -541,7 +718,46 @@ begin
   finally
     WSACleanUp;
   end;
+{$ELSE}
+  getifaddrs(Pif);
+  OldPif := Pif;
+  while Pif <> nil do // 先统计符合条件的数量
+  begin
+    if (Pif^.ifa_addr.sa_family = AF_INET) and ((Pif^.ifa_flags and IFF_LOOPBACK) = 0) then
+      Inc(Result);
+    Pif := Pif^.ifa_next;
+  end;
+  SetLength(aLocalIP, Result);
+  if Result <= 0 then
+    Exit;
+
+  Pif := OldPif;
+  iIP := 0;
+  while Pif <> nil do
+  begin
+    if (Pif^.ifa_addr.sa_family = AF_INET) and ((Pif^.ifa_flags and IFF_LOOPBACK) = 0) then
+    begin
+      pAddrInet := Psockaddr_in(Pif^.ifa_addr)^;
+      aLocalIP[iIP].IPAddress := IPToInt({$IFDEF UNICODE}string{$ENDIF}(inet_ntoa(pAddrInet.sin_addr)));
+      pAddrInet := Psockaddr_in(Pif^.ifa_netmask)^;
+      aLocalIP[iIP].SubnetMask := IPToInt({$IFDEF UNICODE}string{$ENDIF}(inet_ntoa(pAddrInet.sin_addr)));
+      pAddrInet := Psockaddr_in(Pif^.ifa_dstaddr)^;
+      aLocalIP[iIP].BroadCast := IPToInt({$IFDEF UNICODE}string{$ENDIF}(inet_ntoa(pAddrInet.sin_addr)));
+      SetFlags := Pif^.ifa_flags;
+      aLocalIP[iIP].UpState := (SetFlags and IFF_UP) = IFF_UP;
+      aLocalIP[iIP].Loopback := (SetFlags and IFF_LOOPBACK) = IFF_LOOPBACK;
+      aLocalIP[iIP].SupportBroadcast := (SetFlags and IFF_BROADCAST) =
+        IFF_BROADCAST;
+
+      Inc(iIP);
+    end;
+    Pif := Pif^.ifa_next;
+  end;
+  freeifaddrs(Pif);
+{$ENDIF}
 end;
+
+{$IFDEF MSWINDOWS}
 
 initialization
   InitWSAIoctl;
@@ -549,5 +765,6 @@ initialization
 finalization
   FreeWSAIoctl;
 
+{$ENDIF}
 end.
 

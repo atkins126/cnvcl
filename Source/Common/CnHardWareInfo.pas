@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2022 CnPack 开发组                       }
+{                   (C)Copyright 2001-2023 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -54,7 +54,7 @@ interface
 {$I CnPack.inc}
 
 uses
-  Classes, Windows, SysUtils, ExtCtrls, CnNativeDecl, CnCommon;
+  Classes, Windows, SysUtils, ExtCtrls, CnNative, CnCommon;
 
 const
   RelationCache = 2;
@@ -679,9 +679,9 @@ begin
 {$ENDIF}
 
   if FCPUIdFormat = ifContinuous then
-    Result := Format(cnIFContinuous, [iEax, iEbx, iEcx, iEdx])
+    Result := AnsiString(Format(cnIFContinuous, [iEax, iEbx, iEcx, iEdx]))
   else
-    Result := Format(cnIFDashed, [iEax, iEbx, iEcx, iEdx])
+    Result := AnsiString(Format(cnIFDashed, [iEax, iEbx, iEcx, iEdx]))
 end;
 
 // 获取 CPU 序列号
@@ -728,16 +728,16 @@ begin
 
   if iEdx1 and (1 shr 18) = 0 then // Cpu 序列号不能读，返回全0
   begin
-    Result := Format(SFmt, [0, 0, 0, 0, 0, 0]);
+    Result := AnsiString(Format(SFmt, [0, 0, 0, 0, 0, 0]));
     FSupportCpuSns.Add(nil); // 加 False
   end
   else
   begin
     FSupportCpuSns.Add(Pointer(True));
-    Result := Format(SFmt,
+    Result := AnsiString(Format(SFmt,
       [(iEax and $FFFF0000) shr 16, iEax and $FFFF,
        (iEcx and $FFFF0000) shr 16, iEcx and $FFFF,
-       (iEdx and $FFFF0000) shr 16, iEdx and $FFFF]);
+       (iEdx and $FFFF0000) shr 16, iEdx and $FFFF]));
   end;
 end;
 
@@ -835,9 +835,9 @@ begin
       FSupportCpuIds.Add(Pointer(GetCnCpuIdSupport));
       if FSupportCpuIds[FSupportCpuIds.Count - 1] <> nil then
       begin
-        FCPUIds.Add(GetCnCPUID);
-        FCPUInfos.Add(GetCnCPUInfoString);
-        FCPUOems.Add(GetCnCPUOem);
+        FCPUIds.Add(string(GetCnCPUID));
+        FCPUInfos.Add(string(GetCnCPUInfoString));
+        FCPUOems.Add(string(GetCnCPUOem));
       end
       else
       begin
@@ -1389,8 +1389,11 @@ var
       Buf[J + 1] := T;
       Inc(J, 2);
     end;
-
+{$IFDEF UNICODE}
+    Result := AnsiTrim(Result);
+{$ELSE}
     Result := Trim(Result);
+{$ENDIF}
   end;
 
 begin
@@ -1417,9 +1420,14 @@ begin
         ZeroMemory(@(Sn[1]), Length(Sn));
 
         StrCopy(PAnsiChar(@(Sn[1])), PAnsiChar(flipAndCodeBytes(@(Buffer[0]), Descriptor^.SerialNumberOffset)));
-        Sn := Trim(Sn);
 
-        FHardDiskSns.Add(Trim(Sn));
+{$IFDEF UNICODE}
+        Sn := AnsiTrim(Sn);
+{$ELSE}
+        Sn := Trim(Sn);
+{$ENDIF}
+
+        FHardDiskSns.Add(Trim(string(Sn)));
         Inc(FHardDiskCount);
       end;
     finally

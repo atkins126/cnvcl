@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2022 CnPack 开发组                       }
+{                   (C)Copyright 2001-2023 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -106,8 +106,8 @@ function CMYToRGB(const C, M, Y: Byte): TColor;
 procedure RGBToCMY(const RGB: TColor; out C, M, Y: Byte);
 {* RGB 颜色转换为 CMY 颜色
  |<PRE>
- |<BR> Color: TColor　　　RGB 颜色值
- |<BR> C, M, Y: Byte　　　输出分别为 Cyan 青、Magenta 品红、Yellow 黄分量，0..255
+ |<BR> Color: TColor      RGB 颜色值
+ |<BR> C, M, Y: Byte      输出分别为 Cyan 青、Magenta 品红、Yellow 黄分量，0..255
  |</PRE>}
 
 //------------------------------------------------------------------------------
@@ -165,7 +165,6 @@ procedure CnShutDownGdiPlus;
 implementation
 
 {$IFNDEF SUPPORT_GDIPLUS}
-{$IFNDEF BCB5OR6}
 
 //==============================================================================
 // 编译器不支持 GDI+ 时手工定义 GDI+ 相关函数
@@ -241,45 +240,50 @@ type
   TGdiplusStartupOutput = GdiplusStartupOutput;
   PGdiplusStartupOutput = ^TGdiplusStartupOutput;
 
+  // GDI+ 中所需的函数声明类型
+  TGdiplusStartup = function(out Token: ULONG; Input: PGdiplusStartupInput;
+    Output: PGdiplusStartupOutput): GPSTATUS; stdcall;
+
+  TGdiplusShutdown = procedure(Token: ULONG); stdcall;
+
+  TGdipCreateFromHDC = function(hdc: HDC; out Graphic: GPGRAPHICS): GPSTATUS; stdcall;
+
+  TGdipDeleteGraphics = function(Graphic: GPGRAPHICS): GPSTATUS; stdcall;
+
+  TGdipSetSmoothingMode = function(Graphic: GPGRAPHICS; Sm: TSmoothingMode):
+    GPSTATUS; stdcall;
+
+  TGdipGetSmoothingMode = function(Graphic: GPGRAPHICS; var Sm: TSmoothingMode):
+    GPSTATUS; stdcall;
+
+  TGdipCreateBitmapFromHBITMAP = function(hbm: HBITMAP; hpal: HPALETTE; out
+    Bitmap: GPBITMAP): GPSTATUS; stdcall;
+
+  TGdipDisposeImage = function(Image: GPIMAGE): GPSTATUS; stdcall;
+
+  TGdipDrawImageRect = function(Graphic: GPGRAPHICS; Image: GPIMAGE; x: Single;
+    y: Single; Width: Single; Height: Single): GPSTATUS; stdcall;
+
+  TGdipDrawImageRectI = function(Graphic: GPGRAPHICS; Image: GPIMAGE; x: Integer;
+    y: Integer; Width: Integer; Height: Integer): GPSTATUS; stdcall;
+
 var
   GdiPlusInit: Boolean = False;
+  GdiPlusHandle: THandle = 0;
   StartupInput: TGDIPlusStartupInput;
   GdiplusToken: ULONG;
 
-function GdiplusStartup(out Token: ULONG; Input: PGdiplusStartupInput;
-  Output: PGdiplusStartupOutput): GPSTATUS; stdcall;
-  external WINGDIPDLL name 'GdiplusStartup' {$IFDEF SUPPORT_EXTERNAL_DELAYED} delayed {$ENDIF};
+  GdiplusStartup: TGdiplusStartup = nil;
+  GdiplusShutdown: TGdiplusShutdown = nil;
+  GdipCreateFromHDC: TGdipCreateFromHDC = nil;
+  GdipDeleteGraphics: TGdipDeleteGraphics = nil;
+  GdipSetSmoothingMode: TGdipSetSmoothingMode = nil;
+  GdipGetSmoothingMode: TGdipGetSmoothingMode = nil;
+  GdipCreateBitmapFromHBITMAP: TGdipCreateBitmapFromHBITMAP = nil;
+  GdipDisposeImage: TGdipDisposeImage = nil;
+  GdipDrawImageRect: TGdipDrawImageRect = nil;
+  GdipDrawImageRectI: TGdipDrawImageRectI = nil;
 
-procedure GdiplusShutdown(Token: ULONG); stdcall;
-  external WINGDIPDLL name 'GdiplusShutdown' {$IFDEF SUPPORT_EXTERNAL_DELAYED} delayed {$ENDIF};
-
-function GdipCreateFromHDC(hdc: HDC; out Graphic: GPGRAPHICS): GPSTATUS; stdcall;
-  external WINGDIPDLL name 'GdipCreateFromHDC' {$IFDEF SUPPORT_EXTERNAL_DELAYED} delayed {$ENDIF};
-
-function GdipDeleteGraphics(Graphic: GPGRAPHICS): GPSTATUS; stdcall;
-  external WINGDIPDLL name 'GdipDeleteGraphics' {$IFDEF SUPPORT_EXTERNAL_DELAYED} delayed {$ENDIF};
-
-function GdipSetSmoothingMode(Graphic: GPGRAPHICS; Sm: TSmoothingMode): GPSTATUS; stdcall;
-  external WINGDIPDLL name 'GdipSetSmoothingMode' {$IFDEF SUPPORT_EXTERNAL_DELAYED} delayed {$ENDIF};
-
-function GdipGetSmoothingMode(Graphic: GPGRAPHICS; var Sm: TSmoothingMode): GPSTATUS; stdcall;
-  external WINGDIPDLL name 'GdipGetSmoothingMode' {$IFDEF SUPPORT_EXTERNAL_DELAYED} delayed {$ENDIF};
-
-function GdipCreateBitmapFromHBITMAP(hbm: HBITMAP; hpal: HPALETTE; out Bitmap: GPBITMAP): GPSTATUS; stdcall;
-  external WINGDIPDLL name 'GdipCreateBitmapFromHBITMAP' {$IFDEF SUPPORT_EXTERNAL_DELAYED} delayed {$ENDIF};
-
-function GdipDisposeImage(Image: GPIMAGE): GPSTATUS; stdcall;
-  external WINGDIPDLL name 'GdipDisposeImage' {$IFDEF SUPPORT_EXTERNAL_DELAYED} delayed {$ENDIF};
-
-function GdipDrawImageRect(Graphic: GPGRAPHICS; Image: GPIMAGE; x: Single;
-  y: Single; Width: Single; Height: Single): GPSTATUS; stdcall;
-  external WINGDIPDLL name 'GdipDrawImageRect' {$IFDEF SUPPORT_EXTERNAL_DELAYED} delayed {$ENDIF};
-
-function GdipDrawImageRectI(Graphic: GPGRAPHICS; Image: GPIMAGE; x: Integer;
-  y: Integer; Width: Integer; Height: Integer): GPSTATUS; stdcall;
-  external WINGDIPDLL name 'GdipDrawImageRectI' {$IFDEF SUPPORT_EXTERNAL_DELAYED} delayed {$ENDIF};
-
-{$ENDIF}
 {$ENDIF}
 
 //==============================================================================
@@ -610,19 +614,16 @@ var
   Bmp: TGPBitmap;
   GP: TGPGraphics;
 {$ELSE}
-  {$IFDEF BCB5OR6}
   Rd: TRect;
-  {$ELSE}
   GP: GpGraphics;
   Bmp: GpBitmap;
   St: TStatus;
-  {$ENDIF}
 {$ENDIF}
 begin
   if (Src = nil) or (Dst = nil) then
     Exit;
 
-{$IFDEF SUPPORT_GDIPLUS}
+{$IFDEF SUPPORT_GDIPLUS} // 如果编译器天生就有 GDIPlus 支持
   GP := nil;
   Bmp := nil;
   try
@@ -639,32 +640,35 @@ begin
 {$ELSE}
   if (Src.Width <> Dst.Width) or (Src.Height <> Dst.Height) then
   begin
-{$IFDEF BCB5OR6}
-    Rd := Rect(0, 0, Dst.Width, Dst.Height);
-    Dst.Canvas.StretchDraw(Rd, Src);
-{$ELSE}
-    GP := nil;
-    St := GdipCreateFromHDC(Dst.Canvas.Handle, GP);
-    if (St <> Ok) or (GP = nil) then
-      Exit;
-
-    try
-      if Smooth then
-        GdipSetSmoothingMode(GP, SmoothingModeAntiAlias);
-
-      Bmp := nil;
-      St := GdipCreateBitmapFromHBITMAP(Src.Handle, Src.Palette, Bmp);
-      if (St <> Ok) or (Bmp = nil) then
+    if not GdiPlusInit then // 没有动态找到 GDIPlus 的支持
+    begin
+      Rd := Rect(0, 0, Dst.Width, Dst.Height);
+      Dst.Canvas.StretchDraw(Rd, Src);
+    end
+    else
+    begin
+      GP := nil;
+      St := GdipCreateFromHDC(Dst.Canvas.Handle, GP);
+      if (St <> Ok) or (GP = nil) then
         Exit;
 
-      GdipDrawImageRectI(GP, Bmp, 0, 0, Dst.Width + 1, Dst.Height + 1);
-    finally
-      if Bmp <> nil then
-        GdipDisposeImage(Bmp);
-      if GP <> nil then
-        GdipDeleteGraphics(GP);
-    end;
-{$ENDIF}
+      try
+        if Smooth then
+          GdipSetSmoothingMode(GP, SmoothingModeAntiAlias);
+
+        Bmp := nil;
+        St := GdipCreateBitmapFromHBITMAP(Src.Handle, Src.Palette, Bmp);
+        if (St <> Ok) or (Bmp = nil) then
+          Exit;
+
+        GdipDrawImageRectI(GP, Bmp, 0, 0, Dst.Width + 1, Dst.Height + 1);
+      finally
+        if Bmp <> nil then
+          GdipDisposeImage(Bmp);
+        if GP <> nil then
+          GdipDeleteGraphics(GP);
+      end;
+    end
   end
   else
     Dst.Canvas.Draw(0, 0, Src);
@@ -675,8 +679,7 @@ end;
 
 procedure CnStartUpGdiPlus;
 begin
-{$IFNDEF BCB5OR6}
-  if not GdiPlusInit then
+  if not GdiPlusInit and (GdiPlusHandle <> 0) then
   begin
     StartupInput.DebugEventCallback := nil;
     StartupInput.SuppressBackgroundThread := False;
@@ -687,12 +690,10 @@ begin
 
     GdiPlusInit := True;
   end;
-{$ENDIF}
 end;
 
 procedure CnShutDownGdiPlus;
 begin
-{$IFNDEF BCB5OR6}
   if GdiPlusInit then
   begin
     GdiplusShutdown(GdiplusToken);
@@ -700,8 +701,50 @@ begin
     GdiplusToken := 0;
     GdiPlusInit := False;
   end;
-{$ENDIF}
 end;
+
+{$ENDIF}
+
+{$IFNDEF SUPPORT_GDIPLUS}
+
+initialization
+  GdiPlusHandle := LoadLibrary(WINGDIPDLL);
+  if GdiPlusHandle <> 0 then
+  begin
+    GdiplusStartup := TGdiplusStartup(GetProcAddress(GdiPlusHandle, 'GdiplusStartup'));
+    Assert(Assigned(GdiplusStartup), 'Load GdiplusStartup from GDI+ DLL.');
+
+    GdiplusShutdown := TGdiplusShutdown(GetProcAddress(GdiPlusHandle, 'GdiplusShutdown'));
+    Assert(Assigned(GdiplusShutdown), 'Load GdiplusShutdown from GDI+ DLL.');
+
+    GdipCreateFromHDC:= TGdipCreateFromHDC(GetProcAddress(GdiPlusHandle, 'GdipCreateFromHDC'));
+    Assert(Assigned(GdipCreateFromHDC), 'Load GdipCreateFromHDC from GDI+ DLL.');
+
+    GdipDeleteGraphics:= TGdipDeleteGraphics(GetProcAddress(GdiPlusHandle, 'GdipDeleteGraphics'));
+    Assert(Assigned(GdipDeleteGraphics), 'Load GdipDeleteGraphics from GDI+ DLL.');
+
+    GdipSetSmoothingMode:= TGdipSetSmoothingMode(GetProcAddress(GdiPlusHandle, 'GdipSetSmoothingMode'));
+    Assert(Assigned(GdipSetSmoothingMode), 'Load GdipSetSmoothingMode from GDI+ DLL.');
+
+    GdipGetSmoothingMode:= TGdipGetSmoothingMode(GetProcAddress(GdiPlusHandle, 'GdipGetSmoothingMode'));
+    Assert(Assigned(GdipGetSmoothingMode), 'Load GdipGetSmoothingMode from GDI+ DLL.');
+
+    GdipCreateBitmapFromHBITMAP:= TGdipCreateBitmapFromHBITMAP(GetProcAddress(GdiPlusHandle, 'GdipCreateBitmapFromHBITMAP'));
+    Assert(Assigned(GdipCreateBitmapFromHBITMAP), 'Load GdipCreateBitmapFromHBITMAP from GDI+ DLL.');
+
+    GdipDisposeImage:= TGdipDisposeImage(GetProcAddress(GdiPlusHandle, 'GdipDisposeImage'));
+    Assert(Assigned(GdipDisposeImage), 'Load GdipDisposeImage from GDI+ DLL.');
+
+    GdipDrawImageRect:= TGdipDrawImageRect(GetProcAddress(GdiPlusHandle, 'GdipDrawImageRect'));
+    Assert(Assigned(GdipDrawImageRect), 'Load GdipDrawImageRect from GDI+ DLL.');
+
+    GdipDrawImageRectI:= TGdipDrawImageRectI(GetProcAddress(GdiPlusHandle, 'GdipDrawImageRectI'));
+    Assert(Assigned(GdipDrawImageRectI), 'Load GdipDrawImageRectI from GDI+ DLL.');
+  end;
+
+finalization
+  if GdiPlusHandle <> 0 then
+    FreeLibrary(GdiPlusHandle);
 
 {$ENDIF}
 

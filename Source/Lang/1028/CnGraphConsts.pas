@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2022 CnPack 开发组                       }
+{                   (C)Copyright 2001-2023 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -23,7 +23,7 @@ unit CnGraphConsts;
 ================================================================================
 * 软件名称：界面控件包
 * 单元名称：资源字符串定义单元
-* 单元作者：CnPack开发组
+* 单元作者：CnPack 开发组
 * 备    注：该单元定义了界面类用到的资源字符串
 * 开发平台：PWin98SE + Delphi 5.0
 * 兼容测试：PWin9X/2000/XP + Delphi 5/6
@@ -42,15 +42,15 @@ var
   SCnAOCaptionFont: string = '砰(&F)';
   SCnAOCaptionOption: string = '砞竚(&O)';
 
-  SCreateDCFromEmptyBmp: string = 'ぃ瓜だ皌DC';
-  SAllocDIBFail: string = '承DIB癸钩琡ア毖';
-  SCreateDCFail: string = '承DCア毖';
-  SSelectBmpToDCFail: string = '礚猭盢瓜癸钩匡拒DCい';
-  SBitmapIsEmpty: string = '礚猭砐拜瓜禜计沮';
-  SInvalidPixel: string = '礚禜翴 x: %d, y: %d';
-  SInvalidPixelF: string = '礚禜翴 x: %f, y: %f';
+  SCreateDCFromEmptyBmp: string = 'ぃ瓜だ皌 DC';
+  SAllocDIBFail: string = '承 DIB 癸钩琡ア毖';
+  SCreateDCFail: string = '承 DC ア毖';
+  SSelectBmpToDCFail: string = '礚猭盢瓜癸钩匡拒 DC い';
+  SBitmapIsEmpty: string = '礚猭砐拜瓜钩计沮';
+  SInvalidPixel: string = '礚钩翴 x: %d, y: %d';
+  SInvalidPixelF: string = '礚钩翴 x: %f, y: %f';
   SInvalidScanLine: string = '礚苯核絬 Row: %d';
-  SInvalidAlphaBitmap: string = 'Alpha睼矪瞶いノ睼瓜钩ゲ斗籔讽玡瓜钩璓';
+  SInvalidAlphaBitmap: string = ' Alpha 睼矪瞶いノ睼瓜钩ゲ斗籔讽玡瓜钩璓';
   SInvalidForeBitmap: string = '砰籜狾睼矪瞶い玡春瓜籔籜狾ゲ斗璓';
   SReadBmpError: string = '弄瓜计沮岿';
 

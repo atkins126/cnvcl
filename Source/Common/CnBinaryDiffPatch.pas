@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2022 CnPack 开发组                       }
+{                   (C)Copyright 2001-2023 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -54,7 +54,8 @@ interface
 {$I CnPack.inc}
 
 uses
-  SysUtils, Classes, FileCtrl, {$IFDEF MSWINDOWS} Windows, {$ENDIF} CnCommon;
+  SysUtils, Classes, {$IFDEF MSWINDOWS} Windows, {$ENDIF}
+  {$IFDEF COMPILER5} FileCtrl, {$ENDIF} CnCommon;
 
 const
   CN_BINARY_DIFF_NAME_VER: AnsiString = 'CnBDiff1';
@@ -82,6 +83,21 @@ function BinaryPatchDirectory(const OldDir, PatchDir, NewDir: string): Boolean;
 {* 二进制差分补丁旧目录，并把新内容输出至新目录}
 
 implementation
+
+uses
+  CnNative;
+
+resourcestring
+  SCnErrorCopyRead = 'Copy Content Read Fail.';
+  SCnErrorCopyWrite = 'Copy Content Write Fail.';
+  SCnErrorCheckSum = 'Patch Checksum Fail.';
+  SCnErrorPatchHeader = 'Patch Header Missing.';
+  SCnErrorPatchNameVersion = 'Patch Header Name/Version Mismatch.';
+  SCnErrorPatchCopyArea = 'Patch Copy Area Mismatch.';
+  SCnErrorPatchCopySize = 'Patch Copy Size Mismatch.';
+  SCnErrorPatchAddArea = 'Patch Add Area Mismatch.';
+  SCnErrorPatchOperatorFmt = 'Patch Operator Unknown %c.';
+  SCnErrorPatchLength = 'Patch Length Mismatch.';
 
 const
   CN_MIN_LENGTH = 24;
@@ -112,8 +128,8 @@ var
   Pa, Pb: PShortInt;
   Len: Cardinal;
 begin
-  Pa := PShortInt(Cardinal(Data) + BytePosA);
-  Pb := PShortInt(Cardinal(Data) + BytePosB);
+  Pa := PShortInt(TCnNativeUInt(Data) + BytePosA);
+  Pb := PShortInt(TCnNativeUInt(Data) + BytePosB);
   Len := DataLen - BytePosA;
   if DataLen - BytePosB < Len then
     Len := DataLen - BytePosB;
@@ -214,7 +230,7 @@ begin
   while First <= Last do
   begin
     Mid := (First + Last) div 2;
-    Pm := PShortInt(Cardinal(Data) + BlockIntArray^[Mid]);
+    Pm := PShortInt(TCnNativeUInt(Data) + BlockIntArray^[Mid]);
     Sm := PShortInt(Sub);
 
     L := DataLen - BlockIntArray^[Mid];
@@ -248,7 +264,7 @@ begin
   end;
 end;
 
-procedure PackLong(P: PByte; L: DWORD);
+procedure PackLong(P: PByte; L: Cardinal);
 begin
   P^ := L and $FF;
   Inc(P);
@@ -259,7 +275,7 @@ begin
   P^ := (L shr 24) and $FF;
 end;
 
-function GetLong(P: PByte): DWORD;
+function GetLong(P: PByte): Cardinal;
 begin
   Result := P^;
   Inc(P);
@@ -326,17 +342,17 @@ begin
       ToReadSize := ASize;
 
     if Cardinal(OldStream.Read(Buf[0], ToReadSize)) <> ToReadSize then
-      raise ECnPatchFormatError.Create('Copy Content Read Fail.');
+      raise ECnPatchFormatError.Create(SCnErrorCopyRead);
 
     if Cardinal(NewStream.Write(Buf[0], ToReadSize)) <> ToReadSize then
-      raise ECnPatchFormatError.Create('Copy Content Write Fail.');
+      raise ECnPatchFormatError.Create(SCnErrorCopyWrite);
 
     ChkRes := CheckSum(@Buf[0], ToReadSize, ChkRes);
     Dec(ASize, ToReadSize);
   end;
 
   if not FromPatch and (ChkRes <> ACheckSum) then
-    raise ECnPatchFormatError.Create('Patch Checksum Fail.');
+    raise ECnPatchFormatError.Create(SCnErrorCheckSum);
 end;
 
 procedure WriteHeader(OutStream: TStream; OldSize, NewSize: Cardinal);
@@ -438,14 +454,14 @@ begin
       OutStream.Write(COPY_CHAR, 1);
       PackLong(@Buf[0], OldPos);
       PackLong(@Buf[4], DataLen);
-      PackLong(@Buf[8], CheckSum(PByte(Cardinal(NewBase) + NewPos), DataLen));
+      PackLong(@Buf[8], CheckSum(PByte(TCnNativeUInt(NewBase) + NewPos), DataLen));
       OutStream.Write(Buf[0], SizeOf(Buf));
     end
     else
     begin
       S := AnsiString(Format('@ -[%d] => +[%d] %d bytes' + #13#10, [OldPos, NewPos, DataLen]));
       OutStream.Write(S[1], Length(S));
-      WriteFilteredOrQuotedData(OutStream, PByte(Cardinal(NewBase) + NewPos), DataLen,
+      WriteFilteredOrQuotedData(OutStream, PByte(TCnNativeUInt(NewBase) + NewPos), DataLen,
         CnDiffOutputType = dotFiltered);
       OutStream.Write(CRLF[1], Length(CRLF));
     end;
@@ -474,11 +490,11 @@ begin
   while Todo > 0 do
   begin
     BsFindMaxMatch(@Match, OldStream.Memory, Sort, OldStream.Size,
-      PByte(Cardinal(NewStream.Memory) + Nofs), Todo);
+      PByte(TCnNativeUInt(NewStream.Memory) + Nofs), Todo);
 
     if Match.Len <> 0 then
     begin
-      WriteAddContent(PatchStream, PByte(Cardinal(NewStream.Memory) + Nofs), Match.NewPos);
+      WriteAddContent(PatchStream, PByte(TCnNativeUInt(NewStream.Memory) + Nofs), Match.NewPos);
 
       Inc(Nofs, Match.NewPos);
       Dec(Todo, Match.NewPos);
@@ -490,7 +506,7 @@ begin
     end
     else
     begin
-      WriteAddContent(PatchStream, PByte(Cardinal(NewStream.Memory) + Nofs), Todo);
+      WriteAddContent(PatchStream, PByte(TCnNativeUInt(NewStream.Memory) + Nofs), Todo);
       Break;
     end;
   end;
@@ -510,10 +526,10 @@ begin
     Exit;
 
   if PatchStream.Read(Buf[0], 16) <> 16 then
-    raise ECnPatchFormatError.Create('Patch Header Missing.');
+    raise ECnPatchFormatError.Create(SCnErrorPatchHeader);
 
   if not CompareMem(@CN_BINARY_DIFF_NAME_VER[1], @Buf[0], Length(CN_BINARY_DIFF_NAME_VER)) then
-    raise ECnPatchFormatError.Create('Patch Header Name/Version Mismatch.');
+    raise ECnPatchFormatError.Create(SCnErrorPatchNameVersion);
 
   SrcLen := GetLong(@Buf[8]);
   DstLen := GetLong(@Buf[12]);
@@ -528,34 +544,37 @@ begin
     '@':
       begin
         if PatchStream.Read(Buf[0], 12) <> 12 then
-          raise ECnPatchFormatError.Create('Patch Copy Area Mismatch.');
+          raise ECnPatchFormatError.Create(SCnErrorPatchCopyArea);
 
         ASize := GetLong(@Buf[4]);
         AnOffset := GetLong(@Buf[0]);
 
         if (AnOffset > SrcLen) or (ASize > SrcLen) or (ASize + AnOffset > SrcLen) then
-          raise ECnPatchFormatError.Create('Patch Copy Size Mismatch.');
-
+          raise ECnPatchFormatError.Create(SCnErrorPatchCopySize);
+{$IFDEF MSWINDOWS}
         OldStream.Seek(AnOffset, soFromBeginning);
+{$ELSE}
+        OldStream.Seek(LongInt(AnOffset), soFromBeginning);
+{$ENDIF}
         CopyStreamData(OldStream, NewStream, ASize, GetLong(@Buf[8]), False);
         Dec(DstLen, ASize);
       end;
     '+':
       begin
         if PatchStream.Read(Buf[0], 4) <> 4 then
-          raise ECnPatchFormatError.Create('Patch Add Area Mismatch.');
+          raise ECnPatchFormatError.Create(SCnErrorPatchAddArea);
         ASize := GetLong(@Buf[0]);
 
         CopyStreamData(PatchStream, NewStream, ASize, 0, True);
         Dec(DstLen, ASize);
       end;
     else
-      raise ECnPatchFormatError.CreateFmt('Patch Operator Unknown %c.', [AnOperator]);
+      raise ECnPatchFormatError.CreateFmt(SCnErrorPatchOperatorFmt, [AnOperator]);
     end;
   end;
 
   if DstLen <> 0 then
-    raise ECnPatchFormatError.Create('Patch Length Mismatch.');
+    raise ECnPatchFormatError.Create(SCnErrorPatchLength);
 
   Result := True;
 end;

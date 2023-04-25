@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2022 CnPack 开发组                       }
+{                   (C)Copyright 2001-2023 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -169,7 +169,7 @@ type
       write SetModernBtnStyle default bsNormal;
     {* 按钮绘制风格}
     property Spacing: Integer read FSpacing write SetSpacing default 4;
-    {* 图标和文字之间的距离，以象素为单位，默认为 4}
+    {* 图标和文字之间的距离，以像素为单位，默认为 4}
     property WordWrap: Boolean read FWordWrap write SetWordWrap default False;
     {* 文字是否自动换行}
     property OnClick: TNotifyEvent read FOnClick write FOnClick;
@@ -1224,8 +1224,8 @@ begin
 
   if FModernBtnStyle = bsModern then // 现代模式直接画，以避免圆角底色问题，但可能闪烁
   begin
-  	if FRoundCorner then // 圆角时处理透明问题
-  	  RenewBack;
+    if FRoundCorner then // 圆角时处理透明问题
+      RenewBack;
 
     PaintButton(Canvas, False, Width, Height, FNumGlyphs, FSpacing, FMargin, FGlyph, FDown, FDownBold,
               FHotTrackBold, FCursorOnButton, False, Enabled,

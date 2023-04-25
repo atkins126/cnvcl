@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2022 CnPack 开发组                       }
+{                   (C)Copyright 2001-2023 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -28,7 +28,9 @@ unit CnCommon;
 * 开发平台：PWin98SE + Delphi 5.0
 * 兼容测试：PWin9X/2000/XP + Delphi 5/6
 * 本 地 化：该单元中的字符串均符合本地化处理方式
-* 修改记录：2021.06.22 by LiuXiao
+* 修改记录：2022.10.07 by LiuXiao
+*               增加多行文本输入框函数
+*           2021.06.22 by LiuXiao
 *               增加多按钮提示框的函数，暂不支持图标
 *           2019.02.25 by LiuXiao
 *               增加检查中国大陆 18 位身份证号是否正确的函数
@@ -41,9 +43,9 @@ unit CnCommon;
 *           2007.01.31 by LiuXiao
 *               增加获取一对象所有属性列表的函数
 *           2006.11.29 by shenloqi
-*               修改了  ShortNameToLongName 函数，使其支持 Win95/NT（不支持 Linux）
+*               修改了 ShortNameToLongName 函数，使其支持 Win95/NT（不支持 Linux）
 *           2005.08.02 by shenloqi
-*               增加了SameCharCounts，CharCounts ，RelativePath函数，重写了
+*               增加了 SameCharCounts，CharCounts ，RelativePath函数，重写了
 *               GetRelativePath函数
 *           2005.07.08 by shenloqi
 *               修改了 GetRelativePath 函数，修改了 FileMatchesExts 函数，增加了
@@ -74,16 +76,33 @@ interface
 
 uses
   SysUtils, Classes, TypInfo, IniFiles,
-{$IFDEF MSWINDOWS}
+{$IFDEF MSWINDOWS} // 如果 Windows 下编译错误找不到 ComCtrls 单元，请在编译选项里加 Vcl 前缀
   Windows, Messages, Graphics, Controls, Forms, Dialogs,
   ComCtrls, Math, Menus, Registry, ComObj, FileCtrl, ShellAPI, CommDlg,
-  MMSystem, StdCtrls, ActiveX, ShlObj, CheckLst, MultiMon,
+  MMSystem, StdCtrls, ExtCtrls, ActiveX, ShlObj, CheckLst, MultiMon,
   {$IFNDEF FPC} TLHelp32, PsAPI,{$ENDIF}
+  {$IFDEF COMPILER6_UP}
+    Types,
+  {$ENDIF}
+{$ELSE}
+  System.Types, System.UITypes, System.Math, System.IOUtils, Posix.SysStat,
+  FMX.ImgList, FMX.Graphics, FMX.ListView, FMX.ListBox, FMX.Menus, FMX.Memo,
+  FMX.Forms, FMX.Controls, FMX.Edit, FMX.ListView.Types, FMX.Dialogs,
 {$ENDIF}
 {$IFDEF COMPILER6_UP}
-  StrUtils, Variants, Types,
+  StrUtils, Variants,
 {$ENDIF}
-  CnConsts, CnNativeDecl, CnIni, CnIniStrUtils, CnWideStrings;
+  CnConsts, CnNative, CnIni, CnIniStrUtils, CnWideStrings;
+
+const
+{$IFNDEF COMPILER6_UP}
+  sLineBreak = {$IFDEF POSIX} #10 {$ENDIF} {$IFDEF MSWINDOWS} #13#10 {$ENDIF};
+{$ENDIF}
+
+  Alpha = ['A'..'Z', 'a'..'z', '_'];
+  AlphaNumeric = Alpha + ['0'..'9'];
+
+  SCN_UTF16_ANSI_WIDE_CHAR_SEP = $900;
 
 //------------------------------------------------------------------------------
 // 公共类型定义
@@ -115,15 +134,7 @@ type
 
   TCnSenderCallback = procedure(Sender: TObject);
 
-const
-{$IFNDEF COMPILER6_UP}
-  sLineBreak = {$IFDEF LINUX} #10 {$ENDIF} {$IFDEF MSWINDOWS} #13#10 {$ENDIF};
-{$ENDIF}
-
-  Alpha = ['A'..'Z', 'a'..'z', '_'];
-  AlphaNumeric = Alpha + ['0'..'9'];
-
-  SCN_UTF16_ANSI_WIDE_CHAR_SEP = $900;
+  TCnIdentWordStyle = (iwsUpperCase, iwsLowerCase, iwsUpperFirstChar);
 
 //==============================================================================
 // Ansi 字符串函数
@@ -136,6 +147,8 @@ function TrimBom(const S: AnsiString): AnsiString;
 //------------------------------------------------------------------------------
 // 扩展的文件目录操作函数
 //------------------------------------------------------------------------------
+
+{$IFDEF MSWINDOWS}
 
 procedure ExploreDir(const APath: string; ShowDir: Boolean = True);
 {* 在资源管理器中打开指定目录 }
@@ -181,6 +194,8 @@ procedure DrawMatchText(Canvas: TCanvas; const MatchStr, Text: string;
   StartOffset: Integer = 1);
 {* 在指定 Canvas 上绘制匹配的字符串，匹配部分高亮显示}
 
+{$ENDIF}
+
 function SameCharCounts(s1, s2: string): Integer;
 {* 两个字符串的前面的相同字符数}
 function CharCounts(Str: PChar; Chr: Char): Integer;
@@ -210,6 +225,8 @@ function LinkPath(const Head, Tail: string): string;
    Head - 首路径，可以是 C:\Test、\\Test\C\Abc、http://www.abc.com/dir/ 等格式
    Tail - 尾路径，可以是 ..\Test、Abc\Temp、\Test、/web/lib 等格式或绝对地址格式 }
 
+{$IFDEF MSWINDOWS}
+
 procedure RunFile(const FName: string; Handle: THandle = 0;
   const Param: string = '');
 {* 运行一个文件}
@@ -219,6 +236,9 @@ procedure OpenUrl(const Url: string; UseCmd: Boolean = False);
 
 procedure MailTo(const Addr: string; const Subject: string = ''; UseCmd: Boolean = False);
 {* 发送邮件}
+
+procedure SendMailTo(const Subject, Body, Addr: string; Attachs: array of string);
+{* 使用 MSAPI 发送邮件，支持附件，但要求系统安装了 MSAPI}
 
 function WinExecute(const FileName: string; Visibility: Integer = SW_NORMAL): Boolean;
 {* 运行一个文件并立即返回 }
@@ -279,6 +299,8 @@ function FindExecFile(const AName: string; var AFullName: string): Boolean;
 function GetSpecialFolderLocation(const Folder: Integer): string;
 {* 取得系统特殊文件夹位置，Folder 使用在 ShlObj 中定义的标识，如 CSIDL_DESKTOP }
 
+{$ENDIF}
+
 function AddDirSuffix(const Dir: string): string;
 {* 目录尾加 '\' 修正}
 
@@ -317,6 +339,8 @@ function FileMatchesMasks(const FileName, FileMasks: string; CaseSensitive: Bool
 function FileMatchesMasks(const FileName: string; MaskList: TStrings): Boolean; overload;
 {* 文件名是否匹配通配符}
 
+{$IFDEF MSWINDOWS}
+
 function IsFileInUse(const FName: string): Boolean;
 {* 判断文件是否正在使用}
 
@@ -344,7 +368,7 @@ function DateTimeToFileTime(const DateTime: TDateTime): TFileTime;
 {* 本地日期时间转文件时间}
 
 function GetFileIcon(const FileName: string; var Icon: TIcon): Boolean;
-{* 取得与文件相关的图标，成功则返回True}
+{* 取得与文件相关的图标，成功则返回 True}
 
 function CreateBakFile(const FileName, Ext: string): Boolean;
 {* 创建备份文件}
@@ -357,11 +381,14 @@ function LocalSystemTimeToFileTime(STime: TSystemTime): TFileTime;
 
 function DateTimeToLocalDateTime(DateTime: TDateTime): TDateTime;
 {* UTC 时间转本地时间}
+
 function LocalDateTimeToDateTime(DateTime: TDateTime): TDateTime;
 {* 本地时间转 UTC 时间}
 
 procedure PinAppToWin7Taskbar(const Path, App: string);
 {* 把程序钉到 Windows 7 任务栏，参数为程序路径与文件名}
+
+{$ENDIF}
 
 {$IFDEF COMPILER5}
 type
@@ -408,6 +435,8 @@ procedure DelEmptyTree(const Dir: string; DelRoot: Boolean = True);
 
 function GetDirFiles(const Dir: string; FileNames: TStrings = nil): Integer;
 {* 取文件夹下的直系文件列表，文件名不包含路径名。不搜索子目录。返回文件数}
+
+{$IFDEF MSWINDOWS}
 
 type
   TFindCallBack = procedure(const FileName: string; const Info: TSearchRec;
@@ -462,7 +491,9 @@ function GetFileSize(const FileName: string): Int64;
 {* 取文件长度}
 
 function GetFileDateTime(const FileName: string): TDateTime;
-{* 取文件Delphi格式日期时间}
+{* 取文件 Delphi 格式日期时间}
+
+{$ENDIF}
 
 function LoadStringFromFile(const FileName: string): string;
 {* 将文件读为字符串}
@@ -476,6 +507,8 @@ procedure QuickSortStringList(List: TStringList; L, R: Integer; SCompare: TStrin
 //------------------------------------------------------------------------------
 // 环境变量相关
 //------------------------------------------------------------------------------
+
+{$IFDEF MSWINDOWS}
 
 function DelEnvironmentVar(const Name: string): Boolean;
 {* 删除当前进程中的环境变量 }
@@ -492,6 +525,8 @@ function GetEnvironmentVars(const Vars: TStrings; Expand: Boolean): Boolean;
 
 function SetEnvironmentVar(const Name, Value: string): Boolean;
 {* 设置当前进程中的环境变量 }
+
+{$ENDIF}
 
 //------------------------------------------------------------------------------
 // 扩展的字符串操作函数
@@ -526,6 +561,9 @@ function IsDateTime(const S: string): Boolean;
 
 function IsValidEmail(const S: string): Boolean;
 {* 判断是否有效的邮件地址}
+
+function IsSimpleFormat(const S: string): Boolean;
+{* 判断是否是简单的格式化字符串}
 
 function StrSpToInt(const Value: string; Sp: Char = ','): Int64;
 {* 去掉字符串中的分隔符－字符转换}
@@ -613,11 +651,15 @@ function WideStrToLines(const Str: WideString): WideString;
 function MyDateToStr(Date: TDate): string;
 {* 日期转字符串，使用 yyyy.mm.dd 格式}
 
+{$IFDEF MSWINDOWS}
+
 function RegReadStringDef(const RootKey: HKEY; const Key, Name, Def: string): string;
 {* 取注册表键值}
 
 function GetKeysInRegistryKey(const Key: string; List: TStrings): Boolean;
 {* 取注册表某键的子键列表}
+
+{$ENDIF}
 
 procedure ReadStringsFromIni(Ini: TCustomIniFile; const Section: string; Strings: TStrings);
 {* 从 INI 中读取字符串列表}
@@ -664,11 +706,15 @@ function FastSqrt(N: LongWord): LongWord;
 function FastSqrt64(N: Int64): Int64;
 {* 逐位确定法快速计算整数的平方根的整数部分}
 
+{$IFDEF MSWINDOWS}
+
 function StrToRegRoot(const S: string): HKEY;
 {* 字符串转注册表根键，支持 'HKEY_CURRENT_USER' 'HKCR' 长短两种格式}
 
 function RegRootToStr(Key: HKEY; ShortFormat: Boolean = True): string;
 {* 注册表根键转字符串，可选 'HKEY_CURRENT_USER' 'HKCR' 长短两种格式}
+
+{$ENDIF}
 
 function ExtractSubstr(const S: string; var Pos: Integer;
   const Delims: TSysCharSet): string;
@@ -683,6 +729,8 @@ function ExtractSubstr(const S: string; var Pos: Integer;
 function WildcardCompare(const FileWildcard, FileName: string; const IgnoreCase:
   Boolean = True): Boolean;
 {* 文件名通配符比较}
+
+{$IFDEF MSWINDOWS}
 
 function ScanCodeToAscii(Code: Word): AnsiChar;
 {* 根据当前键盘布局将键盘扫描码转换成 ASCII 字符，可在 WM_KEYDOWN 等处使用
@@ -723,6 +771,11 @@ function IsNumLockDown: Boolean;
 function IsScrollLockDown: Boolean;
 {* 判断当前 Scroll Lock 是否按下 }
 
+function HandleEditShortCut(AControl: TWinControl; AShortCut: TShortCut): Boolean;
+{* 使控件处理标准编辑快捷键}
+
+{$ENDIF}
+
 function RemoveClassPrefix(const ClassName: string): string;
 {* 删除类名前缀 T}
 
@@ -739,6 +792,8 @@ function CnAuthorEmailToStr(Author, Email: string): string;
 //------------------------------------------------------------------------------
 // 扩展的对话框函数
 //------------------------------------------------------------------------------
+
+{$IFDEF MSWINDOWS}
 
 procedure InfoDlg(const Mess: string; Caption: string = ''; Flags: Integer
   = MB_OK + MB_ICONINFORMATION);
@@ -763,21 +818,49 @@ procedure LongMessageDlg(const Mess: string; AutoWrap: Boolean = False;
 
 function MultiButtonsDlg(const Mess: string; Buttons: TCnDlgButtonCaptions;
   Caption: string = ''): TCnDlgResult;
-{* 显示多按钮对话框，动态构造按钮并返回其 ModalResult，暂不支持图标}
+{* 显示多按钮对话框，动态构造按钮并返回其 ModalResult，暂不支持图标
+  注意 Buttons 里传入的 set 中的按钮顺序，需和 TCnDlgButtonCaption 中声明的一致}
+
+{$ENDIF}
 
 const
   csDefComboBoxSection = 'History';
+
+{$IFDEF MSWINDOWS}
 
 function CnInputQuery(const ACaption, APrompt: string;
   var Value: string; Ini: TCustomIniFile = nil;
   const Section: string = csDefComboBoxSection; APassword: Boolean = False;
   FormCallBack: TCnSenderCallback = nil): Boolean;
-{* 输入对话框}
+{* 输入单行字符串的对话框}
+
+{$ENDIF}
 
 function CnInputBox(const ACaption, APrompt, ADefault: string;
-   Ini: TCustomIniFile = nil; const Section: string = csDefComboBoxSection;
-   FormCallBack: TCnSenderCallback = nil): string;
-{* 输入对话框}
+  Ini: TCustomIniFile = nil; const Section: string = csDefComboBoxSection;
+  FormCallBack: TCnSenderCallback = nil): string;
+{* 输入单行字符串的对话框，注意 FMX 下历史功能与回调无效，仅简单返回内容}
+
+{$IFDEF MSWINDOWS}
+
+function CnInputMultiLineQuery(const ACaption, APrompt: string;
+  var Value: string; FormCallBack: TCnSenderCallback = nil): Boolean;
+{* 输入多行字符串的对话框，返回 True 表示用户输入后点击 OK 了，输入内容在 Value 中}
+
+function CnInputMultiLineBox(const ACaption, APrompt, ADefault: string;
+  FormCallBack: TCnSenderCallback = nil): string;
+{* 输入多行字符串的对话框，用户输入内容为空或 Cancel 时返回空字符串}
+
+procedure CnShowHexData(Data: Pointer; DataByteLength: Integer; BaseAddr: Integer = 0;
+  const ACaption: string = ''; Modal: Boolean = True);
+{* 以十六进制的方式显示一块数据，Modal 参数控制对话框模态或非模态}
+
+function CnSingleOptionQuery(const ACaption, APrompt: string; Options: TStrings;
+  FormCallBack: TCnSenderCallback = nil): Integer;
+{* 弹出对话框以单选按钮框 RadioGroup 显示多个选项让用户选择，返回选中的索引
+  如用户未选择，或选择了取消，则返回 -1}
+
+{$ENDIF}
 
 //------------------------------------------------------------------------------
 // 扩展日期时间操作函数
@@ -844,8 +927,10 @@ type
   TDLLVERSIONINFO2 = packed record
     info1: TDLLVERSIONINFO;
     dwFlags: DWORD;
-    ullVersion: ULARGE_INTEGER;
+    ullVersion: {$IFDEF MSWINDOWS} ULARGE_INTEGER {$ELSE} UInt64 {$ENDIF};
   end;
+
+{$IFDEF MSWINDOWS}
 
 procedure MoveMouseIntoControl(AWinControl: TControl);
 {* 移动鼠标到控件}
@@ -892,6 +977,9 @@ procedure EndWait;
 function CheckWindows9598: Boolean;
 {* 检测是否 Windows 95/98 平台}
 
+function CheckWindowsNT: Boolean;
+{* 检测是否 WinNT 平台}
+
 function CheckWinXP: Boolean;
 {* 检测是否 Windows XP 或以上平台}
 
@@ -915,7 +1003,7 @@ function CheckXPManifest(var OSSupport, AppValid: Boolean): Boolean;
 
 function DllGetVersion(const dllname: string;
   var DVI: TDLLVERSIONINFO2): Boolean;
-{* 获得Dll的版本信息}
+{* 获得 Dll 的版本信息}
 
 function GetOSString: string;
 {* 返回操作系统标识串}
@@ -951,6 +1039,8 @@ procedure ListboxHorizontalScrollbar(Listbox: TCustomListBox);
 procedure CloneMenuItem(Source, Dest: TMenuItem);
 {* 复制菜单项和其子项}
 
+{$ENDIF}
+
 procedure SelectMemoOneLine(AMemo: TMemo; FromLine: Integer);
 {* 选中 Memo 的第 FromLine 后的一整行，首行是第 1 行}
 
@@ -958,11 +1048,15 @@ procedure SelectMemoOneLine(AMemo: TMemo; FromLine: Integer);
 // 其它过程
 //------------------------------------------------------------------------------
 
+{$IFDEF MSWINDOWS}
+
 function GetControlBitmap(AControl: TControl; Bmp: TBitmap; ResetSize: Boolean = False): Boolean;
 {* 获取 Control 表面的位图，ResetSize 为 True 表示使用 Control 尺寸设置位图尺寸}
 
 function GetMultiMonitorDesktopRect: TRect;
 {* 获得多显示器情况下，整个桌面相对于主显示器原点的坐标}
+
+{$ENDIF}
 
 function TrimInt(Value, Min, Max: Integer): Integer;
 {* 输出限制在 Min..Max 之间}
@@ -975,7 +1069,7 @@ function IntToByte(Value: Integer): Byte;
 {* 输出限制在 0..255 之间}
 
 function InBound(Value: Integer; V1, V2: Integer): Boolean;
-{* 判断整数Value是否在V1和V2之间}
+{* 判断整数 Value 是否在 V1 和 V2 之间}
 
 function SameMethod(Method1, Method2: TMethod): Boolean;
 {* 比较两个方法地址是否相等}
@@ -986,9 +1080,13 @@ function HalfFind(List: TList; P: Pointer; SCompare: TListSortCompare): Integer;
 function CheckChineseIDCardNumber(const IDNumber: string): Boolean;
 {* 检查中国大陆的 18 位身份证是否合法}
 
+{$IFDEF MSWINDOWS}
+
 procedure StretchDrawImageListToCanvas(ImageList: TImageList; ImageIndex: Integer;
   DestCanvas: TCanvas; X, Y, AWidth, AHeight: Integer);
 {* 拉伸绘制 ImageList 中的指定图像至指定 Canvas 的指定矩形中，支持背景透明}
+
+{$ENDIF}
 
 type
   TFindRange = record
@@ -1023,6 +1121,8 @@ function RectWidth(Rect: TRect): Integer;
 function RectHeight(Rect: TRect): Integer;
 {* 计算 TRect 的高度}
 
+{$IFDEF MSWINDOWS}
+
 procedure Delay(const uDelay: DWORD);
 {* 延时}
 
@@ -1038,15 +1138,20 @@ function GetLastErrorMsg(IncludeErrorCode: Boolean = False): string;
 {* 取得最后一次错误信息}
 
 procedure ShowLastError;
-{* 显示 Win32 Api 运行结果信息}
+{* 显示 Win32 API 运行结果信息}
+
+{$ENDIF}
 
 function GetHzPy(const AHzStr: AnsiString): AnsiString;
-{* 取汉字的拼音}
+{* 取汉字的拼音首字母，注意编码必须是 GB2312，并且只支持部分常用字
+ （GBK/GB18030 编码也可但获取不到）}
 
 {$IFDEF UNICODE}
 function GetHzPyW(const AHzStr: string): string;
 {* 取汉字的拼音，参数为 Utf16}
 {$ENDIF}
+
+{$IFDEF MSWINDOWS}
 
 function TextFullWidthToHalfWidth(const Text: string): string;
 {* 全角字符转换为半角字符。其中句号"。"转为"."，顿号"、"转为","}
@@ -1066,11 +1171,15 @@ function FindFormByClass(AClass: TClass): TForm;
 function ModalFormExists: Boolean;
 {* 当前是否有模态窗口存在}
 
+{$ENDIF}
+
 function InheritsFromClassName(ASrc: TClass; const AClass: string): Boolean; overload;
 {* 判断 ASrc 是否派生自类名为 AClass 的类 }
 
 function InheritsFromClassName(AObject: TObject; const AClass: string): Boolean; overload;
 {* 判断 AObject 是否派生自类名为 AClass 的类 }
+
+{$IFDEF MSWINDOWS}
 
 function AdjustDebugPrivilege(Enable: Boolean): Boolean;
 {* 提升自身权限到 SeDebug 或取消此权限}
@@ -1088,14 +1197,19 @@ function NtIsDeugged: Boolean;
 procedure KillProcessByFileName(const FileName: String);
 {* 根据文件名结束进程，不区分路径}
 
+{$ENDIF}
+
 function IndexStr(const AText: string; AValues: array of string; IgCase: Boolean = True): Integer;
-{* 查找字符串在动态数组中的索引，用于string类型使用Case语句}
+{* 查找字符串在动态数组中的索引，用于 string 类型使用 case 语句}
 
 function IndexInt(ANum: Integer; AValues: array of Integer): Integer;
-{* 查找整形变量在动态数组中的索引，用于变量使用Case语句}
+{* 查找整形变量在动态数组中的索引，用于变量使用 case 语句}
 
 procedure TrimStrings(AList: TStrings);
-{* 删除空行和每一行的行首尾空格 }
+{* 删除空行和每一行的行首尾空格}
+
+procedure RemoveDuplicatedStrings(AList: TStrings; CaseSensitive: Boolean = True);
+{* 字符串列表去重，CaseSensitive 表示判断重复时是否区分大小写}
 
 //==============================================================================
 // 级联属性操作相关函数 by LiuXiao
@@ -1140,6 +1254,11 @@ procedure GetAllPropNamesFromClass(ACompClass: TClass; PropNames: TStrings;
 // 其他杂项函数 by LiuXiao
 //==============================================================================
 
+function CnGetTickCount: Cardinal;
+{* 封装的获取系统启动以来的毫秒数的函数}
+
+{$IFDEF MSWINDOWS}
+
 type
   TCnFontControl = class(TControl)
   public
@@ -1152,6 +1271,8 @@ function IsParentFont(AControl: TControl): Boolean;
 
 function GetParentFont(AControl: TComponent): TFont;
 {* 取某 Control 的 Parent 的 Font 属性，如果没有返回 nil }
+
+{$ENDIF}
 
 const
   InvalidFileNameChar: set of AnsiChar = ['\', '/', ':', '*', '?', '"', '<', '>', '|'];
@@ -1243,10 +1364,52 @@ function ConvertUtf8ToAlterAnsi(Utf8Text: PAnsiChar; AlterChar: AnsiChar = ' '):
 function GetSetElementCount(const ASet; ASetSize: Integer): Integer;
 {* 获取某集合内的元素数目，尺寸不对则返回 -1}
 
+{$IFDEF MSWINDOWS}
+
+function CnMapFileToPointer(const FileName: string; out FileHandle, MapHandle: THandle;
+  out Address: Pointer): Boolean;
+{* 将文件映射为内存文件并返回文件句柄、映射句柄与映射的内存起始地址，成功返回 True
+  如果返回 True，必须在使用完 Address 后调用 CnUnMapFileFromPointer
+  以释放 Address、MapHandle 和 FileHandle}
+
+function CnUnMapFileFromPointer(var FileHandle, MapHandle: THandle;
+  var Address: Pointer): Boolean;
+{* 释放映射的内存文件，与 CnMapFileToPointer 对应}
+
+function ExtractPEDataDirectory(const FileName: string; DirectoryIndex: Integer;
+  OutStream: TStream): Boolean;
+{* 处理一个 PE 文件，提取出其中第 DirectoryIndex 个 DataDirectory 的内容并写到流中，返回提取是否成功}
+
+{$ENDIF}
+
+function LoadRawFileToBytes(const FileName: string): TBytes;
+{* 从文件中载入字节数组，不进行编码转换}
+
+procedure SaveRawFileFromBytes(B: TBytes; const FileName: string);
+{* 将字节数组写入文件，不进行编码转换}
+
+function StrToBytes(const S: AnsiString): TBytes;
+{* 将 Ansi 字符串的内容转为一新的字节数组}
+
+function BytesToStr(Data: TBytes): AnsiString;
+{* 将字节数组的内容转为一新的 AnsiString}
+
+function ConvertStringToIdent(const Str: string; const Prefix: string = 'S';
+  UseUnderLine: Boolean = False; IdentWordStyle: TCnIdentWordStyle = iwsUpperFirstChar;
+  UseFullPinYin: Boolean = False; MaxWideChars: Integer = 7; MaxWords: Integer = 7;
+  MaxCharLength: Integer = 64): string;
+{* 将字符串中的符合标识符信息的内容抽取出来形成标识符并返回，内部针对汉字处理拼音
+  UseUnderLine：分词或拼音之间是否用下划线分隔（拼音使用首字母时相邻的汉字不分隔）
+  IdentWordStyle：分词使用全大写、全小写还是首字母大写
+  UseFullPinYin：获取汉字拼音时使用全拼还是只首字母
+  MaxWideChars：最长处理的双字节字符数，要有拼音才算
+  MaxWords：最长处理的分词数
+  MaxCharLength: 最长的字符数。注意这三个 Max 只要达到一个就完成，可能会超 MaxCharLength}
+
 implementation
 
 uses
-  CnStrings;
+  CnStrings, CnGB18030 {$IFDEF MSWINDOWS}, CnHexEditor {$ENDIF};
 
 const
   MINOR_DOUBLE = 1E-8;
@@ -1264,12 +1427,19 @@ const
     @SCnMsgDlgNoToAll
   );
 
+  SCN_CHINESE_SEP_CHARS: array[0..11] of WideString =
+    ('，', '。', '、', '！', '（', '）', '【', '】', '—', '…','《', '》');
+
+{$IFDEF MSWINDOWS}
+
 type
   TNtQueryInformationProcess = function(ProcessHandle: THANDLE; ProcessInformationClass: DWORD;
     ProcessInformation: Pointer; ProcessInformationLength: ULONG; ReturnLength: PULONG): LongInt; stdcall;
 var
   NtQueryInformationProcess: TNtQueryInformationProcess = nil;
   NtDllHandle: THandle = 0;
+
+{$ENDIF}
 
 function DoubleEqual(const D1, D2: Double): Boolean;
 begin
@@ -1853,6 +2023,8 @@ end;
 // 扩展的文件目录操作函数
 //------------------------------------------------------------------------------
 
+{$IFDEF MSWINDOWS}
+
 // 在资源管理器中打开指定目录
 procedure ExploreDir(const APath: string; ShowDir: Boolean);
 var
@@ -1973,7 +2145,7 @@ end;
 function FormatPath(const APath: string; Width: Integer): string;
 var
   SLen: Integer;
-  i, j: Integer;
+  I, J: Integer;
   TString: string;
 begin
   SLen := Length(APath);
@@ -1984,18 +2156,18 @@ begin
   end
   else
   begin
-    i := SLen;
+    I := SLen;
     TString := APath;
-    for j := 1 to 2 do
+    for J := 1 to 2 do
     begin
-      while (TString[i] <> '\') and (SLen - i < Width - 8) do
-        i := i - 1;
-      i := i - 1;
+      while (TString[I] <> '\') and (SLen - I < Width - 8) do
+        I := I - 1;
+      I := I - 1;
     end;
-    for j := SLen - i - 1 downto 0 do
-      TString[Width - j] := TString[SLen - j];
-    for j := SLen - i to SLen - i + 2 do
-      TString[Width - j] := '.';
+    for J := SLen - I - 1 downto 0 do
+      TString[Width - J] := TString[SLen - J];
+    for J := SLen - I to SLen - I + 2 do
+      TString[Width - J] := '.';
     Delete(TString, Width + 1, 255);
     Result := TString;
   end;
@@ -2223,7 +2395,7 @@ end;
 { uFlag: 其他样式，你可以这样使用,像                  }
 {       BIF_RETURNONLYFSDIRS or BIF_VALIDATE          }
 {       请参照 Win32SDK 查看更多明细                  }
-{*****************************************************} 
+{*****************************************************}
 function SelectDirectoryW(hOwn: HWND; var Path: WideString; const Caption,
   Root: WideString; uFlag: DWORD = $25): Boolean;
 const
@@ -2339,6 +2511,8 @@ begin
   SelectDirectoryW(hOwn, Result, Caption, Root);
 end;
 
+{$ENDIF}
+
 // 两个字符串的前面的相同字符数
 function SameCharCounts(s1, s2: string): Integer;
 var
@@ -2360,7 +2534,7 @@ begin
     (StrByteType(Str2, Result - 1) = mbLeadByte) then
     Dec(Result);
 {$ENDIF}
-{$IFDEF LINUX}
+{$IFDEF POSIX}
   if (StrByteType(Str1, Result - 1) <> mbSingleByte) or
     (StrByteType(Str2, Result - 1) <> mbSingleByte) then
     Dec(Result);
@@ -2385,7 +2559,7 @@ begin
       mbLeadByte: Inc(p);
     end;
 {$ENDIF}
-{$IFDEF LINUX}
+{$IFDEF POSIX}
     if StrByteType(Str, Integer(p - Str)) = mbSingleByte then begin
       Inc(Result);
       Inc(p);
@@ -2401,7 +2575,7 @@ function GetRelativePath(ATo, AFrom: string;
   const PathStr: string = '\'; const ParentStr: string = '..';
   const CurrentStr: string = '.'; const UseCurrentDir: Boolean = False): string;
 var
-  i, HeadNum: Integer;
+  I, HeadNum: Integer;
 begin
   ATo := StringReplace(ATo, '/', '\', [rfReplaceAll]);
   AFrom := StringReplace(AFrom, '/', '\', [rfReplaceAll]);
@@ -2433,7 +2607,7 @@ begin
 
     Result := '';
     HeadNum := CharCounts(PChar(AFrom), '\');
-    for i := 1 to HeadNum do
+    for I := 1 to HeadNum do
       Result := Result + ParentStr + PathStr;
     if (Result = '') and UseCurrentDir then
       Result := CurrentStr + PathStr;
@@ -2520,7 +2694,7 @@ var
   TailHasRoot: Boolean;
   TailIsRel: Boolean;
   AHead, ATail, S: string;
-  UrlPos, i: Integer;
+  UrlPos, I: Integer;
 begin
   if Head = '' then
   begin
@@ -2556,17 +2730,17 @@ begin
     else if AnsiPos('\\', AHead) = 1 then
     begin
       S := Copy(AHead, 3, MaxInt);
-      i := AnsiPos('\', S);
-      if i > 0 then
-        Result := Copy(AHead, 1, i + 1) + ATail
+      I := AnsiPos('\', S);
+      if I > 0 then
+        Result := Copy(AHead, 1, I + 1) + ATail
       else
         Result := AHead + ATail;
     end else if HeadIsUrl then
     begin
       S := Copy(AHead, UrlPos + 3, MaxInt);
-      i := AnsiPos('\', S);
-      if i > 0 then
-        Result := Copy(AHead, 1, i + UrlPos + 1) + ATail
+      I := AnsiPos('\', S);
+      if I > 0 then
+        Result := Copy(AHead, 1, I + UrlPos + 1) + ATail
       else
         Result := AHead + ATail;
     end
@@ -2581,12 +2755,12 @@ begin
     if Copy(ATail, 1, 2) = '.\' then
       Delete(ATail, 1, 2);
     AHead := MakeDir(AHead);
-    i := Pos('..\', ATail);
-    while i > 0 do
+    I := Pos('..\', ATail);
+    while I > 0 do
     begin
       AHead := _CnExtractFileDir(AHead);
       Delete(ATail, 1, 3);
-      i := Pos('..\', ATail);
+      I := Pos('..\', ATail);
     end;
     Result := MakePath(AHead) + ATail;
   end;
@@ -2594,6 +2768,8 @@ begin
   if HeadIsUrl then
     Result := StringReplace(Result, '\', '/', [rfReplaceAll]);
 end;
+
+{$IFDEF MSWINDOWS}
 
 // 运行一个文件
 procedure RunFile(const FName: string; Handle: THandle;
@@ -2631,6 +2807,43 @@ begin
     RunFile(Url)
   else
     ShellExecute(0, 'open', 'cmd.exe', PChar('/c start ' + Url), '', SW_HIDE);
+end;
+
+procedure SendMailTo(const Subject, Body, Addr: string; Attachs: array of string);
+var
+  MM, MS: Variant;
+  I: Integer;
+begin
+  MS := CreateOleObject('MSMAPI.MAPISession');
+  try
+    MM := CreateOleObject('MSMAPI.MAPIMessages');
+    try
+      MS.DownLoadMail := False;
+      MS.NewSession := False;
+      MS.LogonUI := True;
+      MS.SignOn;
+      MM.SessionID := MS.SessionID;
+
+      MM.Compose;
+
+      MM.RecipIndex := 0;
+      MM.RecipAddress := Addr;
+      MM.MsgSubject := Subject;
+      MM.MsgNoteText := Body;
+
+      for I := Low(Attachs) to High(Attachs) do
+      begin
+        MM.AttachmentIndex := I;
+        MM.AttachmentPathName := Attachs[I];
+      end;
+      MM.Send(True);
+      MS.SignOff;
+    finally
+      VarClear(MS);
+    end;
+  finally
+    VarClear(MM);
+  end;
 end;
 
 // 运行一个文件并立即返回
@@ -2715,7 +2928,7 @@ var
   var
     S: AnsiString;
     ls: TStringList;
-    i: Integer;
+    I: Integer;
   begin
     if InStream.Position < InStream.Size then
     begin
@@ -2725,8 +2938,8 @@ var
       ls := TStringList.Create;
       try
         ls.Text := strTemp;
-        for i := 0 to ls.Count - 2 do
-          slOutput.Add(ls[i]);
+        for I := 0 to ls.Count - 2 do
+          slOutput.Add(ls[I]);
         strTemp := ls[ls.Count - 1];
       finally
         ls.Free;
@@ -2739,6 +2952,7 @@ var
       strTemp := '';
     end;
   end;
+
 begin
   dwExitCode := 0;
   Result := False;
@@ -2819,7 +3033,7 @@ begin
   end;
 end;
 
-// 创建GUID字符串
+// 创建 GUID 字符串
 function CreateGuidString: string;
 var
   P: PWideChar;
@@ -2832,7 +3046,7 @@ begin
     Result := P;
   CoTaskMemFree(P);
 end;
-  
+
 // 应用程序路径
 function AppPath: string;
 begin
@@ -2902,10 +3116,14 @@ begin
   end;
 end;
 
+{$ENDIF}
+
 procedure StrResetLength(var S: string);
 begin
   SetLength(S, StrLen(PChar(S)));
 end;
+
+{$IFDEF MSWINDOWS}
 
 // 取 Program Files 目录
 function GetProgramFilesDir: string;
@@ -3004,7 +3222,6 @@ begin
     _Kernel32Handle := LoadLibrary(kernel32);
   Result := _Kernel32Handle;
 end;
-
 
 function ShellGetLongPathName(const Path: string): string;
 var
@@ -3177,6 +3394,8 @@ begin
     Result := '';
 end;
 
+{$ENDIF}
+
 // 目录尾加'\'修正
 function AddDirSuffix(const Dir: string): string;
 begin
@@ -3214,40 +3433,38 @@ begin
 end;
 
 function PointerXX(var X: PAnsiChar): PAnsiChar;
-{$IFDEF PUREPASCAL}
 begin
   Result := X;
   Inc(X);
 end;
-{$ELSE}
-asm
-  {
-  EAX = X
-  }
-  MOV EDX, [EAX]
-  INC dword ptr [EAX]
-  MOV EAX, EDX
-end;
-{$ENDIF}
+//{$ELSE}
+//asm
+//  {
+//  EAX = X
+//  }
+//  MOV EDX, [EAX]
+//  INC dword ptr [EAX]
+//  MOV EAX, EDX
+//end;
+//{$ENDIF}
 
 function Evaluate(var X: AnsiChar; const Value: AnsiChar): AnsiChar;
-{$IFDEF PUREPASCAL}
 begin
   X := Value;
   Result := X;
 end;
-{$ELSE}
-asm
-  {
-  EAX = X
-  EDX = Value (DL)
-  }
-  MOV [EAX], DL
-  MOV AL, [EAX]
-end;
-{$ENDIF}
+//{$ELSE}
+//asm
+//  {
+//  EAX = X
+//  EDX = Value (DL)
+//  }
+//  MOV [EAX], DL
+//  MOV AL, [EAX]
+//end;
+//{$ENDIF}
 
-// 文件名是否与通配符匹配，返回值为0表示匹配
+// 文件名是否与通配符匹配，返回值为 0 表示匹配
 function FileNameMatch(Pattern, FileName: PAnsiChar): Integer;
 var
   p, n: PAnsiChar;
@@ -3258,8 +3475,8 @@ begin
 
   while Evaluate(c, PointerXX(p)^) <> #0 do
   begin
-	  case c of
-		  '?': begin
+    case c of
+      '?': begin
           if n^ = '.' then
           begin
             while (p^ <> '.') and (p^ <> #0) do
@@ -3318,7 +3535,7 @@ begin
       '<': begin
           while n^ <> #0 do
           begin
-				    if FileNameMatch(p, n) = 0 then
+            if FileNameMatch(p, n) = 0 then
             begin
               Result := 0;
               Exit;
@@ -3364,7 +3581,7 @@ begin
         end;
         Result := 0;
         Exit;
-			end;
+      end;
       if c <> n^ then
       begin
         Result := -1;
@@ -3420,25 +3637,25 @@ end;
 procedure FileExtsToStrings(const FileExts: string; ExtList: TStrings; CaseSensitive: Boolean);
 var
   Exts: string;
-  i: Integer;
+  I: Integer;
 begin
   Exts := StringReplace(FileExts, ';', ',', [rfReplaceAll]);
   ExtList.CommaText := Exts;
 
-  for i := 0 to ExtList.Count - 1 do
+  for I := 0 to ExtList.Count - 1 do
   begin
-    if StrScan(PChar(ExtList[i]), '.') <> nil then
+    if StrScan(PChar(ExtList[I]), '.') <> nil then
     begin
-      ExtList[i] := _CaseSensitive(CaseSensitive, _CnExtractFileExt(ExtList[i]));
+      ExtList[I] := _CaseSensitive(CaseSensitive, _CnExtractFileExt(ExtList[I]));
     end
     else
     begin
-      ExtList[i] := '.' + _CaseSensitive(CaseSensitive, ExtList[i]);
+      ExtList[I] := '.' + _CaseSensitive(CaseSensitive, ExtList[I]);
     end;
-    if ExtList[i] = '.*' then
+    if ExtList[I] = '.*' then
     begin
-      if i > 0 then
-        ExtList.Exchange(0, i);
+      if I > 0 then
+        ExtList.Exchange(0, I);
       Exit;
     end;
   end;
@@ -3449,7 +3666,7 @@ function FileMatchesExts(const FileName, FileExts: string; CaseSensitive: Boolea
 var
   ExtList: TStrings;
   FExt: string;
-  i: Integer;
+  I: Integer;
 begin
   ExtList := TStringList.Create;
   try
@@ -3457,9 +3674,9 @@ begin
 
     FExt := _CaseSensitive(CaseSensitive, _CnExtractFileExt(FileName));
     Result := False;
-    for i := 0 to ExtList.Count - 1 do
+    for I := 0 to ExtList.Count - 1 do
     begin
-      if MatchExt(ExtList[i], FExt) then
+      if MatchExt(ExtList[I], FExt) then
       begin
         Result := True;
         Exit;
@@ -3474,14 +3691,14 @@ end;
 function FileMatchesExts(const FileName: string; ExtList: TStrings): Boolean;
 var
   FExt: string;
-  i: Integer;
+  I: Integer;
 begin
   FExt := _CaseSensitive(False, _CnExtractFileExt(FileName));
 
   Result := False;
-  for i := 0 to ExtList.Count - 1 do
+  for I := 0 to ExtList.Count - 1 do
   begin
-    if MatchExt(ExtList[i], FExt) then
+    if MatchExt(ExtList[I], FExt) then
     begin
       Result := True;
       Exit;
@@ -3493,28 +3710,28 @@ end;
 procedure FileMasksToStrings(const FileMasks: string; MaskList: TStrings; CaseSensitive: Boolean);
 var
   Exts: string;
-  i: Integer;
+  I: Integer;
 begin
   Exts := StringReplace(FileMasks, ';', ',', [rfReplaceAll]);
   MaskList.CommaText := Exts;
 
-  for i := 0 to MaskList.Count - 1 do
+  for I := 0 to MaskList.Count - 1 do
   begin
-    if StrScan(PChar(MaskList[i]), '.') <> nil then
+    if StrScan(PChar(MaskList[I]), '.') <> nil then
     begin
-      if MaskList[i][1] = '.' then
-        MaskList[i] := '*' + _CaseSensitive(CaseSensitive, MaskList[i])
+      if MaskList[I][1] = '.' then
+        MaskList[I] := '*' + _CaseSensitive(CaseSensitive, MaskList[I])
       else
-        MaskList[i] := _CaseSensitive(CaseSensitive, MaskList[i]);
+        MaskList[I] := _CaseSensitive(CaseSensitive, MaskList[I]);
     end
     else
     begin
-      MaskList[i] := '*.' + _CaseSensitive(CaseSensitive, MaskList[i]);
+      MaskList[I] := '*.' + _CaseSensitive(CaseSensitive, MaskList[I]);
     end;
-    if MaskList[i] = '*.*' then
+    if MaskList[I] = '*.*' then
     begin
-      if i > 0 then
-        MaskList.Exchange(0, i);
+      if I > 0 then
+        MaskList.Exchange(0, I);
       Exit;
     end;
   end;
@@ -3525,7 +3742,7 @@ function FileMatchesMasks(const FileName, FileMasks: string; CaseSensitive: Bool
 var
   MaskList: TStrings;
   FFileName: string;
-  i: Integer;
+  I: Integer;
 begin
   MaskList := TStringList.Create;
   try
@@ -3533,9 +3750,9 @@ begin
 
     FFileName := _CaseSensitive(CaseSensitive, _CnExtractFileName(FileName));
     Result := False;
-    for i := 0 to MaskList.Count - 1 do
+    for I := 0 to MaskList.Count - 1 do
     begin
-      if MatchFileName(MaskList[i], FFileName) then
+      if MatchFileName(MaskList[I], FFileName) then
       begin
         Result := True;
         Exit;
@@ -3550,20 +3767,22 @@ end;
 function FileMatchesMasks(const FileName: string; MaskList: TStrings): Boolean;
 var
   FFileName: string;
-  i: Integer;
+  I: Integer;
 begin
   FFileName := _CaseSensitive(False, _CnExtractFileName(FileName));
 
   Result := False;
-  for i := 0 to MaskList.Count - 1 do
+  for I := 0 to MaskList.Count - 1 do
   begin
-    if MatchFileName(_CaseSensitive(False, MaskList[i]), FFileName) then
+    if MatchFileName(_CaseSensitive(False, MaskList[I]), FFileName) then
     begin
       Result := True;
       Exit;
     end;
   end;
 end;
+
+{$IFDEF MSWINDOWS}
 
 // 判断文件是否正在使用
 function IsFileInUse(const FName: string): Boolean;
@@ -3580,16 +3799,18 @@ begin
     CloseHandle(HFileRes);
 end;
 
+{$ENDIF}
+
 // 判断文件是否为 Ascii 文件
 function IsAscii(const FileName: string): Boolean;
 const
-  Sett=2048;
+  SETT = 2048;
 var
   I: Integer;
   AFile: File;
   Bool: Boolean;
   TotSize, IncSize, ReadSize: Integer;
-  C: array[0..Sett] of Byte;
+  C: array[0..SETT] of Byte;
 begin
   Result := False;
   if FileExists(FileName) then
@@ -3602,7 +3823,7 @@ begin
     Bool := True;
     while (IncSize < TotSize) and Bool do
     begin
-      ReadSize := Sett;
+      ReadSize := SETT;
       if IncSize + ReadSize > TotSize then
         ReadSize := TotSize - IncSize;
       IncSize := IncSize + ReadSize;
@@ -3622,16 +3843,16 @@ end;
 // 判断文件是否是有效的文件名
 function IsValidFileName(const Name: string): Boolean;
 var
-  i: Integer;
+  I: Integer;
 begin
   Result := False;
 
   if (Name = '') or (Length(Name) > MAX_PATH) then
     Exit;
 
-  for i := 1 to Length(Name) do
+  for I := 1 to Length(Name) do
   begin
-    if CharInSet(Name[i], InvalidFileNameChar) then
+    if CharInSet(Name[I], InvalidFileNameChar) then
       Exit;
   end;
   Result := True;
@@ -3640,17 +3861,19 @@ end;
 // 返回有效的文件名
 function GetValidFileName(const Name: string): string;
 var
-  i: Integer;
+  I: Integer;
 begin
   Result := Name;
-  for i := Length(Result) downto 1 do
+  for I := Length(Result) downto 1 do
   begin
-    if CharInSet(Result[i], InvalidFileNameChar) then
-      Delete(Result, i, 1);
+    if CharInSet(Result[I], InvalidFileNameChar) then
+      Delete(Result, I, 1);
   end;
   if Length(Result) > MAX_PATH - 1 then
     Result := Copy(Result, 1, MAX_PATH - 1);
 end;
+
+{$IFDEF MSWINDOWS}
 
 // 设置文件时间
 function SetFileDate(const FileName: string; CreationTime, LastWriteTime, LastAccessTime:
@@ -3777,7 +4000,7 @@ begin
     Result := DateTime + (TimeZoneInfo.Bias / MinutesPerDay);
 end;
 
-// 把程序钉到Windows7任务栏，参数为程序路径与文件名
+// 把程序钉到 Windows7 任务栏，参数为程序路径与文件名
 procedure PinAppToWin7Taskbar(const Path, App: string);
 var
   Shell, Folder, FolderItem, ItemVerbs: Variant;
@@ -3805,6 +4028,8 @@ begin
       ItemVerbs.Item(I).DoIt;
   end;
 end;
+
+{$ENDIF}
 
 {$IFDEF COMPILER5}
 const
@@ -4036,7 +4261,16 @@ begin
   else
     AExt := '.' + Ext;
   BakFileName := FileName + AExt;
+{$IFDEF MSWINDOWS}
   Result := CopyFile(PChar(FileName), PChar(BakFileName), False);
+{$ELSE}
+  Result := True;
+  try
+    TFile.Copy(FileName, BakFileName, False);
+  except
+    Result := False;
+  end;
+{$ENDIF}
 end;
 
 // 删除整个目录
@@ -4055,7 +4289,12 @@ begin
     begin
       if (SR.Name <> '.') and (SR.Name <> '..') then
       begin
+{$IFDEF MSWINDOWS}
         SetFileAttributes(PChar(AddDirSuffix(Dir) + SR.Name), FILE_ATTRIBUTE_NORMAL);
+{$ELSE}
+        TFile.SetAttributes(AddDirSuffix(Dir) + SR.Name, [TFileAttribute.faNormal]);
+{$ENDIF}
+
         if SR.Attr and faDirectory = faDirectory then
           Result := Deltree(AddDirSuffix(Dir) + SR.Name, True, DelEmptyDirOnly)
         else if not DelEmptyDirOnly then
@@ -4071,7 +4310,7 @@ begin
     Result := RemoveDir(Dir);
 end;
 
-// 删除整个目录中的空目录, DelRoot 表示是否删除目录本身
+// 删除整个目录中的空目录，DelRoot 表示是否删除目录本身
 procedure DelEmptyTree(const Dir: string; DelRoot: Boolean = True);
 var
   sr: TSearchRec;
@@ -4084,7 +4323,12 @@ begin
       if (sr.Name <> '.') and (sr.Name <> '..') and (sr.Attr and faDirectory
         = faDirectory) then
       begin
+{$IFDEF MSWINDOWS}
         SetFileAttributes(PChar(AddDirSuffix(Dir) + sr.Name), FILE_ATTRIBUTE_NORMAL);
+{$ELSE}
+        TFile.SetAttributes(AddDirSuffix(Dir) + SR.Name, [TFileAttribute.faNormal]);
+{$ENDIF}
+
         DelEmptyTree(AddDirSuffix(Dir) + sr.Name, True);
       end;
       fr := FindNext(sr);
@@ -4110,8 +4354,10 @@ begin
   Fr := FindFirst(AddDirSuffix(Dir) + '*.*', faAnyFile, Sr);
   while Fr = 0 do
   begin
-    if (Sr.Name <> '.') and (Sr.Name <> '..') and // 不是目录
-      (FILE_ATTRIBUTE_DIRECTORY and Sr.Attr = 0) then
+    if (Sr.Name <> '.') and (Sr.Name <> '..')// 不是目录
+      {$IFDEF MSWINDOWS} and (FILE_ATTRIBUTE_DIRECTORY and Sr.Attr = 0) {$ELSE}
+      and (S_IFDIR and Sr.Attr = 0) {$ENDIF}
+    then
     begin
       Inc(Result);
       if FileNames <> nil then
@@ -4121,6 +4367,8 @@ begin
   end;
   SysUtils.FindClose(Sr);
 end;
+
+{$IFDEF MSWINDOWS}
 
 // 根据指定类名查找窗体
 function FindFormByClass(AClass: TClass): TForm;
@@ -4137,6 +4385,8 @@ begin
     end;
   end;
 end;
+
+
 
 // 当前是否有模态窗口存在
 function ModalFormExists: Boolean;
@@ -4348,7 +4598,7 @@ begin
   GetFileInfo(FileName, Result, FileTime);
 end;
 
-// 取文件Delphi格式日期时间
+// 取文件 Delphi 格式日期时间
 function GetFileDateTime(const FileName: string): TDateTime;
 var
   Size: Int64;
@@ -4356,6 +4606,8 @@ begin
   Result := 0;
   GetFileInfo(FileName, Size, Result);
 end;
+
+{$ENDIF}
 
 // 将文件读为字符串
 function LoadStringFromFile(const FileName: string): string;
@@ -4458,6 +4710,8 @@ begin
   end;
 end;
 
+{$IFDEF MSWINDOWS}
+
 function DelEnvironmentVar(const Name: string): Boolean;
 begin
   Result := SetEnvironmentVariable(PChar(Name), nil);
@@ -4527,6 +4781,8 @@ begin
   Result := SetEnvironmentVariable(PChar(Name), PChar(Value));
 end;
 
+{$ENDIF}
+
 //------------------------------------------------------------------------------
 // 扩展的字符串操作函数
 //------------------------------------------------------------------------------
@@ -4567,25 +4823,61 @@ end;
 // 判断是否有效的邮件地址
 function IsValidEmail(const S: string): Boolean;
 var
-  i: Integer;
+  I: Integer;
   AtCount: Integer;
 begin
   Result := False;
   if S = '' then Exit;
   AtCount := 0;
-  for i := 1 to Length(S) do
+  for I := 1 to Length(S) do
   begin
-    if S[i] = '@' then
+    if S[I] = '@' then
     begin
       Inc(AtCount);
       if AtCount > 1 then
         Exit;
     end
-    else if not CharInSet(S[i], ['0'..'9', 'a'..'z', 'A'..'Z', '_', '.', '-']) then
+    else if not CharInSet(S[I], ['0'..'9', 'a'..'z', 'A'..'Z', '_', '.', '-']) then
       Exit;
   end;
   Result := AtCount = 1;
 end;
+
+{$WARNINGS OFF}
+
+// 判断是否是简单的格式化字符串
+function IsSimpleFormat(const S: string): Boolean;
+var
+  T: string;
+  I: Integer;
+begin
+  Result := False;
+  T := Trim(S);
+  if Length(T) <= 1 then
+    Exit;
+
+  // 去掉前后单引号
+  if T[1] = '''' then
+    Delete(T, 1, 1);
+  if T[Length(T)] = '''' then
+    Delete(T, Length(T), 1);
+
+  if T[1] <> '%' then
+    Exit;
+
+  if not (T[Length(T)] in ['A'..'Z', 'a'..'z']) then
+    Exit;
+
+  for I := 2 to Length(T) - 1 do
+  begin
+    if not (T[I] in ['.', '-', '0'..'9']) then
+      Exit;
+  end;
+
+  Result := True;
+end;
+
+{$WARNINGS ON}
 
 // 以不溢出的方式计算两个整型的算术平均数
 function AverageNoOverflow(A, B: Integer): Integer;
@@ -4628,18 +4920,18 @@ end;
 function IntToStrSp(Value: Integer; SpLen: Integer; Sp: Char; ShowPlus: Boolean): string;
 var
   S: string;
-  i, j: Integer;
+  I, J: Integer;
 begin
   S := IntToStr(Value);
   if ShowPlus and (Value > 0) then
     S := '+' + S;
   Result := '';
-  j := 0;
-  for i := Length(S) downto 1 do
+  J := 0;
+  for I := Length(S) downto 1 do
   begin
-    Result := S[i] + Result;
-    Inc(j);
-    if ((j mod SpLen) = 0) and (i <> 1) and not CharInSet(S[i - 1], ['+', '-']) then
+    Result := S[I] + Result;
+    Inc(J);
+    if ((J mod SpLen) = 0) and (I <> 1) and not CharInSet(S[I - 1], ['+', '-']) then
       Result := Sp + Result;
   end;
 end;
@@ -4983,22 +5275,22 @@ const
 
 procedure ReadStringsFromIni(Ini: TCustomIniFile; const Section: string; Strings: TStrings);
 var
-  Count, i: Integer;
+  Count, I: Integer;
 begin
   Strings.Clear;
   Count := Ini.ReadInteger(Section, csCount, 0);
-  for i := 0 to Count - 1 do
-    if Ini.ValueExists(Section, csItem + IntToStr(i)) then
-      Strings.Add(Ini.ReadString(Section, csItem + IntToStr(i), ''));
+  for I := 0 to Count - 1 do
+    if Ini.ValueExists(Section, csItem + IntToStr(I)) then
+      Strings.Add(Ini.ReadString(Section, csItem + IntToStr(I), ''));
 end;
 
 procedure WriteStringsToIni(Ini: TCustomIniFile; const Section: string; Strings: TStrings);
 var
-  i: Integer;
+  I: Integer;
 begin
   Ini.WriteInteger(Section, csCount, Strings.Count);
-  for i := 0 to Strings.Count - 1 do
-    Ini.WriteString(Section, csItem + IntToStr(i), Strings[i]);
+  for I := 0 to Strings.Count - 1 do
+    Ini.WriteString(Section, csItem + IntToStr(I), Strings[I]);
 end;
 
 // 版本号转成字符串，如 $01020000 --> '1.2.0.0'
@@ -5039,14 +5331,14 @@ end;
 // 将 yyyy.mm.dd 格式字符串转换为日期
 function CnStrToDate(const S: string): TDateTime;
 var
-  i: Integer;
+  I: Integer;
   Year, Month, Day: string;
 begin
   try
-    i := 1;
-    Year := ExtractSubstr(S, i, ['.', '/', '-']);
-    Month := ExtractSubstr(S, i, ['.', '/', '-']);
-    Day := ExtractSubstr(S, i, ['.', '/', '-']);
+    I := 1;
+    Year := ExtractSubstr(S, I, ['.', '/', '-']);
+    Month := ExtractSubstr(S, I, ['.', '/', '-']);
+    Day := ExtractSubstr(S, I, ['.', '/', '-']);
     Result := EncodeDate(StrToInt(Year), StrToInt(Month), StrToInt(Day));
   except
     Result := 0;
@@ -5057,13 +5349,13 @@ end;
 function GetDatePart(DateTime: TDateTime): TDate;
 begin
   Result := Trunc(DateTime);
-end;  
+end;
 
 // 取日期时间的时间部分（小数）
 function GetTimePart(DateTime: TDateTime): TTime;
 begin
   Result := Frac(DateTime);
-end;  
+end;
 
 // 日期时间转 '20030203132345' 式样的 14 位数字字符串
 function DateTimeToFlatStr(const DateTime: TDateTime): string;
@@ -5102,7 +5394,7 @@ end;
 function RMBFloatToChinese(ARMBCash: Real): string;
 var
   tmp1, rr: string;
-  l, i, j, k: integer;
+  l, I, J, k: integer;
 const
   n1: array[0..9] of string = ('零', '壹', '贰', '叁', '肆', '伍', '陆', '柒', '捌', '玖');
   n2: array[0..3] of string = ('', '拾', '佰', '仟');
@@ -5122,21 +5414,21 @@ begin
     rr := '角' + rr;
     rr := n1[StrToInt(tmp1[l - 1])] + rr;
   end;
-  i := l - 3;
-  j := 0; k := 0;
-  while i > 0 do
+  I := l - 3;
+  J := 0; k := 0;
+  while I > 0 do
   begin
-    if j mod 4 = 0 then
+    if J mod 4 = 0 then
     begin
       rr := n3[k] + rr;
       inc(k); if k > 2 then k := 1;
-      j := 0;
+      J := 0;
     end;
-    if StrToInt(tmp1[i]) <> 0 then
-      rr := n2[j] + rr;
-    rr := n1[StrToInt(tmp1[i])] + rr;
-    inc(j);
-    Dec(i);
+    if StrToInt(tmp1[I]) <> 0 then
+      rr := n2[J] + rr;
+    rr := n1[StrToInt(tmp1[I])] + rr;
+    inc(J);
+    Dec(I);
   end;
   while Pos('零零', rr) > 0 do
     rr := stringreplace(rr, '零零', '零', [rfReplaceAll]);
@@ -5202,7 +5494,7 @@ begin
               end
               else
                 Break;
-                
+
             Consts.Add(Temp);
             AFlag:= False; // 添加了操作数以后置标志为False
           end;
@@ -5371,6 +5663,8 @@ begin
   until B = 0;
 end;
 
+{$IFDEF MSWINDOWS}
+
 // 字符串转注册表根键，支持 'HKEY_CURRENT_USER' 'HKCR' 长短两种格式
 function StrToRegRoot(const S: string): HKEY;
 begin
@@ -5434,17 +5728,19 @@ begin
     Result := ''
 end;
 
+{$ENDIF}
+
 // 从字符串中分离出子串
 function ExtractSubstr(const S: string; var Pos: Integer;
   const Delims: TSysCharSet): string;
 var
-  i: Integer;
+  I: Integer;
 begin
-  i := Pos;
-  while (i <= Length(S)) and not CharInSet(S[i], Delims) do Inc(i);
-  Result := Copy(S, Pos, i - Pos);
-  if (i <= Length(S)) and CharInSet(S[i], Delims) then Inc(i);
-  Pos := i;
+  I := Pos;
+  while (I <= Length(S)) and not CharInSet(S[I], Delims) do Inc(I);
+  Result := Copy(S, Pos, I - Pos);
+  if (I <= Length(S)) and CharInSet(S[I], Delims) then Inc(I);
+  Pos := I;
 end;
 
 // 文件名通配符比较
@@ -5537,11 +5833,13 @@ begin
   Result := WildCompare(NameWild, NameFile) and WildCompare(ExtWild, ExtFile);
 end;
 
+{$IFDEF MSWINDOWS}
+
 // 根据当前键盘布局将键盘扫描码转换成 ASCII 字符，可在 WM_KEYDOWN 等处使用
 // 由于不调用 ToAscii，故可支持使用 Accent Character 的键盘布局
 function ScanCodeToAscii(Code: Word): AnsiChar;
 var
-  i: Byte;
+  I: Byte;
   C: Cardinal;
 begin
   C := Code;
@@ -5551,10 +5849,10 @@ begin
     C := C or $20000;
   if GetKeyState(VK_MENU) < 0 then
     C := C or $40000;
-  for i := Low(Byte) to High(Byte) do
-    if OemKeyScan(i) = C then
+  for I := Low(Byte) to High(Byte) do
+    if OemKeyScan(I) = C then
     begin
-      Result := AnsiChar(i);
+      Result := AnsiChar(I);
       Exit;
     end;
   Result := #0;
@@ -5616,7 +5914,7 @@ begin
   else
   begin
     Result := ScanCodeToAscii(Code);
-  end;    
+  end;
 end;
 
 // 返回当前的按键状态，暂不支持 ssDouble 状态
@@ -5699,6 +5997,49 @@ begin
   Result := Odd(KeyState[VK_SCROLL]);
 end;
 
+// 使控件处理标准编辑快捷键
+function HandleEditShortCut(AControl: TWinControl; AShortCut: TShortCut): Boolean;
+
+  function SendMessageToActiveControl(Msg: Cardinal): Boolean;
+  begin
+    if (AControl is TCustomEdit) or (AControl is TCustomComboBox) then
+    begin
+      SendMessage(AControl.Handle, Msg, 0, 0);
+      Result := True;
+    end
+    else
+      Result := False;
+  end;
+begin
+  if AControl = nil then
+  begin
+    Result := False;
+    Exit;
+  end;
+  Result := True;
+  if AShortCut = ShortCut(Word('C'), [ssCtrl]) then
+    Result := SendMessageToActiveControl(WM_COPY)
+  else if AShortCut = ShortCut(Word('X'), [ssCtrl]) then
+    Result := SendMessageToActiveControl(WM_CUT)
+  else if AShortCut = ShortCut(Word('V'), [ssCtrl]) then
+    Result := SendMessageToActiveControl(WM_PASTE)
+  else if AShortCut = ShortCut(Word('Z'), [ssCtrl]) then
+    Result := SendMessageToActiveControl(WM_UNDO)
+  else if AShortCut = ShortCut(Word('A'), [ssCtrl]) then
+  begin
+    if AControl is TCustomEdit then
+      TCustomEdit(AControl).SelectAll
+    else if AControl is TCustomComboBox then
+      TCustomComboBox(AControl).SelectAll
+    else
+      Result := False;
+  end
+  else
+    Result := False;
+end;
+
+{$ENDIF}
+
 // 删除类名前缀 T
 function RemoveClassPrefix(const ClassName: string): string;
 begin
@@ -5714,14 +6055,14 @@ var
 
   function GetLeftStr(var S: string; Sep: string): string;
   var
-    i: Integer;
+    I: Integer;
   begin
     Result := '';
-    i := AnsiPos(Sep, S);
-    if i > 0 then
+    I := AnsiPos(Sep, S);
+    if I > 0 then
     begin
-      Result := Trim(Copy(S, 1, i - 1));
-      Delete(S, 1, i);
+      Result := Trim(Copy(S, 1, I - 1));
+      Delete(S, 1, I);
     end
     else begin
       Result := S;
@@ -5746,6 +6087,8 @@ end;
 //------------------------------------------------------------------------------
 // 扩展的对话框函数
 //------------------------------------------------------------------------------
+
+{$IFDEF MSWINDOWS}
 
 // 显示提示窗口
 procedure InfoDlg(const Mess: string; Caption: string; Flags: Integer);
@@ -6129,14 +6472,287 @@ begin
     end;
 end;
 
-// 输入对话框
+{$ENDIF}
+
+// 输入单行字符串的对话框，注意 FMX 下历史功能与回调无效，仅简单返回内容
 function CnInputBox(const ACaption, APrompt, ADefault: string;
   Ini: TCustomIniFile; const Section: string;
   FormCallBack: TCnSenderCallback): string;
 begin
+{$IFDEF MSWINDOWS}
   Result := ADefault;
-  CnInputQuery(ACaption, APrompt, Result, Ini, Section, False, FormCallBack);
+  if not CnInputQuery(ACaption, APrompt, Result, Ini, Section, False, FormCallBack) then
+    Result := '';
+{$ELSE}
+  Result := InputBox(ACaption, APrompt, ADefault);
+{$ENDIF}
 end;
+
+{$IFDEF MSWINDOWS}
+
+// 输入多行字符串的对话框，返回 True 表示用户输入后点击 OK 了，输入内容在 Value 中
+function CnInputMultiLineQuery(const ACaption, APrompt: string;
+  var Value: string; FormCallBack: TCnSenderCallback): Boolean;
+var
+  Form: TForm;
+  Prompt: TLabel;
+  Memo: TMemo;
+  DialogUnits: TPoint;
+  ButtonTop, ButtonWidth, ButtonHeight: Integer;
+{$IFDEF CREATE_PARAMS_BUG}
+  OldLong: Longint;
+  AHandle: THandle;
+  NeedChange: Boolean;
+{$ENDIF}
+begin
+  Result := False;
+
+{$IFDEF CREATE_PARAMS_BUG}
+  NeedChange := False;
+  OldLong := 0;
+  AHandle := Application.ActiveFormHandle;
+{$ENDIF}
+
+  Form := TForm.Create(Application);
+  with Form do
+  try
+    Scaled := False;
+    Font.Handle := GetStockObject(DEFAULT_GUI_FONT);
+    Canvas.Font := Font;
+    DialogUnits := GetAveCharSize(Canvas);
+    BorderStyle := bsDialog;
+    Caption := ACaption;
+    ClientWidth := MulDiv(360, DialogUnits.X, 4);
+    ClientHeight := MulDiv(128, DialogUnits.Y, 8);
+    Position := poScreenCenter;
+
+    Prompt := TLabel.Create(Form);
+    with Prompt do
+    begin
+      Parent := Form;
+      AutoSize := True;
+      Left := MulDiv(8, DialogUnits.X, 4);
+      Top := MulDiv(8, DialogUnits.Y, 8);
+      Caption := APrompt;
+    end;
+
+    Memo := TMemo.Create(Form);
+    with Memo do
+    begin
+      Parent := Form;
+      Left := Prompt.Left;
+      Top := MulDiv(19, DialogUnits.Y, 8);
+      Width := MulDiv(344, DialogUnits.X, 4);
+      Height := MulDiv(80, DialogUnits.Y, 8);
+      ScrollBars := ssBoth;
+
+      Text := Value;
+      SelectAll;
+    end;
+
+    ButtonTop := MulDiv(108, DialogUnits.Y, 8);
+    ButtonWidth := MulDiv(50, DialogUnits.X, 4);
+    ButtonHeight := MulDiv(14, DialogUnits.Y, 8);
+
+    with TButton.Create(Form) do
+    begin
+      Parent := Form;
+      Caption := SCnMsgDlgOK;
+      ModalResult := mrOk;
+      Default := True;
+      SetBounds(MulDiv(130, DialogUnits.X, 4), ButtonTop, ButtonWidth,
+        ButtonHeight);
+    end;
+
+    with TButton.Create(Form) do
+    begin
+      Parent := Form;
+      Caption := SCnMsgDlgCancel;
+      ModalResult := mrCancel;
+      Cancel := True;
+      SetBounds(MulDiv(185, DialogUnits.X, 4), ButtonTop, ButtonWidth,
+        ButtonHeight);
+    end;
+
+{$IFDEF CREATE_PARAMS_BUG}
+    if AHandle <> 0 then
+    begin
+      OldLong := GetWindowLong(AHandle, GWL_EXSTYLE);
+      NeedChange := OldLong and WS_EX_TOOLWINDOW = WS_EX_TOOLWINDOW;
+      if NeedChange then
+        SetWindowLong(AHandle, GWL_EXSTYLE, OldLong and not WS_EX_TOOLWINDOW);
+    end;
+{$ENDIF}
+
+    if Assigned(FormCallBack) then // 给外界一个处理界面的机会，如 HDPI 模式下放大等
+      FormCallBack(Form);
+
+    if ShowModal = mrOk then
+    begin
+      Value := Memo.Text;
+      Result := True;
+    end;
+  finally
+{$IFDEF CREATE_PARAMS_BUG}
+    if NeedChange and (OldLong <> 0) then
+      SetWindowLong(AHandle, GWL_EXSTYLE, OldLong);
+{$ENDIF}
+    Form.Free;
+  end;
+end;
+
+// 输入多行字符串的对话框，用户输入内容为空或 Cancel 时返回空字符串
+function CnInputMultiLineBox(const ACaption, APrompt, ADefault: string;
+  FormCallBack: TCnSenderCallback = nil): string;
+begin
+  Result := ADefault;
+  if not CnInputMultiLineQuery(ACaption, APrompt, Result, FormCallBack) then
+    Result := '';
+end;
+
+procedure CnShowHexData(Data: Pointer; DataByteLength: Integer; BaseAddr: Integer;
+  const ACaption: string; Modal: Boolean);
+var
+  F: TForm;
+  H: TCnHexEditor;
+begin
+  F := TForm.Create(Application);
+  with F do
+  begin
+    Width := Screen.Width div 2;
+    Height := Screen.Height div 2;
+    Position := poScreenCenter;
+
+    if ACaption = '' then
+      Caption := SCnPackAbout
+    else
+      Caption := ACaption;
+
+    H := TCnHexEditor.Create(F);
+    H.Parent := F;
+
+    H.Font.Name := 'FixedSys';
+    H.Align := alClient;
+    H.LoadFromBuffer(Data^, DataByteLength);
+
+    if BaseAddr > 0 then
+      H.BaseAddress := BaseAddr;
+
+    if Modal then
+    begin
+      try
+        ShowModal;
+      finally
+        Free;
+      end;
+    end
+    else
+      Show; // 显示出来后供外部关闭释放
+  end;
+end;
+
+function CnSingleOptionQuery(const ACaption, APrompt: string; Options: TStrings;
+  FormCallBack: TCnSenderCallback): Integer;
+var
+  Form: TForm;
+  RG: TRadioGroup;
+  DialogUnits: TPoint;
+  ButtonTop, ButtonWidth, ButtonHeight: Integer;
+{$IFDEF CREATE_PARAMS_BUG}
+  OldLong: Longint;
+  AHandle: THandle;
+  NeedChange: Boolean;
+{$ENDIF}
+begin
+  Result := -1;
+  if (Options = nil) or (Options.Count <= 0) then
+    Exit;
+
+{$IFDEF CREATE_PARAMS_BUG}
+  NeedChange := False;
+  OldLong := 0;
+  AHandle := Application.ActiveFormHandle;
+{$ENDIF}
+
+  Form := TForm.Create(Application);
+  with Form do
+  try
+    Scaled := False;
+    Font.Handle := GetStockObject(DEFAULT_GUI_FONT);
+    Canvas.Font := Font;
+    DialogUnits := GetAveCharSize(Canvas);
+    BorderStyle := bsDialog;
+    Caption := ACaption;
+    if Caption = '' then
+      Caption := SCnPackAbout;
+
+    ClientWidth := MulDiv(360, DialogUnits.X, 4);
+    ClientHeight := MulDiv(128, DialogUnits.Y, 8);
+    Position := poScreenCenter;
+
+    RG := TRadioGroup.Create(Form);
+    with RG do
+    begin
+      Parent := Form;
+
+      Left := MulDiv(8, DialogUnits.X, 4);
+      Top := MulDiv(8, DialogUnits.Y, 8);
+      Caption := APrompt;
+      if Caption = '' then
+        Caption := Form.Caption;
+
+      Items.Assign(Options);
+    end;
+
+    ButtonTop := MulDiv(108, DialogUnits.Y, 8);
+    ButtonWidth := MulDiv(50, DialogUnits.X, 4);
+    ButtonHeight := MulDiv(14, DialogUnits.Y, 8);
+
+    with TButton.Create(Form) do
+    begin
+      Parent := Form;
+      Caption := SCnMsgDlgOK;
+      ModalResult := mrOk;
+      Default := True;
+      SetBounds(MulDiv(130, DialogUnits.X, 4), ButtonTop, ButtonWidth,
+        ButtonHeight);
+    end;
+
+    with TButton.Create(Form) do
+    begin
+      Parent := Form;
+      Caption := SCnMsgDlgCancel;
+      ModalResult := mrCancel;
+      Cancel := True;
+      SetBounds(MulDiv(185, DialogUnits.X, 4), ButtonTop, ButtonWidth,
+        ButtonHeight);
+    end;
+
+{$IFDEF CREATE_PARAMS_BUG}
+    if AHandle <> 0 then
+    begin
+      OldLong := GetWindowLong(AHandle, GWL_EXSTYLE);
+      NeedChange := OldLong and WS_EX_TOOLWINDOW = WS_EX_TOOLWINDOW;
+      if NeedChange then
+        SetWindowLong(AHandle, GWL_EXSTYLE, OldLong and not WS_EX_TOOLWINDOW);
+    end;
+{$ENDIF}
+
+    if Assigned(FormCallBack) then // 给外界一个处理界面的机会，如 HDPI 模式下放大等
+      FormCallBack(Form);
+
+    if ShowModal = mrOk then
+      Result := RG.ItemIndex;
+  finally
+{$IFDEF CREATE_PARAMS_BUG}
+    if NeedChange and (OldLong <> 0) then
+      SetWindowLong(AHandle, GWL_EXSTYLE, OldLong);
+{$ENDIF}
+    Form.Free;
+  end;
+end;
+
+{$ENDIF}
 
 //------------------------------------------------------------------------------
 // 位扩展日期时间操作函数
@@ -6264,6 +6880,8 @@ end;
 //------------------------------------------------------------------------------
 // 系统功能函数
 //------------------------------------------------------------------------------
+
+{$IFDEF MSWINDOWS}
 
 // 移动鼠标到控件
 procedure MoveMouseIntoControl(AWinControl: TControl);
@@ -6499,6 +7117,18 @@ begin
     Result := True;
 end;
 
+// 检测是否 WinNT 平台
+function CheckWindowsNT: Boolean;
+var
+  V: TOSVersionInfo;
+begin
+  V.dwOSVersionInfoSize := SizeOf(V);
+  Result := False;
+  if not GetVersionEx(V) then Exit;
+  if (V.dwPlatformId = VER_PLATFORM_WIN32_NT) and ((V.dwMajorVersion = 3) or (V.dwMajorVersion = 4)) then
+    Result := True;
+end;
+
 // 检测是否 Windows XP 或以上平台
 function CheckWinXP: Boolean;
 begin
@@ -6549,7 +7179,7 @@ var
   hMods: array[0..1023] of HMODULE;
   Name: array[0..1023] of AnsiChar;
   cbNeeded: DWORD;
-  i: Integer;
+  I: Integer;
   Ver: TVersionNumber;
 begin
   Result := False;
@@ -6557,9 +7187,9 @@ begin
   AppValid := True;
   hProc := GetCurrentProcess;
   EnumProcessModules(hProc, @hMods, SizeOf(hMods), cbNeeded);
-  for i := 0 to cbNeeded div SizeOf(HMODULE) - 1 do
+  for I := 0 to cbNeeded div SizeOf(HMODULE) - 1 do
   begin
-    if GetModuleFileNameExA(hProc, hMods[i], Name, SizeOf(Name)) > 0 then
+    if GetModuleFileNameExA(hProc, hMods[I], Name, SizeOf(Name)) > 0 then
     begin
       if Pos(UpperCase(comctl32), UpperCase(string(Name))) > 0 then
       begin
@@ -6580,7 +7210,7 @@ begin
     AppValid := False;
 end;
 
-// 获得Dll的版本信息
+// 获得 Dll 的版本信息
 function DllGetVersion(const dllname: string;
   var DVI: TDLLVERSIONINFO2): Boolean;
 type
@@ -6753,13 +7383,13 @@ end;
 
 procedure ListViewDeleteSelected(ListView: TListView);
 var
-  i: Integer;
+  I: Integer;
 begin
   ListView.Items.BeginUpdate;
   try
-    for i := ListView.Items.Count - 1 downto 0 do
-      if ListView.Items[i].Selected then
-        ListView.Items.Delete(i);
+    for I := ListView.Items.Count - 1 downto 0 do
+      if ListView.Items[I].Selected then
+        ListView.Items.Delete(I);
   finally
     ListView.Items.EndUpdate;
   end;
@@ -6767,13 +7397,13 @@ end;
 
 procedure ListViewMoveDownSelected(ListView: TListView);
 var
-  i: Integer;
+  I: Integer;
 begin
   ListView.Items.BeginUpdate;
   try
-    for i := ListView.Items.Count - 2 downto 0 do
-      if ListView.Items[i].Selected and not ListView.Items[i + 1].Selected then
-        ListViewSwapItem(ListView, i, i + 1);
+    for I := ListView.Items.Count - 2 downto 0 do
+      if ListView.Items[I].Selected and not ListView.Items[I + 1].Selected then
+        ListViewSwapItem(ListView, I, I + 1);
   finally
     ListView.Items.EndUpdate;
   end;
@@ -6781,13 +7411,13 @@ end;
 
 procedure ListViewMoveUpSelected(ListView: TListView);
 var
-  i: Integer;
+  I: Integer;
 begin
   ListView.Items.BeginUpdate;
   try
-    for i := 1 to ListView.Items.Count - 1 do
-      if ListView.Items[i].Selected and not ListView.Items[i - 1].Selected then
-        ListViewSwapItem(ListView, i, i - 1);
+    for I := 1 to ListView.Items.Count - 1 do
+      if ListView.Items[I].Selected and not ListView.Items[I - 1].Selected then
+        ListViewSwapItem(ListView, I, I - 1);
   finally
     ListView.Items.EndUpdate;
   end;
@@ -6796,14 +7426,14 @@ end;
 // 为 Listbox 增加水平滚动条
 procedure ListboxHorizontalScrollbar(Listbox: TCustomListBox);
 var
-  i: Integer;
+  I: Integer;
   Width, MaxWidth: Integer;
 begin
   Assert(Assigned(Listbox));
   MaxWidth := 0;
-  for i := 0 to Listbox.Items.Count - 1 do
+  for I := 0 to Listbox.Items.Count - 1 do
   begin
-    Width := Listbox.Canvas.TextWidth(Listbox.Items[i]) + 4;
+    Width := Listbox.Canvas.TextWidth(Listbox.Items[I]) + 4;
     if Width > MaxWidth then
       MaxWidth := Width;
   end;
@@ -6849,6 +7479,8 @@ begin
   end;
 end;
 
+{$ENDIF}
+
 procedure SelectMemoOneLine(AMemo: TMemo; FromLine: Integer);
 var
   L, I: Integer;
@@ -6886,6 +7518,8 @@ end;
 //------------------------------------------------------------------------------
 // 其它过程
 //------------------------------------------------------------------------------
+
+{$IFDEF MSWINDOWS}
 
 type
   TWinControlAccess = class(TWinControl);
@@ -6937,6 +7571,8 @@ begin
   end;
 end;
 
+{$ENDIF}
+
 // 输出限制在 Min..Max 之间
 function TrimInt(Value, Min, Max: Integer): Integer; overload;
 begin
@@ -6962,8 +7598,9 @@ begin
     Result := -Result;
 end;
 
-// 输出限制在0..255之间
-function IntToByte(Value: Integer): Byte; overload;
+// 输出限制在 0..255 之间
+function IntToByte(Value: Integer): Byte;
+{$IFDEF MSWINDOWS}
 asm
         OR     EAX, EAX
         JNS    @@Positive
@@ -6975,6 +7612,10 @@ asm
         JBE    @@OK
         MOV    EAX, 255
 @@OK:
+{$ELSE}
+begin
+  Result := Byte(Value);
+{$ENDIF}
 end;
 
 // 由 TRect 分离出坐标、宽高
@@ -7065,22 +7706,24 @@ end;
 // 二分法在排序列表中查找，支持重复记录，返回一个范围值
 function HalfFindEx(List: TList; P: Pointer; SCompare: TListSortCompare): TFindRange;
 var
-  i, Idx: Integer;
+  I, Idx: Integer;
 begin
   Idx := HalfFind(List, P, SCompare);
   Result.tgFirst := Idx;
-  for i := Idx - 1 downto 0 do
-    if SCompare(P, List[i]) = 0 then
-      Result.tgFirst := i
+  for I := Idx - 1 downto 0 do
+    if SCompare(P, List[I]) = 0 then
+      Result.tgFirst := I
     else
       Break;
   Result.tgLast := Idx;
-  for i := Idx + 1 to List.Count - 1 do
-    if SCompare(P, List[i]) = 0 then
-      Result.tgLast := i
+  for I := Idx + 1 to List.Count - 1 do
+    if SCompare(P, List[I]) = 0 then
+      Result.tgLast := I
     else
       Break;
 end;
+
+{$WARNINGS OFF}
 
 // 检查中国大陆的 18 位身份证是否合法
 function CheckChineseIDCardNumber(const IDNumber: string): Boolean;
@@ -7107,6 +7750,10 @@ begin
     Result := True;
 end;
 
+{$WARNINGS ON}
+
+{$IFDEF MSWINDOWS}
+
 // 拉伸绘制 ImageList 中的指定图像至指定 Canvas 的指定矩形中
 procedure StretchDrawImageListToCanvas(ImageList: TImageList; ImageIndex: Integer;
   DestCanvas: TCanvas; X, Y, AWidth, AHeight: Integer);
@@ -7124,6 +7771,8 @@ begin
     Icon.Free;
   end;
 end;
+
+{$ENDIF}
 
 // 交换两个数
 procedure CnSwap(var A, B: Byte); overload;
@@ -7162,15 +7811,19 @@ begin
   B := Tmp;
 end;
 
+{$IFDEF MSWINDOWS}
+
 // 延时
 procedure Delay(const uDelay: DWORD);
 var
-  n: DWORD;
+  N: DWORD;
 begin
-  n := GetTickCount;
-  while GetTickCount - n <= uDelay do
+  N := GetTickCount;
+  while GetTickCount - N <= uDelay do
     Application.ProcessMessages;
 end;
+
+
 
 // 把指定内存内容以指定格式设置入剪贴板
 procedure SetClipboardContent(Format: Word; var Buffer; Size: Integer);
@@ -7201,7 +7854,7 @@ end;
 
 {$IFNDEF WIN64}
 
-// 在Win9X下让喇叭发声
+// 在 Win9X 下让喇叭发声
 procedure BeepEx(const Freq: WORD = 1200; const Delay: WORD = 1);
 const
   FREQ_SCALE = $1193180;
@@ -7250,6 +7903,7 @@ begin
     PChar(SCnInformation), MB_OK + MB_ICONINFORMATION);
 end;
 
+{$ENDIF}
 
 {$IFDEF UNICODE}
 
@@ -7261,37 +7915,41 @@ end;
 
 {$ENDIF}
 
-// 取汉字的拼音
+// 取汉字的拼音首字母
 function GetHzPy(const AHzStr: AnsiString): AnsiString;
 const
   ChinaCode: array[0..25, 0..1] of Integer = ((1601, 1636), (1637, 1832), (1833, 2077),
     (2078, 2273), (2274, 2301), (2302, 2432), (2433, 2593), (2594, 2786), (9999, 0000),
     (2787, 3105), (3106, 3211), (3212, 3471), (3472, 3634), (3635, 3722), (3723, 3729),
     (3730, 3857), (3858, 4026), (4027, 4085), (4086, 4389), (4390, 4557), (9999, 0000),
-    (9999, 0000), (4558, 4683), (4684, 4924), (4925, 5248), (5249, 5589));
+    (9999, 0000), (4558, 4683), (4684, 4924), (4925, 5248), (5249, 5589)); // 仨 9999 0000 表示没有 i u v 开头的拼音
 var
-  i, j, HzOrd: Integer;
+  I, J, HzOrd: Integer;
 begin
   Result := '';
-  i := 1;
-  while i <= Length(AHzStr) do
+  I := 1;
+  while I <= Length(AHzStr) do
   begin
-    if (AHzStr[i] >= #160) and (AHzStr[i + 1] >= #160) then
+    if (AHzStr[I] >= #160) and (AHzStr[I + 1] >= #160) then
     begin
-      HzOrd := (Ord(AHzStr[i]) - 160) * 100 + Ord(AHzStr[i + 1]) - 160;
-      for j := 0 to 25 do
+      HzOrd := (Ord(AHzStr[I]) - 160) * 100 + Ord(AHzStr[I + 1]) - 160;
+      for J := 0 to 25 do
       begin
-        if (HzOrd >= ChinaCode[j][0]) and (HzOrd <= ChinaCode[j][1]) then
+        if (HzOrd >= ChinaCode[J][0]) and (HzOrd <= ChinaCode[J][1]) then
         begin
-          Result := Result + AnsiChar(Byte('A') + j);
+          Result := Result + AnsiChar(Byte('A') + J);
           Break;
         end;
       end;
-      Inc(i);
-    end else Result := Result + AHzStr[i];
-    Inc(i);
+      Inc(I);
+    end
+    else
+      Result := Result + AHzStr[I];
+    Inc(I);
   end;
 end;
+
+{$IFDEF MSWINDOWS}
 
 // 全角字符转换为半角字符。其中句号"。"转为"."，顿号"、"转为","
 function TextFullWidthToHalfWidth(const Text: string): string;
@@ -7324,68 +7982,126 @@ begin
 end;
 
 // 获得 CustomEdit 选中的字符串，可以处理 XP 以上的系统
-function GetSelText(edt: TCustomEdit): string;
+function GetSelText(Edt: TCustomEdit): string;
 var
   Ver: TDLLVERSIONINFO2;
   iSelStart, Len: Integer;
-  i, j, itemp: Integer;
+  I, J, itemp: Integer;
   stext: string;
 begin
-  Assert(Assigned(edt));
-  Result := edt.SelText;
+  Assert(Assigned(Edt));
+  Result := Edt.SelText;
   if not DllGetVersion('comctl32.dll', Ver) then
     Exit;
   if Ver.info1.dwMajorVersion <= 5 then
     Exit;
-  with edt do
+  with Edt do
   begin
     Result := '';
     if SelLength <= 0 then
       Exit;
 
-    stext := edt.Text;
+    stext := Edt.Text;
     iSelStart := 0;
-    i := 0;
-    j := 1;
+    I := 0;
+    J := 1;
     itemp := SelStart;
-    while i < itemp do
+    while I < itemp do
     begin
-      if ByteType(stext, j) <> mbLeadByte then
-        Inc(i);
+      if ByteType(stext, J) <> mbLeadByte then
+        Inc(I);
       Inc(iSelStart);
-      Inc(j);
+      Inc(J);
     end;
     Len := SelLength;
-    i := 0;
-    j := 1;
-    while i < Len do
+    I := 0;
+    J := 1;
+    while I < Len do
     begin
-      Result := Result + stext[iSelStart + j];
-      if ByteType(stext, iSelStart + j) <> mbLeadByte then
-        Inc(i);
-      Inc(j);
+      Result := Result + stext[iSelStart + J];
+      if ByteType(stext, iSelStart + J) <> mbLeadByte then
+        Inc(I);
+      Inc(J);
     end;
   end;
 end;
 
+{$ENDIF}
+
 // 删除空行和每一行的行首尾空格
 procedure TrimStrings(AList: TStrings);
 var
-  i: Integer;
+  I: Integer;
 begin
-  for i := AList.Count - 1 downto 0 do
+  for I := AList.Count - 1 downto 0 do
   begin
-    AList[i] := Trim(AList[i]);
-    if AList[i] = '' then
-      AList.Delete(i);
+    AList[I] := Trim(AList[I]);
+    if AList[I] = '' then
+      AList.Delete(I);
   end;
 end;
+
+// 字符串列表去重
+procedure RemoveDuplicatedStrings(AList: TStrings; CaseSensitive: Boolean);
+var
+  I, J: Integer;
+  V: string;
+  Dup: Boolean;
+begin
+  if (AList = nil) or (AList.Count <= 1) then
+    Exit;
+
+  if CaseSensitive then
+  begin
+    for I := AList.Count - 1 downto 0 do
+    begin
+      V := AList[I];
+      Dup := False;
+
+      for J := 0 to I - 1 do
+      begin
+        if V = AList[J] then
+        begin
+          Dup := True;
+          Break;
+        end;
+      end;
+
+      if Dup then
+        AList.Delete(I);
+    end;
+  end
+  else
+  begin
+    for I := AList.Count - 1 downto 0 do
+    begin
+      V := UpperCase(AList[I]);
+      Dup := False;
+
+      for J := 0 to I - 1 do
+      begin
+        if V = UpperCase(AList[J]) then
+        begin
+          Dup := True;
+          Break;
+        end;
+      end;
+
+      if Dup then
+        AList.Delete(I);
+    end;
+  end;
+end;
+
+{$IFDEF MSWINDOWS}
 
 // 声卡是否存在
 function SoundCardExist: Boolean;
 begin
   Result := WaveOutGetNumDevs > 0;
 end;
+
+{$ENDIF}
 
 // 判断 ASrc 是否派生自类名为 AClass 的类
 function InheritsFromClassName(ASrc: TClass; const AClass: string): Boolean;
@@ -7407,6 +8123,8 @@ function InheritsFromClassName(AObject: TObject; const AClass: string): Boolean;
 begin
   Result := InheritsFromClassName(AObject.ClassType, AClass);
 end;
+
+{$IFDEF MSWINDOWS}
 
 // 提升自身权限到 SeDebug 或取消此权限
 function AdjustDebugPrivilege(Enable: Boolean): Boolean;
@@ -7506,6 +8224,8 @@ begin
   end;
 end;
 
+{$ENDIF}
+
 // 获得级联属性信息
 function GetPropInfoIncludeSub(Instance: TObject; const PropName: string;
   AKinds: TTypeKinds): PPropInfo;
@@ -7562,14 +8282,16 @@ begin
       Result := (Instance as TStrings).Text;
       Exit;
     end
-    else if (Instance is TListItem) and (PropName = 'Caption') then
+    else if Instance.ClassNameIs('TListItem') and (PropName = 'Caption') then
     begin
-      Result := (Instance as TListItem).Caption;
+      Result := GetStrProp(Instance, PropName);
+      // Result := (Instance as TListItem).Caption;
       Exit;
     end
-    else if (Instance is TTreeNode) and (PropName = 'Text') then
+    else if Instance.ClassNameIs('TTreeNode') and (PropName = 'Text') then
     begin
-      Result := (Instance as TTreeNode).Text;
+      Result := GetStrProp(Instance, PropName);
+      // Result := (Instance as TTreeNode).Text;
       Exit;
     end
     else if PropName = SCnControlFont then // 在此内部处理 !Font 的情况
@@ -7716,7 +8438,7 @@ var
   EnumValue: 0..SizeOf(Integer) * 8 - 1;
   S: string;
   Strings: TStrings;
-  i: Integer;
+  I: Integer;
 begin
   Result := 0;
   S := Trim(Value);
@@ -7730,9 +8452,9 @@ begin
   Strings := TStringList.Create;
   try
     Strings.CommaText := S;
-    for i := 0 to Strings.Count - 1 do
+    for I := 0 to Strings.Count - 1 do
     begin
-      EnumValue := GetEnumValue(EnumInfo, Trim(Strings[i]));
+      EnumValue := GetEnumValue(EnumInfo, Trim(Strings[I]));
       if (EnumValue < GetTypeData(EnumInfo)^.MinValue) or
         (EnumValue > GetTypeData(EnumInfo)^.MaxValue) then
         Exit;                       // 不是有效的枚举值
@@ -7853,6 +8575,18 @@ begin
   end;
 end;
 
+// 封装的获取系统启动以来的毫秒数的函数
+function CnGetTickCount: Cardinal;
+begin
+{$IFDEF MSWINDOWS}
+  Result := GetTickCount;
+{$ELSE}
+  Result := TThread.GetTickCount;
+{$ENDIF}
+end;
+
+{$IFDEF MSWINDOWS}
+
 // 判断某 Control 的 ParentFont 属性是否为 True，如无 Parent 则返回 False
 function IsParentFont(AControl: TControl): Boolean;
 begin
@@ -7888,7 +8622,9 @@ begin
   end;
 end;
 
-//查找字符串在动态数组中的索引，用于string类型使用Case语句
+{$ENDIF}
+
+// 查找字符串在动态数组中的索引，用于 string 类型使用 Case 语句
 function IndexStr(const AText: string; AValues: array of string; IgCase: Boolean = True): Integer;
 type
   TSameFunc = function(const S1, S2: string): Boolean;
@@ -7946,6 +8682,329 @@ begin
   end;
 end;
 
+{$IFDEF MSWINDOWS}
+
+// 将文件映射为内存文件并返回文件句柄、映射句柄与映射的内存起始地址，成功返回 True
+function CnMapFileToPointer(const FileName: string; out FileHandle, MapHandle: THandle;
+  out Address: Pointer): Boolean;
+begin
+  // 打开文件、创建映射、映射地址
+  Result := False;
+  FileHandle := CreateFile(PChar(FileName), GENERIC_READ, FILE_SHARE_READ or
+                FILE_SHARE_WRITE, nil, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL or
+                FILE_FLAG_SEQUENTIAL_SCAN, 0);
+
+  if FileHandle <> INVALID_HANDLE_VALUE then
+  begin
+    MapHandle := CreateFileMapping(FileHandle, nil, PAGE_READONLY, 0, 0, nil);
+    if MapHandle <> 0 then
+    begin
+      Address := MapViewOfFile(MapHandle, FILE_MAP_READ, 0, 0, 0);
+      if Address <> nil then
+      begin
+        Result := True; // 成功返回时，三个值都是有效的
+        Exit;
+      end
+      else // 如果创建映射成功，但地址映射失败，就需要关闭创建映射
+      begin
+        CloseHandle(MapHandle);
+        MapHandle := INVALID_HANDLE_VALUE;
+      end;
+    end
+    else // 如果打开文件成功，但创建映射失败，就需要关闭文件
+    begin
+      CloseHandle(FileHandle);
+      MapHandle := INVALID_HANDLE_VALUE;
+    end;
+  end;
+end;
+
+// 释放映射的内存文件，与 CnMapFileToPointer 对应
+function CnUnMapFileFromPointer(var FileHandle, MapHandle: THandle;
+  var Address: Pointer): Boolean;
+begin
+  UnmapViewOfFile(Address);
+  Address := nil;
+
+  CloseHandle(MapHandle);
+  MapHandle := INVALID_HANDLE_VALUE;
+
+  CloseHandle(FileHandle);
+  FileHandle := INVALID_HANDLE_VALUE;
+
+  Result := True;
+end;
+
+{$WARNINGS OFF}
+
+// 处理一个 PE 文件，提取出其中第 DirectoryIndex 个 DataDirectory 的内容并写到流中，返回提取是否成功
+function ExtractPEDataDirectory(const FileName: string; DirectoryIndex: Integer;
+  OutStream: TStream): Boolean;
+var
+  F, M: THandle;
+  P: Pointer;
+  Ptr: PByte;
+  DH: PImageDosHeader;
+  NH: PImageNtHeaders;
+begin
+  Result := False;
+  if (DirectoryIndex < 0) or (DirectoryIndex >= IMAGE_NUMBEROF_DIRECTORY_ENTRIES)
+    or (OutStream = nil) then
+    Exit;
+
+  if CnMapFileToPointer(FileName, F, M, P) then
+  begin
+    try
+      Ptr := PByte(P);
+
+      DH := PImageDosHeader(Ptr);
+      if DH^.e_magic <> IMAGE_DOS_SIGNATURE then
+        Exit;
+
+      Inc(Ptr, DH^._lfanew);
+
+      NH := PImageNtHeaders(Ptr);
+      if NH^.Signature <> IMAGE_NT_SIGNATURE then
+        Exit;
+
+      Ptr := PByte(P);
+      Inc(Ptr, NH^.OptionalHeader.DataDirectory[DirectoryIndex].VirtualAddress);
+
+      if NH^.OptionalHeader.DataDirectory[DirectoryIndex].Size > 0 then
+        Result := OutStream.Write(Ptr^, NH^.OptionalHeader.DataDirectory[DirectoryIndex].Size)
+          = NH^.OptionalHeader.DataDirectory[DirectoryIndex].Size;
+    finally
+      CnUnMapFileFromPointer(F, M, P);
+    end;
+  end;
+end;
+
+{$WARNINGS ON}
+
+{$ENDIF}
+
+// 从文件中载入字节数组，不进行编码转换
+function LoadRawFileToBytes(const FileName: string): TBytes;
+var
+  F: TFileStream;
+begin
+  Result := nil;
+  if not FileExists(FileName) then
+    Exit;
+
+  F := TFileStream.Create(FileName, fmOpenRead);
+  try
+    SetLength(Result, F.Size);
+    F.Read(Result[0], F.Size);
+  finally
+    F.Free;
+  end;
+end;
+
+// 将字节数组写入文件，不进行编码转换
+procedure SaveRawFileFromBytes(B: TBytes; const FileName: string);
+var
+  F: TFileStream;
+begin
+  if B = nil then
+    Exit;
+
+  F := TFileStream.Create(FileName, fmCreate);
+  try
+    F.Write(B[0], Length(B));
+  finally
+    F.Free;
+  end;
+end;
+
+function StrToBytes(const S: AnsiString): TBytes;
+begin
+  if S <> '' then
+  begin
+    SetLength(Result, Length(S));
+    Move(S[1], Result[0], Length(S));
+  end
+  else
+    Result := nil;
+end;
+
+function BytesToStr(Data: TBytes): AnsiString;
+begin
+  if Length(Data) > 0 then
+  begin
+    SetLength(Result, Length(Data));
+    Move(Data[0], Result[1], Length(Data));
+  end
+  else
+    Result := '';
+end;
+
+type
+{$IFDEF UNICODE}
+  TIdentString = type string;
+{$ELSE}
+  TIdentString = WideString;
+{$ENDIF}
+
+{$WARNINGS OFF}
+
+function ConvertStringToIdent(const Str, Prefix: string; UseUnderLine: Boolean;
+  IdentWordStyle: TCnIdentWordStyle; UseFullPinYin: Boolean;
+  MaxWideChars, MaxWords, MaxCharLength: Integer): string;
+const
+  ALPHA_NUM = ['A'..'Z', 'a'..'z', '0'..'9'];
+var
+  WS, WD: TIdentString;
+  Hz: AnsiString;
+  CC, CW: Integer;
+  P: PWideChar;
+  AnsiBuilder, WideBuilder: TCnStringBuilder;
+
+  function ProcessIdentStyle(const D: TIdentString): TIdentString;
+  var
+    I: Integer;
+  begin
+    case IdentWordStyle of
+      iwsLowerCase:
+        Result := LowerCase(D);
+      iwsUpperCase:
+        Result := UpperCase(D);
+      iwsUpperFirstChar:
+        begin
+          Result := LowerCase(D);
+          for I := 1 to Length(Result) do // 找到第一个小写字母的变成大写，避免数字开头
+          begin
+            if (Ord(Result[I]) < 128) and (AnsiChar(Result[I]) in ['a'..'z']) then
+            begin
+              Result[I] := WideChar(Ord(Result[I]) - 32);
+              Exit;
+            end;
+          end;
+        end;
+    end;
+  end;
+
+  function IsHZChar(UC: WideChar): Boolean;
+  var
+    I: Integer;
+  begin
+    Result := Ord(UC) > SCN_UTF16_ANSI_WIDE_CHAR_SEP;
+    if Result then
+    begin
+      for I := Low(SCN_CHINESE_SEP_CHARS) to High(SCN_CHINESE_SEP_CHARS) do
+      begin
+        if UC = SCN_CHINESE_SEP_CHARS[I] then
+        begin
+          Result := False;
+          Exit;
+        end;
+      end;
+    end;
+  end;
+
+begin
+  // Ansi 和 Unicode 都得支持
+  Result := Prefix;
+  if Str = '' then
+    Exit;
+  if MaxCharLength < 2 then
+    MaxCharLength := 64; // 默认 64
+
+  AnsiBuilder := nil;
+  WideBuilder := nil;
+
+{$IFDEF UNICODE}
+  WS := Str;
+{$ELSE}
+  WS := WideString(Str);
+{$ENDIF};
+
+  // 从头到尾扫描宽字符，字母数字就放过去，汉字就转成拼音放过去，
+  try
+    AnsiBuilder := TCnStringBuilder.Create(True);
+    WideBuilder := TCnStringBuilder.Create(False);
+
+    P := PWideChar(WS);
+    CC := 0;
+    CW := 0; // 俩计数
+
+    while P^ <> #0 do
+    begin
+      WD := '';
+      if IsHZChar(P^) then
+      begin
+        if UseFullPinYin then
+        begin
+          // 单个汉字，拿到完整拼音，处理好后放 WD 里
+          WD := ProcessIdentStyle(GetPinYinFromUtf16Char(P^));
+          Inc(P);
+        end
+        else
+        begin
+          // 当作汉字往后找一串，拿到拼音处理好后放 WD 里
+          AnsiBuilder.Append(AnsiString(P^));
+          Inc(P);
+          while IsHZChar(P^) do
+          begin
+            AnsiBuilder.Append(AnsiString(P^));
+            Inc(P);
+          end;
+{$IFDEF UNICODE}
+          Hz := AnsiBuilder.ToAnsiString;
+{$ELSE}
+          Hz := AnsiBuilder.ToString;
+{$ENDIF}
+          WD := ProcessIdentStyle(GetHzPy(Hz)); // GetHzPy 只支持 AnsiString
+        end;
+
+        AnsiBuilder.Clear;
+        if WD <> '' then
+          Inc(CC);
+      end
+      else if (Ord(P^) < 128) and (AnsiChar(P^) in ALPHA_NUM) then
+      begin
+        // 是标识符，往后扫描至 #0 或非标识符
+        WideBuilder.Append(P^);
+        Inc(P);
+        while (Ord(P^) < 128) and (AnsiChar(P^) in ALPHA_NUM) do
+        begin
+          WideBuilder.Append(P^);
+          Inc(P);
+        end;
+
+        // 本 Word 扫描完毕，处理好后放 WD 里
+{$IFDEF UNICODE}
+        WD := ProcessIdentStyle(WideBuilder.ToString);
+{$ELSE}
+        WD := ProcessIdentStyle(WideBuilder.ToWideString);
+{$ENDIF}
+        WideBuilder.Clear;
+        Inc(CW);
+      end
+      else
+        Inc(P); // 其余情况当作分隔符
+
+      if Length(WD) > 0 then
+      begin
+        if UseUnderLine and (Length(Result) > 0) then
+          Result := Result + '_' + string(WD)
+        else
+          Result := Result + string(WD);
+      end;
+
+      if (CC > MaxWideChars) or (CW > MaxWords) or (Length(Result) > MaxCharLength) then
+        Break;
+    end;
+  finally
+    WideBuilder.Free;
+    AnsiBuilder.Free;
+  end;
+end;
+
+{$WARNINGS ON}
+
+{$IFDEF MSWINDOWS}
+
 initialization
   WndLong := GetWindowLong(Application.Handle, GWL_EXSTYLE);
   InitAPIs;
@@ -7954,6 +9013,7 @@ finalization
   if NtDllHandle <> 0 then
     FreeLibrary(NtDllHandle);
 
+{$ENDIF}
 end.
 
 

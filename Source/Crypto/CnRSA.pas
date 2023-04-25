@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2022 CnPack 开发组                       }
+{                   (C)Copyright 2001-2023 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -25,10 +25,16 @@ unit CnRSA;
 * 单元名称：RSA 算法单元
 * 单元作者：刘啸
 * 备    注：包括 Int64 范围内的 RSA 算法以及大数算法，公钥 Exponent 默认固定使用 65537。
+*           另外官方提倡公钥加密、私钥解密，但 RSA 两者等同，也可私钥加密、公钥解密
+*           本单元两类方法都提供了，使用时须注意配对。
 * 开发平台：WinXP + Delphi 5.0
 * 兼容测试：暂未进行
 * 本 地 化：该单元无需本地化处理
-* 修改记录：2022.04.26 V2.4
+* 修改记录：2023.02.16 V2.6
+*               实现大数形式的基于离散对数的变色龙杂凑算法
+*           2023.02.15 V2.5
+*               大数 RSA 加密支持 CRT（中国剩余定理）加速，私钥运算耗时降至三分之一
+*           2022.04.26 V2.4
 *               修改 Integer 地址转换以支持 MacOS64
 *           2021.06.12 V2.1
 *               加入 OAEP Padding 的处理
@@ -43,17 +49,17 @@ unit CnRSA;
 *           2019.04.19 V1.6
 *               支持 Win32/Win64/MacOS32
 *           2018.06.15 V1.5
-*               支持文件签名与验证，类似于 Openssl 中的用法，有原始签名与散列签名两类：
+*               支持文件签名与验证，类似于 Openssl 中的用法，有原始签名与杂凑签名两类：
 *               openssl rsautl -sign -in hello -inkey rsa.pem -out hello.default.sign.openssl
 *               // 私钥原始签名，直接把文件内容补齐后用私钥加密并存储，等同于加密，对应 CnRSASignFile 指定 sdtNone
 *               openssl dgst -md5 -sign rsa.pem -out hello.md5.sign.openssl hello
 *               openssl dgst -sha1 -sign rsa.pem -out hello.sha1.sign.openssl hello
 *               openssl dgst -sha256 -sign rsa.pem -out hello.sha256.sign.openssl hello
-*               // 私钥散列签名，可指定散列算法，默认 md5。对应 CnRSASignFile 并指定散列算法。
-*               // 原始文件散列值经过 BER 编码再 PKCS1 补齐后私钥加密并存储成签名文件
+*               // 私钥杂凑签名，可指定杂凑算法，默认 md5。对应 CnRSASignFile 并指定杂凑算法。
+*               // 原始文件杂凑值经过 BER 编码再 PKCS1 补齐后私钥加密并存储成签名文件
 *               openssl dgst -verify rsa_pub.pem -signature hello.sign.openssl hello
-*               // 公钥散列验证原始文件与签名文件，散列算法类型在签名文件中。
-*               // 对应 CnRSAVerify，公钥解开签名文件后去除 PKCS1 对齐再解开 BER 编码并比对散列值
+*               // 公钥杂凑验证原始文件与签名文件，杂凑算法类型在签名文件中。
+*               // 对应 CnRSAVerify，公钥解开签名文件后去除 PKCS1 对齐再解开 BER 编码并比对杂凑值
 *           2018.06.14 V1.5
 *               支持文件加解密，类似于 Openssl 中的用法，如：
 *               openssl rsautl -encrypt -in hello -inkey rsa_pub.pem -pubin -out hello.en.pub.openssl
@@ -89,14 +95,16 @@ interface
 
 {$I CnPack.inc}
 
+{$DEFINE CN_RSA_USE_CRT}
+// 定义此条件，使用 CRT 进行计算加速。1024 位的私钥运算能够将耗时降低至三分之一
+
 uses
   SysUtils, Classes {$IFDEF MSWINDOWS}, Windows {$ENDIF}, CnConsts, CnPrimeNumber,
-  CnBigNumber, CnBase64, CnBerUtils, CnPemUtils, CnNativeDecl, CnMD5, CnSHA1,
-  CnSHA2, CnSM3;
+  CnBigNumber, CnBerUtils, CnPemUtils, CnNative, CnMD5, CnSHA1, CnSHA2, CnSM3;
 
 const
   // 以下 OID 都预先写死，不动态计算编码了
-  OID_RSAENCRYPTION_PKCS1: array[0..8] of Byte = ( // 1.2.840.113549.1.1.1
+  CN_OID_RSAENCRYPTION_PKCS1: array[0..8] of Byte = ( // 1.2.840.113549.1.1.1
     $2A, $86, $48, $86, $F7, $0D, $01, $01, $01
   );  // $2A = 40 * 1 + 2
 
@@ -131,19 +139,30 @@ type
     FPrimeKey2: TCnBigNumber;
     FPrivKeyProduct: TCnBigNumber;
     FPrivKeyExponent: TCnBigNumber;
+{$IFDEF CN_RSA_USE_CRT}
+    FDP1: TCnBigNumber;  // CRT 加速的三个中间变量
+    FDQ1: TCnBigNumber;
+    FQInv: TCnBigNumber;
+{$ENDIF}
     function GetBitsCount: Integer;
     function GetBytesCount: Integer;
+  protected
+{$IFDEF CN_RSA_USE_CRT}
+    procedure UpdateCRT;
+{$ENDIF}
   public
     constructor Create; virtual;
     destructor Destroy; override;
-    procedure Assign(Source: TPersistent); override;
 
+    procedure Assign(Source: TPersistent); override;
+    {* 从另一私钥对象赋值}
     procedure Clear;
+    {* 清空值}
 
     property PrimeKey1: TCnBigNumber read FPrimeKey1 write FPrimeKey1;
-    {* 大素数 1，p}
+    {* 大素数 1，p，要求比 q 大}
     property PrimeKey2: TCnBigNumber read FPrimeKey2 write FPrimeKey2;
-    {* 大素数 2，q}
+    {* 大素数 2，q，要求比 p 小}
     property PrivKeyProduct: TCnBigNumber read FPrivKeyProduct write FPrivKeyProduct;
     {* 俩素数乘积 n，也叫 Modulus}
     property PrivKeyExponent: TCnBigNumber read FPrivKeyExponent write FPrivKeyProduct;
@@ -164,9 +183,11 @@ type
   public
     constructor Create; virtual;
     destructor Destroy; override;
-    procedure Assign(Source: TPersistent); override;
 
+    procedure Assign(Source: TPersistent); override;
+    {* 从另一公钥对象赋值}
     procedure Clear;
+    {* 清空值}
 
     property PubKeyProduct: TCnBigNumber read FPubKeyProduct write FPubKeyProduct;
     {* 俩素数乘积 n，也叫 Modulus}
@@ -197,9 +218,9 @@ function CnInt64RSADecrypt(Res: TUInt64; PubKeyProduct: TUInt64;
 // 大数范围内的 RSA 加解密实现
 
 function CnRSAGenerateKeysByPrimeBits(PrimeBits: Integer; PrivateKey: TCnRSAPrivateKey;
-  PublicKey: TCnRSAPublicKey; PublicKeyUse3: Boolean = False): Boolean;
+  PublicKey: TCnRSAPublicKey; PublicKeyUse3: Boolean = False): Boolean; {$IFDEF SUPPORT_DEPRECATED} deprecated; {$ENDIF}
 {* 生成 RSA 算法所需的公私钥，PrimeBits 是素数的二进制位数，其余参数均为生成。
-   PrimeBits 取值为 512/1024/2048等，注意目前不是乘积的范围。内部缺乏安全判断。
+   PrimeBits 取值为 512/1024/2048等，注意目前不是乘积的范围。内部缺乏安全判断。不推荐使用。
    PublicKeyUse3 为 True 时公钥指数用 3，否则用 65537}
 
 function CnRSAGenerateKeys(ModulusBits: Integer; PrivateKey: TCnRSAPrivateKey;
@@ -214,8 +235,7 @@ function CnRSALoadKeysFromPem(const PemFileName: string; PrivateKey: TCnRSAPriva
 {* 从 PEM 格式文件中加载公私钥数据，如某钥参数为空则不载入
   自动判断 PKCS1 还是 PKCS8，不依赖于头尾行的 ----- 注释
   KeyHashMethod: 对应 PEM 文件的加密 Hash 算法，默认 MD5（无法根据 PEM 文件内容自动判断）
-  Password: PEM 文件如加密，此处应传对应密码
-}
+  Password: PEM 文件如加密，此处应传对应密码}
 
 function CnRSALoadKeysFromPem(PemStream: TStream; PrivateKey: TCnRSAPrivateKey;
   PublicKey: TCnRSAPublicKey; KeyHashMethod: TCnKeyHashMethod = ckhMd5;
@@ -223,8 +243,7 @@ function CnRSALoadKeysFromPem(PemStream: TStream; PrivateKey: TCnRSAPrivateKey;
 {* 从 PEM 格式的流中加载公私钥数据，如某钥参数为空则不载入
   自动判断 PKCS1 还是 PKCS8，不依赖于头尾行的 ----- 注释
   KeyHashMethod: 对应 PEM 文件的加密 Hash 算法，默认 MD5（无法根据 PEM 文件内容自动判断）
-  Password: PEM 文件如加密，此处应传对应密码
-}
+  Password: PEM 文件如加密，此处应传对应密码，未加密可不传}
 
 function CnRSASaveKeysToPem(const PemFileName: string; PrivateKey: TCnRSAPrivateKey;
   PublicKey: TCnRSAPublicKey; KeyType: TCnRSAKeyType = cktPKCS1;
@@ -234,8 +253,7 @@ function CnRSASaveKeysToPem(const PemFileName: string; PrivateKey: TCnRSAPrivate
 {* 将公私钥写入 PEM 格式文件中，返回是否成功
   KeyEncryptMethod: 如 PEM 文件需加密，可用此参数指定加密方式，ckeNone 表示不加密，忽略后续参数
   KeyHashMethod: 生成 Key 的 Hash 算法，默认 MD5
-  Password: PEM 文件的加密密码
-}
+  Password: PEM 文件的加密密码，未加密可不传}
 
 function CnRSALoadPublicKeyFromPem(const PemFileName: string;
   PublicKey: TCnRSAPublicKey; KeyHashMethod: TCnKeyHashMethod = ckhMd5;
@@ -254,11 +272,19 @@ function CnRSASavePublicKeyToPem(const PemFileName: string;
 {* 将公钥写入 PEM 格式文件中，返回是否成功}
 
 function CnRSAEncrypt(Data: TCnBigNumber; PrivateKey: TCnRSAPrivateKey;
-  Res: TCnBigNumber): Boolean;
+  Res: TCnBigNumber): Boolean; overload;
 {* 利用上面生成的私钥对数据进行加密，返回加密是否成功}
 
+function CnRSAEncrypt(Data: TCnBigNumber; PublicKey: TCnRSAPublicKey;
+  Res: TCnBigNumber): Boolean; overload;
+{* 利用上面生成的公钥对数据进行加密，返回加密是否成功}
+
+function CnRSADecrypt(Res: TCnBigNumber; PrivateKey: TCnRSAPrivateKey;
+  Data: TCnBigNumber): Boolean; overload;
+{* 利用上面生成的私钥对数据进行解密，返回解密是否成功}
+
 function CnRSADecrypt(Res: TCnBigNumber; PublicKey: TCnRSAPublicKey;
-  Data: TCnBigNumber): Boolean;
+  Data: TCnBigNumber): Boolean; overload;
 {* 利用上面生成的公钥对数据进行解密，返回解密是否成功}
 
 // ======================== RSA 数据与文件加解密实现 ===========================
@@ -299,7 +325,8 @@ function CnRSADecryptData(EnData: Pointer; DataLen: Integer; OutBuf: Pointer;
   OutBuf 长度不能短于密钥长度，1024 Bit 的 则 128 字节}
 
 function CnRSADecryptData(EnData: Pointer; DataLen: Integer; OutBuf: Pointer;
-  out OutLen: Integer; PrivateKey: TCnRSAPrivateKey; PaddingMode: TCnRSAPaddingMode = cpmPKCS1): Boolean; overload;
+  out OutLen: Integer; PrivateKey: TCnRSAPrivateKey;
+  PaddingMode: TCnRSAPaddingMode = cpmPKCS1): Boolean; overload;
 {* 用私钥对数据块进行解密，并解开其 PKCS1 填充或 OAEP 填充，结果放 OutBuf 中，并返回数据长度
   OutBuf 长度不能短于密钥长度，1024 Bit 的 则 128 字节}
 
@@ -328,14 +355,14 @@ function CnRSASignFile(const InFileName, OutSignFileName: string;
   PrivateKey: TCnRSAPrivateKey; SignType: TCnRSASignDigestType = rsdtMD5): Boolean;
 {* 用私钥签名指定文件。
    未指定数字摘要算法时等于将源文件用 PKCS1 Private_FF 补齐后加密
-   当指定了数字摘要算法时，使用指定数字摘要算法对文件进行计算得到散列值，
-   原始的二进制散列值进行 BER 编码再 PKCS1 补齐再用私钥加密}
+   当指定了数字摘要算法时，使用指定数字摘要算法对文件进行计算得到杂凑值，
+   原始的二进制杂凑值进行 BER 编码再 PKCS1 补齐再用私钥加密}
 
 function CnRSAVerifyFile(const InFileName, InSignFileName: string;
   PublicKey: TCnRSAPublicKey; SignType: TCnRSASignDigestType = rsdtMD5): Boolean;
-{* 用公钥与签名值验证指定文件，也即用指定数字摘要算法对文件进行计算得到散列值，
-   并用公钥解密签名内容并解开 PKCS1 补齐再解开 BER 编码得到散列算法与散列值，
-   并比对两个二进制散列值是否相同，返回验证是否通过}
+{* 用公钥与签名值验证指定文件，也即用指定数字摘要算法对文件进行计算得到杂凑值，
+   并用公钥解密签名内容并解开 PKCS1 补齐再解开 BER 编码得到散列算法与杂凑值，
+   并比对两个二进制杂凑值是否相同，返回验证是否通过}
 
 function CnRSASignStream(InStream: TMemoryStream; OutSignStream: TMemoryStream;
   PrivateKey: TCnRSAPrivateKey; SignType: TCnRSASignDigestType = rsdtMD5): Boolean;
@@ -350,37 +377,55 @@ function CnRSAVerifyStream(InStream: TMemoryStream; InSignStream: TMemoryStream;
 function AddOaepSha1MgfPadding(ToBuf: PByte; ToLen: Integer; PlainData: PByte;
   DataLen: Integer; DigestParam: PByte = nil; ParamLen: Integer = 0): Boolean;
 {* 对 Data 里 DataLen 的数据进行 OAEP 填充，内容放到 ToBuf 的 ToLen 里，返回填充是否成功。
-  默认使用 SHA1 对 DigestBuf 内容进行散列，ToLen 一般是 RSA 的密钥的积的字节数}
+  默认使用 SHA1 对 DigestBuf 内容进行杂凑，ToLen 一般是 RSA 的密钥的积的字节数}
 
 function RemoveOaepSha1MgfPadding(ToBuf: PByte; out OutLen: Integer; EnData: PByte;
   DataLen: Integer; DigestParam: PByte = nil; ParamLen: Integer = 0): Boolean;
 {* 对 EnData 里 DataLen 的数据进行 OAEP 检验并去除填充，内容放到 ToBuf 的 OutLen 里，返回检查是否成功。
   ToBuf 能容纳的实际长度不能太短，如成功，OutLen 返回明文数据长度
-  默认使用 SHA1 对 DigestBuf 内容进行散列，DataLen 要求是 RSA 的密钥的积的字节数}
+  默认使用 SHA1 对 DigestBuf 内容进行杂凑，DataLen 要求是 RSA 的密钥的积的字节数}
 
-// Diffie-Hellman 离散对数密钥交换算法
+// ================ Diffie-Hellman 离散对数密钥交换算法 ========================
 
 function CnDiffieHellmanGeneratePrimeRootByBitsCount(BitsCount: Integer;
   Prime, MinRoot: TCnBigNumber): Boolean;
-{* 生成 Diffie-Hellman 密钥协商算法所需的素数与其最小原根，涉及到因素分解因此较慢
-  且未做减一除 2 也是素数的要求，不是很安全}
+{* 生成 Diffie-Hellman 密钥协商算法所需的素数与其最小原根，实际等同于变色龙杂凑函数
+  涉及到因素分解因此较慢。原根也就是该素域的生成元，也就是各次幂求余能遍历素数以下所有值。}
 
 function CnDiffieHellmanGenerateOutKey(Prime, Root, SelfPrivateKey: TCnBigNumber;
   const OutPublicKey: TCnBigNumber): Boolean;
 {* 根据自身选择的随机数 PrivateKey 生成 Diffie-Hellman 密钥协商的输出公钥
    其中 OutPublicKey = (Root ^ SelfPrivateKey) mod Prime
-   要保证安全，可以使用 CnPrimeNumber 单元中定义的 CN_PRIME_FFDHE_* 素数，对应原根均为 2}
+   要保证安全，可以使用 CnSecretSharing 单元中定义的 CN_PRIME_FFDHE_* 素数，对应原根均为 2}
 
 function CnDiffieHellmanComputeKey(Prime, SelfPrivateKey, OtherPublicKey: TCnBigNumber;
   const SecretKey: TCnBigNumber): Boolean;
 {* 根据对方发送的 Diffie-Hellman 密钥协商的输出公钥计算生成公认的密钥
    其中 SecretKey = (OtherPublicKey ^ SelfPrivateKey) mod Prime
-   要保证安全，可以使用 CnPrimeNumber 单元中定义的 CN_PRIME_FFDHE_* 素数，对应原根均为 2}
+   要保证安全，可以使用 CnSecretSharing 单元中定义的 CN_PRIME_FFDHE_* 素数，对应原根均为 2}
+
+// ====================== 基于离散对数的变色龙杂凑函数 =========================
+
+function CnChameleonHashGeneratePrimeRootByBitsCount(BitsCount: Integer;
+  Prime, MinRoot: TCnBigNumber): Boolean;
+{* 生成基于离散对数的变色龙杂凑函数所需的素数与其最小原根，实际等同于 Diffie-Hellman，
+  涉及到因素分解因此较慢。原根也就是该素域的生成元，也就是各次幂求余能遍历素数以下所有值。}
+
+function CnChameleonHashCalcDigest(InData: TCnBigNumber; InRandom: TCnBigNumber;
+  InSecretKey: TCnBigNumber; OutHash: TCnBigNumber; Prime, Root: TCnBigNumber): Boolean;
+{* 基于普通离散对数的变色龙杂凑函数，根据一随机值与一 SecretKey，生成指定消息的杂凑
+  其中，Prime 和 Root 可由上面 CnDiffieHellmanGeneratePrimeRootByBitsCount 生成}
+
+function CnChameleonHashFindRandom(InOldData, InNewData: TCnBigNumber;
+  InOldRandom, InSecretKey: TCnBigNumber; OutNewRandom: TCnBigNumber; Prime, Root: TCnBigNumber): Boolean;
+{* 基于普通离散对数的变色龙杂凑函数，根据 SecretKey 与新旧消息，生成能够生成相同杂凑的新随机值
+  其中，Prime 和 Root 须与原始消息杂凑生成时相同。
+  可以利用 SecretKey 和 NewRandom 对 InNewData 调用 CnChameleonHashCalcDigest 生成相同的 Hash 值}
 
 // ================================= 其他辅助函数 ==============================
 
 function GetDigestSignTypeFromBerOID(OID: Pointer; OidLen: Integer): TCnRSASignDigestType;
-{* 从 BER 解析出的 OID 获取其对应的散列摘要类型}
+{* 从 BER 解析出的 OID 获取其对应的杂凑摘要类型}
 
 function AddDigestTypeOIDNodeToWriter(AWriter: TCnBerWriter; ASignType: TCnRSASignDigestType;
   AParent: TCnBerWriteNode): TCnBerWriteNode;
@@ -605,6 +650,9 @@ begin
          BigNumberAdd(PrivateKey.PrivKeyExponent, PrivateKey.PrivKeyExponent, R);
 
       // TODO: d 不能太小，不满足时得 Continue
+{$IFDEF CN_RSA_USE_CRT}
+      PrivateKey.UpdateCRT;
+{$ENDIF}
     finally
       One.Free;
       S2.Free;
@@ -723,6 +771,9 @@ begin
       if BigNumberCompare(PrivateKey.PrivKeyExponent, MinD) <= 0 then
         Continue;
 
+{$IFDEF CN_RSA_USE_CRT}
+      PrivateKey.UpdateCRT;
+{$ENDIF}
       Suc := True;
     end;
   finally
@@ -804,7 +855,7 @@ end;
 
 function CnRSALoadKeysFromPem(PemStream: TStream; PrivateKey: TCnRSAPrivateKey;
   PublicKey: TCnRSAPublicKey; KeyHashMethod: TCnKeyHashMethod = ckhMd5;
-  const Password: string = ''): Boolean; overload;
+  const Password: string = ''): Boolean;
 var
   LoadOK: Boolean;
   MemStream: TMemoryStream;
@@ -850,17 +901,20 @@ begin
         // 8 和 9 整成公钥
         if PublicKey <> nil then
         begin
-          PutIndexedBigIntegerToBigInt(Reader.Items[8], PublicKey.PubKeyProduct);
-          PutIndexedBigIntegerToBigInt(Reader.Items[9], PublicKey.PubKeyExponent);
+          PutIndexedBigIntegerToBigNumber(Reader.Items[8], PublicKey.PubKeyProduct);
+          PutIndexedBigIntegerToBigNumber(Reader.Items[9], PublicKey.PubKeyExponent);
         end;
 
         // 8 10 11 12 整成私钥
         if PrivateKey <> nil then
         begin
-          PutIndexedBigIntegerToBigInt(Reader.Items[8], PrivateKey.PrivKeyProduct);
-          PutIndexedBigIntegerToBigInt(Reader.Items[10], PrivateKey.PrivKeyExponent);
-          PutIndexedBigIntegerToBigInt(Reader.Items[11], PrivateKey.PrimeKey1);
-          PutIndexedBigIntegerToBigInt(Reader.Items[12], PrivateKey.PrimeKey2);
+          PutIndexedBigIntegerToBigNumber(Reader.Items[8], PrivateKey.PrivKeyProduct);
+          PutIndexedBigIntegerToBigNumber(Reader.Items[10], PrivateKey.PrivKeyExponent);
+          PutIndexedBigIntegerToBigNumber(Reader.Items[11], PrivateKey.PrimeKey1);
+          PutIndexedBigIntegerToBigNumber(Reader.Items[12], PrivateKey.PrimeKey2);
+{$IFDEF CN_RSA_USE_CRT}
+          PrivateKey.UpdateCRT;
+{$ENDIF}
         end;
 
         Result := True;
@@ -880,17 +934,20 @@ begin
           // 2 和 3 整成公钥
           if PublicKey <> nil then
           begin
-            PutIndexedBigIntegerToBigInt(Reader.Items[2], PublicKey.PubKeyProduct);
-            PutIndexedBigIntegerToBigInt(Reader.Items[3], PublicKey.PubKeyExponent);
+            PutIndexedBigIntegerToBigNumber(Reader.Items[2], PublicKey.PubKeyProduct);
+            PutIndexedBigIntegerToBigNumber(Reader.Items[3], PublicKey.PubKeyExponent);
           end;
 
           // 2 4 5 6 整成私钥
           if PrivateKey <> nil then
           begin
-            PutIndexedBigIntegerToBigInt(Reader.Items[2], PrivateKey.PrivKeyProduct);
-            PutIndexedBigIntegerToBigInt(Reader.Items[4], PrivateKey.PrivKeyExponent);
-            PutIndexedBigIntegerToBigInt(Reader.Items[5], PrivateKey.PrimeKey1);
-            PutIndexedBigIntegerToBigInt(Reader.Items[6], PrivateKey.PrimeKey2);
+            PutIndexedBigIntegerToBigNumber(Reader.Items[2], PrivateKey.PrivKeyProduct);
+            PutIndexedBigIntegerToBigNumber(Reader.Items[4], PrivateKey.PrivKeyExponent);
+            PutIndexedBigIntegerToBigNumber(Reader.Items[5], PrivateKey.PrimeKey1);
+            PutIndexedBigIntegerToBigNumber(Reader.Items[6], PrivateKey.PrimeKey2);
+{$IFDEF CN_RSA_USE_CRT}
+            PrivateKey.UpdateCRT;
+{$ENDIF}
           end;
 
           Result := True;
@@ -954,7 +1011,7 @@ end;
 
 function CnRSALoadPublicKeyFromPem(const PemStream: TStream;
   PublicKey: TCnRSAPublicKey; KeyHashMethod: TCnKeyHashMethod = ckhMd5;
-  const Password: string = ''): Boolean; overload;
+  const Password: string = ''): Boolean;
 var
   Mem: TMemoryStream;
   Reader: TCnBerReader;
@@ -983,8 +1040,8 @@ begin
         // 6 和 7 整成公钥
         if PublicKey <> nil then
         begin
-          PutIndexedBigIntegerToBigInt(Reader.Items[6], PublicKey.PubKeyProduct);
-          PutIndexedBigIntegerToBigInt(Reader.Items[7], PublicKey.PubKeyExponent);
+          PutIndexedBigIntegerToBigNumber(Reader.Items[6], PublicKey.PubKeyProduct);
+          PutIndexedBigIntegerToBigNumber(Reader.Items[7], PublicKey.PubKeyExponent);
         end;
 
         Result := True;
@@ -1009,8 +1066,8 @@ begin
         // 1 和 2 整成公钥
         if PublicKey <> nil then
         begin
-          PutIndexedBigIntegerToBigInt(Reader.Items[1], PublicKey.PubKeyProduct);
-          PutIndexedBigIntegerToBigInt(Reader.Items[2], PublicKey.PubKeyExponent);
+          PutIndexedBigIntegerToBigNumber(Reader.Items[1], PublicKey.PubKeyProduct);
+          PutIndexedBigIntegerToBigNumber(Reader.Items[2], PublicKey.PubKeyExponent);
         end;
       
         Result := True;
@@ -1106,8 +1163,8 @@ begin
       Node := Writer.AddContainerNode(CN_BER_TAG_SEQUENCE, Root);
 
       // 给 Node1 加 ObjectIdentifier 与 Null
-      Writer.AddBasicNode(CN_BER_TAG_OBJECT_IDENTIFIER, @OID_RSAENCRYPTION_PKCS1[0],
-        SizeOf(OID_RSAENCRYPTION_PKCS1), Node);
+      Writer.AddBasicNode(CN_BER_TAG_OBJECT_IDENTIFIER, @CN_OID_RSAENCRYPTION_PKCS1[0],
+        SizeOf(CN_OID_RSAENCRYPTION_PKCS1), Node);
       Writer.AddNullNode(Node);
 
       Node := Writer.AddContainerNode(CN_BER_TAG_OCTET_STRING, Root);
@@ -1186,8 +1243,8 @@ begin
       Node := Writer.AddContainerNode(CN_BER_TAG_SEQUENCE, Root);
 
       // 给 Node 加 ObjectIdentifier 与 Null
-      Writer.AddBasicNode(CN_BER_TAG_OBJECT_IDENTIFIER, @OID_RSAENCRYPTION_PKCS1[0],
-        SizeOf(OID_RSAENCRYPTION_PKCS1), Node);
+      Writer.AddBasicNode(CN_BER_TAG_OBJECT_IDENTIFIER, @CN_OID_RSAENCRYPTION_PKCS1[0],
+        SizeOf(CN_OID_RSAENCRYPTION_PKCS1), Node);
       Writer.AddNullNode(Node);
 
       Node := Writer.AddContainerNode(CN_BER_TAG_BIT_STRING, Root);
@@ -1226,18 +1283,74 @@ begin
     _CnSetLastError(ECN_RSA_BIGNUMBER_ERROR);
 end;
 
-// 利用上面生成的私钥对数据进行加密，返回加密是否成功
+// 利用私钥对数据进行加密，返回加密是否成功
 function CnRSAEncrypt(Data: TCnBigNumber; PrivateKey: TCnRSAPrivateKey;
   Res: TCnBigNumber): Boolean;
 begin
-  Result := RSACrypt(Data, PrivateKey.PrivKeyProduct, PrivateKey.PrivKeyExponent, Res);
+  Result := CnRSADecrypt(Res, PrivateKey, Data); // 本质上是同一个私钥运算，可复用
 end;
 
-// 利用上面生成的公钥对数据进行解密，返回解密是否成功
+// 利用公钥对数据进行加密，返回加密是否成功
+function CnRSAEncrypt(Data: TCnBigNumber; PublicKey: TCnRSAPublicKey;
+  Res: TCnBigNumber): Boolean;
+begin
+  Result := RSACrypt(Res, PublicKey.PubKeyProduct, PublicKey.PubKeyExponent, Data);
+end;
+
+// 利用私钥对数据进行解密，返回解密是否成功
+function CnRSADecrypt(Res: TCnBigNumber; PrivateKey: TCnRSAPrivateKey;
+  Data: TCnBigNumber): Boolean;
+{$IFDEF CN_RSA_USE_CRT}
+var
+  M1, M2: TCnBigNumber;
+{$ENDIF}
+begin
+{$IFDEF CN_RSA_USE_CRT}
+  M1 := nil;
+  M2 := nil;
+
+  // m1 = c^dP mod p
+  // m2 = c^dQ mod q
+  // h = qInv.(m1 - m2) mod p
+  // m = m2 + h.q
+
+  try
+    M1 := TCnBigNumber.Create;
+    BigNumberMontgomeryPowerMod(M1, Data, PrivateKey.FDP1, PrivateKey.FPrimeKey1);
+    // m1 = c^dP mod p
+
+    M2 := TCnBigNumber.Create;
+    BigNumberMontgomeryPowerMod(M2, Data, PrivateKey.FDQ1, PrivateKey.FPrimeKey2);
+    // m2 = c^dQ mod q
+
+    // 以下复用 m1
+    BigNumberSubMod(M1, M1, M2, PrivateKey.FPrimeKey1);
+    // m1 := m1 - m2 mod p
+
+    BigNumberDirectMulMod(M1, PrivateKey.FQInv, M1, PrivateKey.FPrimeKey1);
+    // m1 := qInv * m1 mod p
+
+    BigNumberMul(M1, M1, PrivateKey.FPrimeKey2);
+    // m1 := m1 * q
+
+    BigNumberAdd(Res, M2, M1);
+    // m = m2 + m1
+
+    Result := True;
+  finally
+    M2.Free;
+    M1.Free;
+  end;
+{$ELSE}
+  Result := RSACrypt(Data, PrivateKey.PrivKeyProduct, PrivateKey.PrivKeyExponent, Res);
+{$ENDIF}
+end;
+
+// 利用公钥对数据进行解密，返回解密是否成功
 function CnRSADecrypt(Res: TCnBigNumber; PublicKey: TCnRSAPublicKey;
   Data: TCnBigNumber): Boolean;
 begin
-  Result := RSACrypt(Res, PublicKey.PubKeyProduct, PublicKey.PubKeyExponent, Data);
+  Result := CnRSAEncrypt(Data, PublicKey, Res); // 本质上是同一个公钥运算，可复用
 end;
 
 { TCnRSAPrivateKey }
@@ -1250,6 +1363,11 @@ begin
     BigNumberCopy(FPrimeKey2, (Source as TCnRSAPrivateKey).PrimeKey2);
     BigNumberCopy(FPrivKeyProduct, (Source as TCnRSAPrivateKey).PrivKeyProduct);
     BigNumberCopy(FPrivKeyExponent, (Source as TCnRSAPrivateKey).PrivKeyExponent);
+{$IFDEF CN_RSA_USE_CRT}
+    BigNumberCopy(FDP1, (Source as TCnRSAPrivateKey).FDP1);
+    BigNumberCopy(FDQ1, (Source as TCnRSAPrivateKey).FDQ1);
+    BigNumberCopy(FQInv, (Source as TCnRSAPrivateKey).FQInv);
+{$ENDIF}
   end
   else
     inherited;
@@ -1263,6 +1381,36 @@ begin
   FPrivKeyExponent.Clear;
 end;
 
+{$IFDEF CN_RSA_USE_CRT}
+
+procedure TCnRSAPrivateKey.UpdateCRT;
+var
+  T: TCnBigNumber;
+begin
+  T := TCnBigNumber.Create;
+  try
+    if BigNumberCompare(FPrimeKey1, FPrimeKey2) < 0 then // 确保 p > q
+      BigNumberSwap(FPrimeKey1, FPrimeKey2);
+
+    // 计算 DP1 = D mod (PrimeKey1 - 1);
+    BigNumberCopy(T, FPrimeKey1);
+    T.SubWord(1);
+    BigNumberMod(FDP1, FPrivKeyExponent, T);
+
+    // 计算 DQ1 = D mod (PrimeKey2 - 1);
+    BigNumberCopy(T, FPrimeKey2);
+    T.SubWord(1);
+    BigNumberMod(FDQ1, FPrivKeyExponent, T);
+
+    // 计算 QInv = Prime2 对 Prime1 的模逆元
+    BigNumberModularInverse(FQInv, FPrimeKey2, FPrimeKey1);
+  finally
+    T.Free;
+  end;
+end;
+
+{$ENDIF}
+
 constructor TCnRSAPrivateKey.Create;
 begin
   inherited;
@@ -1270,14 +1418,24 @@ begin
   FPrimeKey2 := TCnBigNumber.Create;
   FPrivKeyProduct := TCnBigNumber.Create;
   FPrivKeyExponent := TCnBigNumber.Create;
+{$IFDEF CN_RSA_USE_CRT}
+  FDP1 := TCnBigNumber.Create;
+  FDQ1 := TCnBigNumber.Create;
+  FQInv := TCnBigNumber.Create;
+{$ENDIF}
 end;
 
 destructor TCnRSAPrivateKey.Destroy;
 begin
-  FPrimeKey1.Free;
-  FPrimeKey2.Free;
-  FPrivKeyProduct.Free;
+{$IFDEF CN_RSA_USE_CRT}
+  FQInv.Free;
+  FDQ1.Free;
+  FDP1.Free;
+{$ENDIF}
   FPrivKeyExponent.Free;
+  FPrivKeyProduct.Free;
+  FPrimeKey2.Free;
+  FPrimeKey1.Free;
   inherited;
 end;
 
@@ -1400,6 +1558,7 @@ begin
   Res := nil;
   Data := nil;
   Stream := nil;
+
   try
     Stream := TMemoryStream.Create;
     if PaddingMode = cpmPKCS1 then
@@ -1453,7 +1612,7 @@ begin
 end;
 
 function CnRSAEncryptFile(const InFileName, OutFileName: string;
-  PublicKey: TCnRSAPublicKey; PaddingMode: TCnRSAPaddingMode): Boolean; overload;
+  PublicKey: TCnRSAPublicKey; PaddingMode: TCnRSAPaddingMode): Boolean;
 var
   Stream: TMemoryStream;
   Res: array of Byte;
@@ -1481,7 +1640,7 @@ begin
 end;
 
 function CnRSAEncryptFile(const InFileName, OutFileName: string;
-  PrivateKey: TCnRSAPrivateKey): Boolean; overload;
+  PrivateKey: TCnRSAPrivateKey): Boolean;
 var
   Stream: TMemoryStream;
   Res: array of Byte;
@@ -1610,7 +1769,7 @@ begin
 end;
 
 function CnRSADecryptFile(const InFileName, OutFileName: string;
-  PrivateKey: TCnRSAPrivateKey; PaddingMode: TCnRSAPaddingMode): Boolean; overload;
+  PrivateKey: TCnRSAPrivateKey; PaddingMode: TCnRSAPaddingMode): Boolean;
 var
   Stream: TMemoryStream;
   Res: array of Byte;
@@ -1651,35 +1810,35 @@ end;
 function CalcDigestStream(InStream: TStream; SignType: TCnRSASignDigestType;
   outStream: TStream): Boolean;
 var
-  Md5: TMD5Digest;
-  Sha1: TSHA1Digest;
-  Sha256: TSHA256Digest;
-  Sm3Dig: TSM3Digest;
+  Md5: TCnMD5Digest;
+  Sha1: TCnSHA1Digest;
+  Sha256: TCnSHA256Digest;
+  Sm3Dig: TCnSM3Digest;
 begin
   Result := False;
   case SignType of
     rsdtMD5:
       begin
         Md5 := MD5Stream(InStream);
-        outStream.Write(Md5, SizeOf(TMD5Digest));
+        outStream.Write(Md5, SizeOf(TCnMD5Digest));
         Result := True;
       end;
     rsdtSHA1:
       begin
         Sha1 := SHA1Stream(InStream);
-        outStream.Write(Sha1, SizeOf(TSHA1Digest));
+        outStream.Write(Sha1, SizeOf(TCnSHA1Digest));
         Result := True;
       end;
     rsdtSHA256:
       begin
         Sha256 := SHA256Stream(InStream);
-        outStream.Write(Sha256, SizeOf(TSHA256Digest));
+        outStream.Write(Sha256, SizeOf(TCnSHA256Digest));
         Result := True;
       end;
     rsdtSM3:
       begin
         Sm3Dig := SM3Stream(InStream);
-        outStream.Write(Sm3Dig, SizeOf(TSM3Digest));
+        outStream.Write(Sm3Dig, SizeOf(TCnSM3Digest));
         Result := True;
       end
   end;
@@ -1694,35 +1853,35 @@ end;
 function CalcDigestFile(const FileName: string; SignType: TCnRSASignDigestType;
   outStream: TStream): Boolean;
 var
-  Md5: TMD5Digest;
-  Sha1: TSHA1Digest;
-  Sha256: TSHA256Digest;
-  Sm3Dig: TSM3Digest;
+  Md5: TCnMD5Digest;
+  Sha1: TCnSHA1Digest;
+  Sha256: TCnSHA256Digest;
+  Sm3Dig: TCnSM3Digest;
 begin
   Result := False;
   case SignType of
     rsdtMD5:
       begin
         Md5 := MD5File(FileName);
-        outStream.Write(Md5, SizeOf(TMD5Digest));
+        outStream.Write(Md5, SizeOf(TCnMD5Digest));
         Result := True;
       end;
     rsdtSHA1:
       begin
         Sha1 := SHA1File(FileName);
-        outStream.Write(Sha1, SizeOf(TSHA1Digest));
+        outStream.Write(Sha1, SizeOf(TCnSHA1Digest));
         Result := True;
       end;
     rsdtSHA256:
       begin
         Sha256 := SHA256File(FileName);
-        outStream.Write(Sha256, SizeOf(TSHA256Digest));
+        outStream.Write(Sha256, SizeOf(TCnSHA256Digest));
         Result := True;
       end;
     rsdtSM3:
       begin
         Sm3Dig := SM3File(FileName);
-        outStream.Write(Sm3Dig, SizeOf(TSM3Digest));
+        outStream.Write(Sm3Dig, SizeOf(TCnSM3Digest));
         Result := True;
       end;
   end;
@@ -1830,12 +1989,13 @@ begin
 
     if RSACrypt(Data, PrivateKey.PrivKeyProduct, PrivateKey.PrivKeyExponent, Res) then
     begin
-      SetLength(ResBuf, Res.GetBytesCount);
-      Res.ToBinary(@ResBuf[0]);
+      // 注意 Res 可能存在前导 0，所以此处必须以 PrivateKey.GetBytesCount 为准，才能确保不漏前导 0
+      SetLength(ResBuf, PrivateKey.GetBytesCount);
+      Res.ToBinary(@ResBuf[0], PrivateKey.GetBytesCount);
 
       // 保存用私钥加密后的内容至文件
       Stream.Clear;
-      Stream.Write(ResBuf[0], Res.GetBytesCount);
+      Stream.Write(ResBuf[0], PrivateKey.GetBytesCount);
       Stream.SaveToStream(OutSignStream);
 
       Result := True;
@@ -2206,6 +2366,59 @@ begin
   Result := BigNumberMontgomeryPowerMod(SecretKey, OtherPublicKey, SelfPrivateKey, Prime);
 end;
 
+// 生成基于离散对数的变色龙杂凑函数所需的素数与其最小原根，实际等同于 Diffie-Hellman
+function CnChameleonHashGeneratePrimeRootByBitsCount(BitsCount: Integer;
+  Prime, MinRoot: TCnBigNumber): Boolean;
+begin
+  Result := CnDiffieHellmanGeneratePrimeRootByBitsCount(BitsCount, Prime, MinRoot);
+end;
+
+// 基于普通离散对数的变色龙杂凑函数，根据一随机值与一 SecretKey，生成指定消息的杂凑
+function CnChameleonHashCalcDigest(InData: TCnBigNumber; InRandom: TCnBigNumber;
+  InSecretKey: TCnBigNumber; OutHash: TCnBigNumber; Prime, Root: TCnBigNumber): Boolean;
+var
+  T: TCnBigNumber;
+begin
+  T := nil;
+
+  // Hash(M, R) = g^(M + R * Sk) mod P
+  try
+    T := TCnBigNumber.Create;
+    BigNumberCopy(T, InSecretKey);
+    BigNumberDirectMulMod(T, InRandom, T, Prime);
+
+    BigNumberAddMod(T, InData, T, Prime);
+    Result := BigNumberMontgomeryPowerMod(OutHash, Root, T, Prime);
+  finally
+    T.Free;
+  end;
+end;
+
+// 基于普通离散对数的变色龙杂凑函数，根据 SecretKey 与新旧消息，生成能够生成相同杂凑的新随机值
+function CnChameleonHashFindRandom(InOldData, InNewData: TCnBigNumber;
+  InOldRandom, InSecretKey: TCnBigNumber; OutNewRandom: TCnBigNumber; Prime, Root: TCnBigNumber): Boolean;
+var
+  M, SK: TCnBigNumber;
+begin
+  M := nil;
+  SK := nil;
+
+  // R2 := ((M1 - M2)/SK + R1) mod P
+  try
+    M := TCnBigNumber.Create;
+    BigNumberSubMod(M, InOldData, InNewData, Prime);
+
+    SK := TCnBigNumber.Create;
+    BigNumberModularInverse(SK, InSecretKey, Prime);
+
+    BigNumberDirectMulMod(M, M, SK, Prime);
+    Result := BigNumberAddMod(OutNewRandom, M, InOldRandom, Prime);
+  finally
+    SK.Free;
+    M.Free;
+  end;
+end;
+
 function GetDigestSignTypeFromBerOID(OID: Pointer; OidLen: Integer): TCnRSASignDigestType;
 begin
   Result := rsdtNone;
@@ -2235,12 +2448,12 @@ function Pkcs1Sha1MGF(Seed: Pointer; SeedLen: Integer; OutMask: Pointer;
 var
   I, OutLen, MdLen: Integer;
   Cnt: array[0..3] of Byte;
-  Ctx: TSHA1Context;
-  Dig: TSHA1Digest;
+  Ctx: TCnSHA1Context;
+  Dig: TCnSHA1Digest;
 begin
   Result := False;
   OutLen := 0;
-  MdLen := SizeOf(TSHA1Digest);
+  MdLen := SizeOf(TCnSHA1Digest);
   if (Seed = nil) or (SeedLen <= 0) then
     Exit;
 
@@ -2261,13 +2474,13 @@ begin
 
     if OutLen + MdLen <= MaskLen then
     begin
-      SHA1Final(Ctx, PSHA1Digest(TCnNativeInt(OutMask) + OutLen)^);
+      SHA1Final(Ctx, PCnSHA1Digest(TCnNativeInt(OutMask) + OutLen)^);
       OutLen := OutLen + MdLen;
     end
     else
     begin
       SHA1Final(Ctx, Dig);
-      Move(Dig[0], PSHA1Digest(TCnNativeInt(OutMask) + OutLen)^, MaskLen - OutLen);
+      Move(Dig[0], PCnSHA1Digest(TCnNativeInt(OutMask) + OutLen)^, MaskLen - OutLen);
       OutLen := MaskLen;
     end;
 
@@ -2280,14 +2493,14 @@ function AddOaepSha1MgfPadding(ToBuf: PByte; ToLen: Integer; PlainData: PByte;
   DataLen: Integer; DigestParam: PByte = nil; ParamLen: Integer = 0): Boolean;
 var
   EmLen, MdLen, I: Integer;
-  SeedMask: TSHA1Digest;
+  SeedMask: TCnSHA1Digest;
   DB, Seed: PByteArray;
   DBMask: array of Byte;
 begin
   Result := False;
   EmLen:= ToLen - 1;
 
-  MdLen := SizeOf(TSHA1Digest);
+  MdLen := SizeOf(TCnSHA1Digest);
 
   if (DataLen > EmLen - 2 * MdLen - 1) or (EmLen < 2 * MdLen + 1) then
   begin
@@ -2351,7 +2564,7 @@ function RemoveOaepSha1MgfPadding(ToBuf: PByte; out OutLen: Integer; EnData: PBy
 var
   I, MdLen, DBLen, MStart: Integer;
   MaskedDB, MaskedSeed: PByteArray;
-  Seed, ParamHash: TSHA1Digest;
+  Seed, ParamHash: TCnSHA1Digest;
   DB: array of Byte;
 begin
   Result := False;
@@ -2367,7 +2580,7 @@ begin
     Exit;
   end;
 
-  MdLen := SizeOf(TSHA1Digest);
+  MdLen := SizeOf(TCnSHA1Digest);
   DBLen := DataLen - MdLen - 1;
   if DBLen <= 0 then
   begin

@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2022 CnPack 开发组                       }
+{                   (C)Copyright 2001-2023 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -28,6 +28,9 @@ unit CnLockFree;
 *           并基于此实现了自旋锁与无锁有序链表、单读单写的无锁循环队列
 *           无锁有序链表参考了 Timothy L. Harris 的论文：
 *             《A Pragmatic Implementation of Non-Blocking Linked-Lists》
+*
+*           注：因为缺乏跨各种平台的完整实现，因而内部暂时不引用此单元以避免影响跨平台
+*
 * 开发平台：PWin2000 + Delphi 5.0
 * 兼容测试：PWin9X/2000/XP + Delphi 5/ 10.3，包括 Win32/64
 * 本 地 化：该单元中的字符串均符合本地化处理方式
@@ -45,13 +48,13 @@ interface
 {$I CnPack.inc}
 
 uses
-  SysUtils, {$IFDEF MSWINDOWS} Windows, {$ENDIF} Classes, CnNativeDecl;
+  SysUtils, {$IFDEF MSWINDOWS} Windows, {$ENDIF} Classes, CnNative;
 
 const
   CN_RING_QUEUE_DEFAULT_CAPACITY = 16;
 
 type
-{$IFDEF CPUX64}
+{$IFDEF CPU64BITS}
   TCnSpinLockRecord = NativeInt;
 {$ELSE}
   TCnSpinLockRecord = Integer;
@@ -374,7 +377,16 @@ begin
   Result := AtomicCmpExchange(Target, NewValue, Comperand);
 {$ELSE}
   {$IFDEF BDS}
-  Result := Pointer(InterlockedCompareExchange(Integer(Target), Integer(NewValue), Integer(Comperand)));
+    // XE2 下 Win64 时会出错，必须改用 64 位版本，XE3 后的版本声明调整一致了
+    {$IFDEF DELPHIXE2}
+      {$IFDEF WIN64}
+       Result := Pointer(InterlockedCompareExchange64(Int64(Target), Int64(NewValue), Int64(Comperand)));
+      {$ELSE}
+       Result := Pointer(InterlockedCompareExchange(Integer(Target), Integer(NewValue), Integer(Comperand)));
+      {$ENDIF}
+    {$ELSE}
+       Result := Pointer(InterlockedCompareExchange(Integer(Target), Integer(NewValue), Integer(Comperand)));
+    {$ENDIF}
   {$ELSE}
   {$IFDEF FPC}
   Result := Pointer(InterlockedCompareExchange(LongInt(Target), LongInt(NewValue), LongInt(Comperand)));
@@ -385,7 +397,7 @@ begin
 {$ENDIF}
 end;
 
-{$IFDEF SUPPORT_ATOMIC}
+{$IFDEF SUPPORT_ATOMIC} // 高版本 Delphi 的实现，不同平台自动区分
 
 function CnAtomicCompareAndSet(var Target: Pointer; NewValue: Pointer;
   Comperand: Pointer): Boolean;
@@ -393,9 +405,9 @@ begin
   AtomicCmpExchange(Target, NewValue, Comperand, Result);
 end;
 
-{$ELSE}
+{$ELSE} // 较低版本 Delphi 以及 FPC 的分开实现
 
-{$IFDEF WIN64}
+{$IFDEF CPUX64} // WIN64 下，包括 FPC 的 Win64 也就是 CPUX64 下的汇编实现
 
 // XE2 的 Win64 下没有 Atomic 系列函数
 function CnAtomicCompareAndSet(var Target: Pointer; NewValue: Pointer;
@@ -410,16 +422,7 @@ end;
 
 {$ELSE}
 
-{$IFDEF FPC}
-
-// TODO: FPC 下面的实现
-function CnAtomicCompareAndSet(var Target: Pointer; NewValue: Pointer;
-  Comperand: Pointer): Boolean;
-begin
-  raise Exception.Create(SCnNotImplemented);
-end;
-
-{$ELSE}
+{$IFDEF CPUX86}
 
 // XE2 或以下版本的 Win32 实现
 function CnAtomicCompareAndSet(var Target: Pointer; NewValue: Pointer;
@@ -432,6 +435,15 @@ asm
   LOCK CMPXCHG [ECX], EDX
   SETZ AL
   AND EAX, $FF
+end;
+
+{$ELSE}
+
+// TODO: ARM32/64 下面的实现，先以 FPC 为主
+function CnAtomicCompareAndSet(var Target: Pointer; NewValue: Pointer;
+  Comperand: Pointer): Boolean;
+begin
+  raise Exception.Create(SCnNotImplemented);
 end;
 
 {$ENDIF}
@@ -538,6 +550,8 @@ begin
   New(Result);
   Result^.Next := nil;
 end;
+
+{$HINTS OFF}
 
 function TCnLockFreeLinkedList.Delete(Key: TObject): Boolean;
 var
@@ -761,6 +775,8 @@ begin
     InternalSearch(P2^.Key, P1, P2);
   Result := True;
 end;
+
+{$HINTS ON}
 
 function TCnLockFreeLinkedList.GetLast2Nodes(out P1,
   P2: PCnLockFreeLinkedNode): Boolean;

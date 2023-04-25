@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2022 CnPack 开发组                       }
+{                   (C)Copyright 2001-2023 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -54,7 +54,7 @@ interface
 {$I CnPack.inc}
 
 uses
-  SysUtils, Classes, SysConst, Math, Contnrs, CnPrimeNumber, CnNativeDecl,
+  SysUtils, Classes, SysConst, Math, Contnrs, CnPrimeNumber, CnNative,
   CnMatrix, CnContainers, CnBigNumber, CnBigRational, CnComplex, CnDFT;
 
 type
@@ -695,19 +695,19 @@ function BigNumberPolynomialEqual(const A, B: TCnBigNumberPolynomial): Boolean;
 
 // ======================== 一元大整系数多项式普通运算 =============================
 
-procedure BigNumberPolynomialAddWord(const P: TCnBigNumberPolynomial; N: LongWord);
+procedure BigNumberPolynomialAddWord(const P: TCnBigNumberPolynomial; N: Cardinal);
 {* 将一个一元大整系数多项式对象的常系数加上 N}
 
-procedure BigNumberPolynomialSubWord(const P: TCnBigNumberPolynomial; N: LongWord);
+procedure BigNumberPolynomialSubWord(const P: TCnBigNumberPolynomial; N: Cardinal);
 {* 将一个一元大整系数多项式对象的常系数减去 N}
 
-procedure BigNumberPolynomialMulWord(const P: TCnBigNumberPolynomial; N: LongWord);
+procedure BigNumberPolynomialMulWord(const P: TCnBigNumberPolynomial; N: Cardinal);
 {* 将一个一元大整系数多项式对象的各个系数都乘以 N}
 
-procedure BigNumberPolynomialDivWord(const P: TCnBigNumberPolynomial; N: LongWord);
+procedure BigNumberPolynomialDivWord(const P: TCnBigNumberPolynomial; N: Cardinal);
 {* 将一个一元大整系数多项式对象的各个系数都除以 N，如不能整除则取整}
 
-procedure BigNumberPolynomialNonNegativeModWord(const P: TCnBigNumberPolynomial; N: LongWord);
+procedure BigNumberPolynomialNonNegativeModWord(const P: TCnBigNumberPolynomial; N: Cardinal);
 {* 将一个一元大整系数多项式对象的各个系数都对 N 非负求余，可以用于有限域化}
 
 procedure BigNumberPolynomialAddBigNumber(const P: TCnBigNumberPolynomial; N: TCnBigNumber);
@@ -833,26 +833,26 @@ function BigNumberPolynomialGaloisPower(const Res: TCnBigNumberPolynomial;
    返回计算是否成功，Res 可以是 P}
 
 function BigNumberPolynomialGaloisPower(const Res: TCnBigNumberPolynomial;
-  const P: TCnBigNumberPolynomial; Exponent: LongWord; Prime: TCnBigNumber;
+  const P: TCnBigNumberPolynomial; Exponent: Cardinal; Prime: TCnBigNumber;
   Primitive: TCnBigNumberPolynomial = nil): Boolean; overload;
 {* 计算一元大整系数多项式在 Prime 次方阶有限域上的 Exponent 次幂，
    调用者需自行保证 Prime 是素数且本原多项式 Primitive 为不可约多项式
    返回计算是否成功，Res 可以是 P}
 
 function BigNumberPolynomialGaloisAddWord(const P: TCnBigNumberPolynomial;
-  N: LongWord; Prime: TCnBigNumber): Boolean;
+  N: Cardinal; Prime: TCnBigNumber): Boolean;
 {* 将 Prime 次方阶有限域上的一元大整系数多项式的常系数加上 N 再 mod Prime}
 
 function BigNumberPolynomialGaloisSubWord(const P: TCnBigNumberPolynomial;
-  N: LongWord; Prime: TCnBigNumber): Boolean;
+  N: Cardinal; Prime: TCnBigNumber): Boolean;
 {* 将 Prime 次方阶有限域上的一元大整系数多项式的常系数减去 N 再 mod Prime}
 
 function BigNumberPolynomialGaloisMulWord(const P: TCnBigNumberPolynomial;
-  N: LongWord; Prime: TCnBigNumber): Boolean;
+  N: Cardinal; Prime: TCnBigNumber): Boolean;
 {* 将 Prime 次方阶有限域上的一元大整系数多项式各项系数乘以 N 再 mod Prime}
 
 function BigNumberPolynomialGaloisDivWord(const P: TCnBigNumberPolynomial;
-  N: LongWord; Prime: TCnBigNumber): Boolean;
+  N: Cardinal; Prime: TCnBigNumber): Boolean;
 {* 将 Prime 次方阶有限域上的整系数多项式各项系数除以 N，也就是乘以 N 的逆元再 mod Prime}
 
 procedure BigNumberPolynomialGaloisAddBigNumber(const P: TCnBigNumberPolynomial;
@@ -904,7 +904,7 @@ function BigNumberPolynomialGaloisCalcDivisionPolynomial(A, B: Integer; Degree: 
   outDivisionPolynomial: TCnBigNumberPolynomial; Prime: TCnBigNumber): Boolean; overload;
 {* 递归计算指定椭圆曲线在 Prime 次方阶有限域上的 N 阶可除多项式，返回是否计算成功
    注意 Degree 是奇数时，可除多项式是纯 x 的多项式，偶数时，是（x 的多项式）* y 的形式，
-   本结果只给出 x 的多项式部分。
+   本结果只给出 x 的多项式部分，也就是 f 的形式（偶数时已经除了 y），不是 Ψ的形式。
    其中 A B 是 32 位有符号整数}
 
 function BigNumberPolynomialGaloisCalcDivisionPolynomial(A, B: TCnBigNumber; Degree: Integer;
@@ -1675,19 +1675,18 @@ procedure BigNumberBiPolynomialGaloisDivWord(const P: TCnBigNumberBiPolynomial; 
 {* 将 Prime 次方阶有限域上的二元大整系数多项式各项系数除以 N，也就是乘以 N 的逆元再 mod Prime}
 
 var
-  CnInt64PolynomialOne: TCnInt64Polynomial = nil;     // 表示 1 的常量
-  CnInt64PolynomialZero: TCnInt64Polynomial = nil;    // 表示 0 的常量
+  CnInt64PolynomialOne: TCnInt64Polynomial = nil;     // 表示 1 的 Int64 多项式常量
+  CnInt64PolynomialZero: TCnInt64Polynomial = nil;    // 表示 0 的 Int64 多项式常量
 
-  CnBigNumberPolynomialOne: TCnBigNumberPolynomial = nil;     // 表示 1 的常量
-  CnBigNumberPolynomialZero: TCnBigNumberPolynomial = nil;    // 表示 0 的常量
+  CnBigNumberPolynomialOne: TCnBigNumberPolynomial = nil;     // 表示 1 的大数多项式常量
+  CnBigNumberPolynomialZero: TCnBigNumberPolynomial = nil;    // 表示 0 的大数多项式常量
 
 implementation
 
 resourcestring
   SCnInvalidDegree = 'Invalid Degree %d';
-  SCnErrorDivExactly = 'Can NOT Divide Exactly for Integer Polynomial.';
+  // SCnErrorDivExactly = 'Can NOT Divide Exactly for Integer Polynomial.';
   SCnInvalidExponent = 'Invalid Exponent %d';
-  SCnInvalidModulus = 'Can NOT Mod a Negative or Zero Value.';
   SCnDegreeTooLarge = 'Degree Too Large';
 
 var
@@ -1789,7 +1788,7 @@ begin
     end;
   vtString:
     begin
-      Result := StrToInt(Element.VString^);
+      Result := StrToInt(string(Element.VString^));
     end;
   else
     raise ECnPolynomialException.CreateFmt(SInvalidInteger, ['Coefficients ' + Element.VString^]);
@@ -1818,7 +1817,7 @@ begin
     end;
   vtString:
     begin
-      Result := Element.VString^;
+      Result := string(Element.VString^);
     end;
   vtObject:
     begin
@@ -2006,6 +2005,8 @@ begin
   end;
 end;
 
+{$WARNINGS OFF}
+
 function Int64PolynomialSetString(const P: TCnInt64Polynomial;
   const Str: string; const VarName: Char = 'X'): Boolean;
 var
@@ -2087,6 +2088,8 @@ begin
     P[E] := F;
   end;
 end;
+
+{$WARNINGS ON}
 
 function Int64PolynomialIsZero(const P: TCnInt64Polynomial): Boolean;
 begin
@@ -2594,7 +2597,8 @@ begin
         Int64PolynomialMul(Res, Res, T);
 
       Exponent := Exponent shr 1;
-      Int64PolynomialMul(T, T, T);
+      if Exponent > 0 then
+        Int64PolynomialMul(T, T, T);
     end;
     Result := True;
   finally
@@ -3042,7 +3046,8 @@ begin
         Int64PolynomialGaloisMul(Res, Res, T, Prime, Primitive);
 
       ExponentShiftRightOne(Exponent, ExponentHi);
-      Int64PolynomialGaloisMul(T, T, T, Prime, Primitive);
+      if not Exponent128IsZero(Exponent, ExponentHi) then
+        Int64PolynomialGaloisMul(T, T, T, Prime, Primitive);
     end;
     Result := True;
   finally
@@ -4720,6 +4725,8 @@ begin
   end;
 end;
 
+{$WARNINGS OFF}
+
 function BigNumberPolynomialSetString(const P: TCnBigNumberPolynomial;
   const Str: string; const VarName: Char = 'X'): Boolean;
 var
@@ -4796,9 +4803,11 @@ begin
       MDFlag := 0;
     end;
 
-    P[E].SetDec(Num);
+    P[E].SetDec(AnsiString(Num));
   end;
 end;
+
+{$WARNINGS ON}
 
 function BigNumberPolynomialIsZero(const P: TCnBigNumberPolynomial): Boolean;
 begin
@@ -4897,19 +4906,19 @@ end;
 
 // ======================== 一元大整系数多项式普通运算 =============================
 
-procedure BigNumberPolynomialAddWord(const P: TCnBigNumberPolynomial; N: LongWord);
+procedure BigNumberPolynomialAddWord(const P: TCnBigNumberPolynomial; N: Cardinal);
 begin
   if N <> 0 then
     BigNumberAddWord(P[0], N);
 end;
 
-procedure BigNumberPolynomialSubWord(const P: TCnBigNumberPolynomial; N: LongWord);
+procedure BigNumberPolynomialSubWord(const P: TCnBigNumberPolynomial; N: Cardinal);
 begin
   if N <> 0 then
     BigNumberSubWord(P[0], N);
 end;
 
-procedure BigNumberPolynomialMulWord(const P: TCnBigNumberPolynomial; N: LongWord);
+procedure BigNumberPolynomialMulWord(const P: TCnBigNumberPolynomial; N: Cardinal);
 var
   I: Integer;
 begin
@@ -4922,7 +4931,7 @@ begin
   end;
 end;
 
-procedure BigNumberPolynomialDivWord(const P: TCnBigNumberPolynomial; N: LongWord);
+procedure BigNumberPolynomialDivWord(const P: TCnBigNumberPolynomial; N: Cardinal);
 var
   I: Integer;
 begin
@@ -4933,7 +4942,7 @@ begin
       BigNumberDivWord(P[I], N);
 end;
 
-procedure BigNumberPolynomialNonNegativeModWord(const P: TCnBigNumberPolynomial; N: LongWord);
+procedure BigNumberPolynomialNonNegativeModWord(const P: TCnBigNumberPolynomial; N: Cardinal);
 var
   I: Integer;
 begin
@@ -5221,13 +5230,14 @@ begin
   try
     // 二进制形式快速计算 T 的次方，值给 Res
     Res.SetOne;
-    while not E.IsNegative and not E.IsZero do
+    while not E.IsZero do // E 大于 0 无需判断
     begin
       if BigNumberIsBitSet(E, 0) then
         BigNumberPolynomialMul(Res, Res, T);
 
       BigNumberShiftRightOne(E, E);
-      BigNumberPolynomialMul(T, T, T);
+      if not E.IsZero then // 最后一次无需乘了
+        BigNumberPolynomialMul(T, T, T);
     end;
     Result := True;
   finally
@@ -5705,13 +5715,14 @@ begin
   try
     // 二进制形式快速计算 T 的次方，值给 Res
     Res.SetOne;
-    while not E.IsNegative and not E.IsZero do
+    while not E.IsZero do
     begin
       if BigNumberIsBitSet(E, 0) then
         BigNumberPolynomialGaloisMul(Res, Res, T, Prime, Primitive);
 
       BigNumberShiftRightOne(E, E);
-      BigNumberPolynomialGaloisMul(T, T, T, Prime, Primitive);
+      if not E.IsZero then
+        BigNumberPolynomialGaloisMul(T, T, T, Prime, Primitive);
     end;
     Result := True;
   finally
@@ -5721,7 +5732,7 @@ begin
 end;
 
 function BigNumberPolynomialGaloisPower(const Res: TCnBigNumberPolynomial;
-  const P: TCnBigNumberPolynomial; Exponent: LongWord; Prime: TCnBigNumber;
+  const P: TCnBigNumberPolynomial; Exponent: Cardinal; Prime: TCnBigNumber;
   Primitive: TCnBigNumberPolynomial = nil): Boolean; overload;
 var
   T: TCnBigNumber;
@@ -5736,7 +5747,7 @@ begin
 end;
 
 function BigNumberPolynomialGaloisAddWord(const P: TCnBigNumberPolynomial;
-  N: LongWord; Prime: TCnBigNumber): Boolean;
+  N: Cardinal; Prime: TCnBigNumber): Boolean;
 begin
   if N <> 0 then
   begin
@@ -5747,7 +5758,7 @@ begin
 end;
 
 function BigNumberPolynomialGaloisSubWord(const P: TCnBigNumberPolynomial;
-  N: LongWord; Prime: TCnBigNumber): Boolean;
+  N: Cardinal; Prime: TCnBigNumber): Boolean;
 begin
   if N <> 0 then
   begin
@@ -5758,7 +5769,7 @@ begin
 end;
 
 function BigNumberPolynomialGaloisMulWord(const P: TCnBigNumberPolynomial;
-  N: LongWord; Prime: TCnBigNumber): Boolean;
+  N: Cardinal; Prime: TCnBigNumber): Boolean;
 var
   I: Integer;
 begin
@@ -5778,7 +5789,7 @@ begin
 end;
 
 function BigNumberPolynomialGaloisDivWord(const P: TCnBigNumberPolynomial;
-  N: LongWord; Prime: TCnBigNumber): Boolean;
+  N: Cardinal; Prime: TCnBigNumber): Boolean;
 var
   I: Integer;
   K, T: TCnBigNumber;
@@ -7324,6 +7335,8 @@ begin
     Result := '0';
 end;
 
+{$WARNINGS OFF}
+
 function Int64BiPolynomialSetString(const P: TCnInt64BiPolynomial;
   const Str: string; const Var1Name: Char = 'X'; const Var2Name: Char = 'Y'): Boolean;
 var
@@ -7422,6 +7435,8 @@ begin
 
   Result := True;
 end;
+
+{$WARNINGS ON}
 
 function Int64BiPolynomialIsZero(const P: TCnInt64BiPolynomial): Boolean;
 begin
@@ -7842,7 +7857,8 @@ begin
         Int64BiPolynomialMul(Res, Res, T);
 
       Exponent := Exponent shr 1;
-      Int64BiPolynomialMul(T, T, T);
+      if Exponent > 0 then
+        Int64BiPolynomialMul(T, T, T);
     end;
     Result := True;
   finally
@@ -8214,7 +8230,8 @@ begin
         Int64BiPolynomialGaloisMul(Res, Res, T, Prime, Primitive);
 
       ExponentShiftRightOne(Exponent, ExponentHi);
-      Int64BiPolynomialGaloisMul(T, T, T, Prime, Primitive);
+      if not Exponent128IsZero(Exponent, ExponentHi) then
+        Int64BiPolynomialGaloisMul(T, T, T, Prime, Primitive);
     end;
     Result := True;
   finally
@@ -8562,6 +8579,8 @@ begin
     Result := '0';
 end;
 
+{$WARNINGS OFF}
+
 function BigNumberBiPolynomialSetString(const P: TCnBigNumberBiPolynomial;
   const Str: string; const Var1Name: Char = 'X'; const Var2Name: Char = 'Y'): Boolean;
 var
@@ -8653,11 +8672,13 @@ begin
     end;
 
     // 俩指数找完了，凑
-    P.SafeValue[E1, E2].SetDec(Num);
+    P.SafeValue[E1, E2].SetDec(AnsiString(Num));
   end;
 
   Result := True;
 end;
+
+{$WARNINGS ON}
 
 function BigNumberBiPolynomialIsZero(const P: TCnBigNumberBiPolynomial): Boolean;
 begin
@@ -9167,13 +9188,14 @@ begin
   try
     // 二进制形式快速计算 T 的次方，值给 Res
     Res.SetOne;
-    while not E.IsNegative and not E.IsZero do
+    while not E.IsZero do
     begin
       if BigNumberIsBitSet(E, 0) then
         BigNumberBiPolynomialMul(Res, Res, T);
 
       BigNumberShiftRightOne(E, E);
-      BigNumberBiPolynomialMul(T, T, T);
+      if not E.IsZero then // 最后一次不用乘了
+        BigNumberBiPolynomialMul(T, T, T);
     end;
     Result := True;
   finally
@@ -9677,13 +9699,14 @@ begin
   try
     // 二进制形式快速计算 T 的次方，值给 Res
     Res.SetOne;
-    while not E.IsNegative and not E.IsZero do
+    while not E.IsZero do
     begin
       if BigNumberIsBitSet(E, 0) then
         BigNumberBiPolynomialGaloisMul(Res, Res, T, Prime, Primitive);
 
       BigNumberShiftRightOne(E, E);
-      BigNumberBiPolynomialGaloisMul(T, T, T, Prime, Primitive);
+      if not E.IsZero then
+        BigNumberBiPolynomialGaloisMul(T, T, T, Prime, Primitive);
     end;
     Result := True;
   finally
@@ -10120,7 +10143,7 @@ begin
   begin
     S := ExtractBigNumberFromArrayConstElement(LowToHighXCoefficients[I]);
     if S <> '' then
-      SafeValue[I, YDegree].SetDec(ExtractBigNumberFromArrayConstElement(LowToHighXCoefficients[I]))
+      SafeValue[I, YDegree].SetDec(AnsiString(ExtractBigNumberFromArrayConstElement(LowToHighXCoefficients[I])));
   end;
 end;
 
@@ -10148,7 +10171,7 @@ begin
 
   YFactorsList[XDegree].Clear;
   for I := Low(LowToHighYCoefficients) to High(LowToHighYCoefficients) do
-    YFactorsList[XDegree].SafeValue[I].SetDec(ExtractBigNumberFromArrayConstElement(LowToHighYCoefficients[I]));
+    YFactorsList[XDegree].SafeValue[I].SetDec(AnsiString(ExtractBigNumberFromArrayConstElement(LowToHighYCoefficients[I])));
 end;
 
 procedure TCnBigNumberBiPolynomial.SetYCoefficentsFromPolynomial(

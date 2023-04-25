@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2022 CnPack 开发组                       }
+{                   (C)Copyright 2001-2023 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -22,7 +22,7 @@ unit CnEdit;
 {* |<PRE>
 ================================================================================
 * 软件名称：界面控件包
-* 单元名称：CnEdit控件单元
+* 单元名称：CnEdit 控件单元
 * 单元作者：盛小青  chbsxq@163.com   QQ:822154
 *           jAmEs_
 * 备    注：-使 CnEdit 带有一个按钮，按钮拥有单击事件。
@@ -92,7 +92,7 @@ type
     function GetValue: Variant;
     procedure SetButtonCursor(const Value: TCursor);
   protected
-    procedure EditButtonClick; // 单击事件
+    procedure EditButtonClick; virtual; // 单击事件
     procedure BoundsChanged;
     procedure CreateParams(var Params: TCreateParams); override; // 这个非常有用
     procedure DoEnter; override; // 获取焦点时选择全部文字

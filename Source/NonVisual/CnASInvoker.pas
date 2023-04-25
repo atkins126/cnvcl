@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2022 CnPack 开发组                       }
+{                   (C)Copyright 2001-2023 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -521,8 +521,8 @@ function SameTypeInfo(const RegInfo: PTypeInfo; const OtherInfo: PTypeInfo):
   Boolean;
 begin
   Result := (RegInfo = OtherInfo) or
-    ((RegInfo.Kind = OtherInfo.Kind) and TypeNamesMatch(RegInfo^.Name,
-    OtherInfo^.Name));
+    ((RegInfo.Kind = OtherInfo.Kind) and TypeNamesMatch(string(RegInfo^.Name),
+    string(OtherInfo^.Name)));
 end;
 
 function TypeNamesMatch(const RegName: string; const OtherName: string): Boolean;
@@ -1359,7 +1359,7 @@ begin
       PUnicodeString(NatData)^ := Value;
 {$ENDIF}
     tkString:
-      PShortString(NatData)^ := Value;
+      PShortString(NatData)^ := ShortString(Value);
     tkLString:
       PString(NatData)^ := Value;
     tkEnumeration:

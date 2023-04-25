@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2022 CnPack 开发组                       }
+{                   (C)Copyright 2001-2023 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -24,11 +24,15 @@ unit CnDNS;
 * 软件名称：网络通讯组件包
 * 单元名称：DNS 解析处理单元
 * 单元作者：CnPack开发组 Liu Xiao
-* 备    注：
+* 备    注：基于 RFC 1035，支持 Windows 与 POSIX
 * 开发平台：PWin7 + Delphi 5
 * 兼容测试：PWinXP/7 + Delphi 2009 ~
 * 本 地 化：该单元中的字符串均符合本地化处理方式
-* 修改记录：2019.03.04 V1.0
+* 修改记录：2022.12.17 V1.2
+*                增加对 MacOS 的支持
+*           2022.11.24 V1.1
+*                修正解析数据时如果末块下一个指向自己时导致无限递归堆栈溢出的问题
+*           2019.03.04 V1.0
 *                创建单元
 ================================================================================
 |</PRE>}
@@ -38,8 +42,8 @@ interface
 {$I CnPack.inc}
 
 uses
-  SysUtils, Classes, Windows, Contnrs,
-  CnClasses, CnConsts, CnNetConsts, CnIP, CnUDP, CnNetDecls;
+  SysUtils, Classes, {$IFDEF MSWINDOWS} Windows, {$ENDIF} Contnrs,
+  CnClasses, CnConsts, CnNetConsts, CnIP, CnUDP, CnNetwork;
 
 type
 {$IFNDEF TBYTES_DEFINED}
@@ -56,32 +60,43 @@ type
     FQType: Word;
   public
     procedure DumpToStrings(List: TStrings);
+
     property QName: string read FQName write FQName;
+    {* 域名，查询用}
     property QType: Word read FQType write FQType;
+    {* 资源类型}
     property QClass: Word read FQClass write FQClass;
+    {* 网络类别}
   end;
 
   TCnDNSResourceRecord = class
   {* 代表一个 DNS 包中的 Resource Record 类型的记录}
   private
     FRDLength: Word;
-    FTTL: LongWord;
+    FTTL: Cardinal;
     FRName: string;
     FRType: Word;
     FRClass: Word;
-    FIP: LongWord;
+    FIP: Cardinal;
     FRDString: string;
   public
     procedure DumpToStrings(List: TStrings);
 
     property RName: string read FRName write FRName;
+    {* 域名，应答用}
     property RType: Word read FRType write FRType;
+    {* 资源类型，对应 QTYPE}
     property RClass: Word read FRClass write FRClass;
-    property TTL: LongWord read FTTL write FTTL;
+    {* 网络类别，对应 QCLASS}
+    property TTL: Cardinal read FTTL write FTTL;
+    {* Time to Live}
     property RDLength: Word read FRDLength write FRDLength;
+    {* 资源数据长度}
 
-    property IP: LongWord read FIP write FIP;
+    property IP: Cardinal read FIP write FIP;
+    {* IP 地址}
     property RDString: string read FRDString write FRDString;
+    {* 资源数据，可以是域名等}
   end;
 
   TCnDNSPacketObject = class
@@ -121,25 +136,44 @@ type
     procedure DumpToStrings(List: TStrings);
 
     property Id: Word read FId write FId;
+    {* 查询应答的 16 位 ID}
     property QR: Integer read FQR write FQR;
+    {* 报文类型，0 查询、1 应答}
     property OpCode: Integer read FOpCode write FOpCode;
+    {* 查询类型，0 标准、1 反向、2 服务器状态}
     property AA: Boolean read FAA write FAA;
+    {* 授权应答标志，应答用，1 表示服务器有授权}
     property TC: Boolean read FTC write FTC;
+    {* 截断标志，1 表示本包被截断}
     property RD: Boolean read FRD write FRD;
+    {* 期望递归，查询用，1 表示客户端需要递归}
     property RA: Boolean read FRA write FRA;
+    {* 递归可用，应答用，1 表示可得到递归应答}
     property RCode: Integer read FRCode write FRCode;
+    {* 返回码，0 ~ 5，0 表示没错}
 
     property QD[Index: Integer]: TCnDNSQuestion read GetQD;
+    {* 查询对象列表}
     property AN[Index: Integer]: TCnDNSResourceRecord read GetAN;
+    {* 应答对象列表}
     property NS[Index: Integer]: TCnDNSResourceRecord read GetNS;
+    {* 域名服务器列表}
     property AR[Index: Integer]: TCnDNSResourceRecord read GetAR;
+    {* 附加信息对象列表}
 
     property IsQuery: Boolean read FIsQuery write FIsQuery;
+    {* 是否是查询包}
     property IsResponse: Boolean read FIsResponse write FIsResponse;
+    {* 是否是应答包}
+
     property QDCount: Integer read FQDCount write FQDCount;
+    {* 查询的数量}
     property ANCount: Integer read FANCount write FANCount;
+    {* 应答的数量}
     property NSCount: Integer read FNSCount write FNSCount;
+    {* 域名服务器的数量}
     property ARCount: Integer read FARCount write FARCount;
+    {* 附加信息的数量}
   end;
 
   TCnDNSResponseEvent = procedure(Sender: TObject; Response: TCnDNSPacketObject) of object;
@@ -157,7 +191,7 @@ type
     procedure GetComponentInfo(var AName, Author, Email, Comment: string); override;
     procedure Loaded; override;
     procedure UDPDataReceived(Sender: TComponent; Buffer: Pointer;
-      Len: Integer; FromIP: string; Port: Integer);
+      Len: Integer; const FromIP: string; Port: Integer);
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
@@ -195,10 +229,10 @@ type
 
 implementation
 
-type
-  TCnUDPHack = class(TCnUDP);
+uses
+  CnNative;
 
-{ TCnDNSPacket }
+{ TCnDNSPacketObject }
 
 function TCnDNSPacketObject.AddAdditionalRecord: TCnDNSResourceRecord;
 begin
@@ -315,7 +349,7 @@ begin
   FUDP.OnDataReceived := UDPDataReceived;
 
   if not (csDesigning in ComponentState) then
-    TCnUDPHack(FUDP).UpdateBinding;
+    FUDP.UpdateBinding;
 end;
 
 destructor TCnDNS.Destroy;
@@ -404,9 +438,9 @@ begin
     Exit;
   end;
 
-  PW^ := CnHostToNetworkWord(QueryType);
+  PW^ := UInt16HostToNetwork(QueryType);
   Inc(PW);
-  PW^ := CnHostToNetworkWord(QueryClass);
+  PW^ := UInt16HostToNetwork(QueryClass);
 end;
 
 class function TCnDNS.ParseIndexedString(var StrResult: string; Base, StrData: PAnsiChar; MaxLen: Integer): Integer;
@@ -437,6 +471,9 @@ begin
           Exit;
 
         Idx := (Word(B and $3F) shl 8) or Word(PB^);
+        if Base + Idx = StrData then  // 避免下一个指向本块，导致无限递归
+          Exit;
+
         ParseIndexedString(StrResult, Base, Base + Idx);
         Inc(PB);
         Inc(Result);         // 指向下一个 2 字节
@@ -454,7 +491,7 @@ begin
         if Result >= MaxLen then
           raise ECnDNSException.Create(SCnDNSTooLong);
 
-        CopyMemory(@Str[2], PB, Len); // Str 内容塞为 .xxxxx 这种
+        Move(PB^, Str[2], Len);       // Str 内容塞为 .xxxxx 这种
 
         Inc(PB, Len);            // PB 指向下一个长度或索引位置
         Inc(Result, Len);
@@ -489,6 +526,9 @@ begin
         Inc(Result);
 
         Idx := (Word(B and $3F) shl 8) or Word(PB^);
+        if Base + Idx = StrData then  // 避免下一个指向本块，导致无限递归
+          Exit;
+
         ParseIndexedString(StrResult, Base, Base + Idx);
         Inc(PB);
         Inc(Result);         // 指向下一个 2 字节
@@ -506,7 +546,7 @@ begin
 
         Inc(PB);                 // PB 指向本轮字符串，Len 为长度
         Inc(Result);
-        CopyMemory(@Str[2], PB, Len); // Str 内容塞为 .xxxxx 这种
+        Move(PB^, Str[2], Len);  // Str 内容塞为 .xxxxx 这种
 
         Inc(PB, Len);            // PB 指向下一个长度或索引位置
         Inc(Result, Len);
@@ -544,8 +584,8 @@ var
       Inc(QuestionData, Len);
 
       H := PCnDNSQuestionSectionAfterName(QuestionData);
-      Question.QType := CnNetworkToHostWord(H^.QType);
-      Question.QClass := CnNetworkToHostWord(H^.QClass);
+      Question.QType := UInt16NetworkToHost(H^.QType);
+      Question.QClass := UInt16NetworkToHost(H^.QClass);
       Result := QuestionData + SizeOf(TCnDNSQuestionSectionAfterName);
     end;
   end;
@@ -566,14 +606,18 @@ var
       Inc(ResourceRecordData, Len);
 
       H := PCnDNSResourceRecordAfterName(ResourceRecordData);
-      Resource.RType := CnNetworkToHostWord(H^.RType);
-      Resource.RClass := CnNetworkToHostWord(H^.RClass);
-      Resource.TTL := CnNetworkToHostLongWord(H^.TTL);
-      Resource.RDLength := CnNetworkToHostWord(H^.RDLength);
-      if Resource.RDLength = SizeOf(LongWord) then
+      Resource.RType := UInt16NetworkToHost(H^.RType);
+      Resource.RClass := UInt16NetworkToHost(H^.RClass);
+      Resource.TTL := UInt32NetworkToHost(H^.TTL);
+      Resource.RDLength := UInt16NetworkToHost(H^.RDLength);
+      if Resource.RDLength = SizeOf(Cardinal) then
       begin
         // 4 字节的应答数据是 IP 地址
-        Resource.IP := CnNetworkToHostLongWord((PDWORD(@H^.RData[0]))^);
+{$IFDEF MSWINDOWS}
+        Resource.IP := UInt32NetworkToHost((PDWORD(@H^.RData[0]))^);
+{$ELSE}
+        Resource.IP := UInt32NetworkToHost((PCardinal(@H^.RData[0]))^);
+{$ENDIF}
       end
       else
       begin
@@ -651,7 +695,7 @@ end;
 procedure TCnDNS.Loaded;
 begin
   inherited;
-  TCnUDPHack(FUDP).UpdateBinding;
+  FUDP.UpdateBinding;
 end;
 
 procedure TCnDNS.SendHostQuery(const Name: string; QueryType, QueryClass,
@@ -671,7 +715,7 @@ begin
 end;
 
 procedure TCnDNS.UDPDataReceived(Sender: TComponent; Buffer: Pointer;
-  Len: Integer; FromIP: string; Port: Integer);
+  Len: Integer; const FromIP: string; Port: Integer);
 var
   Packet: TCnDNSPacketObject;
 begin

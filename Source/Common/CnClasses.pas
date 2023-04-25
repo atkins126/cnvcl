@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2022 CnPack 开发组                       }
+{                   (C)Copyright 2001-2023 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -48,8 +48,9 @@ interface
 {$I CnPack.inc}
 
 uses
-  SysUtils, Classes, TypInfo, SyncObjs, {$IFDEF FPC} RTLConsts, {$ELSE}
-  {$IFDEF COMPILER6_UP} RTLConsts, {$ELSE} Consts, {$ENDIF} {$ENDIF} CnNativeDecl;
+  SysUtils, Classes, TypInfo, SyncObjs, {$IFDEF MSWINDOWS} Windows, {$ENDIF}
+  {$IFDEF FPC} RTLConsts, {$ELSE}
+  {$IFDEF COMPILER6_UP} RTLConsts, {$ELSE} Consts, {$ENDIF} {$ENDIF} CnNative;
 
 type
 
@@ -62,12 +63,12 @@ type
   TCnLockObject = class (TObject)
   {* 用于线程同步的对象类}
   private
-    FLock: TCriticalSection;
+    FLock: SyncObjs.TCriticalSection;
     FLockCount: Integer;
     function GetLocking: Boolean;
   protected
     property LockCount: Integer read FLockCount;
-    {* 当前Lock计数，只读属性}
+    {* 当前 Lock 计数，只读属性}
   public
     constructor Create;
     {* 构造器，用于产生一个该类的实例}
@@ -75,10 +76,10 @@ type
     procedure Lock;
     {* 进入临界区，为保证多线程同步而加锁，必须与Unlock成对使用}
     function TryLock: Boolean;
-    {* 如果当前Lock计数为零，则加锁返回真，否则返回假。
-       如果返回真，必须在操作完成后调用UnLock释放锁}
+    {* 如果当前 Lock 计数为零，则加锁返回真，否则返回假。
+       如果返回真，必须在操作完成后调用 UnLock 释放锁}
     procedure Unlock;
-    {* 退出临界区，释放同步锁，必须与Lock成对使用}
+    {* 退出临界区，释放同步锁，必须与 Lock 成对使用}
     property Locking: Boolean read GetLocking;
     {* 取当前加锁状态}
   end;
@@ -384,7 +385,7 @@ procedure AssignPersistent(Source, Dest: TPersistent; UseDefineProperties:
 implementation
 
 uses
-  CnConsts, CnLockFree;
+  CnConsts;
 
 type
   TPersistentHack = class(TPersistent);
@@ -463,7 +464,7 @@ end;
 //==============================================================================
 
 var
-  CounterLock: TCriticalSection = nil;
+  CounterLock: SyncObjs.TCriticalSection = nil;
 
 { TCnLockObject }
 
@@ -471,7 +472,7 @@ var
 constructor TCnLockObject.Create;
 begin
   inherited;
-  FLock := TCriticalSection.Create; // 初始化临界区
+  FLock := SyncObjs.TCriticalSection.Create; // 初始化临界区
 end;
 
 // 释放
@@ -496,7 +497,11 @@ end;
 // 加锁
 procedure TCnLockObject.Lock;
 begin
-  CnAtomicIncrement32(FLockCount);
+{$IFDEF SUPPORT_ATOMIC}
+  AtomicIncrement(FLockCount);
+{$ELSE}
+  InterlockedIncrement(FLockCount);
+{$ENDIF}
   FLock.Enter;
 end;
 
@@ -504,7 +509,11 @@ end;
 procedure TCnLockObject.Unlock;
 begin
   FLock.Leave;
-  CnAtomicDecrement32(FLockCount);
+{$IFDEF SUPPORT_ATOMIC}
+  AtomicDecrement(FLockCount);
+{$ELSE}
+  InterlockedDecrement(FLockCount);
+{$ENDIF}
 end;
 
 function TCnLockObject.GetLocking: Boolean;
@@ -744,7 +753,7 @@ end;
 { TCnNotifyClass }
 
 //--------------------------------------------------------//
-//带更新通知的持久性类                                    //
+// 带更新通知的持久性类                                   //
 //--------------------------------------------------------//
 
 //赋值
@@ -1120,7 +1129,7 @@ begin
       Delta := 16
     else
       Delta := 4;
-  SetCapacity(FCapacity + Delta);
+  SetCapacity(FCapacity + TUInt64(Delta));
 end;
 
 function TCnUInt64List.IndexOf(Item: TUInt64): TUInt64;
@@ -1211,7 +1220,7 @@ begin
 end;
 
 initialization
-  CounterLock := TCriticalSection.Create;
+  CounterLock := SyncObjs.TCriticalSection.Create;
 
 finalization
   CounterLock.Free;

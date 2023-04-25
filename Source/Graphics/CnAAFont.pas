@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2022 CnPack 开发组                       }
+{                   (C)Copyright 2001-2023 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -28,7 +28,7 @@ unit CnAAFont;
 *           樊升
 * 开发平台：PWin2000Pro + Delphi 5.01
 * 兼容测试：PWin9X/2000/XP + Delphi 5/6/7/2005 + C++Build 5/6
-* 备　　注：平滑字体算法由李文松朋友提供的AAFont修改而来
+* 备    注：平滑字体算法由李文松朋友提供的 AAFont 修改而来
 * 最后更新：2021.07.23
 *               TCnAABlend 的 BlendEx 方法以及 TCnAAFontEx 的 TextOutput 方法支持
 *               目标为 32 位带 Alpha 通道的位图，需要调用者指定 DestIsAlpha 为 True
@@ -53,7 +53,7 @@ interface
 
 uses
   Windows, Messages, Classes, Graphics, SysUtils, Consts, Controls, Forms,
-  Registry, StdCtrls, ExtCtrls, Math, IniFiles, CnClasses;
+  Registry, StdCtrls, ExtCtrls, Math, IniFiles, CnNative, CnClasses;
 
 type
 
@@ -340,9 +340,9 @@ type
     function ScanLine(Line: Integer): Pointer; overload;
     {* 返回蒙板图扫描线地址}
     function Pixel(X, Y: Integer): Byte;
-    {* 返回蒙板图指定象素灰度值}
+    {* 返回蒙板图指定像素灰度值}
     function PixelAddr(X, Y: Integer): Pointer;
-    {* 返回蒙板图指定象素地址}
+    {* 返回蒙板图指定像素地址}
     property Height: Integer read FHeight;
     {* 蒙板图的高度}
     property Width: Integer read FWidth;
@@ -1030,8 +1030,8 @@ const
 resourcestring
   SInvalidForeground = 'Invalid foreground bitmap!';
   SDuplicateString = 'Duplicate string!';
-  SAlreadyMultiplied = 'Already Multiplied!';
-  SAlreadyUnMultiplied = 'Already UnMultiplied!';
+//  SAlreadyMultiplied = 'Already Multiplied!';
+//  SAlreadyUnMultiplied = 'Already UnMultiplied!';
 
 type
   PDWordArray = ^TDWordArray;
@@ -1382,10 +1382,10 @@ begin
   ReAllocMem(FPMaskBuff, BytesLineMask * Height);
 
   pS1 := FGrayBmp.ScanLine[0];           // 源灰度图
-  pS2 := PByteArray(Integer(pS1) - BytesLineGray);
-  pS3 := PByteArray(Integer(pS2) - BytesLineGray);
-  pS4 := PByteArray(Integer(pS3) - BytesLineGray);
-  pDes := PByteArray(Integer(pMaskBuff) + (Height - 1) * BytesLineMask);
+  pS2 := PByteArray(TCnNativeInt(pS1) - BytesLineGray);
+  pS3 := PByteArray(TCnNativeInt(pS2) - BytesLineGray);
+  pS4 := PByteArray(TCnNativeInt(pS3) - BytesLineGray);
+  pDes := PByteArray(TCnNativeInt(pMaskBuff) + (Height - 1) * BytesLineMask);
   // 目标灰度为源矩形块的平均值
 
   case Quality of
@@ -1402,11 +1402,11 @@ begin
               pS3^[X] + pS3^[X + 1] + pS3^[X + 2] + pS3^[X + 3] +
               pS4^[X] + pS4^[X + 1] + pS4^[X + 2] + pS4^[X + 3]) shr 4;
           end;
-          pS1 := PByteArray(Integer(pS4) - BytesLineGray);
-          pS2 := PByteArray(Integer(pS1) - BytesLineGray);
-          pS3 := PByteArray(Integer(pS2) - BytesLineGray);
-          pS4 := PByteArray(Integer(pS3) - BytesLineGray);
-          pDes := PByteArray(Integer(pDes) - BytesLineMask);
+          pS1 := PByteArray(TCnNativeInt(pS4) - BytesLineGray);
+          pS2 := PByteArray(TCnNativeInt(pS1) - BytesLineGray);
+          pS3 := PByteArray(TCnNativeInt(pS2) - BytesLineGray);
+          pS4 := PByteArray(TCnNativeInt(pS3) - BytesLineGray);
+          pDes := PByteArray(TCnNativeInt(pDes) - BytesLineMask);
         end;
       end;
     aqNormal:
@@ -1421,10 +1421,10 @@ begin
               pS2^[X] + pS2^[X + 1] + pS2^[X + 2] +
               pS3^[X] shr 1 + pS3^[X + 1] + pS3^[X + 2]) shr 3;
           end;
-          pS1 := PByteArray(Integer(pS3) - BytesLineGray);
-          pS2 := PByteArray(Integer(pS1) - BytesLineGray);
-          pS3 := PByteArray(Integer(pS2) - BytesLineGray);
-          pDes := PByteArray(Integer(pDes) - BytesLineMask);
+          pS1 := PByteArray(TCnNativeInt(pS3) - BytesLineGray);
+          pS2 := PByteArray(TCnNativeInt(pS1) - BytesLineGray);
+          pS3 := PByteArray(TCnNativeInt(pS2) - BytesLineGray);
+          pDes := PByteArray(TCnNativeInt(pDes) - BytesLineMask);
         end;
       end;
     aqLow:
@@ -1438,9 +1438,9 @@ begin
               (pS1^[X] + pS1^[X + 1] +
               pS2^[X] + pS2^[X + 1]) shr 2;
           end;
-          pS1 := PByteArray(Integer(pS2) - BytesLineGray);
-          pS2 := PByteArray(Integer(pS1) - BytesLineGray);
-          pDes := PByteArray(Integer(pDes) - BytesLineMask);
+          pS1 := PByteArray(TCnNativeInt(pS2) - BytesLineGray);
+          pS2 := PByteArray(TCnNativeInt(pS1) - BytesLineGray);
+          pDes := PByteArray(TCnNativeInt(pDes) - BytesLineMask);
         end;
       end;
     aqNone:
@@ -1448,8 +1448,8 @@ begin
         for I := 0 to Height - 1 do
         begin
           CopyMemory(pDes, pS1, Width);
-          pS1 := PByteArray(Integer(pS1) - BytesLineGray);
-          pDes := PByteArray(Integer(pDes) - BytesLineMask);
+          pS1 := PByteArray(TCnNativeInt(pS1) - BytesLineGray);
+          pDes := PByteArray(TCnNativeInt(pDes) - BytesLineMask);
         end;
       end;
   end;
@@ -1587,7 +1587,7 @@ begin
         ay := FHeight - 1;
       pDes^[X] := PByteArray(ScanLine(ay))[ax];
     end;
-    pDes := PByteArray(Integer(pDes) - BytesLineMask);
+    pDes := PByteArray(TCnNativeInt(pDes) - BytesLineMask);
   end;
 end;
 
@@ -1631,22 +1631,22 @@ begin
   end;
 end;
 
-// 象素地址
+// 像素地址
 function TCnAAMask.PixelAddr(X, Y: Integer): Pointer;
 begin
   if (X < 0) or (X > Width - 1) or (Y < 0) or (Y > Height - 1) then
     raise EInvalidPixel.Create('Invalid pixel!')
   else
-    Result := Pointer(Integer(FPMaskBuff) + (Height - 1 + Y) * BytesLineMask + X);
+    Result := Pointer(TCnNativeInt(FPMaskBuff) + (Height - 1 + Y) * BytesLineMask + X);
 end;
 
-// 象素
+// 像素
 function TCnAAMask.Pixel(X, Y: Integer): Byte;
 begin
   if (X < 0) or (X > Width - 1) or (Y < 0) or (Y > Height - 1) then
     raise EInvalidPixel.Create('Invalid pixel!')
   else
-    Result := PByteArray(Integer(FPMaskBuff) + (Height - 1 + Y) * BytesLineMask)[X];
+    Result := PByteArray(TCnNativeInt(FPMaskBuff) + (Height - 1 + Y) * BytesLineMask)[X];
 end;
 
 // 扫描线地址
@@ -1655,12 +1655,12 @@ begin
   if (Line < 0) or (Line > Height - 1) then
     raise EInvalidLine.Create('Invalid line!')
   else
-    Result := Pointer(Integer(FPMaskBuff) + (Height - 1 - Line) * BytesLineMask);
+    Result := Pointer(TCnNativeInt(FPMaskBuff) + (Height - 1 - Line) * BytesLineMask);
 end;
 
 function TCnAAMask.ScanLine(Line: Integer; pAData: PByteArray): PByteArray;
 begin
-  Result := PByteArray(Integer(pAData) + (Height - 1 - Line) * BytesLineMask);
+  Result := PByteArray(TCnNativeInt(pAData) + (Height - 1 - Line) * BytesLineMask);
 end;
 
 // 设置精度

@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2022 CnPack 开发组                       }
+{                   (C)Copyright 2001-2023 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -28,7 +28,11 @@ unit CnMatrix;
 * 开发平台：PWin7 + Delphi 5.0
 * 兼容测试：暂未进行
 * 本 地 化：该单元无需本地化处理
-* 修改记录：2019.06.12 V1.1
+* 修改记录：2022.07.01 V1.3
+*               加入矩阵斜角索引的计算
+*           2022.06.29 V1.2
+*               加入浮点矩阵计算
+*           2019.06.12 V1.1
 *               加入有理数矩阵计算
 *           2019.06.05 V1.0
 *               创建单元，实现功能
@@ -40,7 +44,7 @@ interface
 {$I CnPack.inc}
 
 uses
-  SysUtils, Classes, Contnrs;
+  SysUtils, Classes, Contnrs, CnMath;
 
 type
   ECnMatrixException = class(Exception);
@@ -54,6 +58,8 @@ type
     procedure SetColCount(const Value: Integer);
     procedure SetRowCount(const Value: Integer);
     function GetValue(Row, Col: Integer): Int64;
+    function GetZigZagValue(Index: Integer): Int64;
+    procedure SetZigZagValue(Index: Integer; const Value: Int64);
   protected
     procedure SetValue(Row, Col: Integer; const AValue: Int64); virtual;
 
@@ -108,8 +114,86 @@ type
     procedure DumpToStrings(List: TStrings; Sep: Char = ' ');
     {* 输出到字符串}
 
-    property Value[Row, Col: Integer]: Int64 read GetValue write SetValue;
+    property Value[Row, Col: Integer]: Int64 read GetValue write SetValue; default;
     {* 根据行列下标访问矩阵元素，下标都从 0 开始}
+    property ZigZagValue[Index: Integer]: Int64 read GetZigZagValue write SetZigZagValue;
+    {* 方阵中左上角开始斜排的单值索引}
+  published
+    property ColCount: Integer read FColCount write SetColCount;
+    {* 矩阵列数}
+    property RowCount: Integer read FRowCount write SetRowCount;
+    {* 矩阵行数}
+  end;
+
+  TCnFloatMatrix = class(TPersistent)
+  {* 浮点数范围内的整数矩阵的实现类}
+  private
+    FMatrix: array of array of Extended;
+    FColCount: Integer;
+    FRowCount: Integer;
+    procedure SetColCount(const Value: Integer);
+    procedure SetRowCount(const Value: Integer);
+    function GetValue(Row, Col: Integer): Extended;
+    function GetZigZagValue(Index: Integer): Extended;
+    procedure SetZigZagValue(Index: Integer; const Value: Extended);
+  protected
+    procedure SetValue(Row, Col: Integer; const AValue: Extended); virtual;
+
+    function Add3(X, Y, Z: Extended): Extended; virtual;
+    function Mul3(X, Y, Z: Extended): Extended; virtual;
+    function NegativeOnePower(N: Integer): Integer; virtual;
+    procedure AssignTo(Dest: TPersistent); override;
+  public
+    constructor Create(ARowCount: Integer = 1; AColCount: Integer = 1); virtual;
+    destructor Destroy; override;
+
+    // 供子类重载实现自定义的加减乘除操作
+    function OperationAdd(X, Y: Extended): Extended; virtual;
+    function OperationSub(X, Y: Extended): Extended; virtual;
+    function OperationMul(X, Y: Extended): Extended; virtual;
+    function OperationDiv(X, Y: Extended): Extended; virtual;
+
+    procedure Mul(Factor: Extended);
+    {* 矩阵各元素乘以一个常数}
+    procedure Add(Factor: Extended);
+    {* 矩阵各元素加上一个常数}
+    procedure Divide(Factor: Extended); virtual;
+    {* 矩阵各元素除以一个常数，基类因为是整数，未实现除法}
+
+    procedure SetE(Size: Integer);
+    {* 设置为 Size 阶单位矩阵}
+    procedure SetZero;
+    {* 设置为全 0 矩阵}
+    procedure Transpose;
+    {* 矩阵转置，也就是行列互换}
+
+    function Determinant: Extended; virtual;
+    {* 求方阵行列式值}
+    function Trace: Extended;
+    {* 求方阵的迹，也就是对角线元素的和}
+    function IsSquare: Boolean;
+    {* 是否方阵}
+    function IsZero: Boolean;
+    {* 是否全 0 方阵}
+    function IsE: Boolean;
+    {* 是否单位方阵}
+    function IsSymmetrical: Boolean;
+    {* 是否对称方阵}
+    function IsSingular: Boolean;
+    {* 是否奇异方阵，也就是行列式是否等于 0}
+
+    procedure DeleteRow(Row: Integer);
+    {* 删除其中一行}
+    procedure DeleteCol(Col: Integer);
+    {* 删除其中一列}
+
+    procedure DumpToStrings(List: TStrings; Sep: Char = ' ');
+    {* 输出到字符串}
+
+    property Value[Row, Col: Integer]: Extended read GetValue write SetValue; default;
+    {* 根据行列下标访问矩阵元素，下标都从 0 开始}
+    property ZigZagValue[Index: Integer]: Extended read GetZigZagValue write SetZigZagValue;
+    {* 方阵中左上角开始斜排的单值索引}
   published
     property ColCount: Integer read FColCount write SetColCount;
     {* 矩阵列数}
@@ -185,19 +269,20 @@ type
   end;
 
   TCn2DObjectList = class
-  {* 二维对象数组}
+  {* 二维对象数组，拥有其中的对象}
   private
     FRowCount: Integer;
     FColCount: Integer;
     FRows: TObjectList;
     function GetColCount: Integer;
     function GetRowCount: Integer;
-    function GetValueObject(Row, Col: Integer): TObject;
     procedure SetColCount(const Value: Integer);
     procedure SetRowCount(const Value: Integer);
+  protected
+    function GetValueObject(Row, Col: Integer): TObject;
     procedure SetValueObject(Row, Col: Integer; const Value: TObject); // 一组 TObjectList
   public
-    constructor Create(ARow, ACol: Integer);
+    constructor Create(ARow, ACol: Integer); virtual;
     destructor Destroy; override;
 
     procedure DeleteRow(Row: Integer);
@@ -223,6 +308,9 @@ type
     function GetValue(Row, Col: Integer): TCnRationalNumber;
     function GetColCount: Integer;
     function GetRowCount: Integer;
+    function GetZigZagValue(Index: Integer): TCnRationalNumber;
+    procedure SetZigZagValue(Index: Integer;
+      const Value: TCnRationalNumber);
   protected
     procedure AssignTo(Dest: TPersistent); override;
   public
@@ -273,8 +361,10 @@ type
     procedure DumpToStrings(List: TStrings; Sep: Char = ' ');
     {* 输出到字符串}
 
-    property Value[Row, Col: Integer]: TCnRationalNumber read GetValue write SetValue;
+    property Value[Row, Col: Integer]: TCnRationalNumber read GetValue write SetValue; default;
     {* 根据行列下标访问矩阵元素，下标都从 0 开始}
+    property ZigZagValue[Index: Integer]: TCnRationalNumber read GetZigZagValue write SetZigZagValue;
+    {* 方阵中左上角开始斜排的单值索引}
   published
     property ColCount: Integer read GetColCount write SetColCount;
     {* 矩阵列数}
@@ -311,6 +401,35 @@ procedure CnMatrixAdjoint(Matrix1, Matrix2: TCnIntMatrix); overload;
 procedure CnMatrixInverse(Matrix1, Matrix2: TCnIntMatrix); overload;
 {* 求方阵的逆矩阵，也就是伴随阵除以行列式，注意 TCnIntMatrix 不直接支持逆矩阵，
   因为除可能导致非整数，需要改用有理数矩阵来表示，或子类伽罗华矩阵}
+
+// =========================== 浮点数矩阵运算方法 ==============================
+
+procedure CnMatrixMul(Matrix1, Matrix2: TCnFloatMatrix; MulResult: TCnFloatMatrix); overload;
+{* 两个矩阵相乘，结果放 MulResult 矩阵中，要求 Matrix1 列数与 Martrix2 行数相等。
+  MulResult 不能是 Matrix1 或 Matrix2}
+
+procedure CnMatrixPower(Matrix: TCnFloatMatrix; K: Integer; PowerResult: TCnFloatMatrix); overload;
+{* 求方阵 K 次幂，结果放 PowerResult 矩阵中，PowerResult 不能是 Matrix}
+
+procedure CnMatrixAdd(Matrix1, Matrix2: TCnFloatMatrix; AddResult: TCnFloatMatrix); overload;
+{* 两个矩阵相加，结果放 AddResult 矩阵中，要求 Matrix1 尺寸与 Martrix2 行数相等。
+  AddResult 可以是 Matrix1 或 Matrix2 或其他}
+
+procedure CnMatrixHadamardProduct(Matrix1, Matrix2: TCnFloatMatrix; ProductResult: TCnFloatMatrix); overload;
+{* 两个矩阵哈达马相乘，结果放 ProductResult 矩阵中，要求 Matrix1 尺寸与 Martrix2 行数相等。
+  ProductResult 可以是 Matrix1 或 Matrix2 或其他}
+
+procedure CnMatrixTranspose(Matrix1, Matrix2: TCnFloatMatrix); overload;
+{* 转置矩阵，将第一个矩阵转置至第二个，Matrix1、Matrix2 可以相等}
+
+procedure CnMatrixMinor(Matrix: TCnFloatMatrix; Row, Col: Integer; MinorResult: TCnFloatMatrix); overload;
+{* 求矩阵的余子式，也即去除指定行列后剩下的矩阵}
+
+procedure CnMatrixAdjoint(Matrix1, Matrix2: TCnFloatMatrix); overload;
+{* 求方阵的伴随阵}
+
+procedure CnMatrixInverse(Matrix1, Matrix2: TCnFloatMatrix); overload;
+{* 求方阵的逆矩阵，也就是伴随阵除以行列式}
 
 // =========================== 有理数矩阵运算方法 ==============================
 
@@ -370,12 +489,164 @@ function CnRationalNumberCompare(Number1, Number2: TCnRationalNumber): Integer;
 procedure CnReduceInt64(var X, Y: Int64);
 {* 尽量比例缩小，也就是约分}
 
+function RowColToZigZag(ARow, ACol: Integer; N: Integer): Integer;
+{* 将 N 阶方阵中的行列值转换为左上角斜排的索引值，均 0 开始}
+
+procedure ZigZagToRowCol(Index: Integer; out ARow, ACol: Integer; N: Integer);
+{* 将 N 阶方阵中的左上角斜排的索引值转换为行列值，均 0 开始}
+
 implementation
 
-procedure CheckCount(Value: Int64);
+resourcestring
+  SCnErrorRowColCountFmt = 'Error Row or Col Count: %d';
+  SCnErrorRowColIndexFmt = 'Error Row or Col: %d';
+  SCnErrorRowColIndex2Fmt = 'Error Row or Col: %d, %d';
+  SCnErrorZigZagIndexFmt = 'Error ZigZag Index: %d';
+  SCnErrorZigZagRowColCount = 'ZigZag Row Col Count must Equal';
+  SCnErrorResultFactors = 'Matrix Result can not Be Factors';
+  SCnErrorMulRowCount = 'Matrix 1 Col Count must Equal to Matrix 2 Row Count';
+  SCnErrorPowerSquare = 'Matrix Power Must Be Square';
+  SCnErrorDivNotImplInt = 'Operation Div NOT Implemented in Int Matrix';
+  SCnErrorTraceSquare = 'Only Square Matrix can Trace';
+  SCnErrorInvalidPower = 'Invalid Matrix Power';
+  SCnErrorRowColMustEqual = 'Matrix 1/2 Row/Col Count must Equal';
+  SCnErrorRowColMinorFmt = 'Invalid Minor Row or Col %d, %d';
+  SCnErrorAdjointSquare = 'Only Square can Adjoint';
+  SCnErrorInverseZeroDeteminant = 'NO Inverse Matrix for Deteminant is 0';
+  SCnErrorDeterminantSquare = 'Only Square can Determinant';
+
+procedure CheckCount(Value: Integer);
 begin
   if Value <= 0 then
-    raise ECnMatrixException.Create('Error Row or Col Count: ' + IntToStr(Value));
+    raise ECnMatrixException.CreateFmt(SCnErrorRowColCountFmt, [Value]);
+end;
+
+procedure CheckIndex(Value: Integer);
+begin
+  if Value < 0 then
+    raise ECnMatrixException.CreateFmt(SCnErrorRowColIndexFmt, [Value]);
+end;
+
+{
+  0  1  5  6
+  2  4  7 12
+  3  8 11 13
+  9 10 14 15
+}
+// 将 N 阶方阵中的行列值转换为左上角斜排的索引值，均 0 开始
+function RowColToZigZag(ARow, ACol: Integer; N: Integer): Integer;
+var
+  L, A, T: Integer;
+begin
+  CheckIndex(ARow);
+  CheckIndex(ACol);
+  if (ARow >= N) or (ACol >= N) then
+    raise ECnMatrixException.CreateFmt(SCnErrorRowColIndex2Fmt, [ARow, ACol]);
+
+  // 在第 Row + Col + 1 斜层（左上角为第 1 斜层），先求之前完整斜层的数量和，再求本斜层内的偏移
+  // 最长的斜层是第 N 层（共 N(N+1)/2 个），总共有 2N - 1 层
+  L := ARow + ACol;
+  if L <= N then
+    A := L * (L + 1) div 2 // A 是之前完整斜层的数量和
+  else
+  begin
+    A := N * (N + 1) div 2;  // 1 到 N 的斜层和
+    T := 2 * N - 1 - (ARow + ACol);
+    A := A + (A - N - (T * (T + 1) div 2)); // N + 1 后的斜层和
+  end;
+  // A 是之前完整斜层的数量和
+
+  if L and 1 = 0 then
+  begin
+    // 本身奇数斜层，左下往右上排
+    if L < N then
+      Result := A + ACol
+    else
+    Result := A + ACol - (L + 1 - N);
+  end
+  else
+  begin
+    // 本身偶数斜层，右上往左下排
+    if L < N then
+      Result := A + ARow
+    else
+      Result := A + ARow - (L + 1 - N);
+  end;
+end;
+
+// 将 N 阶方阵中的左上角斜排的索引值转换为行列值，均 0 开始
+procedure ZigZagToRowCol(Index: Integer; out ARow, ACol: Integer; N: Integer);
+var
+  L, A: Integer;
+
+  procedure FindLevelIndex(var Level, IndexLevel: Integer);
+  var
+    TA: Integer;
+  begin
+    TA := Trunc(Sqrt(IndexLevel * 2 + 2));
+    if TA * TA + TA < IndexLevel * 2 + 2 then
+    begin
+      Level := TA;
+      IndexLevel := IndexLevel - (TA * TA + TA) div 2;
+    end
+    else
+    begin
+      Level := TA - 1;
+      if Level < 0 then
+        Level := 0;
+      IndexLevel := IndexLevel - (Level * Level + Level) div 2;
+    end;
+  end;
+
+begin
+  CheckIndex(Index);
+  if Index > (N * N - 1) then
+    raise ECnMatrixException.CreateFmt(SCnErrorZigZagIndexFmt, [Index]);
+
+  A := N * (N + 1) div 2; // A 是从左上到包括对角线在内的所有数量
+
+  L := 0;
+  if Index < A then
+  begin
+    // 在左上区，包括对角线
+    FindLevelIndex(L, Index);
+    // L 是左上不包括自己的完整层数（可以为 0），且有 Row + Col = L，Index 是本层中的偏移，0 开始（方向待判断）
+
+    if L and 1 = 0 then
+    begin
+      // 本身在左上区的奇数斜层，左下往右上排
+      ACol := Index;
+      ARow := L - Index;
+    end
+    else
+    begin
+      // 本身在左上区的偶数斜层，右上往左下排
+      ARow := Index;
+      ACol := L - Index;
+    end;
+  end
+  else
+  begin
+    // 在右下区，不包括对角线
+    Index := N * N - 1 - Index;
+    FindLevelIndex(L, Index);
+    Index := L - Index;
+    // L 是右下不包括自己的完整层数（可以为 0），且有 (N - 1 - Row) + (N - 1 - Col) = L，
+    // 也就是 (Row + Col = 2N - 2 - L)，且 Index 是本层中的偏移，0 开始（方向待判断）
+
+    if L and 1 = 0 then
+    begin
+      // 本身在右下区的奇数斜层，左下往右上排
+      ARow := N - 1 - Index;
+      ACol := 2 * N - 2 - L - ARow;
+    end
+    else
+    begin
+      // 本身在右下区的偶数斜层，右上往左下排
+      ACol := N - 1 - Index;
+      ARow := 2 * N - 2 - L - ACol;
+    end;
+  end;
 end;
 
 // 计算 -1 的 N 次方，供求代数余子式用
@@ -405,10 +676,40 @@ var
   T, Sum: Int64;
 begin
   if (MulResult = Matrix1) or (MulResult = Matrix2) then
-    raise ECnMatrixException.Create('Matrix Result can not Be Factors.');
+    raise ECnMatrixException.Create(SCnErrorResultFactors);
 
   if Matrix1.ColCount <> Matrix2.RowCount then
-    raise ECnMatrixException.Create('Matrix 1 Col Count must Equal to Matrix 2 Row Count.');
+    raise ECnMatrixException.Create(SCnErrorMulRowCount);
+
+  MulResult.RowCount := Matrix1.RowCount;
+  MulResult.ColCount := Matrix2.ColCount;
+
+  // Value[I, J] := 矩阵 1 第 I 行与矩阵 2 第 J 列对应乘并相加
+  for I := 0 to Matrix1.RowCount - 1 do
+  begin
+    for J := 0 to Matrix2.ColCount - 1 do
+    begin
+      Sum := 0;
+      for K := 0 to Matrix1.ColCount - 1 do
+      begin
+        T := Matrix1.OperationMul(Matrix1.Value[I, K], Matrix2.Value[K, J]);
+        Sum := Matrix1.OperationAdd(Sum, T);
+      end;
+      MulResult.Value[I, J] := Sum;
+    end;
+  end;
+end;
+
+procedure CnMatrixMul(Matrix1, Matrix2: TCnFloatMatrix; MulResult: TCnFloatMatrix);
+var
+  I, J, K: Integer;
+  T, Sum: Extended;
+begin
+  if (MulResult = Matrix1) or (MulResult = Matrix2) then
+    raise ECnMatrixException.Create(SCnErrorResultFactors);
+
+  if Matrix1.ColCount <> Matrix2.RowCount then
+    raise ECnMatrixException.Create(SCnErrorMulRowCount);
 
   MulResult.RowCount := Matrix1.RowCount;
   MulResult.ColCount := Matrix2.ColCount;
@@ -435,10 +736,10 @@ var
   T, Sum: TCnRationalNumber;
 begin
   if (MulResult = Matrix1) or (MulResult = Matrix2) then
-    raise ECnMatrixException.Create('Matrix Result can not Be Factors.');
+    raise ECnMatrixException.Create(SCnErrorResultFactors);
 
   if Matrix1.ColCount <> Matrix2.RowCount then
-    raise ECnMatrixException.Create('Matrix 1 Col Count must Equal to Matrix 2 Row Count.');
+    raise ECnMatrixException.Create(SCnErrorMulRowCount);
 
   MulResult.RowCount := Matrix1.RowCount;
   MulResult.ColCount := Matrix2.ColCount;
@@ -472,10 +773,10 @@ var
   T: TCnIntMatrix;
 begin
   if not Matrix.IsSquare then
-    raise ECnMatrixException.Create('Matrix Power Must Be Square.');
+    raise ECnMatrixException.Create(SCnErrorPowerSquare);
 
   if K < 0 then
-    raise ECnMatrixException.Create('Invalid Matrix Power.');
+    raise ECnMatrixException.Create(SCnErrorInvalidPower);
 
   if K = 0 then
   begin
@@ -501,16 +802,51 @@ begin
   end;
 end;
 
+procedure CnMatrixPower(Matrix: TCnFloatMatrix; K: Integer; PowerResult: TCnFloatMatrix);
+var
+  I: Integer;
+  T: TCnFloatMatrix;
+begin
+  if not Matrix.IsSquare then
+    raise ECnMatrixException.Create(SCnErrorPowerSquare);
+
+  if K < 0 then
+    raise ECnMatrixException.Create(SCnErrorInvalidPower);
+
+  if K = 0 then
+  begin
+    PowerResult.SetE(Matrix.RowCount);
+    Exit;
+  end
+  else if K = 1 then
+  begin
+    PowerResult.Assign(Matrix);
+    Exit;
+  end;
+
+  T := TCnFloatMatrix.Create(Matrix.RowCount, Matrix.ColCount);
+  try
+    T.Assign(Matrix);
+    for I := 0 to K - 2 do
+    begin
+      CnMatrixMul(Matrix, T, PowerResult);
+      T.Assign(PowerResult);
+    end;
+  finally
+    T.Free;
+  end;
+end;
+
 procedure CnMatrixPower(Matrix: TCnRationalMatrix; K: Integer; PowerResult: TCnRationalMatrix);
 var
   I: Integer;
   T: TCnRationalMatrix;
 begin
   if not Matrix.IsSquare then
-    raise ECnMatrixException.Create('Matrix Power Must Be Square.');
+    raise ECnMatrixException.Create(SCnErrorPowerSquare);
 
   if K < 0 then
-    raise ECnMatrixException.Create('Invalid Matrix Power.');
+    raise ECnMatrixException.Create(SCnErrorInvalidPower);
 
   if K = 0 then
   begin
@@ -541,7 +877,21 @@ var
   I, J: Integer;
 begin
   if (Matrix1.ColCount <> Matrix2.ColCount) or (Matrix1.RowCount <> Matrix2.RowCount) then
-    raise ECnMatrixException.Create('Matrix 1/2 Row/Col Count must Equal.');
+    raise ECnMatrixException.Create(SCnErrorRowColMustEqual);
+
+  AddResult.RowCount := Matrix1.RowCount;
+  AddResult.ColCount := Matrix1.ColCount;
+  for I := 0 to Matrix1.RowCount - 1 do
+    for J := 0 to Matrix1.ColCount - 1 do
+      AddResult.Value[I, J] := Matrix1.OperationAdd(Matrix1.Value[I, J], Matrix2.Value[I, J]);
+end;
+
+procedure CnMatrixAdd(Matrix1, Matrix2: TCnFloatMatrix; AddResult: TCnFloatMatrix);
+var
+  I, J: Integer;
+begin
+  if (Matrix1.ColCount <> Matrix2.ColCount) or (Matrix1.RowCount <> Matrix2.RowCount) then
+    raise ECnMatrixException.Create(SCnErrorRowColMustEqual);
 
   AddResult.RowCount := Matrix1.RowCount;
   AddResult.ColCount := Matrix1.ColCount;
@@ -555,7 +905,7 @@ var
   I, J: Integer;
 begin
   if (Matrix1.ColCount <> Matrix2.ColCount) or (Matrix1.RowCount <> Matrix2.RowCount) then
-    raise ECnMatrixException.Create('Matrix 1/2 Row/Col Count must Equal.');
+    raise ECnMatrixException.Create(SCnErrorRowColMustEqual);
 
   AddResult.RowCount := Matrix1.RowCount;
   AddResult.ColCount := Matrix1.ColCount;
@@ -569,7 +919,21 @@ var
   I, J: Integer;
 begin
   if (Matrix1.ColCount <> Matrix2.ColCount) or (Matrix1.RowCount <> Matrix2.RowCount) then
-    raise ECnMatrixException.Create('Matrix 1/2 Row/Col Count must Equal.');
+    raise ECnMatrixException.Create(SCnErrorRowColMustEqual);
+
+  ProductResult.RowCount := Matrix1.RowCount;
+  ProductResult.ColCount := Matrix1.ColCount;
+  for I := 0 to Matrix1.RowCount - 1 do
+    for J := 0 to Matrix1.ColCount - 1 do
+      ProductResult.Value[I, J] := Matrix1.OperationMul(Matrix1.Value[I, J], Matrix2.Value[I, J]);
+end;
+
+procedure CnMatrixHadamardProduct(Matrix1, Matrix2: TCnFloatMatrix; ProductResult: TCnFloatMatrix);
+var
+  I, J: Integer;
+begin
+  if (Matrix1.ColCount <> Matrix2.ColCount) or (Matrix1.RowCount <> Matrix2.RowCount) then
+    raise ECnMatrixException.Create(SCnErrorRowColMustEqual);
 
   ProductResult.RowCount := Matrix1.RowCount;
   ProductResult.ColCount := Matrix1.ColCount;
@@ -583,7 +947,7 @@ var
   I, J: Integer;
 begin
   if (Matrix1.ColCount <> Matrix2.ColCount) or (Matrix1.RowCount <> Matrix2.RowCount) then
-    raise ECnMatrixException.Create('Matrix 1/2 Row/Col Count must Equal.');
+    raise ECnMatrixException.Create(SCnErrorRowColMustEqual);
 
   ProductResult.RowCount := Matrix1.RowCount;
   ProductResult.ColCount := Matrix1.ColCount;
@@ -600,6 +964,37 @@ begin
   if Matrix1 = Matrix2 then
   begin
     Tmp := TCnIntMatrix.Create(1, 1);
+    try
+      Tmp.Assign(Matrix1);
+      Matrix2.ColCount := Tmp.RowCount;
+      Matrix2.RowCount := Tmp.ColCount;
+
+      for I := 0 to Tmp.RowCount - 1 do
+        for J := 0 to Tmp.ColCount - 1 do
+          Matrix2.Value[J, I] := Tmp.Value[I, J];
+    finally
+      Tmp.Free;
+    end;
+  end
+  else
+  begin
+    Matrix2.ColCount := Matrix1.RowCount;
+    Matrix2.RowCount := Matrix1.ColCount;
+
+    for I := 0 to Matrix1.RowCount - 1 do
+      for J := 0 to Matrix1.ColCount - 1 do
+        Matrix2.Value[J, I] := Matrix1.Value[I, J];
+  end;
+end;
+
+procedure CnMatrixTranspose(Matrix1, Matrix2: TCnFloatMatrix);
+var
+  I, J: Integer;
+  Tmp: TCnFloatMatrix;
+begin
+  if Matrix1 = Matrix2 then
+  begin
+    Tmp := TCnFloatMatrix.Create(1, 1);
     try
       Tmp.Assign(Matrix1);
       Matrix2.ColCount := Tmp.RowCount;
@@ -660,7 +1055,51 @@ var
 begin
   if ((Row < 0) or (Row >= Matrix.RowCount)) or
     ((Col < 0) or (Col >= Matrix.ColCount)) then
-    raise ECnMatrixException.Create('Invalid Minor Row or Col.');
+    raise ECnMatrixException.CreateFmt(SCnErrorRowColMinorFmt, [Row, Col]);
+
+  MinorResult.ColCount := Matrix.ColCount - 1;
+  MinorResult.RowCount := Matrix.RowCount - 1;
+
+  SR := 0;
+  DR := 0;
+
+  while SR < Matrix.RowCount do
+  begin
+    if SR = Row then
+    begin
+      Inc(SR);
+      if SR = Matrix.RowCount then
+        Break;
+    end;
+
+    SC := 0;
+    DC := 0;
+    while SC < Matrix.ColCount do
+    begin
+      if SC = Col then
+      begin
+        Inc(SC);
+        if SC = Matrix.ColCount then
+          Break;
+      end;
+
+      MinorResult.Value[DR, DC] := Matrix.Value[SR, SC];
+      Inc(SC);
+      Inc(DC);
+    end;
+
+    Inc(SR);
+    Inc(DR);
+  end;
+end;
+
+procedure CnMatrixMinor(Matrix: TCnFloatMatrix; Row, Col: Integer; MinorResult: TCnFloatMatrix);
+var
+  SR, SC, DR, DC: Integer;
+begin
+  if ((Row < 0) or (Row >= Matrix.RowCount)) or
+    ((Col < 0) or (Col >= Matrix.ColCount)) then
+    raise ECnMatrixException.CreateFmt(SCnErrorRowColMinorFmt, [Row, Col]);
 
   MinorResult.ColCount := Matrix.ColCount - 1;
   MinorResult.RowCount := Matrix.RowCount - 1;
@@ -704,7 +1143,7 @@ var
 begin
   if ((Row < 0) or (Row >= Matrix.RowCount)) or
     ((Col < 0) or (Col >= Matrix.ColCount)) then
-    raise ECnMatrixException.Create('Invalid Minor Row or Col.');
+    raise ECnMatrixException.CreateFmt(SCnErrorRowColMinorFmt, [Row, Col]);
 
   MinorResult.ColCount := Matrix.ColCount - 1;
   MinorResult.RowCount := Matrix.RowCount - 1;
@@ -748,12 +1187,41 @@ var
   Minor: TCnIntMatrix;
 begin
   if not Matrix1.IsSquare then
-    raise ECnMatrixException.Create('Only Square can Adjoint.');
+    raise ECnMatrixException.Create(SCnErrorAdjointSquare);
 
   Matrix2.RowCount := Matrix1.RowCount;
   Matrix2.ColCount := Matrix1.ColCount;
 
   Minor := TCnIntMatrix(Matrix1.ClassType.NewInstance);
+  Minor.Create(Matrix1.RowCount - 1, Matrix1.ColCount - 1); // 用子类实现
+
+  try
+    for I := 0 to Matrix1.RowCount - 1 do
+    begin
+      for J := 0 to Matrix2.ColCount - 1 do
+      begin
+        CnMatrixMinor(Matrix1, I, J, Minor);
+        Matrix2.Value[I, J] := Matrix1.NegativeOnePower(I + J) * Minor.Determinant;
+      end;
+    end;
+    CnMatrixTranspose(Matrix2, Matrix2);
+  finally
+    Minor.Free;
+  end;
+end;
+
+procedure CnMatrixAdjoint(Matrix1, Matrix2: TCnFloatMatrix);
+var
+  I, J: Integer;
+  Minor: TCnFloatMatrix;
+begin
+  if not Matrix1.IsSquare then
+    raise ECnMatrixException.Create(SCnErrorAdjointSquare);
+
+  Matrix2.RowCount := Matrix1.RowCount;
+  Matrix2.ColCount := Matrix1.ColCount;
+
+  Minor := TCnFloatMatrix(Matrix1.ClassType.NewInstance);
   Minor.Create(Matrix1.RowCount - 1, Matrix1.ColCount - 1); // 用子类实现
 
   try
@@ -778,7 +1246,7 @@ var
   T: TCnRationalNumber;
 begin
   if not Matrix1.IsSquare then
-    raise ECnMatrixException.Create('Only Square can Adjoint.');
+    raise ECnMatrixException.Create(SCnErrorAdjointSquare);
 
   Matrix2.RowCount := Matrix1.RowCount;
   Matrix2.ColCount := Matrix1.ColCount;
@@ -809,7 +1277,19 @@ var
 begin
   D := Matrix1.Determinant;
   if D = 0 then
-    raise ECnMatrixException.Create('NO Inverse Matrix for Deteminant is 0');
+    raise ECnMatrixException.Create(SCnErrorInverseZeroDeteminant);
+
+  CnMatrixAdjoint(Matrix1, Matrix2);
+  Matrix2.Divide(D);
+end;
+
+procedure CnMatrixInverse(Matrix1, Matrix2: TCnFloatMatrix);
+var
+  D: Extended;
+begin
+  D := Matrix1.Determinant;
+  if FloatAlmostZero(D) then
+    raise ECnMatrixException.Create(SCnErrorInverseZeroDeteminant);
 
   CnMatrixAdjoint(Matrix1, Matrix2);
   Matrix2.Divide(D);
@@ -823,7 +1303,7 @@ begin
   try
     Matrix1.Determinant(D);
     if D.IsZero then
-      raise ECnMatrixException.Create('NO Inverse Matrix for Deteminant is 0');
+      raise ECnMatrixException.Create(SCnErrorInverseZeroDeteminant);
 
     CnMatrixAdjoint(Matrix1, Matrix2);
     Matrix2.Divide(D);
@@ -947,7 +1427,7 @@ var
   Minor: TCnIntMatrix;
 begin
   if not IsSquare then
-    raise ECnMatrixException.Create('Only Square can Determinant.');
+    raise ECnMatrixException.Create(SCnErrorDeterminantSquare);
 
   if FRowCount = 1 then
     Result := FMatrix[0, 0]
@@ -984,7 +1464,7 @@ end;
 
 procedure TCnIntMatrix.Divide(Factor: Int64);
 begin
-  raise ECnMatrixException.Create('Divide NOT Implemented in Int Matrix.');
+  raise ECnMatrixException.Create(SCnErrorDivNotImplInt);
 end;
 
 procedure TCnIntMatrix.DumpToStrings(List: TStrings; Sep: Char = ' ');
@@ -1013,6 +1493,17 @@ end;
 function TCnIntMatrix.GetValue(Row, Col: Integer): Int64;
 begin
   Result := FMatrix[Row, Col];
+end;
+
+function TCnIntMatrix.GetZigZagValue(Index: Integer): Int64;
+var
+  R, C: Integer;
+begin
+  if RowCount <> ColCount then
+    raise ECnMatrixException.Create(SCnErrorZigZagRowColCount);
+
+  ZigZagToRowCol(Index, R, C, RowCount);
+  Result := GetValue(R, C);
 end;
 
 function TCnIntMatrix.IsE: Boolean;
@@ -1125,7 +1616,7 @@ end;
 
 function TCnIntMatrix.OperationDiv(X, Y: Int64): Int64;
 begin
-  raise ECnMatrixException.Create('Operation Div NOT Implemented in Int Matrix.');
+  raise ECnMatrixException.Create(SCnErrorDivNotImplInt);
 end;
 
 function TCnIntMatrix.OperationMul(X, Y: Int64): Int64;
@@ -1188,12 +1679,23 @@ begin
       FMatrix[I, J] := 0;
 end;
 
+procedure TCnIntMatrix.SetZigZagValue(Index: Integer; const Value: Int64);
+var
+  R, C: Integer;
+begin
+  if RowCount <> ColCount then
+    raise ECnMatrixException.Create(SCnErrorZigZagRowColCount);
+
+  ZigZagToRowCol(Index, R, C, RowCount);
+  SetValue(R, C, Value);
+end;
+
 function TCnIntMatrix.Trace: Int64;
 var
   I: Integer;
 begin
   if not IsSquare then
-    raise ECnMatrixException.Create('Only Square Matrix can Trace.');
+    raise ECnMatrixException.Create(SCnErrorTraceSquare);
 
   Result := 0;
   for I := 0 to FRowCount - 1 do
@@ -1201,6 +1703,406 @@ begin
 end;
 
 procedure TCnIntMatrix.Transpose;
+begin
+  CnMatrixTranspose(Self, Self);
+end;
+
+{ TCnFloatMatrix }
+
+procedure TCnFloatMatrix.Add(Factor: Extended);
+var
+  I, J: Integer;
+begin
+  for I := 0 to FRowCount - 1 do
+    for J := 0 to FColCount - 1 do
+      FMatrix[I, J] := OperationAdd(FMatrix[I, J], Factor);
+end;
+
+function TCnFloatMatrix.Add3(X, Y, Z: Extended): Extended;
+begin
+  Result := OperationAdd(OperationAdd(X, Y), Z);
+end;
+
+procedure TCnFloatMatrix.AssignTo(Dest: TPersistent);
+var
+  I, J: Integer;
+begin
+  if Dest is TCnFloatMatrix then
+  begin
+    TCnFloatMatrix(Dest).RowCount := FRowCount;
+    TCnFloatMatrix(Dest).ColCount := FColCount;
+
+    for I := 0 to FRowCount - 1 do
+      for J := 0 to FColCount - 1 do
+        TCnFloatMatrix(Dest).Value[I, J] := FMatrix[I, J];
+  end
+  else
+    inherited;
+end;
+
+constructor TCnFloatMatrix.Create(ARowCount, AColCount: Integer);
+begin
+  inherited Create;
+  CheckCount(ARowCount);
+  CheckCount(AColCount);
+
+  FRowCount := ARowCount;
+  FColCount := AColCount;
+  SetLength(FMatrix, FRowCount, FColCount);
+end;
+
+procedure TCnFloatMatrix.DeleteCol(Col: Integer);
+var
+  T: array of array of Extended;
+  I, J, SJ, DJ: Integer;
+begin
+  if (Col >= 0) or (Col < FColCount) then
+  begin
+    // 把每 Row 的元素取出来放到临时 T 里，剔除第 Col 个
+    SetLength(T, FRowCount, FColCount - 1);
+
+    for I := 0 to FRowCount - 1 do
+    begin
+      SJ := 0;
+      DJ := 0;
+      while SJ < FColCount do
+      begin
+        if SJ = Col then
+        begin
+          Inc(SJ);
+          Continue;
+        end;
+        T[I, DJ] := FMatrix[I, SJ];
+        Inc(SJ);
+        Inc(DJ);
+      end;
+    end;
+
+    Dec(FColCount);
+    SetLength(FMatrix, FRowCount, FColCount);
+    for I := 0 to FRowCount - 1 do
+      for J := 0 to FColCount - 1 do
+        FMatrix[I, J] := T[I, J];
+
+    SetLength(T, 0);
+  end;
+end;
+
+procedure TCnFloatMatrix.DeleteRow(Row: Integer);
+var
+  I, J: Integer;
+begin
+  if (Row >= 0) or (Row < FRowCount) then
+  begin
+    // 把第 Row + 1 行到 FRowCount - 1 行的一维数组朝前移动一格，末行时无需移
+    if Row < FRowCount - 1 then
+    begin
+      for I := Row + 1 to FRowCount - 1 do
+      begin
+        for J := 0 to FColCount - 1 do
+        begin
+          FMatrix[I - 1, J] := FMatrix[I, J];
+        end;
+      end;
+    end;
+    Dec(FRowCount);
+    SetLength(FMatrix, FRowCount, FColCount);
+  end;
+end;
+
+destructor TCnFloatMatrix.Destroy;
+begin
+  SetLength(FMatrix, 0);
+  inherited;
+end;
+
+function TCnFloatMatrix.Determinant: Extended;
+var
+  I: Integer;
+  Minor: TCnFloatMatrix;
+begin
+  if not IsSquare then
+    raise ECnMatrixException.Create(SCnErrorDeterminantSquare);
+
+  if FRowCount = 1 then
+    Result := FMatrix[0, 0]
+  else if FRowCount = 2 then
+    Result := FMatrix[0, 0] * FMatrix[1, 1] - FMatrix[0, 1] * FMatrix[1, 0]
+  else if RowCount = 3 then
+  begin
+    Result := OperationSub(Add3(Mul3(FMatrix[0, 0], FMatrix[1, 1], FMatrix[2, 2]),
+      Mul3(FMatrix[0, 1], FMatrix[1, 2], FMatrix[2, 0]),
+      Mul3(FMatrix[0, 2], FMatrix[1, 0], FMatrix[2, 1])),
+      Add3(Mul3(FMatrix[0, 0], FMatrix[1, 2], FMatrix[2, 1]),
+        Mul3(FMatrix[0, 1], FMatrix[1, 0], FMatrix[2, 2]),
+        Mul3(FMatrix[0, 2], FMatrix[1, 1], FMatrix[2, 0])));
+  end
+  else
+  begin
+    // 利用代数余子式 Minor/Cofactor 计算高阶行列式
+    Result := 0;
+    Minor := TCnFloatMatrix(ClassType.NewInstance); // 需要用子类进行统一的运算
+    Minor.Create(FRowCount - 1, FColCount - 1);
+
+    // Minor := Self.clas TCnFloatMatrix.Create(FRowCount - 1, FColCount - 1);
+    try
+      for I := 0 to FColCount - 1 do
+      begin
+        CnMatrixMinor(Self, 0, I, Minor);
+        Result := OperationAdd(Result, Mul3(FMatrix[0, I], NegativeOnePower(I), Minor.Determinant));
+      end;
+    finally
+      Minor.Free;
+    end;
+  end;
+end;
+
+procedure TCnFloatMatrix.Divide(Factor: Extended);
+var
+  I, J: Integer;
+begin
+  for I := 0 to FRowCount - 1 do
+    for J := 0 to FColCount - 1 do
+      FMatrix[I, J] := OperationDiv(FMatrix[I, J], Factor);
+end;
+
+procedure TCnFloatMatrix.DumpToStrings(List: TStrings; Sep: Char);
+var
+  I, J: Integer;
+  S: string;
+begin
+  if List = nil then
+    Exit;
+
+  List.Clear;
+  for I := 0 to FRowCount - 1 do
+  begin
+    S := '';
+    for J := 0 to FColCount - 1 do
+    begin
+      if J = 0 then
+        S := FloatToStr(FMatrix[I, J])
+      else
+        S := S + Sep + FloatToStr(FMatrix[I, J]);
+    end;
+    List.Add(S);
+  end;
+end;
+
+function TCnFloatMatrix.GetValue(Row, Col: Integer): Extended;
+begin
+  Result := FMatrix[Row, Col];
+end;
+
+function TCnFloatMatrix.GetZigZagValue(Index: Integer): Extended;
+var
+  R, C: Integer;
+begin
+  if RowCount <> ColCount then
+    raise ECnMatrixException.Create(SCnErrorZigZagRowColCount);
+
+  ZigZagToRowCol(Index, R, C, RowCount);
+  Result := GetValue(R, C);
+end;
+
+function TCnFloatMatrix.IsE: Boolean;
+var
+  I, J: Integer;
+begin
+  if not IsSquare then
+  begin
+    Result := False;
+    Exit;
+  end;
+
+  for I := 0 to FRowCount - 1 do
+  begin
+    for J := 0 to FColCount - 1 do
+    begin
+      if (I = J) and (FMatrix[I, J] <> 1) then
+      begin
+        Result := False;
+        Exit;
+      end
+      else if (I <> J) and (FMatrix[I, J] <> 0) then
+      begin
+        Result := False;
+        Exit;
+      end;
+    end;
+  end;
+  Result := True;
+end;
+
+function TCnFloatMatrix.IsSingular: Boolean;
+begin
+  if not IsSquare then
+    Result := False
+  else
+    Result := FloatAlmostZero(Determinant);
+end;
+
+function TCnFloatMatrix.IsSquare: Boolean;
+begin
+  Result := (FColCount = FRowCount);
+end;
+
+function TCnFloatMatrix.IsSymmetrical: Boolean;
+var
+  I, J: Integer;
+begin
+  if not IsSquare then
+  begin
+    Result := False;
+    Exit;
+  end;
+
+  for I := 0 to FRowCount - 1 do
+    for J := 0 to I do
+      if FMatrix[I, J] <> FMatrix[J, I] then
+      begin
+        Result := False;
+        Exit;
+      end;
+
+  Result := True;
+end;
+
+function TCnFloatMatrix.IsZero: Boolean;
+var
+  I, J: Integer;
+begin
+  if not IsSquare then
+  begin
+    Result := False;
+    Exit;
+  end;
+
+  for I := 0 to FRowCount - 1 do
+    for J := 0 to FColCount - 1 do
+      if FMatrix[I, J] <> 0 then
+      begin
+        Result := False;
+        Exit;
+      end;
+
+  Result := True;
+end;
+
+procedure TCnFloatMatrix.Mul(Factor: Extended);
+var
+  I, J: Integer;
+begin
+  for I := 0 to FRowCount - 1 do
+    for J := 0 to FColCount - 1 do
+      FMatrix[I, J] := OperationMul(FMatrix[I, J], Factor);
+end;
+
+function TCnFloatMatrix.Mul3(X, Y, Z: Extended): Extended;
+begin
+  Result := OperationMul(OperationMul(X, Y), Z);
+end;
+
+function TCnFloatMatrix.NegativeOnePower(N: Integer): Integer;
+begin
+  Result := InternalNegativeOnePower(N);
+end;
+
+function TCnFloatMatrix.OperationAdd(X, Y: Extended): Extended;
+begin
+  Result := X + Y;
+end;
+
+function TCnFloatMatrix.OperationDiv(X, Y: Extended): Extended;
+begin
+  Result := X / Y;
+end;
+
+function TCnFloatMatrix.OperationMul(X, Y: Extended): Extended;
+begin
+  Result := X * Y;
+end;
+
+function TCnFloatMatrix.OperationSub(X, Y: Extended): Extended;
+begin
+  Result := X - Y;
+end;
+
+procedure TCnFloatMatrix.SetColCount(const Value: Integer);
+begin
+  if FColCount <> Value then
+  begin
+    CheckCount(Value);
+    FColCount := Value;
+    SetLength(FMatrix, FRowCount, FColCount);
+  end;
+end;
+
+procedure TCnFloatMatrix.SetE(Size: Integer);
+var
+  I, J: Integer;
+begin
+  CheckCount(Size);
+
+  RowCount := Size;
+  ColCount := Size;
+  for I := 0 to Size - 1 do
+    for J := 0 to Size - 1 do
+      if I = J then
+        FMatrix[I, J] := 1
+      else
+        FMatrix[I, J] := 0;
+end;
+
+procedure TCnFloatMatrix.SetRowCount(const Value: Integer);
+begin
+  if FRowCount <> Value then
+  begin
+    CheckCount(Value);
+    FRowCount := Value;
+    SetLength(FMatrix, FRowCount, FColCount);
+  end;
+end;
+
+procedure TCnFloatMatrix.SetValue(Row, Col: Integer; const AValue: Extended);
+begin
+  FMatrix[Row, Col] := AValue;
+end;
+
+procedure TCnFloatMatrix.SetZero;
+var
+  I, J: Integer;
+begin
+  for I := 0 to FRowCount - 1 do
+    for J := 0 to FColCount - 1 do
+      FMatrix[I, J] := 0;
+end;
+
+procedure TCnFloatMatrix.SetZigZagValue(Index: Integer;
+  const Value: Extended);
+var
+  R, C: Integer;
+begin
+  if RowCount <> ColCount then
+    raise ECnMatrixException.Create(SCnErrorZigZagRowColCount);
+
+  ZigZagToRowCol(Index, R, C, RowCount);
+  SetValue(R, C, Value);
+end;
+
+function TCnFloatMatrix.Trace: Extended;
+var
+  I: Integer;
+begin
+  if not IsSquare then
+    raise ECnMatrixException.Create(SCnErrorTraceSquare);
+
+  Result := 0;
+  for I := 0 to FRowCount - 1 do
+    Result := OperationAdd(Result, FMatrix[I, I]);
+end;
+
+procedure TCnFloatMatrix.Transpose;
 begin
   CnMatrixTranspose(Self, Self);
 end;
@@ -1772,7 +2674,7 @@ var
   T: TCnRationalNumber;
 begin
   if not IsSquare then
-    raise ECnMatrixException.Create('Only Square can Determinant.');
+    raise ECnMatrixException.Create(SCnErrorDeterminantSquare);
 
   if RowCount = 1 then
     D.Assign(Value[0, 0])
@@ -1898,6 +2800,17 @@ begin
     Result := TCnRationalNumber.Create;
     FMatrix[Row, Col] := Result;
   end;
+end;
+
+function TCnRationalMatrix.GetZigZagValue(Index: Integer): TCnRationalNumber;
+var
+  R, C: Integer;
+begin
+  if RowCount <> ColCount then
+    raise ECnMatrixException.Create(SCnErrorZigZagRowColCount);
+
+  ZigZagToRowCol(Index, R, C, RowCount);
+  Result := GetValue(R, C);
 end;
 
 function TCnRationalMatrix.IsE: Boolean;
@@ -2055,12 +2968,23 @@ begin
       Value[I, J].SetZero;
 end;
 
+procedure TCnRationalMatrix.SetZigZagValue(Index: Integer; const Value: TCnRationalNumber);
+var
+  R, C: Integer;
+begin
+  if RowCount <> ColCount then
+    raise ECnMatrixException.Create(SCnErrorZigZagRowColCount);
+
+  ZigZagToRowCol(Index, R, C, RowCount);
+  SetValue(R, C, Value);
+end;
+
 procedure TCnRationalMatrix.Trace(T: TCnRationalNumber);
 var
   I: Integer;
 begin
   if not IsSquare then
-    raise ECnMatrixException.Create('Only Square Matrix can Trace.');
+    raise ECnMatrixException.Create(SCnErrorTraceSquare);
 
   T.SetZero;
   for I := 0 to RowCount - 1 do

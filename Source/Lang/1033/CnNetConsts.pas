@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2022 CnPack 开发组                       }
+{                   (C)Copyright 2001-2023 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -97,6 +97,10 @@ resourcestring
   // CnTCPForwarder
   SCnTCPForwarderName = 'CnTCPForwarder Component';
   SCnTCPForwarderComment = 'A Simple TCP Port Mapping Component';
+
+  // CnUDP
+  SCnUDPName = 'CnUDP Component';
+  SCnUDPComment = 'A Simple UDP Component';
 
 implementation
 

@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2022 CnPack 开发组                       }
+{                   (C)Copyright 2001-2023 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -26,7 +26,7 @@ unit CnSystemDebugControl;
 * 单元作者：刘啸（liuxiao@cnpack.org)
 * 开发平台：PWinXPPro + Delphi 5.01
 * 兼容测试：PWin9X/2000/XP + Delphi 5/6/7/2005 + C++Build 5/6
-* 备　　注：参考了网上于旸的 SystemDebugControl 分析文章以及其它网络资源
+* 备    注：参考了网上于旸的 SystemDebugControl 分析文章以及其它网络资源
 * 修改记录：2019.05.19 V1.1
 *               修正误用 GetModuleHandle 导致可能释放出错的问题
 *           2008.09.18 V1.0
