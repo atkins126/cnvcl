@@ -28,7 +28,9 @@ unit CnMethodHook;
 * 开发平台：PWin2000Pro + Delphi 5.01
 * 兼容测试：
 * 本 地 化：该单元中的字符串支持本地化处理方式
-* 修改记录：2018.01.12
+* 修改记录：2023.05.27
+*               加入 Win64 下的支持，但不确定是否覆盖了所有长跳转的情况
+*           2018.01.12
 *               加入获得接口成员函数地址的方法，构造器增加 DefaultHook 参数
 *           2016.10.31
 *               加入 Hooked 属性
@@ -47,14 +49,18 @@ uses
 type
   PCnLongJump = ^TCnLongJump;
   TCnLongJump = packed record
-    JmpOp: Byte;        // Jmp 相对跳转指令，为 $E9
+    JmpOp: Byte;        // Jmp 相对跳转指令，为 $E9，32 位和 64 位通用
+{$IFDEF CPU64BITS}
+    Addr: DWORD;        // 64 位下的跳转到的相对地址，也是 32 位，但不确定有无覆盖所有情况
+{$ELSE}
     Addr: Pointer;      // 跳转到的相对地址
+{$ENDIF}
   end;
 
   TCnMethodHook = class
   {* 静态或 dynamic 方法挂接类，用于挂接类中静态方法或声明为 dynamic 的动态方法。
-     该类通过修改原方法入口前 5字节，改为跳转指令来实现方法挂接操作，在使用时
-     请保证原方法的执行体代码大于 5字节，否则可能会出现严重后果。}
+     该类通过修改原方法入口前 5 字节，改为跳转指令来实现方法挂接操作，在使用时
+     请保证原方法的执行体代码大于 5 字节，否则可能会出现严重后果。}
   private
     FHooked: Boolean;
     FOldMethod: Pointer;
@@ -100,7 +106,14 @@ resourcestring
 
 const
   csJmpCode = $E9;              // 相对跳转指令机器码
-  csJmp32Code = $25FF;
+  csJmp32Code = $25FF;          // BPL 内入口的跳转机器码，32 位和 64 位通用
+
+type
+{$IFDEF CPU64BITS}
+  TCnAddressInt = NativeInt;
+{$ELSE}
+  TCnAddressInt = Integer;
+{$ENDIF}
 
 // 返回在 BPL 中实际的方法地址
 function CnGetBplMethodAddress(Method: Pointer): Pointer;
@@ -118,22 +131,23 @@ begin
     Result := Method;
 end;
 
-// 返回 Interface 的某序号方法的实际地址，并修正 Self 偏移
+// 返回 Interface 的某序号方法的实际地址，并修正 Self 偏移，支持 32 位和 64 位
 function GetInterfaceMethodAddress(const AIntf: IUnknown;
   MethodIndex: Integer): Pointer;
 type
   TIntfMethodEntry = packed record
     case Integer of
-      0: (ByteOpCode: Byte);        // $05 加四字节
-      1: (WordOpCode: Word);        // $C083 加一字节
-      2: (DWordOpCode: DWORD);      // $04244483 加一字节或 $04244481 加四字节
+      0: (ByteOpCode: Byte);        // 32 位下的 $05 加四字节
+      1: (WordOpCode: Word);        // 32 位下的 $C083 加一字节
+      2: (DWordOpCode: DWORD);      // 32 位下的 $04244483 加一字节或 $04244481 加四字节，
+                                    // 或 64 位下的 $4883C1E0 加一字节
   end;
   PIntfMethodEntry = ^TIntfMethodEntry;
 
   // 长短跳转的组合声明，实际上等同于 TJmpCode 与 TLongJmp 俩结构的组合
   TIntfJumpEntry = packed record
     case Integer of
-      0: (ByteOpCode: Byte; Offset: LongInt);         // $E9 加四字节
+      0: (ByteOpCode: Byte; Offset: LongInt);       // $E9 加四字节，32 位和 64 位通用
       1: (WordOpCode: Word; Addr: ^Pointer);        // $25FF 加四字节
   end;
   PIntfJumpEntry = ^TIntfJumpEntry;
@@ -148,32 +162,40 @@ begin
   if (AIntf = nil) or (MethodIndex < 0) then
     Exit;
 
-  OffsetStubPtr := PPointer(Integer(PPointer(AIntf)^) + SizeOf(Pointer) * MethodIndex)^;
+  OffsetStubPtr := PPointer(TCnAddressInt(PPointer(AIntf)^) + SizeOf(Pointer) * MethodIndex)^;
 
   // 得到该 interface 成员函数跳转入口，该入口会修正 Self 指针后跳至真正入口
-  // IUnknown 的仨标准函数入口均是 add dword ptr [esp+$04],-$xx （xx 为 ShortInt 或 LongInt），因为是 stdcall
+  // 32 位下，IUnknown 的仨标准函数入口均是 add dword ptr [esp+$04],-$xx （xx 为 ShortInt 或 LongInt），因为是 stdcall
   // stdcall/safecall/cdecl 的代码为 $04244483 加一字节的 ShortInt，或 $04244481 加四字节的 LongInt
   // 但其他函数看调用方式，有可能是默认 register 的 add eax -$xx （xx 为 ShortInt 或 LongInt）
   // stdcall/safecall/cdecl 的代码为 $C083 加一字节的 ShortInt，或 $05 加四字节的 LongInt
   // pascal 照理换了入栈方式，但似乎仍和 stdcall 等一样
+  // Win64 下，函数入口均是 add ecx, -$20，之后再 Jump
   IntfPtr := PIntfMethodEntry(OffsetStubPtr);
 
   JmpPtr := nil;
+
+{$IFDEF CPU64BITS}
+  // 64 位跳转似乎就这一种
+  if IntfPtr^.DWordOpCode = $E0C18348 then
+    JmpPtr := PIntfJumpEntry(TCnAddressInt(IntfPtr) + 4);
+{$ELSE}
   if IntfPtr^.ByteOpCode = $05 then
-    JmpPtr := PIntfJumpEntry(Integer(IntfPtr) + 1 + 4)
+    JmpPtr := PIntfJumpEntry(TCnAddressInt(IntfPtr) + 1 + 4)
   else if IntfPtr^.DWordOpCode = $04244481 then
-    JmpPtr := PIntfJumpEntry(Integer(IntfPtr) + 4 + 4)
+    JmpPtr := PIntfJumpEntry(TCnAddressInt(IntfPtr) + 4 + 4)
   else if IntfPtr^.WordOpCode = $C083 then
-    JmpPtr := PIntfJumpEntry(Integer(IntfPtr) + 2 + 1)
+    JmpPtr := PIntfJumpEntry(TCnAddressInt(IntfPtr) + 2 + 1)
   else if IntfPtr^.DWordOpCode = $04244483 then
-    JmpPtr := PIntfJumpEntry(Integer(IntfPtr) + 4 + 1);
+    JmpPtr := PIntfJumpEntry(TCnAddressInt(IntfPtr) + 4 + 1);
+{$ENDIF}
 
   if JmpPtr <> nil then
   begin
-    // 要区分各种不同的跳转，至少有 E9 加四字节相对偏移，以及 25FF 加四字节绝对地址的地址
+    // 要区分各种不同的跳转，至少有 E9 加四字节相对偏移（32 位和 64 位通用），以及 25FF 加四字节绝对地址的地址
     if JmpPtr^.ByteOpCode = csJmpCode then
     begin
-      Result := Pointer(Integer(JmpPtr) + JmpPtr^.Offset + 5); // 5 表示 Jmp 指令的长度
+      Result := Pointer(TCnAddressInt(JmpPtr) + JmpPtr^.Offset + 5); // 5 表示 Jmp 指令的长度
     end
     else if JmpPtr^.WordOpCode = csJmp32Code then
     begin
@@ -223,8 +245,13 @@ begin
 
     // 用跳转指令替换原来方法前 5 字节代码
     PCnLongJump(FOldMethod)^.JmpOp := csJmpCode;
-    PCnLongJump(FOldMethod)^.Addr := Pointer(Integer(FNewMethod) -
-      Integer(FOldMethod) - SizeOf(TCnLongJump)); // 使用 32 位相对地址
+{$IFDEF CPU64BITS}
+    PCnLongJump(FOldMethod)^.Addr := DWORD(TCnAddressInt(FNewMethod) -
+      TCnAddressInt(FOldMethod) - SizeOf(TCnLongJump)); // 64 下也使用 32 位相对地址
+{$ELSE}
+    PCnLongJump(FOldMethod)^.Addr := Pointer(TCnAddressInt(FNewMethod) -
+      TCnAddressInt(FOldMethod) - SizeOf(TCnLongJump)); // 使用 32 位相对地址
+{$ENDIF}
 
     // 保存多处理器下指令缓冲区同步
     FlushInstructionCache(GetCurrentProcess, FOldMethod, SizeOf(TCnLongJump));

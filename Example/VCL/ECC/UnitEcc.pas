@@ -371,26 +371,6 @@ var
   FCurveType: TCnEccCurveType;
   FKeyEcc: TCnEcc;
 
-function HexToInt(Hex: AnsiString): Integer;
-var
-  I, Res: Integer;
-  ch: AnsiChar;
-begin
-  Res := 0;
-  for I := 0 to Length(Hex) - 1 do
-  begin
-    ch := Hex[I + 1];
-    if (ch >= '0') and (ch <= '9') then
-      Res := Res * 16 + Ord(ch) - Ord('0')
-    else if (ch >= 'A') and (ch <= 'F') then
-      Res := Res * 16 + Ord(ch) - Ord('A') + 10
-    else if (ch >= 'a') and (ch <= 'f') then
-      Res := Res * 16 + Ord(ch) - Ord('a') + 10
-    else raise Exception.Create('Error: not a Hex String');
-  end;
-  Result := Res;
-end;
-
 procedure TFormEcc.btnTest1Click(Sender: TObject);
 var
   P, Q: TCnInt64EccPoint;
@@ -3100,6 +3080,12 @@ begin
   B.SetWord(74);
   Q.SetWord(97);
 
+  // 该例子中
+  // 2 是 0
+  // 3 未知
+  // 5 是 3
+  // 7 是 4
+
   if CnEccFastSchoof(R, A, B, Q) then
     ShowMsg(R.ToDec);
 
@@ -3131,6 +3117,7 @@ begin
 
   if CnEccSchoof2(R, A, B, Q) then
     ShowMsg(R.ToDec); // 得到 65751，成功！
+
 
   A.SetWord(7);
   B.SetWord(1);
@@ -3169,10 +3156,17 @@ begin
 
   A.SetWord(7);
   B.SetWord(1);
-  Q.SetDec('9223372036854775783');
+  Q.SetDec('13446163232037310043');
 
   if CnEccSchoof2(R, A, B, Q) then
-    ShowMsg(R.ToDec); // 跑了一个半小时，得到 9223372037391309723，无从判断对否
+    ShowMsg(R.ToDec); // 跑了一个半小时，得到 13446163228212048345，无从判断对否
+
+  A.SetWord(7);
+  B.SetWord(1);
+  Q.SetHex('01000000000000000D');
+
+  if CnEccSchoof2(R, A, B, Q) then
+    ShowMsg(R.ToDec); // 跑了两个小时，得到 18446744066071115814，无从判断对否
 
   R.Free;
   Q.Free;

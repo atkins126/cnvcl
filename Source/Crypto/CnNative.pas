@@ -497,6 +497,9 @@ function HexToString(const Hex: string): string;
 function HexToAnsiStr(const Hex: AnsiString): AnsiString;
 {* 十六进制字符串转换为字符串，十六进制字符串长度为奇或转换失败时抛出异常}
 
+function AnsiStrToHex(const Data: AnsiString; UseUpperCase: Boolean = True): AnsiString;
+{* AnsiString 转换为十六进制字符串，UseUpperCase 控制输出内容的大小写}
+
 function BytesToHex(Data: TBytes; UseUpperCase: Boolean = True): string;
 {* 字节数组转换为十六进制字符串，下标低位的内容出现在字符串左方，相当于网络字节顺序，
   UseUpperCase 控制输出内容的大小写}
@@ -504,6 +507,12 @@ function BytesToHex(Data: TBytes; UseUpperCase: Boolean = True): string;
 function HexToBytes(const Hex: string): TBytes;
 {* 十六进制字符串转换为字节数组，字符串左边的内容出现在下标低位，相当于网络字节顺序，
   字符串长度为奇或转换失败时抛出异常}
+
+function StreamToHex(Stream: TStream; UseUpperCase: Boolean = True): string;
+{* 将流中的全部内容从头转换为十六进制字符串}
+
+function HexToStream(const Hex: string; Stream: TStream): Integer;
+{* 将十六进制字符串内容转换后写入流中，返回写入的字节数}
 
 procedure ReverseBytes(Data: TBytes);
 {* 按字节顺序倒置一字节数组}
@@ -514,8 +523,20 @@ function StreamToBytes(Stream: TStream): TBytes;
 function BytesToStream(Data: TBytes; OutStream: TStream): Integer;
 {* 字节数组写入整个流，返回写入字节数}
 
+function AnsiToBytes(const Str: AnsiString): TBytes;
+{* 将 AnsiString 的内容转换为字节数组，不处理编码}
+
+function BytesToAnsi(const Data: TBytes): AnsiString;
+{* 将字节数组的内容转换为 AnsiString，不处理编码}
+
 function ConcatBytes(A, B: TBytes): TBytes;
-{* 将 A B 两个字节数组顺序拼好返回，A B 保持不变}
+{* 将 A B 两个字节数组顺序拼好返回一个新字节数组，A B 保持不变}
+
+function NewBytesFromMemory(Data: Pointer; DataByteLen: Integer): TBytes;
+{* 新建一字节数组，并从一片内存区域复制内容过来。}
+
+function CompareBytes(A, B: TBytes): Boolean;
+{* 比较两个字节数组内容是否相同}
 
 procedure MoveMost(const Source; var Dest; ByteLen, MostLen: Integer);
 {* 从 Source 移动 ByteLen 且不超过 MostLen 个字节到 Dest 中，
@@ -1394,6 +1415,13 @@ const
   LoDigits: array[0..15] of Char = ('0', '1', '2', '3', '4', '5', '6', '7',
                                   '8', '9', 'a', 'b', 'c', 'd', 'e', 'f');
 
+const
+  AnsiHiDigits: array[0..15] of AnsiChar = ('0', '1', '2', '3', '4', '5', '6', '7',
+                                  '8', '9', 'A', 'B', 'C', 'D', 'E', 'F');
+const
+  AnsiLoDigits: array[0..15] of AnsiChar = ('0', '1', '2', '3', '4', '5', '6', '7',
+                                  '8', '9', 'a', 'b', 'c', 'd', 'e', 'f');
+
 function HexToInt(Hex: PChar; CharLen: Integer): Integer;
 var
   I, Res: Integer;
@@ -1564,6 +1592,40 @@ begin
   end;
 end;
 
+function AnsiStrToHex(const Data: AnsiString; UseUpperCase: Boolean): AnsiString;
+var
+  I, L: Integer;
+  B: Byte;
+  Buffer: PAnsiChar;
+begin
+  Result := '';
+  L := Length(Data);
+  if L = 0 then
+    Exit;
+
+  SetLength(Result, L * 2);
+  Buffer := @Data[1];
+
+  if UseUpperCase then
+  begin
+    for I := 0 to L - 1 do
+    begin
+      B := PByte(TCnNativeInt(Buffer) + I)^;
+      Result[I * 2 + 1] := AnsiHiDigits[(B shr 4) and $0F];
+      Result[I * 2 + 2] := AnsiHiDigits[B and $0F];
+    end;
+  end
+  else
+  begin
+    for I := 0 to L - 1 do
+    begin
+      B := PByte(TCnNativeInt(Buffer) + I)^;
+      Result[I * 2 + 1] := AnsiLoDigits[(B shr 4) and $0F];
+      Result[I * 2 + 2] := AnsiLoDigits[B and $0F];
+    end;
+  end;
+end;
+
 function BytesToHex(Data: TBytes; UseUpperCase: Boolean): string;
 var
   I, L: Integer;
@@ -1614,6 +1676,59 @@ begin
     Result[I - 1] := Byte(HexToInt(@H[(I - 1) * 2], 2));
 end;
 
+function StreamToHex(Stream: TStream; UseUpperCase: Boolean): string;
+var
+  B: Byte;
+  I: Integer;
+begin
+  Result := '';
+  if Stream.Size > 0 then
+  begin
+    Stream.Position := 0;
+    SetLength(Result, Stream.Size * 2);
+    I := 1;
+    if UseUpperCase then
+    begin
+      while Stream.Read(B, 1) = 1 do
+      begin
+        Result[I] := HiDigits[(B shr 4) and $0F];
+        Inc(I);
+        Result[I] := HiDigits[B and $0F];
+        Inc(I);
+      end;
+    end
+    else
+    begin
+      while Stream.Read(B, 1) = 1 do
+      begin
+        Result[I] := LoDigits[(B shr 4) and $0F];
+        Inc(I);
+        Result[I] := LoDigits[B and $0F];
+        Inc(I);
+      end;
+    end;
+  end;
+end;
+
+function HexToStream(const Hex: string; Stream: TStream): Integer;
+var
+  I, L: Integer;
+  H: PChar;
+  B: Byte;
+begin
+  Result := 0;
+  L := Length(Hex);
+  if (L mod 2) <> 0 then
+    raise Exception.CreateFmt('Error Length %d: not a Hex String', [L]);
+
+  H := PChar(Hex);
+  for I := 1 to L div 2 do
+  begin
+    B := Byte(HexToInt(@H[(I - 1) * 2], 2));
+    Inc(Result, Stream.Write(B, 1));
+  end;
+end;
+
 procedure ReverseBytes(Data: TBytes);
 var
   I, L, M: Integer;
@@ -1653,22 +1768,68 @@ begin
   end;
 end;
 
+function AnsiToBytes(const Str: AnsiString): TBytes;
+begin
+  SetLength(Result, Length(Str));
+  if Length(Str) > 0 then
+    Move(Str[1], Result[0], Length(Str));
+end;
+
+function BytesToAnsi(const Data: TBytes): AnsiString;
+begin
+  SetLength(Result, Length(Data));
+  if Length(Data) > 0 then
+    Move(Data[0], Result[1], Length(Data));
+end;
+
 function ConcatBytes(A, B: TBytes): TBytes;
 begin
-{$IFDEF SUPPORT_TBYTES_OPERATION}
-  Result := A + B;
-{$ELSE}
+  // 哪怕是 XE7 后也不能直接相加，因为 A 或 B 为空时会返回另一字节数组而不是新数组
   if (A = nil) or (Length(A) = 0) then
-    Result := B
+  begin
+    SetLength(Result, Length(B));
+    if Length(B) > 0 then
+      Move(B[0], Result[0], Length(B));
+  end
   else if (B = nil) or (Length(B) = 0) then
-    Result := A
+  begin
+    SetLength(Result, Length(A));
+    if Length(A) > 0 then
+      Move(A[0], Result[0], Length(A));
+  end
   else
   begin
     SetLength(Result, Length(A) + Length(B));
     Move(A[0], Result[0], Length(A));
     Move(B[0], Result[Length(A)], Length(B));
   end;
-{$ENDIF}
+end;
+
+function NewBytesFromMemory(Data: Pointer; DataByteLen: Integer): TBytes;
+begin
+  if (Data = nil) or (DataByteLen <= 0) then
+    Result := nil
+  else
+  begin
+    SetLength(Result, DataByteLen);
+    Move(Data^, Result[0], DataByteLen);
+  end;
+end;
+
+function CompareBytes(A, B: TBytes): Boolean;
+var
+  L: Integer;
+begin
+  Result := False;
+
+  L := Length(A);
+  if Length(B) <> L then // 长度不等则退出
+    Exit;
+
+  if L = 0 then          // 长度相等
+    Result := True       // 如都是 0 视作相等
+  else
+    Result := CompareMem(@A[0], @B[0], L);
 end;
 
 procedure MoveMost(const Source; var Dest; ByteLen, MostLen: Integer);

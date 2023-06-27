@@ -115,6 +115,12 @@ procedure CnFmxSetStringGridColumnCount(Grid: TStringGrid; ColCount: Integer;
 {* 设置一 FMX 的 StringGrid 的列数功能的封装，内部需要增删 StringColumn
   如增，需要外部指定宽度 ColWidth，默认 64}
 
+procedure CnFmxMoveSubControl(FromControl, ToControl: TComponent);
+{* 将 FromControl 的所有子 Control 按顺序移动至 ToControl 下}
+
+function CnFmxGetControlPosition(AControl: TComponent): TSmallPoint;
+{* 返回 FMX Control 的位置}
+
 implementation
 
 const
@@ -325,7 +331,7 @@ procedure CnFmxSetControlPositionValue(AControl: TComponent; AValue: Single;
 begin
   if AControl <> nil then
   begin
-    if  AControl.InheritsFrom(TControl) then
+    if AControl.InheritsFrom(TControl) then
     begin
       case PosType of
         fptLeft:
@@ -444,6 +450,43 @@ begin
       Column.Width := ColWidth;
       Column.Parent := Grid;
     end;
+  end;
+end;
+
+procedure CnFmxMoveSubControl(FromControl, ToControl: TComponent);
+var
+  I, C: Integer;
+  FromCtl, ToCtl, Ctl: TControl;
+begin
+  if (FromControl = nil) or (ToControl = nil) then
+    Exit;
+
+  if not FromControl.InheritsFrom(TControl) or not ToControl.InheritsFrom(TControl) then
+    Exit;
+
+  FromCtl := TControl(FromControl);
+  ToCtl := TControl(ToControl);
+
+  C := CnFmxGetControlsCount(FromCtl);
+  for I := 0 to C - 1 do
+  begin
+    Ctl := TControl(CnFmxGetControlByIndex(FromCtl, 0));
+    Ctl.Parent := ToCtl;
+  end;
+end;
+
+function CnFmxGetControlPosition(AControl: TComponent): TSmallPoint;
+begin
+  Result.x := 0;
+  Result.y := 0;
+
+  if AControl = nil then
+    Exit;
+
+  if AControl.InheritsFrom(TControl) then
+  begin
+    Result.x := Trunc(TControl(AControl).Position.X);
+    Result.y := Trunc(TControl(AControl).Position.Y);
   end;
 end;
 

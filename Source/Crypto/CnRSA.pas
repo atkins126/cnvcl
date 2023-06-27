@@ -1615,7 +1615,7 @@ function CnRSAEncryptFile(const InFileName, OutFileName: string;
   PublicKey: TCnRSAPublicKey; PaddingMode: TCnRSAPaddingMode): Boolean;
 var
   Stream: TMemoryStream;
-  Res: array of Byte;
+  Res: TBytes;
 begin
   Result := False;
   Stream := nil;
@@ -1643,7 +1643,7 @@ function CnRSAEncryptFile(const InFileName, OutFileName: string;
   PrivateKey: TCnRSAPrivateKey): Boolean;
 var
   Stream: TMemoryStream;
-  Res: array of Byte;
+  Res: TBytes;
 begin
   Result := False;
   Stream := nil;
@@ -1674,7 +1674,7 @@ function RSADecryptPadding(BlockSize: Integer; EnData: Pointer; DataLen: Integer
 var
   Stream: TMemoryStream;
   Res, Data: TCnBigNumber;
-  ResBuf: array of Byte;
+  ResBuf: TBytes;
 begin
   Result := False;
   Res := nil;
@@ -1736,7 +1736,7 @@ function CnRSADecryptFile(const InFileName, OutFileName: string;
   PublicKey: TCnRSAPublicKey): Boolean;
 var
   Stream: TMemoryStream;
-  Res: array of Byte;
+  Res: TBytes;
   OutLen: Integer;
 begin
   Result := False;
@@ -1772,7 +1772,7 @@ function CnRSADecryptFile(const InFileName, OutFileName: string;
   PrivateKey: TCnRSAPrivateKey; PaddingMode: TCnRSAPaddingMode): Boolean;
 var
   Stream: TMemoryStream;
-  Res: array of Byte;
+  Res: TBytes;
   OutLen: Integer;
 begin
   Result := False;
@@ -1932,7 +1932,7 @@ function CnRSASignStream(InStream: TMemoryStream; OutSignStream: TMemoryStream;
 var
   Stream, BerStream, EnStream: TMemoryStream;
   Data, Res: TCnBigNumber;
-  ResBuf: array of Byte;
+  ResBuf: TBytes;
   Writer: TCnBerWriter;
   Root, Node: TCnBerWriteNode;
 begin
@@ -2017,7 +2017,7 @@ function CnRSAVerifyStream(InStream: TMemoryStream; InSignStream: TMemoryStream;
 var
   Stream: TMemoryStream;
   Data, Res: TCnBigNumber;
-  ResBuf, BerBuf: array of Byte;
+  ResBuf, BerBuf: TBytes;
   BerLen: Integer;
   Reader: TCnBerReader;
   Node: TCnBerReadNode;
@@ -2037,8 +2037,9 @@ begin
 
     if RSACrypt(Data, PublicKey.PubKeyProduct, PublicKey.PubKeyExponent, Res) then
     begin
-      SetLength(ResBuf, Res.GetBytesCount);
-      Res.ToBinary(@ResBuf[0]);
+      // 注意 Res 可能存在前导 0，所以此处必须以 PublicKey.GetBytesCount 为准，才能确保不漏前导 0
+      SetLength(ResBuf, PublicKey.GetBytesCount);
+      Res.ToBinary(@ResBuf[0], PublicKey.GetBytesCount);
 
       // 从 Res 中解出 PKCS1 对齐的内容放入 BerBuf 中
       SetLength(BerBuf, Length(ResBuf));
@@ -2109,7 +2110,7 @@ function CnRSASignFile(const InFileName, OutSignFileName: string;
 var
   Stream, BerStream, EnStream: TMemoryStream;
   Data, Res: TCnBigNumber;
-  ResBuf: array of Byte;
+  ResBuf: TBytes;
   Writer: TCnBerWriter;
   Root, Node: TCnBerWriteNode;
 begin
@@ -2194,7 +2195,7 @@ function CnRSAVerifyFile(const InFileName, InSignFileName: string;
 var
   Stream, Sign: TMemoryStream;
   Data, Res: TCnBigNumber;
-  ResBuf, BerBuf: array of Byte;
+  ResBuf, BerBuf: TBytes;
   BerLen: Integer;
   Reader: TCnBerReader;
   Node: TCnBerReadNode;
@@ -2495,7 +2496,7 @@ var
   EmLen, MdLen, I: Integer;
   SeedMask: TCnSHA1Digest;
   DB, Seed: PByteArray;
-  DBMask: array of Byte;
+  DBMask: TBytes;
 begin
   Result := False;
   EmLen:= ToLen - 1;
@@ -2565,7 +2566,7 @@ var
   I, MdLen, DBLen, MStart: Integer;
   MaskedDB, MaskedSeed: PByteArray;
   Seed, ParamHash: TCnSHA1Digest;
-  DB: array of Byte;
+  DB: TBytes;
 begin
   Result := False;
   if (EnData = nil) or (ToBuf = nil) then

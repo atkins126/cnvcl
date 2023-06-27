@@ -29,6 +29,15 @@ unit Cn25519;
 *           已实现仅基于 X 以及蒙哥马利阶梯的快速标量乘以及扩展四元坐标的快速点加
 *           以及结合多项式约减代替模运算所进行的加速算法，是原始点加算法速度的五十倍以上
 *           签名基于 rfc 8032 的说明
+*           注意：Ed25519 的公钥并非如传统 ECC 那样等于私钥直接点乘 G 点而来，而是经过了
+*               其他运算才得到乘数，再点乘 G 点得到公钥，且可以不完整存储 X Y，只存 Y
+*               且将 X 的奇偶存入。
+*           RFC 8032 的 Ed25519 的签名规范中，将随机产生的 32 字节值叫 SecretKey，将其算出乘数
+*               再点乘得到公钥再存 Y 和 X 奇偶性的 32 字节叫 PublicKey，加起来一共 64 字节是为
+*               一对公私钥。
+*               本单元中既可按常规的 ECC 公私钥处理，也可用 LoadFromData/SaveToData 方法
+*               与 32 字节内容加载存储。
+*               Curve25519 公私钥则没这么高的私钥要求，但私钥同样要清/置某些位才能作为乘数。
 * 开发平台：Win7 + Delphi 5.0
 * 兼容测试：暂未进行
 * 本 地 化：该单元无需本地化处理
@@ -253,7 +262,7 @@ type
   end;
 
   TCnCurve25519 = class(TCnMontgomeryCurve)
-  {* rfc 7748/8032 中规定的 Curve25519 曲线}
+  {* RFC 7748/8032 中规定的 Curve25519 曲线}
   public
     constructor Create; override;
 
@@ -265,19 +274,41 @@ type
   end;
 
   TCnEd25519Data = array[0..CN_25519_BLOCK_BYTESIZE - 1] of Byte;
+  {* Ed25519 的公私钥数据，内容一般是网络字节顺序}
 
   TCnEd25519SignatureData = array[0..2 * CN_25519_BLOCK_BYTESIZE - 1] of Byte;
+  {* Ed25519 的签名数据，内容一般是网络字节顺序}
+
+  TCnEd25519PrivateKey = class(TCnEccPrivateKey)
+  {* Ed25519 私钥}
+  public
+    procedure SaveToData(var Data: TCnEd25519Data);
+    {* 将私钥内容转换成 32 字节内容供存储与传输}
+
+    procedure LoadFromData(Data: TCnEd25519Data);
+    {* 从 32 字节内容中加载私钥}
+  end;
+
+  TCnEd25519PublicKey = class(TCnEccPublicKey)
+  {* Ed25519 公钥}
+  public
+    procedure SaveToData(var Data: TCnEd25519Data);
+    {* 私钥内容转换成 32 字节内容供存储与传输}
+
+    procedure LoadFromData(Data: TCnEd25519Data);
+    {* 从 32 字节内容中加载私钥}
+  end;
 
   TCnEd25519 = class(TCnTwistedEdwardsCurve)
-  {* rfc 7748/8032 中规定的 Ed25519 曲线}
+  {* RFC 7748/8032 中规定的 Ed25519 曲线}
   public
     constructor Create; override;
 
-    function GenerateKeys(PrivateKey: TCnEccPrivateKey; PublicKey: TCnEccPublicKey): Boolean;
+    function GenerateKeys(PrivateKey: TCnEd25519PrivateKey; PublicKey: TCnEd25519PublicKey): Boolean;
     {* 生成一对 Ed25519 椭圆曲线的公私钥，其中公钥的基点乘数根据 SHA512 运算而来}
 
     procedure PlainToPoint(Plain: TCnEd25519Data; OutPoint: TCnEccPoint);
-    {* 将 32 字节值转换为坐标点，涉及到求解}
+    {* 将 32 字节值转换为坐标点，涉及到求解。也用于从 32 字节格式的公钥中恢复完整的坐标点公钥}
     procedure PointToPlain(Point: TCnEccPoint; var OutPlain: TCnEd25519Data);
     {* 将点坐标转换成 32 字节值，拼 Y 并放 X 正负一位}
 
@@ -334,10 +365,10 @@ type
     procedure Assign(Source: TPersistent); override;
 
     procedure SaveToData(var Sig: TCnEd25519SignatureData);
-    {* 内容转换成 64 字节签名数组供存储与传输}
+    {* 内容转换成 64 字节签名内容供存储与传输}
 
     procedure LoadFromData(Sig: TCnEd25519SignatureData);
-    {* 从64 字节签名数组中加载签名}
+    {* 从 64 字节签名内容中加载签名}
 
     property R: TCnEccPoint read FR;
     {* 签名点 R}
@@ -383,20 +414,20 @@ procedure CnEd25519DataToBigNumber(Data: TCnEd25519Data; N: TCnBigNumber);
 
 // ===================== Ed25519 椭圆曲线数字签名验证算法 ======================
 
-function CnEd25519SignData(PlainData: Pointer; DataLen: Integer; PrivateKey: TCnEccPrivateKey;
-  PublicKey: TCnEccPublicKey; OutSignature: TCnEd25519Signature; Ed25519: TCnEd25519 = nil): Boolean;
+function CnEd25519SignData(PlainData: Pointer; DataLen: Integer; PrivateKey: TCnEd25519PrivateKey;
+  PublicKey: TCnEd25519PublicKey; OutSignature: TCnEd25519Signature; Ed25519: TCnEd25519 = nil): Boolean;
 {* Ed25519 用公私钥对数据块进行签名，返回签名是否成功}
 
 function CnEd25519VerifyData(PlainData: Pointer; DataLen: Integer; InSignature: TCnEd25519Signature;
-  PublicKey: TCnEccPublicKey; Ed25519: TCnEd25519 = nil): Boolean;
+  PublicKey: TCnEd25519PublicKey; Ed25519: TCnEd25519 = nil): Boolean;
 {* Ed25519 用公钥对数据块与签名进行验证，返回验证是否成功}
 
-function CnEd25519SignFile(const FileName: string; PrivateKey: TCnEccPrivateKey;
-  PublicKey: TCnEccPublicKey; OutSignatureStream: TStream; Ed25519: TCnEd25519 = nil): Boolean;
+function CnEd25519SignFile(const FileName: string; PrivateKey: TCnEd25519PrivateKey;
+  PublicKey: TCnEd25519PublicKey; OutSignatureStream: TStream; Ed25519: TCnEd25519 = nil): Boolean;
 {* Ed25519 用公私钥对文件进行签名，签名值 64 字节写入 OutSignatureStream 中，返回签名是否成功}
 
 function CnEd25519VerifyFile(const FileName: string; InSignatureStream: TStream;
-  PublicKey: TCnEccPublicKey; Ed25519: TCnEd25519 = nil): Boolean;
+  PublicKey: TCnEd25519PublicKey; Ed25519: TCnEd25519 = nil): Boolean;
 {* Ed25519 用公钥对文件与签名进行验证，InSignatureStream 内部须是 64 字节签名值，返回验证是否成功}
 
 // ================= Ed25519 椭圆曲线 Diffie-Hellman 密钥交换  =================
@@ -622,7 +653,8 @@ begin
   // （和 CoFactor 是 2^3 = 8 对应），且最高位 2^255 得置 0，次高位 2^254 得置 1
   if OutMulFactor <> nil then
   begin
-    ReverseMemory(@Dig[0], CN_25519_BLOCK_BYTESIZE);         // 得倒个序
+    if CurrentByteOrderIsLittleEndian then
+      ReverseMemory(@Dig[0], CN_25519_BLOCK_BYTESIZE);       // 得倒个序
     OutMulFactor.SetBinary(@Dig[0], CN_25519_BLOCK_BYTESIZE);
 
     OutMulFactor.ClearBit(0);                                // 低三位置 0
@@ -1886,8 +1918,8 @@ begin
   end;
 end;
 
-function TCnEd25519.GenerateKeys(PrivateKey: TCnEccPrivateKey;
-  PublicKey: TCnEccPublicKey): Boolean;
+function TCnEd25519.GenerateKeys(PrivateKey: TCnEd25519PrivateKey;
+  PublicKey: TCnEd25519PublicKey): Boolean;
 var
   K: TCnBigNumber;
 begin
@@ -2085,7 +2117,8 @@ begin
 
   FillChar(Data[0], SizeOf(TCnEd25519Data), 0);
   P.Y.ToBinary(@Data[0], SizeOf(TCnEd25519Data));
-  ReverseMemory(@Data[0], SizeOf(TCnEd25519Data)); // 小端序，需要倒一下
+  if CurrentByteOrderIsLittleEndian then
+    ReverseMemory(@Data[0], SizeOf(TCnEd25519Data)); // 小端序的就需要倒一下
 
   if P.X.IsOdd then // X 是奇数，最低位是 1
     Data[CN_25519_BLOCK_BYTESIZE - 1] := Data[CN_25519_BLOCK_BYTESIZE - 1] or $80  // 高位置 1
@@ -2102,7 +2135,8 @@ begin
     Exit;
 
   Move(Data[0], D[0], SizeOf(TCnEd25519Data));
-  ReverseMemory(@D[0], SizeOf(TCnEd25519Data));
+  if CurrentByteOrderIsLittleEndian then
+    ReverseMemory(@D[0], SizeOf(TCnEd25519Data));
   P.Y.SetBinary(@D[0], SizeOf(TCnEd25519Data));
 
   // 最高位是否是 0 表示了 X 的奇偶
@@ -2119,7 +2153,8 @@ begin
 
   FillChar(Data[0], SizeOf(TCnEd25519Data), 0);
   N.ToBinary(@Data[0], SizeOf(TCnEd25519Data));
-  ReverseMemory(@Data[0], SizeOf(TCnEd25519Data));
+  if CurrentByteOrderIsLittleEndian then
+    ReverseMemory(@Data[0], SizeOf(TCnEd25519Data));
 end;
 
 procedure CnEd25519DataToBigNumber(Data: TCnEd25519Data; N: TCnBigNumber);
@@ -2130,12 +2165,13 @@ begin
     Exit;
 
   Move(Data[0], D[0], SizeOf(TCnEd25519Data));
-  ReverseMemory(@D[0], SizeOf(TCnEd25519Data));
+  if CurrentByteOrderIsLittleEndian then
+    ReverseMemory(@D[0], SizeOf(TCnEd25519Data));
   N.SetBinary(@D[0], SizeOf(TCnEd25519Data));
 end;
 
-function CnEd25519SignData(PlainData: Pointer; DataLen: Integer; PrivateKey: TCnEccPrivateKey;
-  PublicKey: TCnEccPublicKey; OutSignature: TCnEd25519Signature; Ed25519: TCnEd25519): Boolean;
+function CnEd25519SignData(PlainData: Pointer; DataLen: Integer; PrivateKey: TCnEd25519PrivateKey;
+  PublicKey: TCnEd25519PublicKey; OutSignature: TCnEd25519Signature; Ed25519: TCnEd25519): Boolean;
 var
   Is25519Nil: Boolean;
   Stream: TMemoryStream;
@@ -2175,7 +2211,8 @@ begin
     // 计算出 SHA512 值作为 r 乘数，准备乘以基点作为 R 点
     Dig := SHA512Buffer(Stream.Memory, Stream.Size);
 
-    ReverseMemory(@Dig[0], SizeOf(TCnSHA512Digest)); // 需要倒转一次
+    if CurrentByteOrderIsLittleEndian then
+      ReverseMemory(@Dig[0], SizeOf(TCnSHA512Digest)); // 需要倒转一次
     R.SetBinary(@Dig[0], SizeOf(TCnSHA512Digest));
     BigNumberNonNegativeMod(R, R, Ed25519.Order);  // r 乘数太大先 mod 一下阶
 
@@ -2199,7 +2236,8 @@ begin
     // 再次杂凑 R||PublicKey||明文
     Dig := SHA512Buffer(Stream.Memory, Stream.Size);
 
-    ReverseMemory(@Dig[0], SizeOf(TCnSHA512Digest)); // 又需要倒转一次
+    if CurrentByteOrderIsLittleEndian then
+      ReverseMemory(@Dig[0], SizeOf(TCnSHA512Digest)); // 又需要倒转一次
     K.SetBinary(@Dig[0], SizeOf(TCnSHA512Digest));
     BigNumberNonNegativeMod(K, K, Ed25519.Order);  // 乘数太大再先 mod 一下阶
 
@@ -2220,7 +2258,7 @@ begin
 end;
 
 function CnEd25519VerifyData(PlainData: Pointer; DataLen: Integer;
-  InSignature: TCnEd25519Signature; PublicKey: TCnEccPublicKey; Ed25519: TCnEd25519): Boolean;
+  InSignature: TCnEd25519Signature; PublicKey: TCnEd25519PublicKey; Ed25519: TCnEd25519): Boolean;
 var
   Is25519Nil: Boolean;
   L, R, M: TCnEccPoint;
@@ -2264,7 +2302,8 @@ begin
     Stream.Write(PlainData^, DataLen);                    // 拼明文
 
     Dig := SHA512Buffer(Stream.Memory, Stream.Size);      // 计算 Hash 作为值
-    ReverseMemory(@Dig[0], SizeOf(TCnSHA512Digest));        // 需要倒转一次
+    if CurrentByteOrderIsLittleEndian then
+      ReverseMemory(@Dig[0], SizeOf(TCnSHA512Digest));    // 需要倒转一次
 
     T := F25519BigNumberPool.Obtain;
     T.SetBinary(@Dig[0], SizeOf(TCnSHA512Digest));
@@ -2288,8 +2327,8 @@ begin
   end;
 end;
 
-function CnEd25519SignFile(const FileName: string; PrivateKey: TCnEccPrivateKey;
-  PublicKey: TCnEccPublicKey; OutSignatureStream: TStream; Ed25519: TCnEd25519): Boolean;
+function CnEd25519SignFile(const FileName: string; PrivateKey: TCnEd25519PrivateKey;
+  PublicKey: TCnEd25519PublicKey; OutSignatureStream: TStream; Ed25519: TCnEd25519): Boolean;
 var
   Stream: TMemoryStream;
   Sig: TCnEd25519Signature;
@@ -2322,7 +2361,7 @@ begin
 end;
 
 function CnEd25519VerifyFile(const FileName: string; InSignatureStream: TStream;
-  PublicKey: TCnEccPublicKey; Ed25519: TCnEd25519 = nil): Boolean;
+  PublicKey: TCnEd25519PublicKey; Ed25519: TCnEd25519): Boolean;
 var
   Stream: TMemoryStream;
   Sig: TCnEd25519Signature;
@@ -3083,6 +3122,37 @@ begin
   Cn25519Field64ToBigNumber(DestPoint.Z, SourcePoint.Z);
   Cn25519Field64ToBigNumber(DestPoint.T, SourcePoint.T);
   Result := True;
+end;
+
+{ TCnEd25519PrivateKey }
+
+procedure TCnEd25519PrivateKey.LoadFromData(Data: TCnEd25519Data);
+begin
+  CnEd25519DataToBigNumber(Data, Self);
+end;
+
+procedure TCnEd25519PrivateKey.SaveToData(var Data: TCnEd25519Data);
+begin
+  CnEd25519BigNumberToData(Self, Data);
+end;
+
+{ TCnEd25519PublicKey }
+
+procedure TCnEd25519PublicKey.LoadFromData(Data: TCnEd25519Data);
+var
+  Ed25519: TCnEd25519;
+begin
+  Ed25519 := TCnEd25519.Create;
+  try
+    Ed25519.PlainToPoint(Data, Self); // 内部会从 Data 中加载 Y，并求 X 的值
+  finally
+    Ed25519.Free;
+  end;
+end;
+
+procedure TCnEd25519PublicKey.SaveToData(var Data: TCnEd25519Data);
+begin
+  CnEd25519PointToData(Self, Data); // 只存 Y，以及 X 的奇偶性
 end;
 
 initialization

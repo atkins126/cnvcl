@@ -42,7 +42,9 @@ unit CnSM2;
 * 开发平台：Win7 + Delphi 5.0
 * 兼容测试：Win7 + XE
 * 本 地 化：该单元无需本地化处理
-* 修改记录：2023.04.10 V2.1
+* 修改记录：2023.04.29 V2.2
+*               将密钥交换的输出密钥格式由 AnsiString 改为 TBytes 以避免乱码
+*           2023.04.10 V2.1
 *               修正部分坐标值较小的情况下的加解密对齐问题
 *           2023.03.25 V2.0
 *               加密与签名时允许外界指定随机数，传入随机数的十六进制字符串
@@ -249,7 +251,7 @@ function CnSM2KeyExchangeAStep1(const AUserID, BUserID: AnsiString; KeyByteLengt
 
 function CnSM2KeyExchangeBStep1(const AUserID, BUserID: AnsiString; KeyByteLength: Integer;
   BPrivateKey: TCnSM2PrivateKey; APublicKey, BPublicKey: TCnSM2PublicKey; InRA: TCnEccPoint;
-  out OutKeyB: AnsiString; OutRB: TCnEccPoint; out OutOptionalSB: TCnSM3Digest;
+  out OutKeyB: TBytes; OutRB: TCnEccPoint; out OutOptionalSB: TCnSM3Digest;
   out OutOptionalS2: TCnSM3Digest; SM2: TCnSM2 = nil): Boolean;
 {* 基于 SM2 的密钥交换协议，第二步 B 用户收到 A 的数据，计算 Kb，并把可选的验证结果返回 A
   输入：A B 的用户名，所需密码长度、自己的私钥、双方的公钥、A 传来的 RA
@@ -257,7 +259,7 @@ function CnSM2KeyExchangeBStep1(const AUserID, BUserID: AnsiString; KeyByteLengt
 
 function CnSM2KeyExchangeAStep2(const AUserID, BUserID: AnsiString; KeyByteLength: Integer;
   APrivateKey: TCnSM2PrivateKey; APublicKey, BPublicKey: TCnSM2PublicKey; MyRA, InRB: TCnEccPoint;
-  MyARand: TCnBigNumber; out OutKeyA: AnsiString; InOptionalSB: TCnSM3Digest;
+  MyARand: TCnBigNumber; out OutKeyA: TBytes; InOptionalSB: TCnSM3Digest;
   out OutOptionalSA: TCnSM3Digest; SM2: TCnSM2 = nil): Boolean;
 {* 基于 SM2 的密钥交换协议，第三步 A 用户收到 B 的数据计算 Ka，并把可选的验证结果返回 B，初步协商好 Ka = Kb
   输入：A B 的用户名，所需密码长度、自己的私钥、双方的公钥、B 传来的 RB 与可选的 SB，自己的点 RA、自己的随机值 MyARand
@@ -672,8 +674,8 @@ var
   B: Byte;
   M: PAnsiChar;
   I: Integer;
-  Buf: array of Byte;
-  KDFStr, T, C3H: AnsiString;
+  Buf, T, KDFB: TBytes;
+  C3H: AnsiString;
   Sm3Dig: TCnSM3Digest;
   SM2IsNil: Boolean;
 begin
@@ -707,7 +709,7 @@ begin
 
     // 使用指定 K， 或生成一个随机 K
     if RandHex <> '' then
-      K.SetHex(RandHex)
+      K.SetHex(AnsiString(RandHex))
     else
     begin
       if not BigNumberRandRange(K, SM2.Order) then
@@ -739,14 +741,14 @@ begin
     P2.Assign(PublicKey);
     SM2.MultiplePoint(K, P2); // 计算出 K * PublicKey 得到 X2 Y2
 
-    SetLength(KDFStr, CN_SM2_FINITEFIELD_BYTESIZE * 2);
-    P2.X.ToBinary(@KDFStr[1], CN_SM2_FINITEFIELD_BYTESIZE);
-    P2.Y.ToBinary(@KDFStr[CN_SM2_FINITEFIELD_BYTESIZE + 1], CN_SM2_FINITEFIELD_BYTESIZE);
-    T := CnSM2KDF(KDFStr, DataLen);
+    SetLength(KDFB, CN_SM2_FINITEFIELD_BYTESIZE * 2);
+    P2.X.ToBinary(@KDFB[0], CN_SM2_FINITEFIELD_BYTESIZE);
+    P2.Y.ToBinary(@KDFB[CN_SM2_FINITEFIELD_BYTESIZE], CN_SM2_FINITEFIELD_BYTESIZE);
+    T := CnSM2KDFBytes(KDFB, DataLen);
 
     M := PAnsiChar(PlainData);
     for I := 1 to DataLen do
-      T[I] := AnsiChar(Byte(T[I]) xor Byte(M[I - 1])); // T 里是 C2，但先不能写
+      T[I - 1] := Byte(T[I - 1]) xor Byte(M[I - 1]); // T 里是 C2，但先不能写
 
     SetLength(C3H, CN_SM2_FINITEFIELD_BYTESIZE * 2 + DataLen);
     P2.X.ToBinary(@C3H[1], CN_SM2_FINITEFIELD_BYTESIZE);
@@ -756,13 +758,13 @@ begin
 
     if SequenceType = cstC1C3C2 then
     begin
-      OutStream.Write(Sm3Dig[0], SizeOf(TCnSM3Digest));        // 写入 C3
-      OutStream.Write(T[1], DataLen);                        // 写入 C2
+      OutStream.Write(Sm3Dig[0], SizeOf(TCnSM3Digest));      // 写入 C3
+      OutStream.Write(T[0], DataLen);                        // 写入 C2
     end
     else
     begin
-      OutStream.Write(T[1], DataLen);                        // 写入 C2
-      OutStream.Write(Sm3Dig[0], SizeOf(TCnSM3Digest));        // 写入 C3
+      OutStream.Write(T[0], DataLen);                        // 写入 C2
+      OutStream.Write(Sm3Dig[0], SizeOf(TCnSM3Digest));      // 写入 C3
     end;
 
     Result := True;
@@ -813,7 +815,8 @@ var
   MLen: Integer;
   M: PAnsiChar;
   MP: AnsiString;
-  KDFStr, T, C3H: AnsiString;
+  KDFB, T: TBytes;
+  C3H: AnsiString;
   SM2IsNil: Boolean;
   P2: TCnEccPoint;
   I, PrefixLen: Integer;
@@ -869,10 +872,10 @@ begin
 
     SM2.MultiplePoint(PrivateKey, P2);
 
-    SetLength(KDFStr, CN_SM2_FINITEFIELD_BYTESIZE * 2);
-    P2.X.ToBinary(@KDFStr[1], CN_SM2_FINITEFIELD_BYTESIZE);
-    P2.Y.ToBinary(@KDFStr[CN_SM2_FINITEFIELD_BYTESIZE + 1], CN_SM2_FINITEFIELD_BYTESIZE);
-    T := CnSM2KDF(KDFStr, MLen);
+    SetLength(KDFB, CN_SM2_FINITEFIELD_BYTESIZE * 2);
+    P2.X.ToBinary(@KDFB[0], CN_SM2_FINITEFIELD_BYTESIZE);
+    P2.Y.ToBinary(@KDFB[CN_SM2_FINITEFIELD_BYTESIZE], CN_SM2_FINITEFIELD_BYTESIZE);
+    T := CnSM2KDFBytes(KDFB, MLen);
 
     if SequenceType = cstC1C3C2 then
     begin
@@ -880,7 +883,7 @@ begin
       M := PAnsiChar(EnData);
       Inc(M, SizeOf(TCnSM3Digest) + CN_SM2_FINITEFIELD_BYTESIZE * 2 + PrefixLen); // 跳过 C3 指向 C2
       for I := 1 to MLen do
-        MP[I] := AnsiChar(Byte(M[I - 1]) xor Byte(T[I])); // 和 KDF 做异或，在 MP 里得到明文
+        MP[I] := AnsiChar(Byte(M[I - 1]) xor Byte(T[I - 1])); // 和 KDF 做异或，在 MP 里得到明文
 
       SetLength(C3H, CN_SM2_FINITEFIELD_BYTESIZE * 2 + MLen);
       P2.X.ToBinary(@C3H[1], CN_SM2_FINITEFIELD_BYTESIZE);
@@ -905,7 +908,7 @@ begin
       Inc(M, CN_SM2_FINITEFIELD_BYTESIZE * 2 + PrefixLen);  // 指向 C2
 
       for I := 1 to MLen do
-        MP[I] := AnsiChar(Byte(M[I - 1]) xor Byte(T[I])); // 和 KDF 做异或，在 MP 里得到明文
+        MP[I] := AnsiChar(Byte(M[I - 1]) xor Byte(T[I - 1])); // 和 KDF 做异或，在 MP 里得到明文
 
       SetLength(C3H, CN_SM2_FINITEFIELD_BYTESIZE * 2 + MLen);
       P2.X.ToBinary(@C3H[1], CN_SM2_FINITEFIELD_BYTESIZE);
@@ -1306,7 +1309,7 @@ begin
       // 使用指定 K，或生成一个随机 K
       if RandHex <> '' then
       begin
-        K.SetHex(RandHex);
+        K.SetHex(AnsiString(RandHex));
         HexSet := True;
       end
       else
@@ -1427,9 +1430,16 @@ begin
       SM2 := TCnSM2.Create;
 
     if BigNumberCompare(InSignature.R, SM2.Order) >= 0 then
+    begin
+      _CnSetLastError(ECN_SM2_INVALID_INPUT);
       Exit;
+    end;
+
     if BigNumberCompare(InSignature.S, SM2.Order) >= 0 then
+    begin
+      _CnSetLastError(ECN_SM2_INVALID_INPUT);
       Exit;
+    end;
 
     Sm3Dig := CalcSM2SignatureHash(UserID, PlainData, DataLen, PublicKey, SM2); // 杂凑值 e
 
@@ -1442,7 +1452,10 @@ begin
     BigNumberAdd(K, InSignature.R, InSignature.S);
     BigNumberNonNegativeMod(R, K, SM2.Order);
     if R.IsZero then  // (r + s) mod n = 0 则失败，这里 R 是文中的 T
+    begin
+      _CnSetLastError(ECN_SM2_INVALID_INPUT);
       Exit;
+    end;
 
     P.Assign(SM2.Generator);
     SM2.MultiplePoint(InSignature.S, P);
@@ -1536,10 +1549,10 @@ end;
 {
   计算交换出的密钥：KDF(Xuv‖Yuv‖Za‖Zb, kLen)
 }
-function CalcSM2ExchangeKey(UV: TCnEccPoint; Za, Zb: TCnSM3Digest; KeyByteLength: Integer): AnsiString;
+function CalcSM2ExchangeKey(UV: TCnEccPoint; Za, Zb: TCnSM3Digest; KeyByteLength: Integer): TBytes;
 var
   Stream: TMemoryStream;
-  S: AnsiString;
+  S: TBytes;
 begin
   Stream := TMemoryStream.Create;
   try
@@ -1550,9 +1563,9 @@ begin
 
     SetLength(S, Stream.Size);
     Stream.Position := 0;
-    Stream.Read(S[1], Stream.Size);
+    Stream.Read(S[0], Stream.Size);
 
-    Result := CnSM2KDF(S, KeyByteLength);
+    Result := CnSM2KDFBytes(S, KeyByteLength);
   finally
     SetLength(S, 0);
     Stream.Free;
@@ -1647,7 +1660,7 @@ end;
 }
 function CnSM2KeyExchangeBStep1(const AUserID, BUserID: AnsiString; KeyByteLength: Integer;
   BPrivateKey: TCnSM2PrivateKey; APublicKey, BPublicKey: TCnSM2PublicKey; InRA: TCnEccPoint;
-  out OutKeyB: AnsiString; OutRB: TCnEccPoint; out OutOptionalSB: TCnSM3Digest;
+  out OutKeyB: TBytes; OutRB: TCnEccPoint; out OutOptionalSB: TCnSM3Digest;
   out OutOptionalS2: TCnSM3Digest; SM2: TCnSM2): Boolean;
 var
   SM2IsNil: Boolean;
@@ -1674,7 +1687,10 @@ begin
       SM2 := TCnSM2.Create;
 
     if not SM2.IsPointOnCurve(InRA) then // 验证传过来的 RA 是否满足方程
+    begin
+      _CnSetLastError(ECN_SM2_INVALID_INPUT);
       Exit;
+    end;
 
     R := TCnBigNumber.Create;
     if not BigNumberRandRange(R, SM2.Order) then
@@ -1738,7 +1754,7 @@ end;
 
 function CnSM2KeyExchangeAStep2(const AUserID, BUserID: AnsiString; KeyByteLength: Integer;
   APrivateKey: TCnSM2PrivateKey; APublicKey, BPublicKey: TCnSM2PublicKey; MyRA, InRB: TCnEccPoint;
-  MyARand: TCnBigNumber; out OutKeyA: AnsiString; InOptionalSB: TCnSM3Digest;
+  MyARand: TCnBigNumber; out OutKeyA: TBytes; InOptionalSB: TCnSM3Digest;
   out OutOptionalSA: TCnSM3Digest; SM2: TCnSM2): Boolean;
 var
   SM2IsNil: Boolean;
@@ -1764,7 +1780,10 @@ begin
       SM2 := TCnSM2.Create;
 
     if not SM2.IsPointOnCurve(InRB) then // 验证传过来的 RB 是否满足方程
+    begin
+      _CnSetLastError(ECN_SM2_INVALID_INPUT);
       Exit;
+    end;
 
     X := TCnBigNumber.Create;
     BigNumberCopy(X, MyRA.X);
@@ -1800,7 +1819,10 @@ begin
     // 然后计算 SB 核对
     OutOptionalSA := CalcSM2OptionalSig(U, MyRA, InRB, Za, Zb, True);
     if not CompareMem(@OutOptionalSA[0], @InOptionalSB[0], SizeOf(TCnSM3Digest)) then
+    begin
+      _CnSetLastError(ECN_SM2_INVALID_INPUT);
       Exit;
+    end;
 
     // 然后计算 SA 供 B 核对
     OutOptionalSA := CalcSM2OptionalSig(U, MyRA, InRB, Za, Zb, False);
@@ -1862,10 +1884,16 @@ begin
 
     Stream := TMemoryStream.Create;
     if CnEccPointToStream(PublicKey, Stream, CN_SM2_FINITEFIELD_BYTESIZE) <= 0 then
+    begin
+      _CnSetLastError(ECN_SM2_INVALID_INPUT);
       Exit;
+    end;
 
     if CnEccPointToStream(OutR, Stream, CN_SM2_FINITEFIELD_BYTESIZE) <= 0 then
+    begin
+      _CnSetLastError(ECN_SM2_INVALID_INPUT);
       Exit;
+    end;
 
     Dig := SM3(Stream.Memory, Stream.Size);
 
@@ -1917,10 +1945,16 @@ begin
 
     Stream := TMemoryStream.Create;
     if CnEccPointToStream(PublicKey, Stream, CN_SM2_FINITEFIELD_BYTESIZE) <= 0 then
+    begin
+      _CnSetLastError(ECN_SM2_INVALID_INPUT);
       Exit;
+    end;
 
     if CnEccPointToStream(InR, Stream, CN_SM2_FINITEFIELD_BYTESIZE) <= 0 then
+    begin
+      _CnSetLastError(ECN_SM2_INVALID_INPUT);
       Exit;
+    end;
 
     Dig := SM3(Stream.Memory, Stream.Size);
 
@@ -2220,7 +2254,10 @@ begin
       if not BigNumberEqual(T, SM2.Order) then
       begin
         if BigNumberCopy(OutSignature.R, InRFromB) = nil then
+        begin
+          _CnSetLastError(ECN_SM2_BIGNUMBER_ERROR);
           Exit;
+        end;
       end;
 
       Result := True;
@@ -2334,7 +2371,8 @@ var
   MLen: Integer;
   M: PAnsiChar;
   MP: AnsiString;
-  KDFStr, T, C3H: AnsiString;
+  KDFB, T: TBytes;
+  C3H: AnsiString;
   P2: TCnEccPoint;
   I, PrefixLen: Integer;
   Sm3Dig: TCnSM3Digest;
@@ -2393,10 +2431,10 @@ begin
 
     // 以下同常规解密
 
-    SetLength(KDFStr, CN_SM2_FINITEFIELD_BYTESIZE * 2);
-    P2.X.ToBinary(@KDFStr[1], CN_SM2_FINITEFIELD_BYTESIZE);
-    P2.Y.ToBinary(@KDFStr[CN_SM2_FINITEFIELD_BYTESIZE + 1], CN_SM2_FINITEFIELD_BYTESIZE);
-    T := CnSM2KDF(KDFStr, MLen);
+    SetLength(KDFB, CN_SM2_FINITEFIELD_BYTESIZE * 2);
+    P2.X.ToBinary(@KDFB[0], CN_SM2_FINITEFIELD_BYTESIZE);
+    P2.Y.ToBinary(@KDFB[CN_SM2_FINITEFIELD_BYTESIZE], CN_SM2_FINITEFIELD_BYTESIZE);
+    T := CnSM2KDFBytes(KDFB, MLen);
 
     if SequenceType = cstC1C3C2 then
     begin
@@ -2404,7 +2442,7 @@ begin
       M := PAnsiChar(EnData);
       Inc(M, SizeOf(TCnSM3Digest) + CN_SM2_FINITEFIELD_BYTESIZE * 2 + PrefixLen); // 跳过 C3 指向 C2
       for I := 1 to MLen do
-        MP[I] := AnsiChar(Byte(M[I - 1]) xor Byte(T[I]));    // 和 KDF 做异或，在 MP 里得到明文
+        MP[I] := AnsiChar(Byte(M[I - 1]) xor Byte(T[I - 1]));    // 和 KDF 做异或，在 MP 里得到明文
 
       SetLength(C3H, CN_SM2_FINITEFIELD_BYTESIZE * 2 + MLen);
       P2.X.ToBinary(@C3H[1], CN_SM2_FINITEFIELD_BYTESIZE);
@@ -2429,7 +2467,7 @@ begin
       Inc(M, CN_SM2_FINITEFIELD_BYTESIZE * 2 + PrefixLen);             // 指向 C2
 
       for I := 1 to MLen do
-        MP[I] := AnsiChar(Byte(M[I - 1]) xor Byte(T[I]));    // 和 KDF 做异或，在 MP 里得到明文
+        MP[I] := AnsiChar(Byte(M[I - 1]) xor Byte(T[I - 1]));    // 和 KDF 做异或，在 MP 里得到明文
 
       SetLength(C3H, CN_SM2_FINITEFIELD_BYTESIZE * 2 + MLen);
       P2.X.ToBinary(@C3H[1], CN_SM2_FINITEFIELD_BYTESIZE);

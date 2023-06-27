@@ -124,19 +124,10 @@ implementation
 {$R *.fmx}
 
 uses
-  CnCommon;
+  CnCommon, CnNative;
 
 const
   SM9_PRIME_HEX = 'B640000002A3A6F1D603AB4FF58EC74521F2934B1A7AEEDBE56F9B27E351457D';
-
-function StrToHex(Value: PAnsiChar; Len: Integer): AnsiString;
-var
-  I: Integer;
-begin
-  Result := '';
-  for I := 0 to Len - 1 do
-    Result := Result + IntToHex(Ord(Value[I]), 2);
-end;
 
 procedure TFormSM9.FormCreate(Sender: TObject);
 begin
@@ -810,7 +801,8 @@ end;
 procedure TFormSM9.btnTestKeyEncClick(Sender: TObject);
 var
   SM9: TCnSM9;
-  User, S: AnsiString;
+  User: AnsiString;
+  S: TBytes;
 begin
   mmoKeyEnc.Lines.Clear;
   SM9 := TCnSM9.Create;
@@ -845,7 +837,7 @@ begin
   if CnSM9UserReceiveKeyEncapsulation(User, FKeyEncUserKey, 32, FKeyEnc.Code, S) then
   begin
     mmoKeyEnc.Lines.Add('Key Encapsulation Get:');
-    mmoKeyEnc.Lines.Add(StrToHex(PAnsiChar(S), Length(S)));
+    mmoKeyEnc.Lines.Add(BytesToHex(S));
   end;
 
   SM9.Free;
@@ -854,13 +846,13 @@ end;
 procedure TFormSM9.btnSM9KeyEncRecvClick(Sender: TObject);
 var
   KL: Integer;
-  S: AnsiString;
+  S: TBytes;
 begin
   KL := StrToInt(edtKeyEncLength.Text);
   if CnSM9UserReceiveKeyEncapsulation(edtDestUser.Text, FKeyEncUserKey, KL, FKeyEnc.Code, S) then
   begin
     mmoKeyEnc.Lines.Add('Key Encapsulation Get:');
-    mmoKeyEnc.Lines.Add(StrToHex(PAnsiChar(S), Length(S)));
+    mmoKeyEnc.Lines.Add(BytesToHex(S));
   end;
 end;
 
@@ -869,17 +861,6 @@ var
   SM9: TCnSM9;
   User, S: AnsiString;
   EnStream, DeStream: TMemoryStream;
-
-  function StreamToHex(ST: TStream): string;
-  var
-    B: Byte;
-  begin
-    ST.Position := 0;
-    Result := '';
-    while ST.Read(B, 1) = 1 do
-      Result := Result + IntToHex(B, 2);
-  end;
-
 begin
   mmoEnc.Lines.Clear;
   SM9 := TCnSM9.Create;
@@ -925,13 +906,13 @@ begin
 
   EnStream.Clear;
   DeStream.Clear;
-  if CnSM9UserEncryptData(User, FKeyEncMasterKey.PublicKey, @S[1], Length(S), 16, 32, EnStream, semXOR) then
+  if CnSM9UserEncryptData(User, FKeyEncMasterKey.PublicKey, @S[1], Length(S), 16, 32, EnStream, semKDF) then
   begin
     mmoEnc.Lines.Add('SM9 with XOR Encryption:');
     mmoEnc.Lines.Add(StreamToHex(EnStream));
   end;
 
-  if CnSM9UserDecryptData(User, FKeyEncUserKey, EnStream.Memory, EnStream.Size, 32, DeStream, semXOR) then
+  if CnSM9UserDecryptData(User, FKeyEncUserKey, EnStream.Memory, EnStream.Size, 32, DeStream, semKDF) then
   begin
     mmoEnc.Lines.Add('SM9 with SM4 Decryption:');
     SetLength(S, DeStream.Size);
@@ -954,7 +935,7 @@ var
   RA, RB: TCnEccPoint;
   RandA, RandB: TCnBigNumber;
   BG1, BG2, BG3: TCnFP12;
-  KeyA, KeyB: AnsiString;
+  KeyA, KeyB: TBytes;
   SB, SA: TCnSM3Digest;
 begin
   mmoKeyExchange.Lines.Clear;
@@ -1017,7 +998,7 @@ begin
     begin
       mmoKeyExchange.Lines.Add('B User Step 1: RB & SB & Key!');
       mmoKeyExchange.Lines.Add(RB.ToString);
-      mmoKeyExchange.Lines.Add(StrToHex(PAnsiChar(@SB[0]), SizeOf(TCnSM3Digest)));
+      mmoKeyExchange.Lines.Add(DataToHex(@SB[0], SizeOf(TCnSM3Digest)));
 
       mmoKeyExchange.Lines.Add('BG1:');
       mmoKeyExchange.Lines.Add(BG1.ToString);
@@ -1027,7 +1008,7 @@ begin
       mmoKeyExchange.Lines.Add(BG3.ToString);
 
       mmoKeyExchange.Lines.Add('B Key:');
-      mmoKeyExchange.Lines.Add(StrToHex(PAnsiChar(@KeyB[1]), Length(KeyB)));
+      mmoKeyExchange.Lines.Add(DataToHex(@KeyB[0], Length(KeyB)));
     end;
 
     // 第三步，A 调用，使用了第二步里传过来的 RB 和 SB 以及第一步自身的 RandA
@@ -1036,8 +1017,8 @@ begin
     begin
       mmoKeyExchange.Lines.Add('A User Step 2: Key! & SA');
       mmoKeyExchange.Lines.Add('A Key:');
-      mmoKeyExchange.Lines.Add(StrToHex(PAnsiChar(@KeyA[1]), Length(KeyA)));
-      mmoKeyExchange.Lines.Add(StrToHex(PAnsiChar(@SA[0]), SizeOf(TCnSM3Digest)));
+      mmoKeyExchange.Lines.Add(DataToHex(@KeyA[0], Length(KeyA)));
+      mmoKeyExchange.Lines.Add(DataToHex(@SA[0], SizeOf(TCnSM3Digest)));
     end;
 
     // 第四步，B 调用，使用了第一步里传过来的 RA 以及第二步自身的 BG1、BG2、BG3、RB 以及第三步里传过来的 SA
@@ -1046,9 +1027,8 @@ begin
       mmoKeyExchange.Lines.Add('B User Step 2: Check SA OK');
     end;
 
-    if KeyA = KeyB then
+    if CompareBytes(KeyA, KeyB) then
       mmoKeyExchange.Lines.Add('KeyA = KeyB. Exchange OK.');
-
   finally
     BG3.Free;
     BG2.Free;

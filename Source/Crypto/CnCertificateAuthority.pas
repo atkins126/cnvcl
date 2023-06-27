@@ -250,8 +250,8 @@ type
 
 {
   标准扩展包括以下内容：
-  // Authority Key Identifier       签发者密钥标识符 array of Byte
-  // Subject Key Identifier         被签发者公钥标记 array of Byte
+  // Authority Key Identifier       签发者密钥标识符，字节数组
+  // Subject Key Identifier         被签发者公钥标记，字节数组
   // Key Usage                      密钥用法集合 TCnCerKeyUsages
   // Certificate Policies
   // Policy Mappings
@@ -790,7 +790,7 @@ var
   ValueStream, DigestStream: TMemoryStream;
   HashWriter: TCnBerWriter;
   HashRoot, HashNode, Node: TCnBerWriteNode;
-  OutBuf: array of Byte;
+  OutBuf: TBytes;
   OutLen: Integer;
 begin
   Result := False;
@@ -909,7 +909,7 @@ function CnCANewCertificateSignRequest(PrivateKey: TCnRSAPrivateKey; PublicKey:
   CASignType: TCnCASignType): Boolean;
 var
   B: Byte;
-  OutBuf: array of Byte;
+  OutBuf: TBytes;
   Writer, HashWriter: TCnBerWriter;
   Stream: TMemoryStream;
   Root, DNRoot, InfoRoot, PubNode: TCnBerWriteNode;
@@ -976,7 +976,7 @@ function CnCANewCertificateSignRequest(PrivateKey: TCnEccPrivateKey; PublicKey:
   CASignType: TCnCASignType = ctSha1Ecc): Boolean;
 var
   B: Byte;
-  OutBuf: array of Byte;
+  OutBuf: TBytes;
   Writer, HashWriter: TCnBerWriter;
   Stream: TMemoryStream;
   Root, DNRoot, InfoRoot, PubNode: TCnBerWriteNode;
@@ -1137,7 +1137,7 @@ var
   P: PByte;
   Reader: TCnBerReader;
   Node: TCnBerReadNode;
-  OutBuf: array of Byte;
+  OutBuf: TBytes;
   OutLen: Integer;
 begin
   Result := False;
@@ -1213,7 +1213,7 @@ function ExtractExtensions(Root: TCnBerReadNode; StandardExt: TCnCertificateStan
 var
   I, J: Integer;
   ExtNode, OidNode, ValueNode: TCnBerReadNode;
-  Buf: array of Byte;
+  Buf: TBytes;
   KU: TCnCerKeyUsages;
 begin
   Result := False;
@@ -2384,7 +2384,7 @@ var
   SerialNum: TCnBigNumber;
   UTCTime: TCnUTCTime;
   Stream: TMemoryStream;
-  Buf: array of Byte;
+  Buf: TBytes;
 begin
   Result := False;
   if NotAfter <= NotBefore then
@@ -2474,7 +2474,7 @@ var
   SerialNum: TCnBigNumber;
   UTCTime: TCnUTCTime;
   Stream: TMemoryStream;
-  Buf: array of Byte;
+  Buf: TBytes;
 begin
   Result := False;
   if NotAfter <= NotBefore then
@@ -2568,7 +2568,7 @@ var
   SerialNum: TCnBigNumber;
   UTCTime: TCnUTCTime;
   Stream: TMemoryStream;
-  Buf: array of Byte;
+  Buf: TBytes;
   CSR: TCnCertificateRequest;
   CRT: TCnCertificate;
 begin
@@ -2694,7 +2694,7 @@ var
   SerialNum: TCnBigNumber;
   UTCTime: TCnUTCTime;
   Stream: TMemoryStream;
-  Buf: array of Byte;
+  Buf: TBytes;
   CSR: TCnCertificateRequest;
   CRT: TCnCertificate;
 begin
