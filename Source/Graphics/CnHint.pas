@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2023 CnPack 开发组                       }
+{                   (C)Copyright 2001-2024 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -13,7 +13,7 @@
 {            您应该已经和开发包一起收到一份 CnPack 发布协议的副本。如果        }
 {        还没有，可访问我们的网站：                                            }
 {                                                                              }
-{            网站地址：http://www.cnpack.org                                   }
+{            网站地址：https://www.cnpack.org                                  }
 {            电子邮件：master@cnpack.org                                       }
 {                                                                              }
 {******************************************************************************}
@@ -23,7 +23,7 @@ unit CnHint;
 ================================================================================
 * 软件名称：CnPack 界面组件包
 * 单元名称：CnHint 控件单元
-* 单元作者：
+* 单元作者：CnPack 开发组
 * 备    注：部分参考自网上佚名代码
 * 开发平台：PWinXP + Delphi 7.0
 * 兼容测试：PWin9X/2000/XP + Delphi 7.0
@@ -39,7 +39,7 @@ interface
 
 uses
   Windows, Messages, SysUtils, Graphics, Classes, Controls, Forms, Dialogs,
-  StdCtrls, ExtCtrls, Math;
+  StdCtrls, ExtCtrls, Math, CnConsts, CnGraphConsts, CnClasses;
 
 const
   CN_MSG_HINT_NOTIFY = WM_USER + $0357;
@@ -59,7 +59,10 @@ type
 
   THintMeasureRect = procedure(AHint: TCnHint; var Rect: TRect; Text: string) of object;
 
-  TCnHint = class(TComponent)
+{$IFDEF SUPPORT_32_AND_64}
+  [ComponentPlatformsAttribute(pidWin32 or pidWin64)]
+{$ENDIF}
+  TCnHint = class(TCnComponent)
   {* 控制所有 Hint 风格的控制组件}
   private
     FAlignment: TAlignment;
@@ -78,6 +81,7 @@ type
     procedure SetFont(const Value: TFont);
     procedure SetGlyph(const Value: TBitmap);
   protected
+    procedure GetComponentInfo(var AName, Author, Email, Comment: string); override;
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
@@ -141,7 +145,10 @@ type
     property OnCancelHint: TNotifyEvent read FOnCancelHint write FOnCancelHint;
   end;
 
-  TCnHintWindow = class(TComponent)
+{$IFDEF SUPPORT_32_AND_64}
+  [ComponentPlatformsAttribute(pidWin32 or pidWin64)]
+{$ENDIF}
+  TCnHintWindow = class(TCnComponent)
   {* 封装一 CnInternalHintWindow 的组件}
   private
     FHintWindow: TCnInternalHintWindow;
@@ -155,6 +162,7 @@ type
     function GetHintStyle: THintStyle;
     function GetHintPosition: THintPosition;
   protected
+    procedure GetComponentInfo(var AName, Author, Email, Comment: string); override;
     procedure HintWindowCancelHint(Sender: TObject);
   public
     constructor Create(AOwner: TComponent); override;
@@ -919,10 +927,10 @@ end;
 
 function TCnInternalHintWindow.FindCnHint: TCnHint;
 begin
-  Result := nil;
-  if FCnHints <> nil then
-    if FCnHints.Count > 0 then
-      Result := TCnHint(FCnHints[0]);
+  if (FCnHints <> nil) and (FCnHints.Count > 0) then
+    Result := TCnHint(FCnHints[0])
+  else
+    Result := nil;
 end;
 
 function TCnInternalHintWindow.GetHintPosition(WorkRect: TRect; AWidth, AHeight:
@@ -981,7 +989,7 @@ function TCnInternalHintWindow.GetTextRect(ACanvas: TCanvas; Text: string; R: TR
 var
   I, Len: Integer;
   Lines: TStrings;
-  str: string;
+  Str: string;
   tR: TRect;
   intW, intH: Integer;
   OldStyles: TFontStyles;
@@ -994,8 +1002,8 @@ begin
     OldStyles := ACanvas.Font.Style;
     for I := 0 to Lines.Count - 1 do
     begin
-      str := Lines[I];
-      if str <> '' then
+      Str := Lines[I];
+      if Str <> '' then
       begin
         // 首行、无图片、并且有 Title 时，才按黑体来
         if FFirstLineAsTitle and (I = 0) and not Glyph.Empty then
@@ -1005,10 +1013,10 @@ begin
         else
           ACanvas.Font.Style := OldStyles;
 
-        Len := ACanvas.TextWidth(str);
+        Len := ACanvas.TextWidth(Str);
         if (tR.Right - tR.Left) < Len then
           tR.Right := tR.Left + Len;
-        tR.Bottom := tR.Bottom + ACanvas.TextHeight(str);
+        tR.Bottom := tR.Bottom + ACanvas.TextHeight(Str);
       end;
     end;
     intW := tR.Right - tR.Left;
@@ -1095,8 +1103,6 @@ begin
       DispatchMessage(AMsg);
     end;
   end;
-
-//  DoCancelHint;
 end;
 
 procedure TCnInternalHintWindow.Paint;
@@ -1224,6 +1230,14 @@ begin
           TCnInternalHintWindow(FCnHintWindows[I]).Canvas.Font.Assign(FFont);
 end;
 
+procedure TCnHint.GetComponentInfo(var AName, Author, Email, Comment: string);
+begin
+  AName := SCnHintName;
+  Author := SCnPack_Team;
+  Email := SCnPack_TeamEmail;
+  Comment := SCnHintComment;
+end;
+
 { TCnHintWindow }
 
 procedure TCnHintWindow.ActivateHint(const AHint: string; const ATitle: string);
@@ -1299,6 +1313,14 @@ end;
 procedure TCnHintWindow.SetPosition(const Value: THintPosition);
 begin
   FHintWindow.HintPosition := Value;
+end;
+
+procedure TCnHintWindow.GetComponentInfo(var AName, Author, Email, Comment: string);
+begin
+  AName := SCnHintWindowName;
+  Author := SCnPack_Team;
+  Email := SCnPack_TeamEmail;
+  Comment := SCnHintWindowComment;
 end;
 
 initialization

@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2023 CnPack 开发组                       }
+{                   (C)Copyright 2001-2024 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -13,7 +13,7 @@
 {            您应该已经和开发包一起收到一份 CnPack 发布协议的副本。如果        }
 {        还没有，可访问我们的网站：                                            }
 {                                                                              }
-{            网站地址：http://www.cnpack.org                                   }
+{            网站地址：https://www.cnpack.org                                  }
 {            电子邮件：master@cnpack.org                                       }
 {                                                                              }
 {******************************************************************************}
@@ -24,7 +24,7 @@ unit CnKeyBlocker;
 * 软件名称：不可视工具组件包
 * 单元名称：通过键盘钩子屏蔽系统键的组件
 * 单元作者：匿名
-* 移    植：刘啸 (liuxiao@cnpack.org)
+* 移    植：CnPack 开发组 (master@cnpack.org)
 * 备    注：此组件通过实现键盘钩子来屏蔽某些系统键，但 Ctrl+Alt+Del 组合键可能
 *           因为系统自身处理原因而无法屏蔽。
 * 开发平台：PWinXP + Delphi 7.0 (Build 8.1)
@@ -49,6 +49,9 @@ uses
 type
   TCnBlockKeyEvent = procedure(VirtualKey: Cardinal) of object;
 
+{$IFDEF SUPPORT_32_AND_64}
+  [ComponentPlatformsAttribute(pidWin32 or pidWin64)]
+{$ENDIF}
   TCnKeyBlocker = class(TComponent)
   private
     FBlockCtrlAltDelete: Boolean;

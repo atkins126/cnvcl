@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2023 CnPack 开发组                       }
+{                   (C)Copyright 2001-2024 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -13,7 +13,7 @@
 {            您应该已经和开发包一起收到一份 CnPack 发布协议的副本。如果        }
 {        还没有，可访问我们的网站：                                            }
 {                                                                              }
-{            网站地址：http://www.cnpack.org                                   }
+{            网站地址：https://www.cnpack.org                                  }
 {            电子邮件：master@cnpack.org                                       }
 {                                                                              }
 {******************************************************************************}
@@ -30,7 +30,9 @@ unit CnIni;
 * 开发平台：PWin2000Pro + Delphi 5.0
 * 兼容测试：PWin9X/2000/XP + Delphi 5/6
 * 本 地 化：该单元中的字符串均符合本地化处理方式
-* 修改记录：2002.10.20 V1.0
+* 修改记录：2024.02.23 V1.1
+*               加入 ReadStringsBoolean 和 WriteStringsBoolean 的功能
+*           2002.10.20 V1.0
 *               创建单元
 ================================================================================
 |</PRE>}
@@ -118,7 +120,7 @@ type
     procedure WriteColor(const Section, Ident: string; Value: TColor);
     {* 写入颜色}
     function ReadFont(const Section, Ident: string; Font: TFont): TFont;
-    {* 读取字体}
+    {* 读取字体，将读到的字体属性设给 Font 参数，并将其返回}
     procedure WriteFont(const Section, Ident: string; Font: TFont);
     {* 写入字体}
     function ReadRect(const Section, Ident: string; const Default: TRect): TRect;
@@ -130,13 +132,19 @@ type
     procedure WritePoint(const Section, Ident: string; const Value: TPoint);
     {* 写入 Point}
     function ReadStrings(const Section, Ident: string; Strings: TStrings): TStrings; overload;
-    {* 从一行文本中读取字符串列表}
+    {* 从一行文本中读取字符串列表，换行用 \n 表示}
+    function ReadStringsBoolean(const Section, Ident: string; Strings: TStringList): TStringList;
+    {* 从一行文本中读取带 Boolean 标记的字符串列表，Boolean 值为 Objects[Index] <> nil
+      以 | 作为 Boolean 标记（0 或 1）与具体字符串的分隔符，换行用 \n 表示}
     function ReadStrings(const Section: string; Strings: TStrings): TStrings; overload;
     {* 从单独的节中读取字符串列表}
     procedure WriteStrings(const Section, Ident: string; Strings: TStrings); overload;
     {* 写入字符串列表到一行文本中}
     procedure WriteStrings(const Section: string; Strings: TStrings); overload;
     {* 写入字符串列表到单独的节中}
+    procedure WriteStringsBoolean(const Section, Ident: string; Strings: TStringList);
+    {* 写入带 Boolean 标记的字符串列表到单独的节中，Boolean 值为 Objects[Index] <> nil
+      以 | 作为 Boolean 标记（0 或 1）与具体字符串的分隔符，换行用 \n 表示}
     procedure ReadObject(const Section: string; AObject: TObject);
     {* 读取对象 published 属性，不包含子属性}
     procedure WriteObject(const Section: string; AObject: TObject; NoDef: Boolean = True);
@@ -416,9 +424,58 @@ begin
     ReadStringsFromIni(Self, Section, Result);
 end;
 
+
+function TCnIniFile.ReadStringsBoolean(const Section, Ident: string;
+  Strings: TStringList): TStringList;
+var
+  I, Idx: Integer;
+  S, T: string;
+begin
+  Result := Strings;
+  Strings.Text := StrToLines(ReadString(Section, Ident, LinesToStr(Strings.Text)));
+
+  // 解析第一个 | 之前的一位数字看是否不为 0
+  for I := 0 to Strings.Count - 1 do
+  begin
+    Strings.Objects[I] := nil;
+    T := Strings[I];
+    Idx := Pos('|', T);
+    if Idx > 1 then
+    begin
+      S := Copy(T, 1, Idx - 1);
+      Delete(T, 1, Idx);
+      Strings[I] := T;
+
+      if StrToInt(S) <> 0 then
+        Strings.Objects[I] := TObject(1);
+    end;
+  end;
+end;
+
 procedure TCnIniFile.WriteStrings(const Section, Ident: string; Strings: TStrings);
 begin
   WriteString(Section, Ident, LinesToStr(Strings.Text));
+end;
+
+procedure TCnIniFile.WriteStringsBoolean(const Section, Ident: string;
+  Strings: TStringList);
+var
+  I: Integer;
+  SL: TStringList;
+begin
+  SL := TStringList.Create;
+  try
+    for I := 0 to Strings.Count - 1 do
+    begin
+      if Strings.Objects[I] <> nil then
+        SL.Add('1|' + Strings[I])
+      else
+        SL.Add('0|' + Strings[I]);
+    end;
+    WriteString(Section, Ident, LinesToStr(SL.Text));
+  finally
+    SL.Free;
+  end;
 end;
 
 procedure TCnIniFile.WriteStrings(const Section: string; Strings: TStrings);

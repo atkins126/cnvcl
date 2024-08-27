@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2023 CnPack 开发组                       }
+{                   (C)Copyright 2001-2024 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -13,7 +13,7 @@
 {            您应该已经和开发包一起收到一份 CnPack 发布协议的副本。如果        }
 {        还没有，可访问我们的网站：                                            }
 {                                                                              }
-{            网站地址：http://www.cnpack.org                                   }
+{            网站地址：https://www.cnpack.org                                  }
 {            电子邮件：master@cnpack.org                                       }
 {                                                                              }
 {******************************************************************************}
@@ -45,10 +45,11 @@ uses
 {$ENDIF};
 
 function GetControlScreenRect(AControl: TComponent): TRect;
-{* 返回控件在屏幕上的坐标区域，如果是 FMX，需要返回的是相对于最外层容器的坐标。但目前实现有 Bug，只能使用相对坐标。 }
+{* 返回控件在屏幕上的坐标区域。
+  附加额外功能：如果 AControl 是不可视组件，返回该组件设计期左上角在容器中的位置，尺寸则固定写死 24}
 
 procedure SetControlScreenRect(AControl: TComponent; ARect: TRect);
-{* 设置控件在屏幕上的坐标区域，如果是 FMX，需要传入的是相对于最外层容器的坐标。但目前实现有 Bug，只能使用相对坐标。 }
+{* 设置控件在屏幕上的坐标区域。注意：不支持不可视组件}
 
 function GetControlParent(AControl: TComponent): TComponent;
 {* 封装的获取 Conrol 的 Parent 的过程，封装了 FMX 的实现}
@@ -89,6 +90,7 @@ implementation
 function GetControlScreenRect(AControl: TComponent): TRect;
 var
   AParent: TWinControl;
+  P: TSmallPoint;
 begin
   Assert(Assigned(AControl));
   if AControl is TControl then
@@ -101,10 +103,19 @@ begin
       Result.BottomRight := AParent.ClientToScreen(Point(Left + Width, Top + Height));
     end;
     Exit;
+  end
+  else
+  begin
+    P := TSmallPoint(AControl.DesignInfo);
+    Result.Left := P.x;
+    Result.Top := P.y;
+
+    Result.Right := Result.Left + 24;
+    Result.Bottom := Result.Top + 24;
   end;
 {$IFDEF SUPPORT_FMX}
   if CnFmxIsInheritedFromControl(AControl) then
-    Result := CnFmxGetControlRect(AControl);
+    Result := CnFmxGetControlScreenRect(AControl);
 {$ENDIF}
 end;
 
@@ -126,7 +137,7 @@ begin
   end;
 {$IFDEF SUPPORT_FMX}
   if CnFmxIsInheritedFromControl(AControl) then
-    CnFmxSetControlRect(AControl, ARect);
+    CnFmxSetControlScreenRect(AControl, ARect);
 {$ENDIF}
 end;
 

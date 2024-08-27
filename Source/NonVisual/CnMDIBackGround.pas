@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2023 CnPack 开发组                       }
+{                   (C)Copyright 2001-2024 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -13,7 +13,7 @@
 {            您应该已经和开发包一起收到一份 CnPack 发布协议的副本。如果        }
 {        还没有，可访问我们的网站：                                            }
 {                                                                              }
-{            网站地址：http://www.cnpack.org                                   }
+{            网站地址：https://www.cnpack.org                                  }
 {            电子邮件：master@cnpack.org                                       }
 {                                                                              }
 {******************************************************************************}
@@ -46,9 +46,11 @@ type
 
   TPaintImageEvent = procedure(Sender: TObject; ACanvas: TCanvas) of object;
 
+{$IFDEF SUPPORT_32_AND_64}
+  [ComponentPlatformsAttribute(pidWin32 or pidWin64)]
+{$ENDIF}
   TCnMDIBackGround = class(TCnComponent)
   private
-    { Private declarations }
     OldWndProc: TFarProc;
     NewWndProc: Pointer;
 
@@ -72,7 +74,6 @@ type
     procedure SetDStyle(const Value: TCnBMPDisplayStyle);
     procedure SetMDIColor(const Value: TColor);
   protected
-    { Protected declarations }
     procedure HookWndProc(var AMsg: TMessage);
     procedure HookWnd;
     procedure UnHookWnd;
@@ -86,14 +87,12 @@ type
 
     procedure GetComponentInfo(var AName, Author, Email, Comment: string); override;
   public
-    { Public declarations }
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
 
     procedure DrawImage(ACanvas: TCanvas; AImage: TImage);
     procedure DrawLabel(ACanvas: TCanvas; ALabel: TLabel);
   published
-    { Published declarations }
     property Bitmap: TBitmap read FBitmap write SetBitmap;
     property BorderBottom: Integer read FBorderBottom write FBorderBottom;
     property BorderLeft: Integer read FBorderLeft write FBorderLeft;

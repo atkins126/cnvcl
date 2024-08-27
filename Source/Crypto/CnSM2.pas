@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2023 CnPack 开发组                       }
+{                   (C)Copyright 2001-2024 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -13,7 +13,7 @@
 {            您应该已经和开发包一起收到一份 CnPack 发布协议的副本。如果        }
 {        还没有，可访问我们的网站：                                            }
 {                                                                              }
-{            网站地址：http://www.cnpack.org                                   }
+{            网站地址：https://www.cnpack.org                                  }
 {            电子邮件：master@cnpack.org                                       }
 {                                                                              }
 {******************************************************************************}
@@ -22,27 +22,30 @@ unit CnSM2;
 {* |<PRE>
 ================================================================================
 * 软件名称：开发包基础库
-* 单元名称：SM2 椭圆曲线算法单元
-* 单元作者：刘啸
-* 备    注：实现了 GM/T 0003.x-2012《SM2椭圆曲线公钥密码算法》
-*           规范中的基于 SM2 的数据加解密、签名验签、密钥交换，以及协同密钥生成、协同签名、协同解密
-*           注意其签名规范完全不同于 Openssl 中的 Ecc 签名，并且杂凑函数只能使用 SM3
-*           另外，注意 SM2 椭圆曲线签名无法从签名与原始值中恢复公钥
-*           虽然有 PublicKey = (s + r)^-1 * (k*G - s*G)
-*           且尽管 k 对外未知但 k*G 的坐标 x1 是可用 r 反推出来，因为 r <= (e + x1) mod n
-*           所以 x1 <= (r - e) mod n，因而 y1 也能算出来，但 e 使用了公钥的杂凑值
-*           导致出现了先有蛋还是先有鸡的问题
+* 单元名称：国家商用密码 SM2 椭圆曲线算法实现单元
+* 单元作者：CnPack 开发组 (master@cnpack.org)
+* 备    注：本单元实现了 GM/T 0003.x-2012《SM2椭圆曲线公钥密码算法》
+*           规范中的基于 SM2 的数据加解密、签名验签、密钥交换，以及协同密钥生成、协同签名、协同解密等。
 *
-*           注意：当 UserId 传空时内部默认会使用字符串 1234567812345678 以符合
-*           《GM/T 0009-2012 SM2密码算法使用规范》第 10 节的要求
+*           注意 SM2 签名规范完全不同于 OpenSSL 中的 ECC 签名，并且杂凑函数只能使用 SM3。
+*           注意签名时当 UserId 传空时内部默认会使用字符串 1234567812345678 以符合
+*           《GM/T 0009-2012 SM2密码算法使用规范》第 10 节的要求。
 *
 *           另外，签名时计算的 Za 值是 SM3(EntLen‖UserID‖a‖b‖xG‖yG‖xA‖yA)
-*           其中 EntLen 是 UserID 的位长度（也就是字节长度 * 8）的网络顺序字节表示
+*           其中 EntLen 是 UserID 的位长度（也就是字节长度 * 8）的网络顺序字节表示。
+*
+*           另外，注意 SM2 椭圆曲线签名无法从签名与原始值中恢复公钥。
+*           虽然有 PublicKey = (s + r)^-1 * (k*G - s*G)
+*           且尽管 k 对外未知但 k*G 的坐标 x1 是可用 r 反推出来，因为 r <= (e + x1) mod n
+*           所以 x1 <= (r - e) mod n，因而 y1 也能算出来，但 e 使用了公钥的杂凑值，
+*           导致出现了先有蛋还是先有鸡的问题。
 *
 * 开发平台：Win7 + Delphi 5.0
 * 兼容测试：Win7 + XE
 * 本 地 化：该单元无需本地化处理
-* 修改记录：2023.04.29 V2.2
+* 修改记录：2024.01.12 V2.3
+*               SM2 公钥类支持在不传 SM2 实例时加载压缩格式的公钥
+*           2023.04.29 V2.2
 *               将密钥交换的输出密钥格式由 AnsiString 改为 TBytes 以避免乱码
 *           2023.04.10 V2.1
 *               修正部分坐标值较小的情况下的加解密对齐问题
@@ -98,10 +101,13 @@ const
 
 type
   TCnSM2PrivateKey = TCnEccPrivateKey;
-  {* SM2 的私钥就是普通椭圆曲线的私钥}
+  {* SM2 的私钥就是普通椭圆曲线的私钥，可以用 ECC 中的相应 Load/Save 函数处理}
 
-  TCnSM2PublicKey = TCnEccPublicKey;
-  {* SM2 的公钥就是普通椭圆曲线的公钥}
+  TCnSM2PublicKey = class(TCnEccPublicKey)
+  {* SM2 的公钥就是普通椭圆曲线的公钥，可以用 ECC 中的相应 Load/Save 函数处理}
+  public
+    procedure SetHex(const Buf: AnsiString); reintroduce;
+  end;
 
   TCnSM2 = class(TCnEcc)
   {* SM2 椭圆曲线运算类，具体大部分实现在指定曲线类型的基类 TCnEcc 中}
@@ -119,10 +125,10 @@ type
   TCnSM2CryptSequenceType = (cstC1C3C2, cstC1C2C3);
   {* SM2 加密数据时的拼接方式，国标上是 C1C3C2，但经常有 C1C2C3 的版本，故此做兼容}
 
-  TCnSM2CollaborativePrivateKey = TCnEccPrivateKey;
+  TCnSM2CollaborativePrivateKey = TCnSM2PrivateKey;
   {* SM2 协同私钥就是普通椭圆曲线的私钥，但有至少两个}
 
-  TCnSM2CollaborativePublicKey = TCnEccPublicKey;
+  TCnSM2CollaborativePublicKey = TCnSM2PublicKey;
   {* SM2 协同私钥就是普通椭圆曲线的公钥，同样是一个}
 
 // ========================== SM2 椭圆曲线密钥生成 =============================
@@ -469,6 +475,20 @@ begin
   BigNumberSetBit(X, W);
   for I := W + 1 to X.GetBitsCount - 1 do
     BigNumberClearBit(X, I);
+end;
+
+{ TCnSM2PublicKey }
+
+procedure TCnSM2PublicKey.SetHex(const Buf: AnsiString);
+var
+  SM2: TCnSM2;
+begin
+  SM2 := TCnSM2.Create;
+  try
+    inherited SetHex(Buf, SM2);
+  finally
+    SM2.Free;
+  end;
 end;
 
 { TCnSM2 }
@@ -893,7 +913,7 @@ begin
 
       M := PAnsiChar(EnData);
       Inc(M, CN_SM2_FINITEFIELD_BYTESIZE * 2 + PrefixLen);             // M 指向 C3
-      if CompareMem(@Sm3Dig[0], M, SizeOf(TCnSM3Digest)) then  // 比对 Hash 是否相等
+      if CompareMem(@Sm3Dig[0], M, SizeOf(TCnSM3Digest)) then  // 比对杂凑值是否相等
       begin
         OutStream.Write(MP[1], Length(MP));
 
@@ -918,7 +938,7 @@ begin
 
       M := PAnsiChar(EnData);
       Inc(M, CN_SM2_FINITEFIELD_BYTESIZE * 2 + PrefixLen + MLen);      // 指向 C3
-      if CompareMem(@Sm3Dig[0], M, SizeOf(TCnSM3Digest)) then  // 比对 Hash 是否相等
+      if CompareMem(@Sm3Dig[0], M, SizeOf(TCnSM3Digest)) then  // 比对杂凑值是否相等
       begin
         OutStream.Write(MP[1], Length(MP));
 
@@ -2068,7 +2088,7 @@ end;
 
 // =============== SM2 椭圆曲线双方互相信任的简易协同签名算法 ==================
 {
-  A 生成随机数 ka，并计算点 ka*G 给 B，也把散列值 e 给 B
+  A 生成随机数 ka，并计算点 ka*G 给 B，也把杂凑值 e 给 B
 }
 function CnSM2CollaborativeSignAStep1(const UserID: AnsiString; PlainData: Pointer;
   DataLen: Integer; OutHashEToB: TCnBigNumber; OutQToB: TCnEccPoint; OutRandKA: TCnBigNumber;
@@ -2452,7 +2472,7 @@ begin
 
       M := PAnsiChar(EnData);
       Inc(M, CN_SM2_FINITEFIELD_BYTESIZE * 2 + PrefixLen);             // M 指向 C3
-      if CompareMem(@Sm3Dig[0], M, SizeOf(TCnSM3Digest)) then  // 比对 Hash 是否相等
+      if CompareMem(@Sm3Dig[0], M, SizeOf(TCnSM3Digest)) then  // 比对杂凑值是否相等
       begin
         OutStream.Write(MP[1], Length(MP));
 
@@ -2477,7 +2497,7 @@ begin
 
       M := PAnsiChar(EnData);
       Inc(M, CN_SM2_FINITEFIELD_BYTESIZE * 2 + PrefixLen + MLen);      // 指向 C3
-      if CompareMem(@Sm3Dig[0], M, SizeOf(TCnSM3Digest)) then  // 比对 Hash 是否相等
+      if CompareMem(@Sm3Dig[0], M, SizeOf(TCnSM3Digest)) then  // 比对杂凑值是否相等
       begin
         OutStream.Write(MP[1], Length(MP));
 

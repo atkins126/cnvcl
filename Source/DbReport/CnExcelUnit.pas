@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2023 CnPack 开发组                       }
+{                   (C)Copyright 2001-2024 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -13,7 +13,7 @@
 {            您应该已经和开发包一起收到一份 CnPack 发布协议的副本。如果        }
 {        还没有，可访问我们的网站：                                            }
 {                                                                              }
-{            网站地址：http://www.cnpack.org                                   }
+{            网站地址：https://www.cnpack.org                                  }
 {            电子邮件：master@cnpack.org                                       }
 {                                                                              }
 {******************************************************************************}
@@ -28,7 +28,9 @@ unit CnExcelUnit;
 * 开发平台：PWin2000 + Delphi 5.0
 * 兼容测试：PWin9X/2000/XP + Delphi 5/6/7
 * 本 地 化：该单元中的字符串均符合本地化处理方式
-* 修改记录：2003.xx.xx V1.0
+* 修改记录：2024.07.31 V1.1
+*               修正 D2007 下 Excel2000 与 ExcelXP 的编译问题
+*           2003.01.01 V1.0
 *               创建单元，实现功能
 ================================================================================
 |</PRE>}
@@ -38,7 +40,8 @@ interface
 {$I CnPack.inc}
 
 uses
-  Classes, SysUtils, OleServer, Variants, Excel2000, Clipbrd, Dialogs, Printers;
+  Classes, SysUtils, OleServer, Variants
+  {$IFDEF BDS2007}, ExcelXP {$ELSE}, Excel2000 {$ENDIF}, Clipbrd, Dialogs, Printers;
 
 const
   AddrsEachRange: Integer = 255 div 16;

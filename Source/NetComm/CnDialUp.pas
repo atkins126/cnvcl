@@ -13,7 +13,7 @@
 {            您应该已经和开发包一起收到一份 CnPack 发布协议的副本。如果        }
 {        还没有，可访问我们的网站：                                            }
 {                                                                              }
-{            网站地址：http://www.cnpack.org                                   }
+{            网站地址：https://www.cnpack.org                                  }
 {            电子邮件：master@cnpack.org                                       }
 {                                                                              }
 {******************************************************************************}
@@ -40,7 +40,7 @@ interface
 
 uses
   Windows, Messages, SysUtils, Classes, Graphics, Controls, Forms, Dialogs,
-  ExtCtrls, WinInet;
+  ExtCtrls, WinInet, CnConsts, CnNetConsts, CnClasses;
 
 const
   DNLEN = 15;
@@ -149,7 +149,10 @@ type
 type
   TOnStatusEvent = procedure(Sender: TObject; MessageText: string; Error: Boolean) of object;
 
-  TCnDialUp = class(TComponent)
+{$IFDEF SUPPORT_32_AND_64}
+  [ComponentPlatformsAttribute(pidWin32 or pidWin64)]
+{$ENDIF}
+  TCnDialUp = class(TCnComponent)
   private
     FTimer: TTimer;
     FPassword: string;
@@ -171,6 +174,7 @@ type
     function GetRasInstalled: Boolean;
     function GetOnlineStatus: Boolean;
   protected
+    procedure GetComponentInfo(var AName, Author, Email, Comment: string); override;
     procedure Timer(Sender: TObject); virtual;
   public
     constructor Create(AOwner: TComponent); override;
@@ -437,14 +441,14 @@ begin
   else
   begin
     case State of
-      //connecting
+      // connecting
       RASCS_OpenPort, RASCS_PortOpened, RASCS_ConnectDevice, RASCS_DeviceConnected,
         RASCS_AllDevicesConnected, RASCS_PrepareForCallback, RASCS_WaitForModemReset,
         RASCS_WaitForCallback, RASCS_Projected, RASCS_CallbackComplete, RASCS_LogonNetwork,
         RASCS_Interactive, RASCS_CallbackSetByCaller, RASCS_Connected: S := Format(FLangStrList[0], [FConnectTo]);
-      //authenticateing
+      // authenticateing
       RASCS_Authenticate, RASCS_StartAuthentication, RASCS_Authenticated: S := FLangStrList[1];
-      //error
+      // error
       RASCS_AuthNotify, RASCS_AuthRetry, RASCS_AuthCallback, RASCS_AuthChangePassword,
         RASCS_AuthProject, RASCS_AuthLinkSpeed, RASCS_AuthAck, RASCS_ReAuthenticate,
         RASCS_RetryAuthentication, RASCS_Disconnected, RASCS_PasswordExpired: S := Format(FLangStrList[2], [FConnectTo]);
@@ -460,6 +464,14 @@ begin
   Types := INTERNET_CONNECTION_MODEM +
     INTERNET_CONNECTION_LAN + INTERNET_CONNECTION_PROXY;
   Result := InternetGetConnectedState(@Types, 0);
+end;
+
+procedure TCnDialUp.GetComponentInfo(var AName, Author, Email, Comment: string);
+begin
+  AName := SCnDialUpName;
+  Author := SCnPack_Team;
+  Email := SCnPack_TeamEmail;
+  Comment := SCnDialUpComment;
 end;
 
 end.

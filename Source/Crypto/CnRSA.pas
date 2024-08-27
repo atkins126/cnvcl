@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2023 CnPack 开发组                       }
+{                   (C)Copyright 2001-2024 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -13,7 +13,7 @@
 {            您应该已经和开发包一起收到一份 CnPack 发布协议的副本。如果        }
 {        还没有，可访问我们的网站：                                            }
 {                                                                              }
-{            网站地址：http://www.cnpack.org                                   }
+{            网站地址：https://www.cnpack.org                                  }
 {            电子邮件：master@cnpack.org                                       }
 {                                                                              }
 {******************************************************************************}
@@ -23,14 +23,17 @@ unit CnRSA;
 ================================================================================
 * 软件名称：开发包基础库
 * 单元名称：RSA 算法单元
-* 单元作者：刘啸
-* 备    注：包括 Int64 范围内的 RSA 算法以及大数算法，公钥 Exponent 默认固定使用 65537。
-*           另外官方提倡公钥加密、私钥解密，但 RSA 两者等同，也可私钥加密、公钥解密
+* 单元作者：CnPack 开发组 (master@cnpack.org)
+* 备    注：本单元实现了 Int64 及大整数范围内的 RSA 算法，公钥 Exponent 默认固定使用 65537。
+*           并基于大整数 RSA 算法实现了公私钥生成、存储、载入与数据加解密、签名验签。 
+*           另外官方提倡公钥加密、私钥解密，但 RSA 两者等同，也可私钥加密、公钥解密，
 *           本单元两类方法都提供了，使用时须注意配对。
 * 开发平台：WinXP + Delphi 5.0
 * 兼容测试：暂未进行
 * 本 地 化：该单元无需本地化处理
-* 修改记录：2023.02.16 V2.6
+* 修改记录：2023.12.14 V2.7
+*               增加验证公私钥的机制，并完善从文件和流中加载与保存
+*           2023.02.16 V2.6
 *               实现大数形式的基于离散对数的变色龙杂凑算法
 *           2023.02.15 V2.5
 *               大数 RSA 加密支持 CRT（中国剩余定理）加速，私钥运算耗时降至三分之一
@@ -43,7 +46,7 @@ unit CnRSA;
 *           2020.06.10 V1.9
 *               公私钥允许从 Stream 中载入
 *           2020.03.27 V1.8
-*               公钥允许用 3。实现了加密的 PEM 文件的读写，不过只支持 des/3des/aes
+*               公钥允许用 3。实现了加密的 PEM 文件的读写，不过只支持 DES/3DES/AES
 *           2020.03.13 V1.7
 *               加入详细的错误码。调用返回 False 时可通过 GetLastCnRSAError 获取 ECN_RSA_* 形式的错误码
 *           2019.04.19 V1.6
@@ -126,7 +129,7 @@ type
   {* RSA 签名所支持的数字摘要算法，可无摘要}
 
   TCnRSAKeyType = (cktPKCS1, cktPKCS8);
-  {* RSA 密钥文件格式}
+  {* RSA 密钥文件格式。注意它和 CnECC 中的 TCnEccKeyType 名字重复，使用时要注意}
 
   TCnRSAPaddingMode = (cpmPKCS1, cpmOAEP);
   {* RSA 加密的填充模式，PKCS1 适合加解密，包括三种填充类型，
@@ -164,7 +167,7 @@ type
     property PrimeKey2: TCnBigNumber read FPrimeKey2 write FPrimeKey2;
     {* 大素数 2，q，要求比 p 小}
     property PrivKeyProduct: TCnBigNumber read FPrivKeyProduct write FPrivKeyProduct;
-    {* 俩素数乘积 n，也叫 Modulus}
+    {* 俩素数乘积 n，也叫 Modulus，生成时其位数需严格等于所需安全位数}
     property PrivKeyExponent: TCnBigNumber read FPrivKeyExponent write FPrivKeyProduct;
     {* 私钥指数 d}
     property BitsCount: Integer read GetBitsCount;
@@ -229,12 +232,15 @@ function CnRSAGenerateKeys(ModulusBits: Integer; PrivateKey: TCnRSAPrivateKey;
    ModulusBits 取值为 512/1024/2048等。内部有安全判断。
    PublicKeyUse3 为 True 时公钥指数用 3，否则用 65537}
 
+function CnRSAVerifyKeys(PrivateKey: TCnRSAPrivateKey; PublicKey: TCnRSAPublicKey): Boolean;
+{* 验证一对 RSA 公私钥是否配套}
+
 function CnRSALoadKeysFromPem(const PemFileName: string; PrivateKey: TCnRSAPrivateKey;
   PublicKey: TCnRSAPublicKey; KeyHashMethod: TCnKeyHashMethod = ckhMd5;
   const Password: string = ''): Boolean; overload;
 {* 从 PEM 格式文件中加载公私钥数据，如某钥参数为空则不载入
   自动判断 PKCS1 还是 PKCS8，不依赖于头尾行的 ----- 注释
-  KeyHashMethod: 对应 PEM 文件的加密 Hash 算法，默认 MD5（无法根据 PEM 文件内容自动判断）
+  KeyHashMethod: 对应 PEM 文件的加密杂凑算法，默认 MD5（无法根据 PEM 文件内容自动判断）
   Password: PEM 文件如加密，此处应传对应密码}
 
 function CnRSALoadKeysFromPem(PemStream: TStream; PrivateKey: TCnRSAPrivateKey;
@@ -242,17 +248,27 @@ function CnRSALoadKeysFromPem(PemStream: TStream; PrivateKey: TCnRSAPrivateKey;
   const Password: string = ''): Boolean; overload;
 {* 从 PEM 格式的流中加载公私钥数据，如某钥参数为空则不载入
   自动判断 PKCS1 还是 PKCS8，不依赖于头尾行的 ----- 注释
-  KeyHashMethod: 对应 PEM 文件的加密 Hash 算法，默认 MD5（无法根据 PEM 文件内容自动判断）
+  KeyHashMethod: 对应 PEM 文件的加密杂凑算法，默认 MD5（无法根据 PEM 文件内容自动判断）
   Password: PEM 文件如加密，此处应传对应密码，未加密可不传}
 
 function CnRSASaveKeysToPem(const PemFileName: string; PrivateKey: TCnRSAPrivateKey;
   PublicKey: TCnRSAPublicKey; KeyType: TCnRSAKeyType = cktPKCS1;
   KeyEncryptMethod: TCnKeyEncryptMethod = ckeNone;
   KeyHashMethod: TCnKeyHashMethod = ckhMd5;
-  const Password: string = ''): Boolean;
+  const Password: string = ''): Boolean; overload;
 {* 将公私钥写入 PEM 格式文件中，返回是否成功
   KeyEncryptMethod: 如 PEM 文件需加密，可用此参数指定加密方式，ckeNone 表示不加密，忽略后续参数
-  KeyHashMethod: 生成 Key 的 Hash 算法，默认 MD5
+  KeyHashMethod: 生成 Key 的杂凑算法，默认 MD5
+  Password: PEM 文件的加密密码，未加密可不传}
+
+function CnRSASaveKeysToPem(PemStream: TStream; PrivateKey: TCnRSAPrivateKey;
+  PublicKey: TCnRSAPublicKey; KeyType: TCnRSAKeyType = cktPKCS1;
+  KeyEncryptMethod: TCnKeyEncryptMethod = ckeNone;
+  KeyHashMethod: TCnKeyHashMethod = ckhMd5;
+  const Password: string = ''): Boolean; overload;
+{* 将公私钥写入 PEM 格式流中，返回是否成功
+  KeyEncryptMethod: 如 PEM 文件需加密，可用此参数指定加密方式，ckeNone 表示不加密，忽略后续参数
+  KeyHashMethod: 生成 Key 的杂凑算法，默认 MD5
   Password: PEM 文件的加密密码，未加密可不传}
 
 function CnRSALoadPublicKeyFromPem(const PemFileName: string;
@@ -268,8 +284,14 @@ function CnRSALoadPublicKeyFromPem(const PemStream: TStream;
 function CnRSASavePublicKeyToPem(const PemFileName: string;
   PublicKey: TCnRSAPublicKey; KeyType: TCnRSAKeyType = cktPKCS8;
   KeyEncryptMethod: TCnKeyEncryptMethod = ckeNone;
-  const Password: string = ''): Boolean;
+  const Password: string = ''): Boolean; overload;
 {* 将公钥写入 PEM 格式文件中，返回是否成功}
+
+function CnRSASavePublicKeyToPem(PemStream: TStream;
+  PublicKey: TCnRSAPublicKey; KeyType: TCnRSAKeyType = cktPKCS8;
+  KeyEncryptMethod: TCnKeyEncryptMethod = ckeNone;
+  const Password: string = ''): Boolean; overload;
+{* 将公钥写入 PEM 格式流中，返回是否成功}
 
 function CnRSAEncrypt(Data: TCnBigNumber; PrivateKey: TCnRSAPrivateKey;
   Res: TCnBigNumber): Boolean; overload;
@@ -348,12 +370,12 @@ function CnRSADecryptFile(const InFileName, OutFileName: string;
 
 // =========================== RSA 文件签名与验证实现 ==========================
 // 流与文件分开实现是因为计算文件摘要时支持大文件，而 FileStream 低版本不支持
-// 注意 RSA 签名是先 Hash 再拼一段数据用 RSA 私钥加密，验证时能解出 Hash 值
+// 注意 RSA 签名是先杂凑再拼一段数据用 RSA 私钥加密，验证时能解出杂凑值
 // 这点和 ECC 签名不同：ECC 签名并不解出 Hash 值，而是通过中间运算比对大数
 
 function CnRSASignFile(const InFileName, OutSignFileName: string;
   PrivateKey: TCnRSAPrivateKey; SignType: TCnRSASignDigestType = rsdtMD5): Boolean;
-{* 用私钥签名指定文件。
+{* 用私钥签名指定文件，返回签名是否成功。
    未指定数字摘要算法时等于将源文件用 PKCS1 Private_FF 补齐后加密
    当指定了数字摘要算法时，使用指定数字摘要算法对文件进行计算得到杂凑值，
    原始的二进制杂凑值进行 BER 编码再 PKCS1 补齐再用私钥加密}
@@ -361,16 +383,24 @@ function CnRSASignFile(const InFileName, OutSignFileName: string;
 function CnRSAVerifyFile(const InFileName, InSignFileName: string;
   PublicKey: TCnRSAPublicKey; SignType: TCnRSASignDigestType = rsdtMD5): Boolean;
 {* 用公钥与签名值验证指定文件，也即用指定数字摘要算法对文件进行计算得到杂凑值，
-   并用公钥解密签名内容并解开 PKCS1 补齐再解开 BER 编码得到散列算法与杂凑值，
+   并用公钥解密签名内容并解开 PKCS1 补齐再解开 BER 编码得到杂凑算法与杂凑值，
    并比对两个二进制杂凑值是否相同，返回验证是否通过}
 
 function CnRSASignStream(InStream: TMemoryStream; OutSignStream: TMemoryStream;
   PrivateKey: TCnRSAPrivateKey; SignType: TCnRSASignDigestType = rsdtMD5): Boolean;
-{* 用私钥签名指定内存流}
+{* 用私钥签名指定内存流，返回签名是否成功}
 
 function CnRSAVerifyStream(InStream: TMemoryStream; InSignStream: TMemoryStream;
   PublicKey: TCnRSAPublicKey; SignType: TCnRSASignDigestType = rsdtMD5): Boolean;
-{* 用公钥与签名值验证指定内存流}
+{* 用公钥与签名值验证指定内存流，返回验证是否通过}
+
+function CnRSASignBytes(InData: TBytes; PrivateKey: TCnRSAPrivateKey;
+  SignType: TCnRSASignDigestType = rsdtMD5): TBytes;
+{* 用私钥签名字节数组，返回签名值的字节数组，如签名失败则返回空}
+
+function CnRSAVerifyBytes(InData: TBytes; InSignBytes: TBytes;
+  PublicKey: TCnRSAPublicKey; SignType: TCnRSASignDigestType = rsdtMD5): Boolean;
+{* 用公钥与签名字节数组验证指定字节数组，返回验证是否通过}
 
 // OAEP Padding 的生成与验证算法
 
@@ -420,7 +450,7 @@ function CnChameleonHashFindRandom(InOldData, InNewData: TCnBigNumber;
   InOldRandom, InSecretKey: TCnBigNumber; OutNewRandom: TCnBigNumber; Prime, Root: TCnBigNumber): Boolean;
 {* 基于普通离散对数的变色龙杂凑函数，根据 SecretKey 与新旧消息，生成能够生成相同杂凑的新随机值
   其中，Prime 和 Root 须与原始消息杂凑生成时相同。
-  可以利用 SecretKey 和 NewRandom 对 InNewData 调用 CnChameleonHashCalcDigest 生成相同的 Hash 值}
+  可以利用 SecretKey 和 NewRandom 对 InNewData 调用 CnChameleonHashCalcDigest 生成相同的杂凑值}
 
 // ================================= 其他辅助函数 ==============================
 
@@ -429,10 +459,10 @@ function GetDigestSignTypeFromBerOID(OID: Pointer; OidLen: Integer): TCnRSASignD
 
 function AddDigestTypeOIDNodeToWriter(AWriter: TCnBerWriter; ASignType: TCnRSASignDigestType;
   AParent: TCnBerWriteNode): TCnBerWriteNode;
-{* 将一个散列算法的 OID 写入一个 Ber 节点}
+{* 将一个杂凑算法的 OID 写入一个 Ber 节点}
 
 function GetRSADigestNameFromSignDigestType(Digest: TCnRSASignDigestType): string;
-{* 从签名散列算法枚举值获取其名称}
+{* 从签名杂凑算法枚举值获取其名称}
 
 function GetLastCnRSAError: Integer;
 {* 获取本线程内最近一次 ErrorCode，当以上函数返回 False 时可调用此函数获取错误详情}
@@ -791,11 +821,65 @@ begin
   _CnSetLastError(ECN_RSA_OK);
 end;
 
+function CnRSAVerifyKeys(PrivateKey: TCnRSAPrivateKey; PublicKey: TCnRSAPublicKey): Boolean;
+var
+  T, M, P: TCnBigNumber;
+begin
+  // 私钥的俩素数乘积要等于私钥的 Product
+  // 公私钥的 Product 得相等
+  // 公钥指数是 3 或 65537
+  // 验证 d
+  Result := False;
+  if (PrivateKey = nil) or (PublicKey = nil) then
+    Exit;
+
+  if not BigNumberEqual(PrivateKey.PrivKeyProduct, PublicKey.PubKeyProduct) then
+    Exit;
+
+  // e 只允许 3 或 65537
+  if not PublicKey.PubKeyExponent.IsWord(65537) and not PublicKey.PubKeyExponent.IsWord(3) then
+    Exit;
+
+  T := nil;
+  P := nil;
+  M := nil;
+
+  try
+    T := TCnBigNumber.Create;
+    BigNumberMul(T, PrivateKey.PrimeKey1, PrivateKey.PrimeKey2);
+    if not BigNumberEqual(T, PublicKey.PubKeyProduct) then
+      Exit;
+
+    // 验证 d 是否是 e * d mod (p-1)(q-1) = 1
+    P := TCnBigNumber.Create;
+    BigNumberCopy(P, PrivateKey.PrimeKey1);
+    BigNumberCopy(T, PrivateKey.PrimeKey2);
+    BigNumberSubWord(P, 1);
+    BigNumberSubWord(T, 1);
+
+    BigNumberMul(T, P, T); // T 得到 (p-1)(q-1)
+
+    M := TCnBigNumber.Create;
+    BigNumberMul(M, PrivateKey.FPrivKeyExponent, PublicKey.PubKeyExponent); // M 得到 e * d
+
+    BigNumberMod(P, M, T);
+    if not P.IsOne then
+      Exit;
+
+    Result := True;
+    _CnSetLastError(ECN_RSA_OK);
+  finally
+    M.Free;
+    P.Free;
+    T.Free;
+  end;
+end;
+
 // 从 PEM 格式文件中加载公私钥数据
 (*
 PKCS#1:
-  RSAPrivateKey ::= SEQUENCE {                        0
-    version Version,                                  1 0
+  RSAPrivateKey ::= SEQUENCE {                       0
+    version Version,                                 1 0
     modulus INTEGER, – n                             2 公私钥
     publicExponent INTEGER, – e                      3 公钥
     privateExponent INTEGER, – d                     4 私钥
@@ -804,7 +888,7 @@ PKCS#1:
     exponent1 INTEGER, – d mod (p-1)                 7 CRT 系数 1
     exponent2 INTEGER, – d mod (q-1)                 8 CRT 系数 2
     coefficient INTEGER, – (1/q) mod p               9 CRT 系数 3：q 针对 p 的模逆元
-    otherPrimeInfos OtherPrimeInfos OPTIONAL          10
+    otherPrimeInfos OtherPrimeInfos OPTIONAL         10
 
     模逆元 x = (1/q) mod p 可得 xq = 1 mod p 也即 xq = 1 + yp 也就是 qx + (-p)y = 1
     可以用扩展欧几里得辗转相除法直接求解
@@ -837,7 +921,7 @@ PKCS#8:
         INTEGER                                       11 私钥  p
         INTEGER                                       12 私钥  q
         INTEGER
-        INTEGER
+
         INTEGER
 *)
 function CnRSALoadKeysFromPem(const PemFileName: string; PrivateKey: TCnRSAPrivateKey;
@@ -1089,6 +1173,22 @@ function CnRSASaveKeysToPem(const PemFileName: string; PrivateKey: TCnRSAPrivate
   PublicKey: TCnRSAPublicKey; KeyType: TCnRSAKeyType; KeyEncryptMethod: TCnKeyEncryptMethod;
   KeyHashMethod: TCnKeyHashMethod; const Password: string): Boolean;
 var
+  Stream: TStream;
+begin
+  Stream := TFileStream.Create(PemFileName, fmCreate);
+  try
+    Result := CnRSASaveKeysToPem(Stream, PrivateKey, PublicKey, KeyType,
+      KeyEncryptMethod, KeyHashMethod, Password);
+  finally
+    Stream.Free;
+  end;
+end;
+
+function CnRSASaveKeysToPem(PemStream: TStream; PrivateKey: TCnRSAPrivateKey;
+  PublicKey: TCnRSAPublicKey; KeyType: TCnRSAKeyType;
+  KeyEncryptMethod: TCnKeyEncryptMethod;
+  KeyHashMethod: TCnKeyHashMethod; const Password: string): Boolean;
+var
   Root, Node: TCnBerWriteNode;
   Writer: TCnBerWriter;
   Mem: TMemoryStream;
@@ -1186,10 +1286,10 @@ begin
     Writer.SaveToStream(Mem);
 
     if KeyType = cktPKCS1 then
-      Result := SaveMemoryToPemFile(PemFileName, PEM_RSA_PRIVATE_HEAD,
+      Result := SaveMemoryToPemStream(PemStream, PEM_RSA_PRIVATE_HEAD,
         PEM_RSA_PRIVATE_TAIL, Mem, KeyEncryptMethod, KeyHashMethod, Password)
     else if KeyType = cktPKCS8 then
-      Result := SaveMemoryToPemFile(PemFileName, PEM_PRIVATE_HEAD,
+      Result := SaveMemoryToPemStream(PemStream, PEM_PRIVATE_HEAD,
         PEM_PRIVATE_TAIL, Mem, KeyEncryptMethod, KeyHashMethod, Password);
 
     if Result then
@@ -1214,6 +1314,21 @@ function CnRSASavePublicKeyToPem(const PemFileName: string;
   PublicKey: TCnRSAPublicKey; KeyType: TCnRSAKeyType;
   KeyEncryptMethod: TCnKeyEncryptMethod; const Password: string): Boolean;
 var
+  Stream: TStream;
+begin
+  Stream := TFileStream.Create(PemFileName, fmCreate);
+  try
+    Result := CnRSASavePublicKeyToPem(Stream, PublicKey, KeyType,
+      KeyEncryptMethod, Password);
+  finally
+    Stream.Free;
+  end;
+end;
+
+function CnRSASavePublicKeyToPem(PemStream: TStream;
+  PublicKey: TCnRSAPublicKey; KeyType: TCnRSAKeyType;
+  KeyEncryptMethod: TCnKeyEncryptMethod; const Password: string): Boolean;
+var
   Root, Node: TCnBerWriteNode;
   Writer: TCnBerWriter;
   Mem: TMemoryStream;
@@ -1226,8 +1341,9 @@ begin
     Exit;
   end;
 
-  Mem := nil;
   Writer := nil;
+  Mem := nil;
+
   try
     Writer := TCnBerWriter.Create;
     Root := Writer.AddContainerNode(CN_BER_TAG_SEQUENCE);
@@ -1258,10 +1374,10 @@ begin
     Writer.SaveToStream(Mem);
 
     if KeyType = cktPKCS1 then
-      Result := SaveMemoryToPemFile(PemFileName, PEM_RSA_PUBLIC_HEAD,
+      Result := SaveMemoryToPemStream(PemStream, PEM_RSA_PUBLIC_HEAD,
         PEM_RSA_PUBLIC_TAIL, Mem, KeyEncryptMethod, ckhMd5, Password)
     else if KeyType = cktPKCS8 then
-      Result := SaveMemoryToPemFile(PemFileName, PEM_PUBLIC_HEAD,
+      Result := SaveMemoryToPemStream(PemStream, PEM_PUBLIC_HEAD,
         PEM_PUBLIC_TAIL, Mem, KeyEncryptMethod, ckhMd5, Password);
 
     if Result then
@@ -1507,7 +1623,7 @@ begin
 
     if RSACrypt(D, Product, Exponent, R) then
     begin
-      R.ToBinary(OutBuf);
+      R.ToBinary(OutBuf); // TODO: Fixed Len?
       OutLen := R.GetBytesCount;
 
       Result := True;
@@ -1585,7 +1701,7 @@ begin
     if not RSACrypt(Data, Product, Exponent, Res) then
       Exit;
 
-    Res.ToBinary(PAnsiChar(OutBuf));
+    Res.ToBinary(PAnsiChar(OutBuf), Stream.Size);
 
     Result := True;
     _CnSetLastError(ECN_RSA_OK);
@@ -1688,11 +1804,8 @@ begin
       Exit;
 
     SetLength(ResBuf, BlockSize);
-    if Res.GetBytesCount = BlockSize then
-      Res.ToBinary(PAnsiChar(@ResBuf[0]))
-    else if Res.GetBytesCount < BlockSize then
-      Res.ToBinary(PAnsiChar(@ResBuf[BlockSize - Res.GetBytesCount]));
-      // 解出来的 Res 可能前面有 0 导致 GetBytesCount 不够 BlockSize，需要右对齐
+    Res.ToBinary(PAnsiChar(@ResBuf[0]), BlockSize);
+    // 解出来的 Res 可能前面有 0 导致 GetBytesCount 不够 BlockSize，需要右对齐
 
     if PaddingMode = cpmPKCS1 then
     begin
@@ -1806,7 +1919,7 @@ end;
 
 // RSA 文件签名与验证实现
 
-// 根据指定数字摘要算法计算指定流的二进制散列值并写入 Stream，如果出错内部会设置错误码
+// 根据指定数字摘要算法计算指定流的二进制杂凑值并写入 Stream，如果出错内部会设置错误码
 function CalcDigestStream(InStream: TStream; SignType: TCnRSASignDigestType;
   outStream: TStream): Boolean;
 var
@@ -1849,7 +1962,7 @@ begin
     _CnSetLastError(ECN_RSA_DIGEST_ERROR);
 end;
 
-// 根据指定数字摘要算法计算文件的二进制散列值并写入 Stream
+// 根据指定数字摘要算法计算文件的二进制杂凑值并写入 Stream
 function CalcDigestFile(const FileName: string; SignType: TCnRSASignDigestType;
   outStream: TStream): Boolean;
 var
@@ -1960,7 +2073,7 @@ begin
     end
     else // 有数字摘要
     begin
-      if not CalcDigestStream(InStream, SignType, Stream) then // 计算流的散列值
+      if not CalcDigestStream(InStream, SignType, Stream) then // 计算流的杂凑值
         Exit;
 
       BerStream := TMemoryStream.Create;
@@ -2083,10 +2196,10 @@ begin
           Exit;
         end;
 
-        if not CalcDigestStream(InStream, SignType, Stream) then // 计算流的散列值
+        if not CalcDigestStream(InStream, SignType, Stream) then // 计算流的杂凑值
           Exit;
 
-        // 与 Ber 解出的散列值比较
+        // 与 Ber 解出的杂凑值比较
         Node := Reader.Items[4];
         Result := Stream.Size = Node.BerDataLength;
         if Result then
@@ -2102,6 +2215,49 @@ begin
     Res.Free;
     SetLength(ResBuf, 0);
     SetLength(BerBuf, 0);
+  end;
+end;
+
+function CnRSASignBytes(InData: TBytes; PrivateKey: TCnRSAPrivateKey;
+  SignType: TCnRSASignDigestType): TBytes;
+var
+  InStream, OutStream: TMemoryStream;
+begin
+  Result := nil;
+  InStream := nil;
+  OutStream := nil;
+
+  try
+    InStream := TMemoryStream.Create;
+    BytesToStream(InData, InStream);
+
+    OutStream := TMemoryStream.Create;
+    if CnRSASignStream(InStream, OutStream, PrivateKey, SignType) then
+      Result := StreamToBytes(OutStream);
+  finally
+    OutStream.Free;
+    InStream.Free;
+  end;
+end;
+
+function CnRSAVerifyBytes(InData: TBytes; InSignBytes: TBytes;
+  PublicKey: TCnRSAPublicKey; SignType: TCnRSASignDigestType): Boolean;
+var
+  InStream, SignStream: TMemoryStream;
+begin
+  InStream := nil;
+  SignStream := nil;
+
+  try
+    InStream := TMemoryStream.Create;
+    BytesToStream(InData, InStream);
+
+    SignStream := TMemoryStream.Create;
+    BytesToStream(InSignBytes, SignStream);
+    Result := CnRSAVerifyStream(InStream, SignStream, PublicKey, SignType);
+  finally
+    SignStream.Free;
+    InStream.Free;
   end;
 end;
 
@@ -2139,7 +2295,7 @@ begin
     end
     else // 有数字摘要
     begin
-      if not CalcDigestFile(InFileName, SignType, Stream) then // 计算文件的散列值
+      if not CalcDigestFile(InFileName, SignType, Stream) then // 计算文件的杂凑值
         Exit;
 
       BerStream := TMemoryStream.Create;
@@ -2169,7 +2325,7 @@ begin
     if RSACrypt(Data, PrivateKey.PrivKeyProduct, PrivateKey.PrivKeyExponent, Res) then
     begin
       SetLength(ResBuf, Res.GetBytesCount);
-      Res.ToBinary(@ResBuf[0]);
+      Res.ToBinary(@ResBuf[0]); // TODO: FixedLen?
 
       // 保存用私钥加密后的内容至文件
       Stream.Clear;
@@ -2219,7 +2375,7 @@ begin
     if RSACrypt(Data, PublicKey.PubKeyProduct, PublicKey.PubKeyExponent, Res) then
     begin
       SetLength(ResBuf, Res.GetBytesCount);
-      Res.ToBinary(@ResBuf[0]);
+      Res.ToBinary(@ResBuf[0]); // TODO: FixedLen?
 
       // 从 Res 中解出 PKCS1 对齐的内容放入 BerBuf 中
       SetLength(BerBuf, Length(ResBuf));
@@ -2263,10 +2419,10 @@ begin
           Exit;
         end;
 
-        if not CalcDigestFile(InFileName, SignType, Stream) then // 计算文件的散列值
+        if not CalcDigestFile(InFileName, SignType, Stream) then // 计算文件的杂凑值
           Exit;
 
-        // 与 Ber 解出的散列值比较
+        // 与 Ber 解出的杂凑值比较
         Node := Reader.Items[4];
         Result := Stream.Size = Node.BerDataLength;
         if Result then

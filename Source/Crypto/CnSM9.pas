@@ -13,7 +13,7 @@
 {            您应该已经和开发包一起收到一份 CnPack 发布协议的副本。如果        }
 {        还没有，可访问我们的网站：                                            }
 {                                                                              }
-{            网站地址：http://www.cnpack.org                                   }
+{            网站地址：https://www.cnpack.org                                  }
 {            电子邮件：master@cnpack.org                                       }
 {                                                                              }
 {******************************************************************************}
@@ -22,17 +22,21 @@ unit CnSM9;
 {* |<PRE>
 ================================================================================
 * 软件名称：开发包基础库
-* 单元名称：SM9 基于椭圆曲线双线性映射的标识密码算法单元
-* 单元作者：刘啸
-* 备    注：参考了 GmSSL/PBC/Federico2014 源码。
+* 单元名称：国家商用密码 SM9 基于椭圆曲线双线性映射的标识密码算法单元
+* 单元作者：CnPack 开发组 (master@cnpack.org)
+*           参考了 GmSSL/PBC/Federico2014 源码。
+* 备    注：本单元实现了国家商用密码 SM9 基于椭圆曲线双线性映射的标识密码算法。
+*
 *           二次、四次、十二次扩域分别有 U V W 乘法操作，元素分别用 FP2、FP4、FP12 表示
 *           G1 与 G2 群里各用 TCnEccPoint 和 TCnFP2Point 类作为元素坐标点，包括 X Y
 *           仿射坐标系/雅可比坐标系里的三元点也有加、乘、求反、Frobenius 等操作
 *           并基于以上实现了基于 SM9 的 BN 曲线参数的基本 R-ate 计算
-*           以及进一步实现了常规的签名验签、密钥封装、加解密与密钥交换等典型功能
-*           均基于国密标准 GM/T 0044-2016《SM9 标识密码算法》实现并通过示例数据验证
+*           以及进一步实现了常规的签名验签、密钥封装、加解密与密钥交换等典型功能。
+*           均基于国密标准 GM/T 0044-2016《SM9 标识密码算法》实现并通过示例数据验证。
+*
 *           注意 Miller 算法是定义在 F(q^k) 扩域上的椭圆曲线中的，因而一个元素是 k 维向量
-*           Miller 算法计算的现实意义是什么？
+*           不确定 Miller 算法计算的现实意义是什么。
+*
 * 开发平台：Win7 + Delphi 5.0
 * 兼容测试：暂未进行
 * 本 地 化：该单元无需本地化处理
@@ -54,7 +58,8 @@ interface
 {$I CnPack.inc}
 
 uses
-  Classes, SysUtils, CnConsts, CnContainers, CnNative, CnBigNumber, CnECC, CnSM3;
+  Classes, SysUtils, SysConst,
+  CnConsts, CnContainers, CnNative, CnBigNumber, CnECC, CnSM3;
 
 const
   // 一个参数 T，不知道叫啥，但 SM9 所选择的 BN 曲线里，
@@ -888,16 +893,16 @@ function CnSM9UserKeyExchangeBStep2(const AUserID, BUserID: AnsiString;
 {* 密钥交换第四步，可选。B 用 A、B 的 ID 以及第二步中的三个中间结果，根据 RA、RB
   计算出校验结果并与 InOptionalSA 比较，不通过则校验失败}
 
-// =================== SM9 具体实现函数：两种 Hash 算法 ========================
+// =================== SM9 具体实现函数：两种杂凑算法 ========================
 
 function CnSM9Hash1(const Res: TCnBigNumber; Data: Pointer; DataLen: Integer;
   N: TCnBigNumber): Boolean;
-{* SM9 中规定的第一个密码函数，内部使用 SM3，256 位的散列函数
+{* SM9 中规定的第一个密码函数，内部使用 SM3，256 位的杂凑函数
   输入为比特串 Data 与大数 N，输出为 1 至 N - 1 闭区间内的大数，N 应该传 SM9.Order}
 
 function CnSM9Hash2(const Res: TCnBigNumber; Data: Pointer; DataLen: Integer;
   N: TCnBigNumber): Boolean;
-{* SM9 中规定的第二个密码函数，内部使用 SM3，256 位的散列函数
+{* SM9 中规定的第二个密码函数，内部使用 SM3，256 位的杂凑函数
   输入为比特串 Data 与大数 N，输出为 1 至 N - 1 闭区间内的大数，N 应该传 SM9.Order}
 
 function SM9Mac(Key: Pointer; KeyByteLength: Integer; Z: Pointer; ZByteLength: Integer): TCnSM3Digest;
@@ -909,12 +914,9 @@ uses
   CnKDF, CnSM4, CnPemUtils;
 
 resourcestring
-  SAffinePointZError = 'Affine Point Z Must be 1';
-  SListIndexError = 'List Index Out of Bounds (%d)';
-  SDivByZero = 'Division by Zero';
-  SErrorMacParams = 'Error Mac Params';
-  SSigMasterKeyZero = 'Signature Master Key Zero';
-  SEncMasterKeyZero = 'Encryption Master Key Zero';
+  SCnErrorSM9AffinePointZError = 'Affine Point Z Must be 1';
+  SCnErrorSM9ListIndexError = 'List Index Out of Bounds (%d)';
+  SCnErrorSM9MacParams = 'Error Mac Params';
 
 const
   CRLF = #13#10;
@@ -1209,7 +1211,7 @@ var
   Inv: TCnFP2;
 begin
   if F2.IsZero then
-    raise EZeroDivide.Create(SDivByZero);
+    raise EDivByZero.Create(SDivByZero);
 
   if F1 = F2 then
     Res.SetOne
@@ -1470,7 +1472,7 @@ var
   Inv: TCnFP4;
 begin
   if F2.IsZero then
-    raise EZeroDivide.Create(SDivByZero);
+    raise EDivByZero.Create(SDivByZero);
 
   if F1 = F2 then
     Res.SetOne
@@ -1812,7 +1814,7 @@ var
   Inv: TCnFP12;
 begin
   if F2.IsZero then
-    raise EZeroDivide.Create(SDivByZero);
+    raise EDivByZero.Create(SDivByZero);
 
   if F1 = F2 then
     Res.SetOne
@@ -1933,7 +1935,7 @@ begin
     FP2Copy(FP2Y, P.Y);
   end
   else
-    raise ECnSM9Exception.Create(SAffinePointZError);
+    raise ECnSM9Exception.Create(SCnErrorSM9AffinePointZError);
 end;
 
 procedure FP2AffinePointSetCoordinates(const P: TCnFP2AffinePoint; const FP2X, FP2Y: TCnFP2);
@@ -2275,7 +2277,7 @@ var
 begin
   // X := X/Z   Y := Y/Z
   if FP2AP.Z.IsZero then
-    raise EZeroDivide.Create(SDivByZero);
+    raise EDivByZero.Create(SDivByZero);
 
   V := FLocalFP2Pool.Obtain;
   try
@@ -2578,7 +2580,7 @@ begin
   else if Index = 1 then
     Result := F1
   else
-    raise ECnSM9Exception.CreateFmt(SListIndexError, [Index]);
+    raise ECnSM9Exception.CreateFmt(SCnErrorSM9ListIndexError, [Index]);
 end;
 
 function TCnFP2.IsOne: Boolean;
@@ -2654,7 +2656,7 @@ begin
   else if Index = 1 then
     Result := F1
   else
-    raise ECnSM9Exception.CreateFmt(SListIndexError, [Index]);
+    raise ECnSM9Exception.CreateFmt(SCnErrorSM9ListIndexError, [Index]);
 end;
 
 function TCnFP4.IsOne: Boolean;
@@ -2745,7 +2747,7 @@ begin
   else if Index = 2 then
     Result := F2
   else
-    raise ECnSM9Exception.CreateFmt(SListIndexError, [Index]);
+    raise ECnSM9Exception.CreateFmt(SCnErrorSM9ListIndexError, [Index]);
 end;
 
 function TCnFP12.IsOne: Boolean;
@@ -3993,14 +3995,14 @@ begin
     Stream.Write(BUserID[1], Length(BUserID));
     CnEccPointToStream(InRA, Stream, SM9.BytesCount);
     CnEccPointToStream(OutRB, Stream, SM9.BytesCount);
-    D := SM3(Stream.Memory, Stream.Size);  // 第一次 Hash
+    D := SM3(Stream.Memory, Stream.Size);  // 第一次杂凑
 
     Stream.Clear;
     B := CN_SM9_KEY_EXCHANGE_HASHID1;
     Stream.Write(B, 1);
     FP12ToStream(OutG1, Stream, SM9.BytesCount);
     Stream.Write(D[0], SizeOf(TCnSM3Digest));
-    OutOptionalSB := SM3(Stream.Memory, Stream.Size); // 第二次 Hash
+    OutOptionalSB := SM3(Stream.Memory, Stream.Size); // 第二次杂凑
 
     Result := True;
     _CnSetLastError(ECN_SM9_OK);
@@ -4072,14 +4074,14 @@ begin
     Stream.Write(BUserID[1], Length(BUserID));
     CnEccPointToStream(InRA, Stream, SM9.BytesCount);
     CnEccPointToStream(InRB, Stream, SM9.BytesCount);
-    D := SM3(Stream.Memory, Stream.Size); // 第一次 Hash
+    D := SM3(Stream.Memory, Stream.Size); // 第一次杂凑
 
     Stream.Clear;
     B := CN_SM9_KEY_EXCHANGE_HASHID1;
     Stream.Write(B, 1);
     FP12ToStream(G1, Stream, SM9.BytesCount);
     Stream.Write(D[0], SizeOf(TCnSM3Digest));
-    D := SM3(Stream.Memory, Stream.Size); // 第二次 Hash
+    D := SM3(Stream.Memory, Stream.Size); // 第二次杂凑
 
     if not CompareMem(@D[0], @InOptionalSB[0], SizeOf(TCnSM3Digest)) then
     begin
@@ -4107,14 +4109,14 @@ begin
     Stream.Write(BUserID[1], Length(BUserID));
     CnEccPointToStream(InRA, Stream, SM9.BytesCount);
     CnEccPointToStream(InRB, Stream, SM9.BytesCount);
-    D := SM3(Stream.Memory, Stream.Size); // 第一次 Hash
+    D := SM3(Stream.Memory, Stream.Size); // 第一次杂凑
 
     Stream.Clear;
     B := CN_SM9_KEY_EXCHANGE_HASHID2;
     Stream.Write(B, 1);
     FP12ToStream(G1, Stream, SM9.BytesCount);
     Stream.Write(D[0], SizeOf(TCnSM3Digest));
-    OutOptionalSA := SM3(Stream.Memory, Stream.Size); // 第二次 Hash
+    OutOptionalSA := SM3(Stream.Memory, Stream.Size); // 第二次杂凑
 
     Result := True;
     _CnSetLastError(ECN_SM9_OK);
@@ -4171,7 +4173,7 @@ begin
     FP12ToStream(InG1, Stream, SM9.BytesCount);
     Stream.Write(D[0], SizeOf(TCnSM3Digest));
 
-    // 第二次 Hash
+    // 第二次杂凑
     D := SM3(Stream.Memory, Stream.Size);
     Result := CompareMem(@D[0], @InOptionalSA[0], SizeOf(TCnSM3Digest));
 
@@ -4278,7 +4280,7 @@ var
   Arr: TBytes;
 begin
   if (Key = nil) or (KeyByteLength <= 0) or (Z = nil) or (ZByteLength <= 0) then
-    raise ECnSM9Exception.Create(SErrorMacParams);
+    raise ECnSM9Exception.Create(SCnErrorSM9MacParams);
 
   SetLength(Arr, KeyByteLength + ZByteLength);
   Move(Z^, Arr[0], ZByteLength);

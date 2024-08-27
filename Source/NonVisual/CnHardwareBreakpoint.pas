@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2023 CnPack 开发组                       }
+{                   (C)Copyright 2001-2024 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -13,7 +13,7 @@
 {            您应该已经和开发包一起收到一份 CnPack 发布协议的副本。如果        }
 {        还没有，可访问我们的网站：                                            }
 {                                                                              }
-{            网站地址：http://www.cnpack.org                                   }
+{            网站地址：https://www.cnpack.org                                  }
 {            电子邮件：master@cnpack.org                                       }
 {                                                                              }
 {******************************************************************************}
@@ -45,42 +45,37 @@ const
   THREAD_ALL_ACCESS = (STANDARD_RIGHTS_REQUIRED or SYNCHRONIZE or $3FF);
 
 type
-  TCallbackInstance = array[1..12] of Byte; //对象成员回调
+  TCallbackInstance = array[1..12] of Byte; // 对象成员回调
 
   PExceptionPointers = ^TExceptionPointers;
   TVEHCallbackProc = function(pException: PExceptionPointers): Integer of object; stdcall;
   THardwareBreakError = procedure(ErrorId: Integer; Error: Exception; pException: PExceptionPointers) of object;
 
-  TCnVectoredException = class(TComponent) //VEH 基类
+  TCnVectoredException = class(TComponent) // VEH 基类
   private
-    { Private declarations }
-    FHandler: HWND; //VEH句柄
+    FHandler: HWND; // VEH句柄
     FOnCallback: TVEHCallbackProc;
     FOnCallback_Instance: TCallbackInstance;
     procedure MakeCallbackInstance(var Instance: TCallbackInstance; ObjectAddr, FunctionAddr: Pointer);
-    procedure SetBreakCallbackProc(FunctionAddr: Pointer); //设置回调函数地址
+    procedure SetBreakCallbackProc(FunctionAddr: Pointer); // 设置回调函数地址
   protected
-   { protected declarations }
     function DoVEHCallback(pException: PExceptionPointers): Integer; virtual; stdcall;
-
   public
-    { Public declarations }
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
-    function InstallVEH: boolean; virtual; //安装VEH
-    procedure RemoveVEH; virtual; //卸载VEH
+    function InstallVEH: boolean; virtual; // 安装 VEH
+    procedure RemoveVEH; virtual; // 卸载 VEH
 
     property OnCallback: TVEHCallbackProc read FOnCallback write FOnCallback;
   published
-    { published declarations }
 
   end;
+
   PBreakpointsProc = ^TBreakpointProc;
   TBreakpointProc = procedure(pException: PExceptionPointers) of object;
 
   TCnHardwareBreakpoint = class(TCnVectoredException) //硬断点类
   private
-    { Private declarations }
     FDr1: DWORD;
     FDr2: DWORD;
     FDr3: DWORD;
@@ -91,7 +86,6 @@ type
     FOnBreakpoint4: TBreakpointProc;
     FOnHardwareBreakError: THardwareBreakError;
   protected
-   { protected declarations }
     function DoVEHCallback(pException: PExceptionPointers): Integer; override; stdcall;
     procedure DoBreakpoint1(pException: PExceptionPointers); virtual;
     procedure DoBreakpoint2(pException: PExceptionPointers); virtual;
@@ -99,14 +93,12 @@ type
     procedure DoBreakpoint4(pException: PExceptionPointers); virtual;
     procedure DoHardwareBreakError(ErrorId: Integer; Error: Exception; pException: PExceptionPointers); virtual;
   public
-    { Public declarations }
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
     procedure ClearBreakpoints;
-    procedure SetBreakpoints; //设置硬件断点使其生效
+    procedure SetBreakpoints; // 设置硬件断点使其生效
 
   published
-    { published declarations }
     property BreakpointsAdderss1: DWORD read FDr1 write FDr1 default 0;
     property BreakpointsAdderss2: DWORD read FDr2 write FDr2 default 0;
     property BreakpointsAdderss3: DWORD read FDr3 write FDr3 default 0;

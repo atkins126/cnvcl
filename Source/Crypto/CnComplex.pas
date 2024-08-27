@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2023 CnPack 开发组                       }
+{                   (C)Copyright 2001-2024 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -13,7 +13,7 @@
 {            您应该已经和开发包一起收到一份 CnPack 发布协议的副本。如果        }
 {        还没有，可访问我们的网站：                                            }
 {                                                                              }
-{            网站地址：http://www.cnpack.org                                   }
+{            网站地址：https://www.cnpack.org                                  }
 {            电子邮件：master@cnpack.org                                       }
 {                                                                              }
 {******************************************************************************}
@@ -22,9 +22,10 @@ unit CnComplex;
 {* |<PRE>
 ================================================================================
 * 软件名称：开发包基础库
-* 单元名称：浮点复数实现单元
-* 单元作者：刘啸
-* 备    注：用 record 而不用 Object。支持跨平台
+* 单元名称：浮点复数运算实现单元
+* 单元作者：CnPack 开发组 (master@cnpack.org)
+* 备    注：本单元实现了扩展精度浮点数的复数结构 TCnComplexNumber 及其各类运算。
+*           为提高效率，使用 record 而不用 TObject。
 * 开发平台：Win 7 + Delphi 5.0
 * 兼容测试：暂未进行
 * 本 地 化：该单元无需本地化处理
@@ -119,6 +120,9 @@ procedure ComplexNumberMul(var Res: TCnComplexNumber;
 procedure ComplexNumberDiv(var Res: TCnComplexNumber;
   var Complex: TCnComplexNumber; Value: Extended); overload;
 {* 复数与浮点数的除法，Complex 和 Res 可以是同一个结构}
+
+procedure ComplexNumberSqrt(var Res: TCnComplexNumber; var Complex: TCnComplexNumber);
+{* 求复数的平方根，只返回其中一个，如果需要另一个，实部虚部各取负就行}
 
 procedure ComplexConjugate(var Res, Complex: TCnComplexNumber);
 {* 获得共轭复数，Res 可以是 Complex}
@@ -278,6 +282,16 @@ procedure ComplexNumberDiv(var Res: TCnComplexNumber;
 begin
   Res.R := Complex.R / Value;
   Res.I := Complex.I;
+end;
+
+procedure ComplexNumberSqrt(var Res: TCnComplexNumber; var Complex: TCnComplexNumber);
+var
+  R, A: Extended;
+begin
+  R := FloatSqrt(ComplexNumberAbsolute(Complex));
+  A := ComplexNumberArgument(Complex) / 2;
+
+  ComplexNumberSetAbsoluteArgument(Res, R, A);
 end;
 
 procedure ComplexConjugate(var Res, Complex: TCnComplexNumber);

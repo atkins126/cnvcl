@@ -13,7 +13,7 @@
 {            您应该已经和开发包一起收到一份 CnPack 发布协议的副本。如果        }
 {        还没有，可访问我们的网站：                                            }
 {                                                                              }
-{            网站地址：http://www.cnpack.org                                   }
+{            网站地址：https://www.cnpack.org                                  }
 {            电子邮件：master@cnpack.org                                       }
 {                                                                              }
 {******************************************************************************}
@@ -30,7 +30,12 @@ unit CnHexEditor;
 * 开发平台：PWinXP + Delphi 7
 * 兼容测试：PWin9X/2000/XP + Delphi 5/6/7 + C++Builder 5/6
 * 本 地 化：该单元中的字符串均符合本地化处理方式
-* 修改记录：2012.09.26 V1.2
+* 修改记录：2024.05.18 V1.4
+*               按需暴露 StyleElements 属性供高版本 Delphi 使用
+*           2024.01.12 V1.3
+*               增加 SelBytes 属性以处理 Unicode 下 SelText 错乱的冲突
+*               增加 Ctrl+C 复制选中十六进制字符串的机制
+*           2012.09.26 V1.2
 *               增加一 DataChange 方法供修改 MemoryStream 后更新界面用，感谢 veket
 *           2012.03.03 V1.1
 *               暂时屏蔽 CMFONTCHANGED 的第一次消息以免画错，原因不详
@@ -44,7 +49,8 @@ interface
 {$I CnPack.inc}
 
 uses
-  Windows, Messages, SysUtils, Classes, Controls, Graphics, Forms;
+  Windows, Messages, SysUtils, Classes, Controls, Graphics, Forms, Clipbrd,
+  CnNative;
 
 type
   TCnWMImeChar = packed record
@@ -63,6 +69,9 @@ type
   TCnMouseObject = (moNone, moAddress, moHex, moChar);
 
 type
+{$IFDEF SUPPORT_32_AND_64}
+  [ComponentPlatformsAttribute(pidWin32 or pidWin64)]
+{$ENDIF}
   TCnHexEditor = class(TCustomControl)
   private
     FFirstCmFontChanged: Boolean;
@@ -117,6 +126,7 @@ type
     procedure SetAnchorOffset(Value: Integer);
     procedure WMIMECHAR(var Msg: TCnWMImeChar); message WM_IME_CHAR;
     procedure WMCHAR(var Msg: TWMChar); message WM_CHAR;
+    function GetSelBytes: TBytes;
   protected
     function GetSelText: string; virtual;
     procedure SetSelText(const Value: string); virtual;
@@ -143,6 +153,9 @@ type
     procedure SaveToStream(Stream: TStream);
     procedure SaveToFile(FileName: TFileName);
     procedure SaveToBuffer(var Buffer; Size: Integer);
+    procedure Clear;
+
+    property SelBytes: TBytes read GetSelBytes;
     property MemoryStream: TMemoryStream read FMemoryStream;
     property BaseAddress: Integer read FBaseAddress write SetBaseAddress; // 基地址
     property RowIndex: Integer read FRowIndex write SetRowIndex;          // 当前行数
@@ -150,7 +163,7 @@ type
     property ColType: TCnMouseObject read FColType write SetColType;      // 当前列是否十六进制
     property SelStart: Integer read FSelStart write SetSelStart;          // 选择文本的开始位置
     property SelLength: Integer read FSelLength write SetSelLength;       // 选择文本的长度
-    property SelText: string read GetSelText write SetSelText;            // 选中的文本
+    property SelText: string read GetSelText write SetSelText;            // 选中的文本，注意 Unicode 编译器下有问题
     property AnchorOffset: Integer read FAnchorOffset write SetAnchorOffset;
     function ScrollIntoView: Boolean;
     procedure UpdateCaret;
@@ -167,6 +180,9 @@ type
     property ParentFont;
     property ParentColor;
     property PopupMenu;
+{$IFDEF TCONTROL_HAS_STYLEELEMENTS}
+    property StyleElements;
+{$ENDIF}
     property TabOrder;
     property TabStop;
     property Visible;
@@ -185,10 +201,10 @@ uses
   Math;
 
 //------------------------------------------------------------------------------
-// 流插入数据
+// 往流中插入数据
 //------------------------------------------------------------------------------
 
-function CnInsertStream(Stream: TStream; Offset: Integer; const Buffer; Length:
+function InsertToStream(Stream: TStream; Offset: Integer; const Buffer; Length:
   Integer): Boolean;
 var
   vBuffer: array[0..$1000 - 1] of Char;
@@ -221,10 +237,10 @@ begin
 end;
 
 //------------------------------------------------------------------------------
-// 删除流数据
+// 删除流中的数据
 //------------------------------------------------------------------------------
 
-function CnDeleteStream(Stream: TStream; Offset: Integer; Length: Integer): Boolean;
+function DeleteFromStream(Stream: TStream; Offset: Integer; Length: Integer): Boolean;
 var
   Buffer: array[0..$1000 - 1] of Char;
   I, L: Integer;
@@ -268,6 +284,16 @@ begin
   ScrlInfo.fMask := SIF_PAGE;
   ScrlInfo.nPage := FVisibleChars;
   SetScrollInfo(Handle, SB_HORZ, ScrlInfo, True);
+end;
+
+procedure TCnHexEditor.Clear;
+begin
+  FMemoryStream.Clear;
+  FSelLength := 0;
+  FSelStart := 0;
+  FColIndex := 0;
+  FRowIndex := 0;
+  DoChange;
 end;
 
 procedure TCnHexEditor.CMFontChanged(var Message: TMessage);
@@ -369,9 +395,13 @@ begin
   Perform(WM_VSCROLL, MakeWParam(SB_PAGEUP, 0), 0);
 end;
 
+{$WARNINGS OFF}
+
+// 屏蔽 B 在 Delphi 5 下的误报编译告警
 procedure TCnHexEditor.KeyDown(var Key: Word; Shift: TShiftState);
 var
   CaretPoint: TPoint;
+  B: TBytes;
 begin
   inherited;
   case Key of
@@ -384,7 +414,7 @@ begin
           if FSelStart <= 0 then
             Exit;
           Dec(FSelStart);
-          if CnDeleteStream(FMemoryStream, FSelStart, 1) then
+          if DeleteFromStream(FMemoryStream, FSelStart, 1) then
           begin
             CaretPoint := PositionToCoordinate(FSelStart);
             FColIndex := CaretPoint.X;
@@ -394,7 +424,7 @@ begin
         end
         else
         begin
-          if CnDeleteStream(FMemoryStream, FSelStart, FSelLength) then
+          if DeleteFromStream(FMemoryStream, FSelStart, FSelLength) then
           begin
             FSelLength := 0;
             CaretPoint := PositionToCoordinate(FSelStart + FSelLength);
@@ -408,14 +438,15 @@ begin
       begin
         if not FChangeDataSize then
           Exit;
+
         if FSelLength <= 0 then
         begin
-          if CnDeleteStream(FMemoryStream, FSelStart, 1) then
+          if DeleteFromStream(FMemoryStream, FSelStart, 1) then
             DoChange;
         end
         else
         begin
-          if CnDeleteStream(FMemoryStream, FSelStart, FSelLength) then
+          if DeleteFromStream(FMemoryStream, FSelStart, FSelLength) then
           begin
             FSelLength := 0;
             CaretPoint := PositionToCoordinate(FSelStart + FSelLength);
@@ -519,8 +550,19 @@ begin
         ColType := moChar
       else
         ColType := moHex;
+    Ord('C'):
+      begin
+        if ssCtrl in Shift then
+        begin
+          B := SelBytes;
+          if Length(B) > 0 then
+            Clipboard.AsText := BytesToHex(B);
+        end;
+      end;
   end;
 end;
+
+{$WARNINGS ON}
 
 function TCnHexEditor.LineViewText(mLineIndex: Integer): string;
 const
@@ -1529,6 +1571,17 @@ begin
   end;
 end;
 
+function TCnHexEditor.GetSelBytes: TBytes;
+begin
+  Result := nil;
+  if FSelLength <= 0 then
+    Exit;
+
+  SetLength(Result, FSelLength);
+  FMemoryStream.Position := FSelStart;
+  FMemoryStream.Read(Result[0], FSelLength);
+end;
+
 function TCnHexEditor.GetSelText: string;
 begin
   Result := '';
@@ -1548,9 +1601,9 @@ begin
   if (L <= 0) and (FSelLength <= 0) then
     Exit;
   if FSelLength > 0 then
-    CnDeleteStream(FMemoryStream, FSelStart, FSelLength);
+    DeleteFromStream(FMemoryStream, FSelStart, FSelLength);
   if L > 0 then
-    CnInsertStream(FMemoryStream, FSelStart, Value[1], L);
+    InsertToStream(FMemoryStream, FSelStart, Value[1], L);
   FSelLength := 0;
   FSelStart := FSelStart + L;
   vCaretPoint := PositionToCoordinate(FSelStart + FSelLength);

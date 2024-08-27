@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2023 CnPack 开发组                       }
+{                   (C)Copyright 2001-2024 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -13,7 +13,7 @@
 {            您应该已经和开发包一起收到一份 CnPack 发布协议的副本。如果        }
 {        还没有，可访问我们的网站：                                            }
 {                                                                              }
-{            网站地址：http://www.cnpack.org                                   }
+{            网站地址：https://www.cnpack.org                                  }
 {            电子邮件：master@cnpack.org                                       }
 {                                                                              }
 {******************************************************************************}
@@ -23,7 +23,7 @@ unit CryptoTest;
 ================================================================================
 * 软件名称：CnPack 密码库
 * 单元名称：CnPack 密码库批量测试单元
-* 单元作者：刘啸 (liuxiao@cnpack.org)
+* 单元作者：CnPack 开发组 (master@cnpack.org)
 * 备    注：测试失败的用例会通过 Assert 抛出异常
 * 开发平台：PWin7 + Delphi 5.0
 * 兼容测试：编译器：Delphi 5~2007 的非 Unicode、Delphi 2009 或以上的 Unicode、FPC 3.2 以上
@@ -31,28 +31,43 @@ unit CryptoTest;
 *           OS: Win32、Win64、MacOS64、Linux64
 * 本 地 化：该单元中的字符串均符合本地化处理方式
 * 修改记录：2023.03.10 V1.0
-*               创建单元，实现功能
+*               创建单元，持续增加功能
 ================================================================================
 |</PRE>}
 
 interface
 
-{$I CnPack.inc}
+// 注意为了保持测试用例的纯净性，不能 {$I CnPack.inc}
 
 uses
-  SysUtils, Classes,
+  SysUtils, Classes, {$IFDEF ANDROID} FMX.Types, {$ENDIF}
   CnNative, CnBigNumber, CnSM4, CnDES, CnAES, CnAEAD, CnRSA, CnECC, CnSM2, CnSM3,
   CnSM9, CnFNV, CnKDF, CnBase64, CnCRC32, CnMD5, CnSHA1, CnSHA2, CnSHA3, CnChaCha20,
-  CnPoly1305, CnTEA, CnZUC, CnPrimeNumber, Cn25519, CnPaillier, CnSecretSharing;
+  CnPoly1305, CnTEA, CnZUC, CnFEC, CnPrimeNumber, Cn25519, CnPaillier, CnSecretSharing,
+  CnPolynomial, CnBits, CnLattice, CnOTS, CnPemUtils, CnInt128, CnRC4, CnPDFCrypt,
+  CnStrings, CnWideStrings;
 
 procedure TestCrypto;
 {* 密码库总测试入口}
 
 // ============================== Native =======================================
 
+function TestEndian: Boolean;
 function TestStrToUInt64: Boolean;
 function TestUInt64Div: Boolean;
 function TestUInt64Mod: Boolean;
+
+// =========================== Constant Time ===================================
+
+function TestConstTimeSwap: Boolean;
+function TestConstTimeSelect: Boolean;
+function TestConstTimeEqual: Boolean;
+function TestConstTimeExpandBool: Boolean;
+function TestConstTimeBytes: Boolean;
+
+// ============================== Strings ======================================
+
+function TestUtf8: Boolean;
 
 // ============================== BigNumber ====================================
 
@@ -65,30 +80,71 @@ function TestBigNumberDivWord: Boolean;
 function TestBigNumberUnsignedAdd: Boolean;
 function TestBigNumberPowerMod: Boolean;
 function TestBigNumberDiv: Boolean;
+function TestBigNumberRoundDiv: Boolean;
 function TestBigNumberShiftLeft: Boolean;
 function TestBigNumberGetBitsCount: Boolean;
 function TestBigNumberShiftRightOne: Boolean;
 function TestBigNumberFermatCheckComposite: Boolean;
 function TestBigNumberIsProbablyPrime: Boolean;
+function TestBigNumberIsPerfectPower: Boolean;
+
+// ================================ Bits =======================================
+
+function TestBitsEmpty: Boolean;
+function TestBitsAppend: Boolean;
+
+// =============================== Int128 ======================================
+
+function TestInt128Add: Boolean;
+function TestInt128Sub: Boolean;
+function TestInt128Mul: Boolean;
+function TestInt128DivMod: Boolean;
+function TestUInt128Add: Boolean;
+function TestUInt128Sub: Boolean;
+function TestUInt128Mul: Boolean;
+function TestUInt128DivMod: Boolean;
+
+// ============================= Polynomial ====================================
+
+function TestBigNumberPolynomialGaloisPrimePowerModularInverse: Boolean;
 
 // ================================ SM4 ========================================
 
 function TestSM4Standard1: Boolean;
 function TestSM4Standard2: Boolean;
+function TestSM4Ecb: Boolean;
+function TestSM4Cbc: Boolean;
+function TestSM4Cfb: Boolean;
+function TestSM4Ofb: Boolean;
+function TestSM4Ctr: Boolean;
 
 // ================================ DES ========================================
 
-function TestDESEcb1: Boolean;
+function TestDESEcb: Boolean;
+function TestDESCbc: Boolean;
 
 // ================================ 3DES =======================================
 
-function Test3DESEcb1: Boolean;
+function Test3DESEcb: Boolean;
+function Test3DESCbc: Boolean;
 
 // ================================ AES ========================================
 
 function TestAESEcb128: Boolean;
 function TestAESEcb192: Boolean;
 function TestAESEcb256: Boolean;
+function TestAESCbc128: Boolean;
+function TestAESCbc192: Boolean;
+function TestAESCbc256: Boolean;
+function TestAESCfb128: Boolean;
+function TestAESCfb192: Boolean;
+function TestAESCfb256: Boolean;
+function TestAESOfb128: Boolean;
+function TestAESOfb192: Boolean;
+function TestAESOfb256: Boolean;
+function TestAESCtr128: Boolean;
+function TestAESCtr192: Boolean;
+function TestAESCtr256: Boolean;
 
 // ================================ CRC ========================================
 
@@ -101,37 +157,50 @@ function TestCRC64ECMA: Boolean;
 
 function TestMD5: Boolean;
 function TestMD5Hmac: Boolean;
+function TestMD5Update: Boolean;
 
 // ================================ SHA1 =======================================
 
 function TestSHA1: Boolean;
 function TestSHA1HMac: Boolean;
+function TestSHA1Update: Boolean;
 
 // ================================ SHA2 =======================================
 
 function TestSHA224: Boolean;
 function TestSHA224HMac: Boolean;
+function TestSHA224Update: Boolean;
 function TestSHA256: Boolean;
 function TestSHA256HMac: Boolean;
+function TestSHA256Update: Boolean;
 function TestSHA384: Boolean;
 function TestSHA384HMac: Boolean;
+function TestSHA384Update: Boolean;
 function TestSHA512: Boolean;
 function TestSHA512HMac: Boolean;
+function TestSHA512Update: Boolean;
 
 // ================================ SHA3 =======================================
 
 function TestSHA3_224: Boolean;
 function TestSHA3_224HMac: Boolean;
+function TestSHA3_224Update: Boolean;
 function TestSHA3_256: Boolean;
 function TestSHA3_256HMac: Boolean;
+function TestSHA3_256Update: Boolean;
 function TestSHA3_384: Boolean;
 function TestSHA3_384HMac: Boolean;
+function TestSHA3_384Update: Boolean;
 function TestSHA3_512: Boolean;
 function TestSHA3_512HMac: Boolean;
+function TestSHA3_512Update: Boolean;
+function TestSHAKE128: Boolean;
+function TestSHAKE256: Boolean;
 
 // ================================ Base64 =====================================
 
 function TestBase64: Boolean;
+function TestBase64URL: Boolean;
 
 // ================================ AEAD =======================================
 
@@ -141,14 +210,19 @@ function TestAEADAES128GCM: Boolean;
 function TestAEADAES192GCM: Boolean;
 function TestAEADAES256GCM: Boolean;
 function TestAEADSM4GCM: Boolean;
+function TestAEADChaCha20Poly1305: Boolean;
+function TestAEADXChaCha20Poly1305: Boolean;
 
 // ================================ ChaCha20 ===================================
 
 function TestChaCha20: Boolean;
+function TestHChaCha20SubKey: Boolean;
+function TestXChaCha20: Boolean;
 
 // ================================ Poly1305 ===================================
 
 function TestPoly1305: Boolean;
+function TestPoly1305Update: Boolean;
 
 // ================================ ZUC ========================================
 
@@ -163,6 +237,10 @@ function TestZUCEIA31: Boolean;
 function TestZUCEIA32: Boolean;
 function TestZUCEIA33: Boolean;
 
+// ================================ RC4 ========================================
+
+function TestRC4: Boolean;
+
 // ================================ TEA ========================================
 
 function TestTea: Boolean;
@@ -174,6 +252,16 @@ function TestXXTea: Boolean;
 function TestFNV1: Boolean;
 function TestFNV1a: Boolean;
 
+// ================================ FEC ========================================
+
+function TestHamming: Boolean;
+
+// ================================ PDF ========================================
+
+function TestPDFCalcOwnerPassword: Boolean;
+function TestPDFCalcUserPassword: Boolean;
+function TestPDFCheckOwnerPassword: Boolean;
+
 // ================================ SM2 ========================================
 
 function TestSM21: Boolean;
@@ -184,6 +272,7 @@ function TestSM23: Boolean;
 
 function TestSM3: Boolean;
 function TestSM3HMac: Boolean;
+function TestSM3Update: Boolean;
 
 // ================================ SM9 ========================================
 
@@ -199,6 +288,10 @@ function TestSM9PublicEncryption: Boolean;
 
 function TestRSA1: Boolean;
 function TestRSA2: Boolean;
+function TestRSAPrivPubPkcs1: Boolean;
+function TestRSAPubPkcs1: Boolean;
+function TestRSAPrivPubPkcs8: Boolean;
+function TestRSAPubPkcs8: Boolean;
 
 // ================================ KDF ========================================
 
@@ -210,10 +303,21 @@ function TestKDFSM2SM9: Boolean;
 
 function TestPrimeNumber1: Boolean;
 function TestPrimeNumber2: Boolean;
+function TestPrimeNumber3: Boolean;
 
 // ================================ 25519 ======================================
 
+function Test25519CurveMul: Boolean;
+function Test25519CurveGMul: Boolean;
+function Test25519KeyExchange: Boolean;
+function Test25519CalcKey: Boolean;
 function Test25519Sign: Boolean;
+function Test448CurveMul: Boolean;
+function Test448CurveGMul: Boolean;
+function Test448KeyExchange: Boolean;
+function Test448CalcKey: Boolean;
+function Test448Sign1: Boolean;
+function Test448Sign2: Boolean;
 
 // =============================== Paillier ====================================
 
@@ -225,9 +329,21 @@ function TestPaillier2: Boolean;
 function TestSecretSharingShamir: Boolean;
 function TestSecretSharingFeldmanVss: Boolean;
 
+// ================================ OTS ========================================
+
+function TestOTSSM3: Boolean;
+function TestOTSSHA256: Boolean;
+function TestMOTSSM3: Boolean;
+function TestMOTSSHA256: Boolean;
+function TestWOTSSM3: Boolean;
+function TestWOTSSHA256: Boolean;
+
 // ================================ ECC ========================================
 
 function TestECCMul: Boolean;
+function TestECCPrivPubPkcs1: Boolean;
+function TestECCPrivPubPkcs8: Boolean;
+function TestECCPub: Boolean;
 function TestECCSchoof: Boolean;
 function TestECCSchoof2: Boolean;
 
@@ -235,199 +351,372 @@ function TestECCSchoof2: Boolean;
 
 implementation
 
+const
+  SCRLF = #13#10;
+
+procedure MyWriteln(const Text: string);
+begin
+{$IFDEF ANDROID}
+  Log.D(Text);
+{$ELSE}
+  Writeln(Text);
+{$ENDIF}
+end;
+
+procedure MyAssert(V: Boolean; const Msg: string);
+begin
+  MyWriteln(Msg + '...');
+  Assert(V);
+end;
+
 procedure TestCrypto;
 begin
-  Writeln('Crypto Test Start...');
+{$IFDEF CPU64BITS}
+  MyWriteln('*** CPU 64 Bits ***');
+{$ELSE}
+  MyWriteln('*** CPU 32 Bits ***');
+{$ENDIF}
+
+{$IFDEF CPUARM}
+  MyWriteln('*** ARM ***');
+{$ENDIF}
+
+  if CurrentByteOrderIsBigEndian then
+    MyWriteln('=== Big Endian ===');
+  if CurrentByteOrderIsLittleEndian then
+    MyWriteln('=== Little Endian ===');
+
+  MyWriteln('Crypto Test Start...');
 
 // ============================== Native =======================================
 
-  Assert(TestStrToUInt64, 'TestStrToUInt64');
-  Assert(TestUInt64Div, 'TestUInt64Div');
-  Assert(TestUInt64Mod, 'TestUInt64Mod');
+  MyAssert(TestEndian, 'TestEndian');
+  MyAssert(TestStrToUInt64, 'TestStrToUInt64');
+  MyAssert(TestUInt64Div, 'TestUInt64Div');
+  MyAssert(TestUInt64Mod, 'TestUInt64Mod');
+
+// =========================== Constant Time ===================================
+
+  MyAssert(TestConstTimeSwap, 'TestConstTimeSwap');
+  MyAssert(TestConstTimeSelect, 'TestConstTimeSelect');
+  MyAssert(TestConstTimeEqual, 'TestConstTimeEqual');
+  MyAssert(TestConstTimeExpandBool, 'TestConstTimeExpandBool');
+  MyAssert(TestConstTimeBytes, 'TestConstTimeBytes');
+
+// ============================== Strings ======================================
+
+  MyAssert(TestUtf8, 'TestUtf8');
 
 // ============================== BigNumber ====================================
 
-  Assert(TestBigNumberHex, 'TestBigNumberHex');
-  Assert(TestBigNumberDec, 'TestBigNumberDec');
-  Assert(TestBigNumberExpandWord, 'TestBigNumberExpandWord');
-  Assert(TestBigNumberModWord, 'TestBigNumberModWord');
-  Assert(TestBigNumberMulWord, 'TestBigNumberMulWord');
-  Assert(TestBigNumberDivWord, 'TestBigNumberDivWord');
-  Assert(TestBigNumberUnsignedAdd, 'TestBigNumberUnsignedAdd');
-  Assert(TestBigNumberPowerMod, 'TestBigNumberPowerMod');
-  Assert(TestBigNumberDiv, 'TestBigNumberDiv');
-  Assert(TestBigNumberShiftLeft, 'TestBigNumberShiftLeft');
-  Assert(TestBigNumberGetBitsCount, 'TestBigNumberGetBitsCount');
-  Assert(TestBigNumberShiftRightOne, 'TestBigNumberShiftRightOne');
-  Assert(TestBigNumberFermatCheckComposite, 'TestBigNumberFermatCheckComposite');
-  Assert(TestBigNumberIsProbablyPrime, 'TestBigNumberIsProbablyPrime');
+  MyAssert(TestBigNumberHex, 'TestBigNumberHex');
+  MyAssert(TestBigNumberDec, 'TestBigNumberDec');
+  MyAssert(TestBigNumberExpandWord, 'TestBigNumberExpandWord');
+  MyAssert(TestBigNumberModWord, 'TestBigNumberModWord');
+  MyAssert(TestBigNumberMulWord, 'TestBigNumberMulWord');
+  MyAssert(TestBigNumberDivWord, 'TestBigNumberDivWord');
+  MyAssert(TestBigNumberUnsignedAdd, 'TestBigNumberUnsignedAdd');
+  MyAssert(TestBigNumberPowerMod, 'TestBigNumberPowerMod');
+  MyAssert(TestBigNumberDiv, 'TestBigNumberDiv');
+  MyAssert(TestBigNumberRoundDiv, 'TestBigNumberRoundDiv');
+  MyAssert(TestBigNumberShiftLeft, 'TestBigNumberShiftLeft');
+  MyAssert(TestBigNumberGetBitsCount, 'TestBigNumberGetBitsCount');
+  MyAssert(TestBigNumberShiftRightOne, 'TestBigNumberShiftRightOne');
+  MyAssert(TestBigNumberFermatCheckComposite, 'TestBigNumberFermatCheckComposite');
+  MyAssert(TestBigNumberIsProbablyPrime, 'TestBigNumberIsProbablyPrime');
+  MyAssert(TestBigNumberIsPerfectPower, 'TestBigNumberIsPerfectPower');
+
+// ================================ Bits =======================================
+
+  MyAssert(TestBitsEmpty, 'TestBitsEmpty');
+  MyAssert(TestBitsAppend, 'TestBitsAppend');
+
+// =============================== Int128 ======================================
+
+  MyAssert(TestInt128Add, 'TestInt128Add');
+  MyAssert(TestInt128Sub, 'TestInt128Sub');
+  MyAssert(TestInt128Mul, 'TestInt128Mul');
+  MyAssert(TestInt128DivMod, 'TestInt128DivMod');
+  MyAssert(TestUInt128Add, 'TestUInt128Add');
+  MyAssert(TestUInt128Sub, 'TestUInt128Sub');
+  MyAssert(TestUInt128Mul, 'TestUInt128Mul');
+  MyAssert(TestUInt128DivMod, 'TestUInt128DivMod');
+
+// ============================= Polynomial ====================================
+
+  MyAssert(TestBigNumberPolynomialGaloisPrimePowerModularInverse, 'TestBigNumberPolynomialGaloisPrimePowerModularInverse');
 
 // ================================ SM4 ========================================
 
-  Assert(TestSM4Standard1, 'TestSM4Standard1');
-  Assert(TestSM4Standard2, 'TestSM4Standard2');
+  MyAssert(TestSM4Standard1, 'TestSM4Standard1');
+  MyAssert(TestSM4Standard2, 'TestSM4Standard2');
+  MyAssert(TestSM4Ecb, 'TestSM4Ecb');
+  MyAssert(TestSM4Cbc, 'TestSM4Cbc');
+  MyAssert(TestSM4Cfb, 'TestSM4Cfb');
+  MyAssert(TestSM4Ofb, 'TestSM4Ofb');
+  MyAssert(TestSM4Ctr, 'TestSM4Ctr');
 
 // ================================ DES ========================================
 
-  Assert(TestDESEcb1, 'TestDESEcb1');
+  MyAssert(TestDESEcb, 'TestDESEcb');
+  MyAssert(TestDESCbc, 'TestDESCbc');
 
 // ================================ 3DES =======================================
 
-  Assert(Test3DESEcb1, 'Test3DESEcb1');
+  MyAssert(Test3DESEcb, 'Test3DESEcb');
+  MyAssert(Test3DESCbc, 'Test3DESCbc');
 
 // ================================ AES ========================================
 
-  Assert(TestAESEcb128, 'TestAESEcb128');
-  Assert(TestAESEcb192, 'TestAESEcb192');
-  Assert(TestAESEcb256, 'TestAESEcb256');
+  MyAssert(TestAESEcb128, 'TestAESEcb128');
+  MyAssert(TestAESEcb192, 'TestAESEcb192');
+  MyAssert(TestAESEcb256, 'TestAESEcb256');
+  MyAssert(TestAESCbc128, 'TestAESCbc128');
+  MyAssert(TestAESCbc192, 'TestAESCbc192');
+  MyAssert(TestAESCbc256, 'TestAESCbc256');
+  MyAssert(TestAESCfb128, 'TestAESCfb128');
+  MyAssert(TestAESCfb192, 'TestAESCfb192');
+  MyAssert(TestAESCfb256, 'TestAESCfb256');
+  MyAssert(TestAESOfb128, 'TestAESOfb128');
+  MyAssert(TestAESOfb192, 'TestAESOfb192');
+  MyAssert(TestAESOfb256, 'TestAESOfb256');
+  MyAssert(TestAESCtr128, 'TestAESCtr128');
+  MyAssert(TestAESCtr192, 'TestAESCtr192');
+  MyAssert(TestAESCtr256, 'TestAESCtr256');
 
 // ================================ CRC ========================================
 
-  Assert(TestCRC8CCITT, 'TestCRC8CCITT');
-  Assert(TestCRC16CCITT, 'TestCRC16CCITT');
-  Assert(TestCRC32, 'TestCRC32');
-  Assert(TestCRC64ECMA, 'TestCRC64ECMA');
+  MyAssert(TestCRC8CCITT, 'TestCRC8CCITT');
+  MyAssert(TestCRC16CCITT, 'TestCRC16CCITT');
+  MyAssert(TestCRC32, 'TestCRC32');
+  MyAssert(TestCRC64ECMA, 'TestCRC64ECMA');
 
 // ================================ MD5 ========================================
 
-  Assert(TestMD5, 'TestMD5');
-  Assert(TestMD5Hmac, 'TestMD5Hmac');
+  MyAssert(TestMD5, 'TestMD5');
+  MyAssert(TestMD5Hmac, 'TestMD5Hmac');
+  MyAssert(TestMD5Update, 'TestMD5Update');
 
 // ================================ SHA1 =======================================
 
-  Assert(TestSHA1, 'TestSHA1');
-  Assert(TestSHA1Hmac, 'TestSHA1Hmac');
+  MyAssert(TestSHA1, 'TestSHA1');
+  MyAssert(TestSHA1Hmac, 'TestSHA1Hmac');
+  MyAssert(TestSHA1Update, 'TestSHA1Update');
 
 // ================================ SHA2 =======================================
 
-  Assert(TestSHA224, 'TestSHA224');
-  Assert(TestSHA224HMac, 'TestSHA224HMac');
-  Assert(TestSHA256, 'TestSHA256');
-  Assert(TestSHA256HMac, 'TestSHA256HMac');
-  Assert(TestSHA384, 'TestSHA384');
-  Assert(TestSHA384HMac, 'TestSHA384HMac');
-  Assert(TestSHA512, 'TestSHA512');
-  Assert(TestSHA512HMac, 'TestSHA512HMac');
+  MyAssert(TestSHA224, 'TestSHA224');
+  MyAssert(TestSHA224HMac, 'TestSHA224HMac');
+  MyAssert(TestSHA224Update, 'TestSHA224Update');
+  MyAssert(TestSHA256, 'TestSHA256');
+  MyAssert(TestSHA256HMac, 'TestSHA256HMac');
+  MyAssert(TestSHA256Update, 'TestSHA256Update');
+  MyAssert(TestSHA384, 'TestSHA384');
+  MyAssert(TestSHA384HMac, 'TestSHA384HMac');
+  MyAssert(TestSHA384Update, 'TestSHA384Update');
+  MyAssert(TestSHA512, 'TestSHA512');
+  MyAssert(TestSHA512HMac, 'TestSHA512HMac');
+  MyAssert(TestSHA512Update, 'TestSHA512Update');
 
 // ================================ SHA3 =======================================
 
-  Assert(TestSHA3_224, 'TestSHA3_224');
-  Assert(TestSHA3_224HMac, 'TestSHA3_224HMac');
-  Assert(TestSHA3_256, 'TestSHA3_256');
-  Assert(TestSHA3_256HMac, 'TestSHA3_256HMac');
-  Assert(TestSHA3_384, 'TestSHA3_384');
-  Assert(TestSHA3_384HMac, 'TestSHA3_384HMac');
-  Assert(TestSHA3_512, 'TestSHA3_512');
-  Assert(TestSHA3_512HMac, 'TestSHA3_512HMac');
+  MyAssert(TestSHA3_224, 'TestSHA3_224');
+  MyAssert(TestSHA3_224HMac, 'TestSHA3_224HMac');
+  MyAssert(TestSHA3_224Update, 'TestSHA3_224Update');
+  MyAssert(TestSHA3_256, 'TestSHA3_256');
+  MyAssert(TestSHA3_256HMac, 'TestSHA3_256HMac');
+  MyAssert(TestSHA3_256Update, 'TestSHA3_256Update');
+  MyAssert(TestSHA3_384, 'TestSHA3_384');
+  MyAssert(TestSHA3_384HMac, 'TestSHA3_384HMac');
+  MyAssert(TestSHA3_384Update, 'TestSHA3_384Update');
+  MyAssert(TestSHA3_512, 'TestSHA3_512');
+  MyAssert(TestSHA3_512HMac, 'TestSHA3_512HMac');
+  MyAssert(TestSHA3_512Update, 'TestSHA3_512Update');
+  MyAssert(TestSHAKE128, 'TestSHAKE128');
+  MyAssert(TestSHAKE256, 'TestSHAKE256');
 
 // ================================ Base64 =====================================
 
-  Assert(TestBase64, 'TestBase64');
+  MyAssert(TestBase64, 'TestBase64');
+  MyAssert(TestBase64URL, 'TestBase64URL');
 
 // ================================ AEAD =======================================
 
-  Assert(TestAEADAESCCM, 'TestAEADAESCCM');
-  Assert(TestAEADSM4CCM, 'TestAEADSM4CCM');
-  Assert(TestAEADAES128GCM, 'TestAEADAES128GCM');
-  Assert(TestAEADAES192GCM, 'TestAEADAES192GCM');
-  Assert(TestAEADAES256GCM, 'TestAEADAES256GCM');
+  MyAssert(TestAEADAESCCM, 'TestAEADAESCCM');
+  MyAssert(TestAEADSM4CCM, 'TestAEADSM4CCM');
+  MyAssert(TestAEADAES128GCM, 'TestAEADAES128GCM');
+  MyAssert(TestAEADAES192GCM, 'TestAEADAES192GCM');
+  MyAssert(TestAEADAES256GCM, 'TestAEADAES256GCM');
+  MyAssert(TestAEADSM4GCM, 'TestAEADSM4GCM');
+  MyAssert(TestAEADChaCha20Poly1305, 'TestAEADChaCha20Poly1305');
+  MyAssert(TestAEADXChaCha20Poly1305, 'TestAEADXChaCha20Poly1305');
 
 // ================================ ChaCha20 ===================================
 
-  Assert(TestChaCha20, 'TestChaCha20');
+  MyAssert(TestChaCha20, 'TestChaCha20');
+  MyAssert(TestHChaCha20SubKey, 'TestHChaCha20SubKey');
+  MyAssert(TestXChaCha20, 'TestXChaCha20');
 
 // ================================ Poly1305 ===================================
 
-  Assert(TestPoly1305, 'TestPoly1305');
+  MyAssert(TestPoly1305, 'TestPoly1305');
 
 // ================================ ZUC ========================================
 
-  Assert(TestZUC1, 'TestZUC1');
-  Assert(TestZUC2, 'TestZUC2');
-  Assert(TestZUC3, 'TestZUC3');
-  Assert(TestZUC4, 'TestZUC4');
-  Assert(TestZUCEEA31, 'TestZUCEEA31');
-  Assert(TestZUCEEA32, 'TestZUCEEA32');
-  Assert(TestZUCEEA33, 'TestZUCEEA33');
-  Assert(TestZUCEIA31, 'TestZUCEIA31');
-  Assert(TestZUCEIA32, 'TestZUCEIA32');
-  Assert(TestZUCEIA33, 'TestZUCEIA33');
+  MyAssert(TestZUC1, 'TestZUC1');
+  MyAssert(TestZUC2, 'TestZUC2');
+  MyAssert(TestZUC3, 'TestZUC3');
+  MyAssert(TestZUC4, 'TestZUC4');
+  MyAssert(TestZUCEEA31, 'TestZUCEEA31');
+  MyAssert(TestZUCEEA32, 'TestZUCEEA32');
+  MyAssert(TestZUCEEA33, 'TestZUCEEA33');
+  MyAssert(TestZUCEIA31, 'TestZUCEIA31');
+  MyAssert(TestZUCEIA32, 'TestZUCEIA32');
+  MyAssert(TestZUCEIA33, 'TestZUCEIA33');
+
+// ================================ ZUC ========================================
+
+  MyAssert(TestRC4, 'TestRC4');
 
 // ================================ TEA ========================================
 
-  Assert(TestTea, 'TestTea');
-  Assert(TestXTea, 'TestXTea');
-  Assert(TestXXTea, 'TestXXTea');
+  MyAssert(TestTea, 'TestTea');
+  MyAssert(TestXTea, 'TestXTea');
+  MyAssert(TestXXTea, 'TestXXTea');
 
 // ================================ FNV ========================================
 
-  Assert(TestFNV1, 'TestFNV1');
-  Assert(TestFNV1a, 'TestFNV1a');
+  MyAssert(TestFNV1, 'TestFNV1');
+  MyAssert(TestFNV1a, 'TestFNV1a');
+
+// ================================ FEC ========================================
+
+  MyAssert(TestHamming, 'TestHamming');
+
+// ================================ PDF ========================================
+
+  MyAssert(TestPDFCalcOwnerPassword, 'TestPDFCalcOwnerPassword');
+  MyAssert(TestPDFCalcUserPassword, 'TestPDFCalcUserPassword');
+  MyAssert(TestPDFCheckOwnerPassword, 'TestPDFCheckOwnerPassword');
 
 // ================================ SM2 ========================================
 
-  Assert(TestSM21, 'TestSM21');
-  Assert(TestSM22, 'TestSM22');
-  Assert(TestSM23, 'TestSM23');
+  MyAssert(TestSM21, 'TestSM21');
+  MyAssert(TestSM22, 'TestSM22');
+  MyAssert(TestSM23, 'TestSM23');
 
 // ================================ SM3 ========================================
 
-  Assert(TestSM3, 'TestSM3');
-  Assert(TestSM3Hmac, 'TestSM3Hmac');
+  MyAssert(TestSM3, 'TestSM3');
+  MyAssert(TestSM3Hmac, 'TestSM3Hmac');
+  MyAssert(TestSM3Update, 'TestSM3Update');
 
 // ================================ SM9 ========================================
 
-  Assert(TestSM9Hash1, 'TestSM9Hash1');
-  Assert(TestSM9Hash2, 'TestSM9Hash2');
-  Assert(TestSM9Mac, 'TestSM9Mac');
+  MyAssert(TestSM9Hash1, 'TestSM9Hash1');
+  MyAssert(TestSM9Hash2, 'TestSM9Hash2');
+  MyAssert(TestSM9Mac, 'TestSM9Mac');
 
-  Assert(TestSM9Sign, 'TestSM9Sign');
-  Assert(TestSM9KeyExchange, 'TestSM9KeyExchange');
-  Assert(TestSM9KeyEncapsulation, 'TestSM9KeyEncapsulation');
-  Assert(TestSM9PublicEncryption, 'TestSM9PublicEncryption');
+  MyAssert(TestSM9Sign, 'TestSM9Sign');
+  MyAssert(TestSM9KeyExchange, 'TestSM9KeyExchange');
+  MyAssert(TestSM9KeyEncapsulation, 'TestSM9KeyEncapsulation');
+  MyAssert(TestSM9PublicEncryption, 'TestSM9PublicEncryption');
 
 // ================================ RSA ========================================
 
-  Assert(TestRSA1, 'TestRSA1');
-  Assert(TestRSA2, 'TestRSA2');
+  MyAssert(TestRSA1, 'TestRSA1');
+  MyAssert(TestRSA2, 'TestRSA2');
+  MyAssert(TestRSAPrivPubPkcs1, 'TestRSAPrivPubPkcs1');
+  MyAssert(TestRSAPubPkcs1, 'TestRSAPubPkcs1');
+  MyAssert(TestRSAPrivPubPkcs8, 'TestRSAPrivPubPkcs8');
+  MyAssert(TestRSAPubPkcs8, 'TestRSAPubPkcs8');
 
 // ================================ KDF ========================================
 
-  Assert(TestKDFPB1, 'TestKDFPB1');
-  Assert(TestKDFPB2, 'TestKDFPB2');
-  Assert(TestKDFSM2SM9, 'TestKDFSM2SM9');
+  MyAssert(TestKDFPB1, 'TestKDFPB1');
+  MyAssert(TestKDFPB2, 'TestKDFPB2');
+  MyAssert(TestKDFSM2SM9, 'TestKDFSM2SM9');
 
 // ================================ Prime Number ===============================
 
-  Assert(TestPrimeNumber1, 'TestPrimeNumber1');
-  Assert(TestPrimeNumber2, 'TestPrimeNumber2');
+  MyAssert(TestPrimeNumber1, 'TestPrimeNumber1');
+  MyAssert(TestPrimeNumber2, 'TestPrimeNumber2');
+  MyAssert(TestPrimeNumber3, 'TestPrimeNumber3');
 
 // ================================ 25519 ======================================
 
-  Assert(Test25519Sign, 'Test25519Sign');
+  MyAssert(Test25519CurveMul, 'Test25519CurveMul');
+  MyAssert(Test25519CurveGMul, 'Test25519CurveGMul');
+  MyAssert(Test25519KeyExchange, 'Test25519KeyExchange');
+  MyAssert(Test25519CalcKey, 'Test25519CalcKey');
+  MyAssert(Test25519Sign, 'Test25519Sign');
+  MyAssert(Test448CurveMul, 'Test448CurveMul');
+  MyAssert(Test448CurveGMul, 'Test448CurveGMul');
+  MyAssert(Test448KeyExchange, 'Test448KeyExchange');
+  MyAssert(Test448CalcKey, 'Test448CalcKey');
+  MyAssert(Test448Sign1, 'Test448Sign1');
+  MyAssert(Test448Sign2, 'Test448Sign2');
 
 // =============================== Paillier ====================================
 
-  Assert(TestPaillier1, 'TestPaillier1');
-  Assert(TestPaillier2, 'TestPaillier2');
+  MyAssert(TestPaillier1, 'TestPaillier1');
+  MyAssert(TestPaillier2, 'TestPaillier2');
 
 // ============================= SecretSharing =================================
 
-  Assert(TestSecretSharingShamir, 'TestSecretSharingShamir');
-  Assert(TestSecretSharingFeldmanVss, 'TestSecretSharingFeldmanVss');
+  MyAssert(TestSecretSharingShamir, 'TestSecretSharingShamir');
+  MyAssert(TestSecretSharingFeldmanVss, 'TestSecretSharingFeldmanVss');
+
+// ================================ OTS ========================================
+
+  MyAssert(TestOTSSM3, 'TestOTSSM3');
+  MyAssert(TestOTSSHA256, 'TestOTSSHA256');
+  MyAssert(TestMOTSSM3, 'TestMOTSSM3');
+  MyAssert(TestMOTSSHA256, 'TestMOTSSHA256');
+  MyAssert(TestWOTSSM3, 'TestWOTSSM3');
+  MyAssert(TestWOTSSHA256, 'TestWOTSSHA256');
 
 // ================================ ECC ========================================
 
-  Assert(TestECCMul, 'TestECCMul');
-  Assert(TestECCSchoof, 'TestECCSchoof');
-  Assert(TestECCSchoof2, 'TestECCSchoof2');
+  MyAssert(TestECCMul, 'TestECCMul');
+  MyAssert(TestECCPrivPubPkcs1, 'TestECCPrivPubPkcs1');
+  MyAssert(TestECCPrivPubPkcs8, 'TestECCPrivPubPkcs8');
+  MyAssert(TestECCPub, 'TestECCPub');
+  MyAssert(TestECCSchoof, 'TestECCSchoof');
+  MyAssert(TestECCSchoof2, 'TestECCSchoof2');
 
 // ================================= END =======================================
 
-  Writeln('Crypto Test End.');
+  MyWriteln('Crypto Test End.');
 end;
 
 // ============================== Native =======================================
+
+function TestEndian: Boolean;
+var
+  A16, B16, C16: Word;
+  A32, B32, C32: Cardinal;
+  A64, B64, C64: TUInt64;
+begin
+  A16 := $D280;
+  B16 := UInt16ToBigEndian(A16);
+  C16 := UInt16ToLittleEndian(A16);
+  Result := (DataToHex(@B16, SizeOf(B16)) = 'D280')  and (DataToHex(@C16, SizeOf(C16)) = '80D2');
+
+  if not Result then Exit;
+
+  A32 := $1D327806;
+  B32 := UInt32ToBigEndian(A32);
+  C32 := UInt32ToLittleEndian(A32);
+  Result := (DataToHex(@B32, SizeOf(B32)) = '1D327806')  and (DataToHex(@C32, SizeOf(C32)) = '0678321D');
+
+  if not Result then Exit;
+
+  A64 := $2A64C05397B3C10D;;
+  B64 := UInt64ToBigEndian(A64);
+  C64 := UInt64ToLittleEndian(A64);
+  Result := (DataToHex(@B64, SizeOf(B64)) = '2A64C05397B3C10D')  and (DataToHex(@C64, SizeOf(C64)) = '0DC1B39753C0642A');
+end;
 
 function TestStrToUInt64: Boolean;
 var
@@ -503,6 +792,161 @@ begin
     and (UInt64Mod(A6, B6) = 1229782934524998452)
     and (UInt64Mod(A7, B7) = 825307441)
     and (UInt64Mod(A8, B8) = 3617008645339807486);
+end;
+
+// =========================== Constant Time ===================================
+
+function TestConstTimeSwap: Boolean;
+var
+  A8, B8: Byte;
+  A16, B16: Word;
+  A32, B32: Cardinal;
+  A64, B64: TUInt64;
+begin
+  A8 := $02; B8 := $9F;
+  ConstTimeConditionalSwap8(False, A8, B8);
+  Result := (A8 = $02) and (B8 = $9F);
+
+  if not Result then Exit;
+
+  ConstTimeConditionalSwap8(True, A8, B8);
+  Result := (A8 = $9F) and (B8 = $2);
+
+  if not Result then Exit;
+
+  A16 := $D280; B16 := $319B;
+  ConstTimeConditionalSwap16(False, A16, B16);
+  Result := (A16 = $D280) and (B16 = $319B);
+
+  if not Result then Exit;
+
+  ConstTimeConditionalSwap16(True, A16, B16);
+  Result := (A16 = $319B) and (B16 = $D280);
+
+  if not Result then Exit;
+
+  A32 := $1D327806; B32 := $C379EB02;
+  ConstTimeConditionalSwap32(False, A32, B32);
+  Result := (A32 = $1D327806) and (B32 = $C379EB02);
+
+  if not Result then Exit;
+
+  ConstTimeConditionalSwap32(True, A32, B32);
+  Result := (A32 = $C379EB02) and (B32 = $1D327806);
+
+  if not Result then Exit;
+
+  A64 := $2A64C05397B3C10D; B64 := $9C34A79E5B0F2180;
+  ConstTimeConditionalSwap64(False, A64, B64);
+  Result := (A64 = $2A64C05397B3C10D) and (B64 = $9C34A79E5B0F2180);
+
+  if not Result then Exit;
+
+  ConstTimeConditionalSwap64(True, A64, B64);
+  Result := (A64 = $9C34A79E5B0F2180) and (B64 = $2A64C05397B3C10D);
+end;
+
+function TestConstTimeSelect: Boolean;
+var
+  A8, B8: Byte;
+  A16, B16: Word;
+  A32, B32: Cardinal;
+  A64, B64: TUInt64;
+begin
+  A8 := $02; B8 := $9F;
+  Result := (ConstTimeConditionalSelect8(False, A8, B8) = B8)
+    and (ConstTimeConditionalSelect8(True, A8, B8) = A8);
+
+  if not Result then Exit;
+
+  A16 := $D280; B16 := $319B;
+  Result := (ConstTimeConditionalSelect16(False, A16, B16) = B16)
+    and (ConstTimeConditionalSelect16(True, A16, B16) = A16);
+
+  if not Result then Exit;
+
+  A32 := $1D327806; B32 := $C379EB02;
+  Result := (ConstTimeConditionalSelect32(False, A32, B32) = B32)
+    and (ConstTimeConditionalSelect32(True, A32, B32) = A32);
+
+  if not Result then Exit;
+
+  A64 := $2A64C05397B3C10D; B64 := $9C34A79E5B0F2180;
+  Result := (ConstTimeConditionalSelect64(False, A64, B64) = B64)
+    and (ConstTimeConditionalSelect64(True, A64, B64) = A64);
+end;
+
+function TestConstTimeEqual: Boolean;
+var
+  A8, B8: Byte;
+  A16, B16: Word;
+  A32, B32: Cardinal;
+  A64, B64: TUInt64;
+begin
+  Result := ConstTimeEqual8($09, $09) and ConstTimeEqual16($C32F, $C32F)
+    and ConstTimeEqual32($7A8E6C1D, $7A8E6C1D) and ConstTimeEqual64($2A68C45397B3C10D, $2A68C45397B3C10D);
+
+  if not Result then Exit;
+
+  A8 := $02; B8 := $9F;
+  A16 := $D280; B16 := $319B;
+  A32 := $1D327806; B32 := $C379EB02;
+  A64 := $2A64C05397B3C10D; B64 := $9C34A79E5B0F2180;
+  Result := (not ConstTimeEqual8(A8, B8)) and (not ConstTimeEqual16(A16, B16))
+    and (not ConstTimeEqual32(A32, B32)) and (not ConstTimeEqual64(A64, B64));
+end;
+
+function TestConstTimeExpandBool: Boolean;
+begin
+  Result := (ConstTimeExpandBoolean8(False) = 0)
+    and (ConstTimeExpandBoolean16(False) = 0)
+    and (ConstTimeExpandBoolean32(False) = 0)
+    and (ConstTimeExpandBoolean64(False) = 0);
+
+  if not Result then Exit;
+
+  Result := (ConstTimeExpandBoolean8(True) = $FF)
+    and (ConstTimeExpandBoolean16(True) = $FFFF)
+    and (ConstTimeExpandBoolean32(True) = $FFFFFFFF)
+    and (ConstTimeExpandBoolean64(True) = $FFFFFFFFFFFFFFFF);
+end;
+
+function TestConstTimeBytes: Boolean;
+var
+  A, B: TBytes;
+begin
+  A := HexToBytes('0987654321FBACDE');
+  B := HexToBytes('0987654321FBACDE');
+  Result := ConstTimeBytesEqual(A, B);
+
+  if not Result then Exit;
+
+  B[4] := $FF;
+  Result := not ConstTimeBytesEqual(A, B);
+end;
+
+// ============================== Strings ======================================
+
+function TestUtf8: Boolean;
+const
+  UTF16_LE_HEXSTR = '03546300610074006D993DD802DE42D8B7DF'; // 有单字节、二字节、四字节笑哭了表情符、四字节汉字上土下口
+var
+  L: Integer;
+  W: WideString;
+  Utf8: AnsiString;
+
+begin
+  L := HexToData(UTF16_LE_HEXSTR); // 得到字节长度
+  SetLength(W, L div 2);           // 得到宽字符长度
+
+  HexToData(UTF16_LE_HEXSTR, @W[1]);
+  Utf8 := CnUtf8EncodeWideString(W);
+
+  Result := AnsiStrToHex(Utf8) = 'E59083636174E9A5ADF09F9882F0A0AEB7';
+  if not Result then Exit;
+
+  W := CnUtf8DecodeToWideString(Utf8);
+  Result := DataToHex(@W[1], Length(W) * SizeOf(WideChar)) = UTF16_LE_HEXSTR;
 end;
 
 // ============================== BigNumber ====================================
@@ -583,32 +1027,28 @@ begin
     R := BigNumberModWord(T, W);
     Result := R = 0;
 
-    if not Result then
-      Exit;
+    if not Result then Exit;
 
     T.SetDec('111757582461902544929520711250223739903');
     W := 1000000000;
     R := BigNumberModWord(T, W);
     Result := R = 223739903;
 
-    if not Result then
-      Exit;
+    if not Result then Exit;
 
     T.SetHex('0C7D4FAEC98EC3DF');
     W := $6F6C929F;
     R := BigNumberModWord(T, W);
     Result := R = 1802899775;
 
-    if not Result then
-      Exit;
+    if not Result then Exit;
 
     T.SetDec('12345667296');
     W := 100000;
     R := BigNumberModWord(T, W); // Win32 下居然出错等于 0，后已修复
     Result := R = 67296;
 
-    if not Result then
-      Exit;
+    if not Result then Exit;
 
 {$IFDEF CPU64BITS}
     T.SetDec('2345348872881627880943948657900100329812345667296');
@@ -691,6 +1131,120 @@ begin
   BigNumberFree(A);
 end;
 
+function TestBigNumberRoundDiv: Boolean;
+var
+  A, B, C, R: TCnBigNumber;
+  F: Boolean;
+begin
+  A := BigNumberNew;
+  B := BigNumberNew;
+  C := BigNumberNew;
+  R := BigNumberNew;
+
+  // 被除数和除数正负、负负、负正、正负，加上是四舍还是五入、除数奇偶，一共十六种组合情况
+  A.SetDec('10005');
+  B.SetDec('100');
+  BigNumberRoundDiv(C, A, B, F);        // 100 5
+  Result := (not F) and (C.ToDec() = '100');
+  if not Result then Exit;
+
+  A.SetDec('10050');
+  B.SetDec('100');
+  BigNumberRoundDiv(C, A, B, F);        // 100 50
+  Result := F and (C.ToDec() = '101');
+  if not Result then Exit;
+
+  A.SetDec('-10005');
+  B.SetDec('100');
+  BigNumberRoundDiv(C, A, B, F);        // 100 -5
+  Result := (not F) and (C.ToDec() = '-100');
+  if not Result then Exit;
+
+  A.SetDec('-10050');
+  B.SetDec('100');
+  BigNumberRoundDiv(C, A, B, F);        // 100 -50
+  Result := F and (C.ToDec() = '-101');
+  if not Result then Exit;
+
+  A.SetDec('10005');
+  B.SetDec('-100');
+  BigNumberRoundDiv(C, A, B, F);        // -100 5
+  Result := (not F) and (C.ToDec() = '-100');
+  if not Result then Exit;
+
+  A.SetDec('10050');
+  B.SetDec('-100');
+  BigNumberRoundDiv(C, A, B, F);        // -100 50
+  Result := F and (C.ToDec() = '-101');
+  if not Result then Exit;
+
+  A.SetDec('-10005');
+  B.SetDec('-100');
+  BigNumberRoundDiv(C, A, B, F);        // 100 -5
+  Result := (not F) and (C.ToDec() = '100');
+  if not Result then Exit;
+
+  A.SetDec('-10050');
+  B.SetDec('-100');
+  BigNumberRoundDiv(C, A, B, F);        // 100 -50
+  Result := F and (C.ToDec() = '101');
+  if not Result then Exit;
+
+  // 以上除数是偶以下除数是奇
+  A.SetDec('10048');
+  B.SetDec('99');
+  BigNumberRoundDiv(C, A, B, F);        // 101 49
+  Result := (not F) and (C.ToDec() = '101');
+  if not Result then Exit;
+
+  A.SetDec('10049');
+  B.SetDec('99');
+  BigNumberRoundDiv(C, A, B, F);        // 101 50
+  Result := F and (C.ToDec() = '102');
+  if not Result then Exit;
+
+  A.SetDec('-10048');
+  B.SetDec('99');
+  BigNumberRoundDiv(C, A, B, F);        // 101 -49
+  Result := (not F) and (C.ToDec() = '-101');
+  if not Result then Exit;
+
+  A.SetDec('-10049');
+  B.SetDec('99');
+  BigNumberRoundDiv(C, A, B, F);        // 101 -50
+  Result := F and (C.ToDec() = '-102');
+  if not Result then Exit;
+
+  A.SetDec('10048');
+  B.SetDec('-99');
+  BigNumberRoundDiv(C, A, B, F);        // -101 49
+  Result := (not F) and (C.ToDec() = '-101');
+  if not Result then Exit;
+
+  A.SetDec('10049');
+  B.SetDec('-99');
+  BigNumberRoundDiv(C, A, B, F);        // -101 50
+  Result := F and (C.ToDec() = '-102');
+  if not Result then Exit;
+
+  A.SetDec('-10048');
+  B.SetDec('-99');
+  BigNumberRoundDiv(C, A, B, F);        // 101 -49
+  Result := (not F) and (C.ToDec() = '101');
+  if not Result then Exit;
+
+  A.SetDec('-10049');
+  B.SetDec('-99');
+  BigNumberRoundDiv(C, A, B, F);        // 101 -50
+  Result := F and (C.ToDec() = '102');
+  if not Result then Exit;
+
+  BigNumberFree(R);
+  BigNumberFree(C);
+  BigNumberFree(B);
+  BigNumberFree(A);
+end;
+
 function TestBigNumberShiftLeft: Boolean;
 var
   A, B: TCnBigNumber;
@@ -756,6 +1310,204 @@ begin
   BigNumberFree(A);
 end;
 
+function TestBigNumberIsPerfectPower: Boolean;
+var
+  A: TCnBigNumber;
+begin
+  A := BigNumberNew;
+  A.SetDec('9682651996416');
+  Result := BigNumberIsPerfectPower(A);
+  BigNumberFree(A);
+end;
+
+// ================================ Bits =======================================
+
+function TestBitsEmpty: Boolean;
+var
+  B: TCnBitBuilder;
+begin
+  B := TCnBitBuilder.Create;
+  B.AppendByte(0, False);
+  Result := B.ToString = '';
+  B.Free;
+end;
+
+function TestBitsAppend: Boolean;
+var
+  B: TCnBitBuilder;
+begin
+  B := TCnBitBuilder.Create;
+  B.AppendByte($38, False);
+  Result := B.ToString = '000111';
+  if not Result then Exit;
+
+  B.AppendBit(False);
+  Result := B.ToString = '0001110';
+  if not Result then Exit;
+
+  B.Clear;
+  B.AppendByte($EA);
+  Result := B.ToString = '01010111';
+  if not Result then Exit;
+
+  B.AppendWord($9F3B);
+  Result := B.ToString = '010101111101110011111001';
+  if not Result then Exit;
+
+  B.AppendByteRange($FE, 3);
+  Result := B.ToString = '0101011111011100111110010111';
+  if not Result then Exit;
+
+  B.AppendDWord($12345678, False);
+  Result := B.ToString = '010101111101110011111001011100011110011010100010110001001';
+  B.Free;
+end;
+
+// =============================== Int128 ======================================
+
+function TestInt128Add: Boolean;
+var
+  A, B, R: TCnInt128;
+begin
+  A := StrToInt128('922337203685477580700');
+  B := StrToInt128('10000');
+
+  Int128Add(R, A, B);
+
+  Result := Int128ToStr(R) = '922337203685477590700';
+end;
+
+function TestInt128Sub: Boolean;
+var
+  A, B, R: TCnInt128;
+begin
+  A := StrToInt128('-922337203685477580800');
+  B := StrToInt128('-10000');
+
+  Int128Sub(R, A, B);
+
+  Result := Int128ToStr(R) = '-922337203685477570800';
+end;
+
+function TestInt128Mul: Boolean;
+var
+  A, B, R: TCnInt128;
+begin
+  A := StrToInt128('10000000000000000000000000');
+  B := StrToInt128('8');
+
+  Int128Mul(R, A, B);
+
+  Result := Int128ToStr(R) = '80000000000000000000000000';
+end;
+
+function TestInt128DivMod: Boolean;
+var
+  A, B, R, M: TCnInt128;
+begin
+  A := StrToInt128('123459223372036854775807000');
+  B := StrToInt128('10000');
+
+  Int128DivMod(A, B, R, M);
+
+  Result := (Int128ToStr(R) = '12345922337203685477580') and (Int128ToStr(M) = '7000');
+end;
+
+function TestUInt128Add: Boolean;
+var
+  A, B, R: TCnUInt128;
+begin
+  A := StrToUInt128('8937478937471844674407370955161500');
+  B := StrToUInt128('1000');
+
+  UInt128Add(R, A, B);
+
+  Result := UInt128ToStr(R) = '8937478937471844674407370955162500';
+end;
+
+function TestUInt128Sub: Boolean;
+var
+  A, B, R: TCnUInt128;
+begin
+  A := StrToUInt128('324467474718446741844674407370955161600');
+  B := StrToUInt128('1000');
+
+  UInt128Sub(R, A, B);
+
+  Result := UInt128ToStr(R) = '324467474718446741844674407370955160600';
+end;
+
+function TestUInt128Mul: Boolean;
+var
+  A, B, R: TCnUInt128;
+begin
+  A := StrToUInt128('100000000000000000000888888888');
+  B := StrToUInt128('987654321');
+
+  UInt128Mul(R, A, B);
+
+  Result := UInt128ToStr(R) = '98765432100000000000877914951122085048';
+end;
+
+function TestUInt128DivMod: Boolean;
+var
+  A, B, R, M: TCnUInt128;
+begin
+  A := StrToUInt128('7370954431844674407370955161500');
+  B := StrToUInt128('10000');
+
+  UInt128DivMod(A, B, R, M);
+
+  Result := (UInt128ToStr(R) = '737095443184467440737095516') and (UInt128ToStr(M) = '1500');
+end;
+
+// ============================= Polynomial ====================================
+
+function TestBigNumberPolynomialGaloisPrimePowerModularInverse: Boolean;
+var
+  F, G, Fp, Fq, Ring: TCnBigNumberPolynomial;
+  Root: TCnBigNumber;
+begin
+  // NTRU 多项式例子公开参数 N = 11, P = 3, Q = 32
+  // 多项式最高次数 N - 1
+  // 多项式 F 和 G 作为私钥，参数均为 -1 或 0 或 1
+  F := TCnBigNumberPolynomial.Create([-1, 1, 1, 0, -1, 0, 1, 0, 0, 1, -1]);
+  // -1+x+x^2-x^4+x^6+x^9-x^10
+
+  G := TCnBigNumberPolynomial.Create([-1, 0, 1, 1, 0, 1, 0, 0, -1, 0, -1]);
+  // -1+x^2+x^3+x^5-x^8-x^10
+
+  Fp := TCnBigNumberPolynomial.Create;
+  Fq := TCnBigNumberPolynomial.Create;
+
+  Ring := TCnBigNumberPolynomial.Create;
+  Ring.MaxDegree := 11;
+  Ring[11].SetOne;
+  Ring[0].SetOne;
+  Ring[0].Negate;  // 多项式环为 x^n - 1
+
+  Root := TCnBigNumber.Create;
+
+  Root.SetWord(3);
+  // 求 F 针对 3 与 x^11 - 1 的模逆多项式
+  BigNumberPolynomialGaloisModularInverse(Fp, F, Ring, Root);
+  Result := Fp.ToString = '2X^9+X^8+2X^7+X^5+2X^4+2X^3+2X+1';
+
+  if not Result then Exit;
+
+  Root.SetWord(2);
+  // 求 F 针对 32 与 x^11 - 1 的模逆多项式
+  BigNumberPolynomialGaloisPrimePowerModularInverse(Fq, F, Ring, Root, 5);
+  Result := Fq.ToString = '30X^10+18X^9+20X^8+22X^7+16X^6+15X^5+4X^4+16X^3+6X^2+9X+5';
+
+  Root.Free;
+  Ring.Free;
+  Fq.Free;
+  Fp.Free;
+  G.Free;
+  F.Free;
+end;
+
 // ================================ SM4 ========================================
 
 function TestSM4Standard1: Boolean;
@@ -784,9 +1536,92 @@ begin
   Result := BytesToHex(DataBytes) = '595298C7C6FD271F0402F804C33D3F66';
 end;
 
+function TestSM4Ecb: Boolean;
+var
+  S, Key, Res, Data: AnsiString;
+begin
+  S := 'CnPack Ecb Test Data for SM4.';
+  Key := 'CnPack SM4 Key';
+  SetLength(Res, SM4GetOutputLengthFromInputLength(Length(S)));
+  SM4EncryptEcbStr(Key, S, @Res[1]);
+
+  Result := DataToHex(@Res[1], Length(Res)) = 'CA1C161B95B8388398676525C4310ACDC608AD6DE2C57380BD593C2D406F40CC';
+  if not Result then Exit;
+
+  SetLength(Data, SM4GetOutputLengthFromInputLength(Length(Res)));
+  SM4DecryptEcbStr(Key, Res, @Data[1]);
+
+  Data := Trim(Data);
+  Result := Data = S;
+end;
+
+function TestSM4Cbc: Boolean;
+var
+  KeyBytes, IvBytes, ResBytes, DataBytes: TBytes;
+begin
+  KeyBytes := AnsiToBytes('CnPack SM4 Key');
+  IvBytes := AnsiToBytes('SM4 Iv Of CnPack');
+  DataBytes := AnsiToBytes('CnPack Test Data for SM4 CBC.');
+  ResBytes := SM4EncryptCbcBytes(KeyBytes, IvBytes, DataBytes);
+
+  Result := BytesToHex(ResBytes) = 'FC752B7D3469AB7CE8F5FBA93452B4096901658D8669F43ECFF4A596B4CFC978';
+  if not Result then Exit;
+
+  ResBytes := SM4DecryptCbcBytes(KeyBytes, IvBytes, ResBytes);
+  Result := CompareBytes(ResBytes, DataBytes, Length(DataBytes)); // 后面有 #0 要忽略
+end;
+
+function TestSM4Cfb: Boolean;
+var
+  KeyBytes, IvBytes, ResBytes, DataBytes: TBytes;
+begin
+  KeyBytes := AnsiToBytes('CnPack SM4 Key');
+  IvBytes := AnsiToBytes('SM4 Iv Of CnPack');
+  DataBytes := AnsiToBytes('CnPack Test Data for SM4 CFB.');
+  ResBytes := SM4EncryptCfbBytes(KeyBytes, IvBytes, DataBytes);
+
+  Result := BytesToHex(ResBytes) = '5BB273541D5464D7407BABDA8855CE5A8A1CD46C47393C9594BB1E3885';
+  if not Result then Exit;
+
+  ResBytes := SM4DecryptCfbBytes(KeyBytes, IvBytes, ResBytes);
+  Result := CompareBytes(ResBytes, DataBytes);
+end;
+
+function TestSM4Ofb: Boolean;
+var
+  KeyBytes, IvBytes, ResBytes, DataBytes: TBytes;
+begin
+  KeyBytes := AnsiToBytes('SM4 Key CnPack');
+  IvBytes := AnsiToBytes('SM4 CnPack Iv');
+  DataBytes := AnsiToBytes('CnPack Test Data for SM4 OFB.');
+  ResBytes := SM4EncryptOfbBytes(KeyBytes, IvBytes, DataBytes);
+
+  Result := BytesToHex(ResBytes) = 'DC125402BEDEAC489E2430789D763498B536F81908A4F75279F2943476';
+  if not Result then Exit;
+
+  ResBytes := SM4DecryptOfbBytes(KeyBytes, IvBytes, ResBytes);
+  Result := CompareBytes(ResBytes, DataBytes);
+end;
+
+function TestSM4Ctr: Boolean;
+var
+  KeyBytes, NonceBytes, ResBytes, DataBytes: TBytes;
+begin
+  KeyBytes := AnsiToBytes('SM4 Key CnPack');
+  NonceBytes := AnsiToBytes('SM4Nonce');
+  DataBytes := AnsiToBytes('CnPack Test Data for SM4 CTR.');
+  ResBytes := SM4EncryptCtrBytes(KeyBytes, NonceBytes, DataBytes);
+
+  Result := BytesToHex(ResBytes) = 'D959215B46C7A3B5AAC8646939051E1D52EF59952C557B8787AC536047';
+  if not Result then Exit;
+
+  ResBytes := SM4DecryptCtrBytes(KeyBytes, NonceBytes, ResBytes);
+  Result := CompareBytes(ResBytes, DataBytes);
+end;
+
 // ================================ DES ========================================
 
-function TestDESEcb1: Boolean;
+function TestDESEcb: Boolean;
 var
   S: string;
   KeyBytes, ResBytes, DataBytes: TBytes;
@@ -798,9 +1633,25 @@ begin
   Result := BytesToHex(ResBytes) = '85E813540F0AB405';
 end;
 
+function TestDESCbc: Boolean;
+var
+  KeyBytes, IvBytes, ResBytes, DataBytes: TBytes;
+begin
+  KeyBytes := AnsiToBytes('Des Key');
+  IvBytes := AnsiToBytes('Des Iv');
+  DataBytes := AnsiToBytes('CnPack Test Data for DES CBC.');
+  ResBytes := DESEncryptCBCBytes(KeyBytes, IvBytes, DataBytes);
+
+  Result := BytesToHex(ResBytes) = '564AF4F43FF0F80C9C4BA18C2D2F6C1EBDA49AA749B26C3D06A2060CE6953A29';
+  if not Result then Exit;
+
+  ResBytes := DESDecryptCBCBytes(KeyBytes, IvBytes, ResBytes);
+  Result := CompareBytes(ResBytes, DataBytes, Length(DataBytes));
+end;
+
 // ================================ 3DES =======================================
 
-function Test3DESEcb1: Boolean;
+function Test3DESEcb: Boolean;
 var
   S: string;
   KeyBytes, ResBytes, DataBytes: TBytes;
@@ -810,6 +1661,22 @@ begin
   KeyBytes := HexToBytes('9BBCDFF1AABBCCDD');
   ResBytes := TripleDESEncryptEcbBytes(KeyBytes, DataBytes);
   Result := BytesToHex(ResBytes) = '119102AA7D6000EE';
+end;
+
+function Test3DESCbc: Boolean;
+var
+  KeyBytes, IvBytes, ResBytes, DataBytes: TBytes;
+begin
+  KeyBytes := AnsiToBytes('3Des Key from CnPack');
+  IvBytes := AnsiToBytes('3Des Iv');
+  DataBytes := AnsiToBytes('CnPack Test Data for 3DES CBC.');
+  ResBytes := TripleDESEncryptCBCBytes(KeyBytes, IvBytes, DataBytes);
+
+  Result := BytesToHex(ResBytes) = 'E7C69043F789737DBDF122EFFB5BDBA149C0110F6E15CB63229339B95C750B8A';
+  if not Result then Exit;
+
+  ResBytes := TripleDESDecryptCBCBytes(KeyBytes, IvBytes, ResBytes);
+  Result := CompareBytes(ResBytes, DataBytes, Length(DataBytes));
 end;
 
 // ================================ AES ========================================
@@ -848,6 +1715,291 @@ begin
   KeyBytes := HexToBytes('603DEB1015CA71BE2B73AEF0857D77811F352C073B6108D72D9810A30914DFF4');
   ResBytes := AESEncryptEcbBytes(DataBytes, KeyBytes, kbt256);
   Result := BytesToHex(ResBytes) = 'D71F96DEF80F6F19F80461CAEB8BE29F';
+end;
+
+function TestAESCbc128: Boolean;
+var
+  KeyBytes, IvBytes, ResBytes, DataBytes: TBytes;
+begin
+  KeyBytes := AnsiToBytes('CnPack AES Key');
+  IvBytes := AnsiToBytes('AES Iv Of CnPack');
+  DataBytes := AnsiToBytes('CnPack Test Data for AES CBC.');
+  ResBytes := AESEncryptCbcBytes(DataBytes, KeyBytes, IvBytes, kbt128);
+
+  Result := BytesToHex(ResBytes) = 'B3B163B21EBA050863BAC1A6FE39DD6EFF4D8EB5CBD60B5879FCE66558D2C69C';
+  if not Result then Exit;
+
+  ResBytes := AESDecryptCbcBytes(ResBytes, KeyBytes, IvBytes, kbt128);
+  Result := CompareBytes(ResBytes, DataBytes, Length(DataBytes));
+end;
+
+function TestAESCbc192: Boolean;
+var
+  KeyBytes, IvBytes, ResBytes, DataBytes: TBytes;
+begin
+  KeyBytes := AnsiToBytes('CnPack AES Key');
+  IvBytes := AnsiToBytes('AES Iv Of CnPack');
+  DataBytes := AnsiToBytes('CnPack Test Data for AES CBC.');
+  ResBytes := AESEncryptCbcBytes(DataBytes, KeyBytes, IvBytes, kbt192);
+
+  Result := BytesToHex(ResBytes) = '7EE29DFBD7973F49760C92BC312F561F33587105F050BCB8C4558E175AACE840';
+  if not Result then Exit;
+
+  ResBytes := AESDecryptCbcBytes(ResBytes, KeyBytes, IvBytes, kbt192);
+  Result := CompareBytes(ResBytes, DataBytes, Length(DataBytes));
+end;
+
+function TestAESCbc256: Boolean;
+var
+  KeyBytes, IvBytes, ResBytes, DataBytes: TBytes;
+begin
+  KeyBytes := AnsiToBytes('CnPack AES Key');
+  IvBytes := AnsiToBytes('AES Iv Of CnPack');
+  DataBytes := AnsiToBytes('CnPack Test Data for AES CBC.');
+  ResBytes := AESEncryptCbcBytes(DataBytes, KeyBytes, IvBytes, kbt256);
+
+  Result := BytesToHex(ResBytes) = '381D107404224569C3BC4CCAF71ECF312F188A12402241732A40EFAE69EA4587';
+  if not Result then Exit;
+
+  ResBytes := AESDecryptCbcBytes(ResBytes, KeyBytes, IvBytes, kbt256);
+  Result := CompareBytes(ResBytes, DataBytes, Length(DataBytes));
+end;
+
+function TestAESCfb128: Boolean;
+var
+  KeyBytes, IvBytes, ResBytes, DataBytes: TBytes;
+begin
+  KeyBytes := AnsiToBytes('CnPack AES Key');
+  IvBytes := AnsiToBytes('AES Iv Of CnPack');
+  DataBytes := AnsiToBytes('CnPack Test Data for AES CFB.');
+  ResBytes := AESEncryptCfbBytes(DataBytes, KeyBytes, IvBytes, kbt128);
+
+  Result := BytesToHex(ResBytes) = 'D5CA4EFC7C656E63718283DBF9217ABC877EF21D9507B32147172683FB';
+  if not Result then Exit;
+
+  ResBytes := AESDecryptCfbBytes(ResBytes, KeyBytes, IvBytes, kbt128);
+  Result := CompareBytes(ResBytes, DataBytes);
+end;
+
+function TestAESCfb192: Boolean;
+var
+  KeyBytes, IvBytes, ResBytes, DataBytes: TBytes;
+begin
+  KeyBytes := AnsiToBytes('CnPack AES Key');
+  IvBytes := AnsiToBytes('AES Iv Of CnPack');
+  DataBytes := AnsiToBytes('CnPack Test Data for AES CFB.');
+  ResBytes := AESEncryptCfbBytes(DataBytes, KeyBytes, IvBytes, kbt192);
+
+  Result := BytesToHex(ResBytes) = 'EAE9E836AFEED796377AD3A595C80FC43925777FADDC911CF3C094BCAB';
+  if not Result then Exit;
+
+  ResBytes := AESDecryptCfbBytes(ResBytes, KeyBytes, IvBytes, kbt192);
+  Result := CompareBytes(ResBytes, DataBytes);
+end;
+
+function TestAESCfb256: Boolean;
+var
+  KeyBytes, IvBytes, ResBytes, DataBytes: TBytes;
+begin
+  KeyBytes := AnsiToBytes('CnPack AES Key');
+  IvBytes := AnsiToBytes('AES Iv Of CnPack');
+  DataBytes := AnsiToBytes('CnPack Test Data for AES CFB.');
+  ResBytes := AESEncryptCfbBytes(DataBytes, KeyBytes, IvBytes, kbt256);
+
+  Result := BytesToHex(ResBytes) = 'E5271041F97C434528E4426FA2CA3CD96994806B9765911657ABA87B00';
+  if not Result then Exit;
+
+  ResBytes := AESDecryptCfbBytes(ResBytes, KeyBytes, IvBytes, kbt256);
+  Result := CompareBytes(ResBytes, DataBytes);
+end;
+
+function TestAESOfb128: Boolean;
+var
+  KeyBytes, IvBytes, ResBytes, DataBytes: TBytes;
+begin
+  KeyBytes := AnsiToBytes('CnPack AES Key');
+  IvBytes := AnsiToBytes('AES Iv Of CnPack');
+  DataBytes := AnsiToBytes('CnPack Test Data for AES OFB.');
+  ResBytes := AESEncryptOfbBytes(DataBytes, KeyBytes, IvBytes, kbt128);
+
+  Result := BytesToHex(ResBytes) = 'D5CA4EFC7C656E63718283DBF9217ABC5000A6506B556A87B173E6F37B';
+  if not Result then Exit;
+
+  ResBytes := AESDecryptOfbBytes(ResBytes, KeyBytes, IvBytes, kbt128);
+  Result := CompareBytes(ResBytes, DataBytes);
+end;
+
+function TestAESOfb192: Boolean;
+var
+  KeyBytes, IvBytes, ResBytes, DataBytes: TBytes;
+begin
+  KeyBytes := AnsiToBytes('CnPack AES Key');
+  IvBytes := AnsiToBytes('AES Iv Of CnPack');
+  DataBytes := AnsiToBytes('CnPack Test Data for AES OFB.');
+  ResBytes := AESEncryptOfbBytes(DataBytes, KeyBytes, IvBytes, kbt192);
+
+  Result := BytesToHex(ResBytes) = 'EAE9E836AFEED796377AD3A595C80FC4B3BABCB7564945596F39082D59';
+  if not Result then Exit;
+
+  ResBytes := AESDecryptOfbBytes(ResBytes, KeyBytes, IvBytes, kbt192);
+  Result := CompareBytes(ResBytes, DataBytes);
+end;
+
+function TestAESOfb256: Boolean;
+var
+  KeyBytes, IvBytes, ResBytes, DataBytes: TBytes;
+begin
+  KeyBytes := AnsiToBytes('CnPack AES Key');
+  IvBytes := AnsiToBytes('AES Iv Of CnPack');
+  DataBytes := AnsiToBytes('CnPack Test Data for AES OFB.');
+  ResBytes := AESEncryptOfbBytes(DataBytes, KeyBytes, IvBytes, kbt256);
+
+  Result := BytesToHex(ResBytes) = 'E5271041F97C434528E4426FA2CA3CD9DF7CFF961FEDD3F139A4108A1E';
+  if not Result then Exit;
+
+  ResBytes := AESDecryptOfbBytes(ResBytes, KeyBytes, IvBytes, kbt256);
+  Result := CompareBytes(ResBytes, DataBytes);
+end;
+
+function TestAESCtr128: Boolean;
+var
+  KeyBytes, NonceBytes, IvBytes, ResBytes, DataBytes: TBytes;
+begin
+  // 来自 RFC 3686 的 TestVector 1
+  KeyBytes := HexToBytes('AE6852F8121067CC4BF7A5765577F39E');
+  NonceBytes := HexToBytes('00000030');
+  IvBytes := HexToBytes('0000000000000000');
+  DataBytes := HexToBytes('53696E676C6520626C6F636B206D7367');
+
+  ResBytes := AESEncryptCtrBytes(DataBytes, KeyBytes, NonceBytes, IvBytes, kbt128);
+  Result := BytesToHex(ResBytes) = 'E4095D4FB7A7B3792D6175A3261311B8';
+  if not Result then Exit;
+
+  ResBytes := AESDecryptCtrBytes(ResBytes, KeyBytes, NonceBytes, IvBytes, kbt128);
+  Result := CompareBytes(ResBytes, DataBytes);
+  if not Result then Exit;
+
+  // 来自 RFC 3686 的 TestVector 2
+  KeyBytes := HexToBytes('7E24067817FAE0D743D6CE1F32539163');
+  NonceBytes := HexToBytes('006CB6DB');
+  IvBytes := HexToBytes('C0543B59DA48D90B');
+  DataBytes := HexToBytes('000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F');
+
+  ResBytes := AESEncryptCtrBytes(DataBytes, KeyBytes, NonceBytes, IvBytes, kbt128);
+  Result := BytesToHex(ResBytes) = '5104A106168A72D9790D41EE8EDAD388EB2E1EFC46DA57C8FCE630DF9141BE28';
+  if not Result then Exit;
+
+  ResBytes := AESDecryptCtrBytes(ResBytes, KeyBytes, NonceBytes, IvBytes, kbt128);
+  Result := CompareBytes(ResBytes, DataBytes);
+  if not Result then Exit;
+
+  // 来自 RFC 3686 的 TestVector 3
+  KeyBytes := HexToBytes('7691BE035E5020A8AC6E618529F9A0DC');
+  NonceBytes := HexToBytes('00E0017B');
+  IvBytes := HexToBytes('27777F3F4A1786F0');
+  DataBytes := HexToBytes('000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F20212223');
+
+  ResBytes := AESEncryptCtrBytes(DataBytes, KeyBytes, NonceBytes, IvBytes, kbt128);
+  Result := BytesToHex(ResBytes) = 'C1CF48A89F2FFDD9CF4652E9EFDB72D74540A42BDE6D7836D59A5CEAAEF3105325B2072F';
+  if not Result then Exit;
+
+  ResBytes := AESDecryptCtrBytes(ResBytes, KeyBytes, NonceBytes, IvBytes, kbt128);
+  Result := CompareBytes(ResBytes, DataBytes);
+  if not Result then Exit;
+end;
+
+function TestAESCtr192: Boolean;
+var
+  KeyBytes, NonceBytes, IvBytes, ResBytes, DataBytes: TBytes;
+begin
+  // 来自 RFC 3686 的 TestVector 4
+  KeyBytes := HexToBytes('16AF5B145FC9F579C175F93E3BFB0EED863D06CCFDB78515');
+  NonceBytes := HexToBytes('00000048');
+  IvBytes := HexToBytes('36733C147D6D93CB');
+  DataBytes := HexToBytes('53696E676C6520626C6F636B206D7367');
+
+  ResBytes := AESEncryptCtrBytes(DataBytes, KeyBytes, NonceBytes, IvBytes, kbt192);
+  Result := BytesToHex(ResBytes) = '4B55384FE259C9C84E7935A003CBE928';
+  if not Result then Exit;
+
+  ResBytes := AESDecryptCtrBytes(ResBytes, KeyBytes, NonceBytes, IvBytes, kbt192);
+  Result := CompareBytes(ResBytes, DataBytes);
+  if not Result then Exit;
+
+  // 来自 RFC 3686 的 TestVector 5
+  KeyBytes := HexToBytes('7C5CB2401B3DC33C19E7340819E0F69C678C3DB8E6F6A91A');
+  NonceBytes := HexToBytes('0096B03B');
+  IvBytes := HexToBytes('020C6EADC2CB500D');
+  DataBytes := HexToBytes('000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F');
+
+  ResBytes := AESEncryptCtrBytes(DataBytes, KeyBytes, NonceBytes, IvBytes, kbt192);
+  Result := BytesToHex(ResBytes) = '453243FC609B23327EDFAAFA7131CD9F8490701C5AD4A79CFC1FE0FF42F4FB00';
+  if not Result then Exit;
+
+  ResBytes := AESDecryptCtrBytes(ResBytes, KeyBytes, NonceBytes, IvBytes, kbt192);
+  Result := CompareBytes(ResBytes, DataBytes);
+  if not Result then Exit;
+
+  // 来自 RFC 3686 的 TestVector 6
+  KeyBytes := HexToBytes('02BF391EE8ECB159B959617B0965279BF59B60A786D3E0FE');
+  NonceBytes := HexToBytes('0007BDFD');
+  IvBytes := HexToBytes('5CBD60278DCC0912');
+  DataBytes := HexToBytes('000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F20212223');
+
+  ResBytes := AESEncryptCtrBytes(DataBytes, KeyBytes, NonceBytes, IvBytes, kbt192);
+  Result := BytesToHex(ResBytes) = '96893FC55E5C722F540B7DD1DDF7E758D288BC95C69165884536C811662F2188ABEE0935';
+  if not Result then Exit;
+
+  ResBytes := AESDecryptCtrBytes(ResBytes, KeyBytes, NonceBytes, IvBytes, kbt192);
+  Result := CompareBytes(ResBytes, DataBytes);
+  if not Result then Exit;
+end;
+
+function TestAESCtr256: Boolean;
+var
+  KeyBytes, NonceBytes, IvBytes, ResBytes, DataBytes: TBytes;
+begin
+  // 来自 RFC 3686 的 TestVector 7
+  KeyBytes := HexToBytes('776BEFF2851DB06F4C8A0542C8696F6C6A81AF1EEC96B4D37FC1D689E6C1C104');
+  NonceBytes := HexToBytes('00000060');
+  IvBytes := HexToBytes('DB5672C97AA8F0B2');
+  DataBytes := HexToBytes('53696E676C6520626C6F636B206D7367');
+
+  ResBytes := AESEncryptCtrBytes(DataBytes, KeyBytes, NonceBytes, IvBytes, kbt256);
+  Result := BytesToHex(ResBytes) = '145AD01DBF824EC7560863DC71E3E0C0';
+  if not Result then Exit;
+
+  ResBytes := AESDecryptCtrBytes(ResBytes, KeyBytes, NonceBytes, IvBytes, kbt256);
+  Result := CompareBytes(ResBytes, DataBytes);
+  if not Result then Exit;
+
+  // 来自 RFC 3686 的 TestVector 8
+  KeyBytes := HexToBytes('F6D66D6BD52D59BB0796365879EFF886C66DD51A5B6A99744B50590C87A23884');
+  NonceBytes := HexToBytes('00FAAC24');
+  IvBytes := HexToBytes('C1585EF15A43D875');
+  DataBytes := HexToBytes('000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F');
+
+  ResBytes := AESEncryptCtrBytes(DataBytes, KeyBytes, NonceBytes, IvBytes, kbt256);
+  Result := BytesToHex(ResBytes) = 'F05E231B3894612C49EE000B804EB2A9B8306B508F839D6A5530831D9344AF1C';
+  if not Result then Exit;
+
+  ResBytes := AESDecryptCtrBytes(ResBytes, KeyBytes, NonceBytes, IvBytes, kbt256);
+  Result := CompareBytes(ResBytes, DataBytes);
+  if not Result then Exit;
+
+  // 来自 RFC 3686 的 TestVector 9
+  KeyBytes := HexToBytes('FF7A617CE69148E4F1726E2F43581DE2AA62D9F805532EDFF1EED687FB54153D');
+  NonceBytes := HexToBytes('001CC5B7');
+  IvBytes := HexToBytes('51A51D70A1C11148');
+  DataBytes := HexToBytes('000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F20212223');
+
+  ResBytes := AESEncryptCtrBytes(DataBytes, KeyBytes, NonceBytes, IvBytes, kbt256);
+  Result := BytesToHex(ResBytes) = 'EB6C52821D0BBBF7CE7594462ACA4FAAB407DF866569FD07F48CC0B583D6071F1EC0E6B8';
+  if not Result then Exit;
+
+  ResBytes := AESDecryptCtrBytes(ResBytes, KeyBytes, NonceBytes, IvBytes, kbt256);
+  Result := CompareBytes(ResBytes, DataBytes);
+  if not Result then Exit;
 end;
 
 // ================================ CRC ========================================
@@ -909,6 +2061,25 @@ begin
   Result := DataToHex(@Dig[0], SizeOf(TCnMD5Digest)) = 'EE48551E4F54DFBAA43C65124FCCC675';
 end;
 
+function TestMD5Update: Boolean;
+var
+  D1, D2: TCnMD5Digest;
+  C: TCnMD5Context;
+  S, S1, S2: AnsiString;
+begin
+  S1 := '0123456789abcdefghi';
+  S2 := 'jklmnop';
+  S := S1 + S2;
+
+  D1 := MD5StringA(S);
+  MD5Init(C);
+  MD5Update(C, PAnsiChar(S1), Length(S1));
+  MD5Update(C, PAnsiChar(S2), Length(S2));
+  MD5Final(C, D2);
+
+  Result := MD5Match(D1, D2);
+end;
+
 // ================================ SHA1 =======================================
 
 function TestSHA1: Boolean;
@@ -931,6 +2102,25 @@ begin
   Data := HexToBytes('436E5061636B2054657374');
   SHA1Hmac(@S[1], Length(S), @Data[0], Length(Data), Dig);
   Result := DataToHex(@Dig[0], SizeOf(TCnSHA1Digest)) = '1DD4E8CD93226D7D8253890260F62A4B8293766D';
+end;
+
+function TestSHA1Update: Boolean;
+var
+  D1, D2: TCnSHA1Digest;
+  C: TCnSHA1Context;
+  S, S1, S2: AnsiString;
+begin
+  S1 := '0123456789abcdefghi';
+  S2 := 'jklmnop';
+  S := S1 + S2;
+
+  D1 := SHA1StringA(S);
+  SHA1Init(C);
+  SHA1Update(C, PAnsiChar(S1), Length(S1));
+  SHA1Update(C, PAnsiChar(S2), Length(S2));
+  SHA1Final(C, D2);
+
+  Result := SHA1Match(D1, D2);
 end;
 
 // ================================ SHA2 =======================================
@@ -957,6 +2147,25 @@ begin
   Result := DataToHex(@Dig[0], SizeOf(TCnSHA224Digest)) = '33E0602F3BE8EEACA7C6F27B2158036FCD2D835893E0B22A158127C2';
 end;
 
+function TestSHA224Update: Boolean;
+var
+  D1, D2: TCnSHA224Digest;
+  C: TCnSHA224Context;
+  S, S1, S2: AnsiString;
+begin
+  S1 := '0123456789abcdefghi';
+  S2 := 'jklmnop';
+  S := S1 + S2;
+
+  D1 := SHA224StringA(S);
+  SHA224Init(C);
+  SHA224Update(C, PAnsiChar(S1), Length(S1));
+  SHA224Update(C, PAnsiChar(S2), Length(S2));
+  SHA224Final(C, D2);
+
+  Result := SHA224Match(D1, D2);
+end;
+
 function TestSHA256: Boolean;
 var
   Dig: TCnSHA256Digest;
@@ -977,6 +2186,25 @@ begin
   Data := HexToBytes('436E5061636B2054657374');
   SHA256Hmac(@S[1], Length(S), @Data[0], Length(Data), Dig);
   Result := DataToHex(@Dig[0], SizeOf(TCnSHA256Digest)) = 'DF8F5CA95CBF28996BD0A262084F539982FABCBEC3D6F2FF9CB6A31BE620E11C';
+end;
+
+function TestSHA256Update: Boolean;
+var
+  D1, D2: TCnSHA256Digest;
+  C: TCnSHA256Context;
+  S, S1, S2: AnsiString;
+begin
+  S1 := '0123456789abcdefghi';
+  S2 := 'jklmnop';
+  S := S1 + S2;
+
+  D1 := SHA256StringA(S);
+  SHA256Init(C);
+  SHA256Update(C, PAnsiChar(S1), Length(S1));
+  SHA256Update(C, PAnsiChar(S2), Length(S2));
+  SHA256Final(C, D2);
+
+  Result := SHA256Match(D1, D2);
 end;
 
 function TestSHA384: Boolean;
@@ -1001,6 +2229,25 @@ begin
   Result := DataToHex(@Dig[0], SizeOf(TCnSHA384Digest)) = '3EC487D5A1E6011585C9AE5582E12DDA154D48C52851FE2633176B92FF8A6A08DE024617E641968D6D891719442BB082';
 end;
 
+function TestSHA384Update: Boolean;
+var
+  D1, D2: TCnSHA384Digest;
+  C: TCnSHA384Context;
+  S, S1, S2: AnsiString;
+begin
+  S1 := '0123456789abcdefghi';
+  S2 := 'jklmnop';
+  S := S1 + S2;
+
+  D1 := SHA384StringA(S);
+  SHA384Init(C);
+  SHA384Update(C, PAnsiChar(S1), Length(S1));
+  SHA384Update(C, PAnsiChar(S2), Length(S2));
+  SHA384Final(C, D2);
+
+  Result := SHA384Match(D1, D2);
+end;
+
 function TestSHA512: Boolean;
 var
   Dig: TCnSHA512Digest;
@@ -1021,6 +2268,25 @@ begin
   Data := HexToBytes('436E5061636B2054657374');
   SHA512Hmac(@S[1], Length(S), @Data[0], Length(Data), Dig);
   Result := DataToHex(@Dig[0], SizeOf(TCnSHA512Digest)) = 'DBBBEE460673F447B39CC9F72C2C23361281497834F2830BBCF56F1325282172303B9DB2F88D61AF0EEE5997D3035E2CFA9DF7E57B8FE77B0F9F694318C18E46';
+end;
+
+function TestSHA512Update: Boolean;
+var
+  D1, D2: TCnSHA512Digest;
+  C: TCnSHA512Context;
+  S, S1, S2: AnsiString;
+begin
+  S1 := '0123456789abcdefghi';
+  S2 := 'jklmnop';
+  S := S1 + S2;
+
+  D1 := SHA512StringA(S);
+  SHA512Init(C);
+  SHA512Update(C, PAnsiChar(S1), Length(S1));
+  SHA512Update(C, PAnsiChar(S2), Length(S2));
+  SHA512Final(C, D2);
+
+  Result := SHA512Match(D1, D2);
 end;
 
 // ================================ SHA3 =======================================
@@ -1047,6 +2313,25 @@ begin
   Result := DataToHex(@Dig[0], SizeOf(TCnSHA3_224Digest)) = 'A20F92973578642EC6A841EAB0AA4091C24E7629715D656C006E0E53';
 end;
 
+function TestSHA3_224Update: Boolean;
+var
+  D1, D2: TCnSHA3_224Digest;
+  C: TCnSHA3Context;
+  S, S1, S2: AnsiString;
+begin
+  S1 := '0123456789abcdefghi';
+  S2 := 'jklmnop';
+  S := S1 + S2;
+
+  D1 := SHA3_224StringA(S);
+  SHA3_224Init(C);
+  SHA3_224Update(C, PAnsiChar(S1), Length(S1));
+  SHA3_224Update(C, PAnsiChar(S2), Length(S2));
+  SHA3_224Final(C, D2);
+
+  Result := SHA3_224Match(D1, D2);
+end;
+
 function TestSHA3_256: Boolean;
 var
   Dig: TCnSHA3_256Digest;
@@ -1067,6 +2352,25 @@ begin
   Data := HexToBytes('436E5061636B2054657374');
   SHA3_256Hmac(@S[1], Length(S), @Data[0], Length(Data), Dig);
   Result := DataToHex(@Dig[0], SizeOf(TCnSHA3_256Digest)) = 'FFF6F1CA3728ADB22D5E2B07B302BE522AE62A5D3711841E0C0A0F483AEC8DCE';
+end;
+
+function TestSHA3_256Update: Boolean;
+var
+  D1, D2: TCnSHA3_256Digest;
+  C: TCnSHA3Context;
+  S, S1, S2: AnsiString;
+begin
+  S1 := '0123456789abcdefghi';
+  S2 := 'jklmnop';
+  S := S1 + S2;
+
+  D1 := SHA3_256StringA(S);
+  SHA3_256Init(C);
+  SHA3_256Update(C, PAnsiChar(S1), Length(S1));
+  SHA3_256Update(C, PAnsiChar(S2), Length(S2));
+  SHA3_256Final(C, D2);
+
+  Result := SHA3_256Match(D1, D2);
 end;
 
 function TestSHA3_384: Boolean;
@@ -1091,6 +2395,25 @@ begin
   Result := DataToHex(@Dig[0], SizeOf(TCnSHA3_384Digest)) = 'DB48EE0068F826CC97D0B305DCC1C726662C4EE428404F7BC923DC14142E1D12050D55355AD784046F2C848323F67832';
 end;
 
+function TestSHA3_384Update: Boolean;
+var
+  D1, D2: TCnSHA3_384Digest;
+  C: TCnSHA3Context;
+  S, S1, S2: AnsiString;
+begin
+  S1 := '0123456789abcdefghi';
+  S2 := 'jklmnop';
+  S := S1 + S2;
+
+  D1 := SHA3_384StringA(S);
+  SHA3_384Init(C);
+  SHA3_384Update(C, PAnsiChar(S1), Length(S1));
+  SHA3_384Update(C, PAnsiChar(S2), Length(S2));
+  SHA3_384Final(C, D2);
+
+  Result := SHA3_384Match(D1, D2);
+end;
+
 function TestSHA3_512: Boolean;
 var
   Dig: TCnSHA3_512Digest;
@@ -1113,16 +2436,147 @@ begin
   Result := DataToHex(@Dig[0], SizeOf(TCnSHA3_512Digest)) = 'F97C8E267641A64BD1DF46A6EBB032F53C76DF3DC6D549201235CC499A0974189D712503B3DE023C96F5CBA36F021AD31BD0FF809D67FEF220BE32F42848247E';
 end;
 
+function TestSHA3_512Update: Boolean;
+var
+  D1, D2: TCnSHA3_512Digest;
+  C: TCnSHA3Context;
+  S, S1, S2: AnsiString;
+begin
+  S1 := '0123456789abcdefghi';
+  S2 := 'jklmnop';
+  S := S1 + S2;
+
+  D1 := SHA3_512StringA(S);
+  SHA3_512Init(C);
+  SHA3_512Update(C, PAnsiChar(S1), Length(S1));
+  SHA3_512Update(C, PAnsiChar(S2), Length(S2));
+  SHA3_512Final(C, D2);
+
+  Result := SHA3_512Match(D1, D2);
+end;
+
+function TestSHAKE128: Boolean;
+var
+  S, R: TBytes;
+begin
+  // 例子来源于 NIST 的 SHAKE128_Msg160 Example
+  SetLength(S, 200);
+  FillChar(S[0], Length(S), $A3);
+  R := SHAKE128Bytes(S, 32 * 16);
+  Result := DataToHex(@R[0], Length(R)) =
+    '131AB8D2B594946B9C81333F9BB6E0CE' +
+    '75C3B93104FA3469D3917457385DA037' +
+    'CF232EF7164A6D1EB448C8908186AD85' +
+    '2D3F85A5CF28DA1AB6FE343817197846' +
+    '7F1C05D58C7EF38C284C41F6C2221A76' +
+    'F12AB1C04082660250802294FB871802' +
+    '13FDEF5B0ECB7DF50CA1F8555BE14D32' +
+    'E10F6EDCDE892C09424B29F597AFC270' +
+    'C904556BFCB47A7D40778D390923642B' +
+    '3CBD0579E60908D5A000C1D08B98EF93' +
+    '3F806445BF87F8B009BA9E94F7266122' +
+    'ED7AC24E5E266C42A82FA1BBEFB7B8DB' +
+    '0066E16A85E0493F07DF4809AEC084A5' +
+    '93748AC3DDE5A6D7AAE1E8B6E5352B2D' +
+    '71EFBB47D4CAEED5E6D633805D2D323E' +
+    '6FD81B4684B93A2677D45E7421C2C6AE' +
+    'A259B855A698FD7D13477A1FE53E5A4A' +
+    '6197DBEC5CE95F505B520BCD9570C4A8' +
+    '265A7E01F89C0C002C59BFEC6CD4A5C1' +
+    '09258953EE5EE70CD577EE217AF21FA7' +
+    '0178F0946C9BF6CA8751793479F6B537' +
+    '737E40B6ED28511D8A2D7E73EB75F8DA' +
+    'AC912FF906E0AB955B083BAC45A8E5E9' +
+    'B744C8506F37E9B4E749A184B30F43EB' +
+    '188D855F1B70D71FF3E50C537AC1B0F8' +
+    '974F0FE1A6AD295BA42F6AEC74D123A7' +
+    'ABEDDE6E2C0711CAB36BE5ACB1A5A11A' +
+    '4B1DB08BA6982EFCCD716929A7741CFC' +
+    '63AA4435E0B69A9063E880795C3DC5EF' +
+    '3272E11C497A91ACF699FEFEE206227A' +
+    '44C9FB359FD56AC0A9A75A743CFF6862' +
+    'F17D7259AB075216C0699511643B6439';
+end;
+
+function TestSHAKE256: Boolean;
+var
+  S, R: TBytes;
+begin
+  // 例子来源于 NIST 的 SHAKE256_Msg160 Example
+  SetLength(S, 200);
+  FillChar(S[0], Length(S), $A3);
+  R := SHAKE256Bytes(S, 32 * 16);
+  Result := DataToHex(@R[0], Length(R)) =
+    'CD8A920ED141AA0407A22D59288652E9' +
+    'D9F1A7EE0C1E7C1CA699424DA84A904D' +
+    '2D700CAAE7396ECE96604440577DA4F3' +
+    'AA22AEB8857F961C4CD8E06F0AE6610B' +
+    '1048A7F64E1074CD629E85AD7566048E' +
+    'FC4FB500B486A3309A8F26724C0ED628' +
+    '001A1099422468DE726F1061D99EB9E9' +
+    '3604D5AA7467D4B1BD6484582A384317' +
+    'D7F47D750B8F5499512BB85A226C4243' +
+    '556E696F6BD072C5AA2D9B69730244B5' +
+    '6853D16970AD817E213E470618178001' +
+    'C9FB56C54FEFA5FEE67D2DA524BB3B0B' +
+    '61EF0E9114A92CDBB6CCCB98615CFE76' +
+    'E3510DD88D1CC28FF99287512F24BFAF' +
+    'A1A76877B6F37198E3A641C68A7C42D4' +
+    '5FA7ACC10DAE5F3CEFB7B735F12D4E58' +
+    '9F7A456E78C0F5E4C4471FFFA5E4FA05' +
+    '14AE974D8C2648513B5DB494CEA84715' +
+    '6D277AD0E141C24C7839064CD08851BC' +
+    '2E7CA109FD4E251C35BB0A04FB05B364' +
+    'FF8C4D8B59BC303E25328C09A882E952' +
+    '518E1A8AE0FF265D61C465896973D749' +
+    '0499DC639FB8502B39456791B1B6EC5B' +
+    'CC5D9AC36A6DF622A070D43FED781F5F' +
+    '149F7B62675E7D1A4D6DEC48C1C71645' +
+    '86EAE06A51208C0B791244D307726505' +
+    'C3AD4B26B6822377257AA152037560A7' +
+    '39714A3CA79BD605547C9B78DD1F596F' +
+    '2D4F1791BC689A0E9B799A37339C0427' +
+    '5733740143EF5D2B58B96A363D4E0807' +
+    '6A1A9D7846436E4DCA5728B6F760EEF0' +
+    'CA92BF0BE5615E96959D767197A0BEEB';
+end;
+
 // ================================ Base64 =====================================
 
 function TestBase64: Boolean;
 var
   Res: string;
-  Data: TBytes;
+  Data, Output: TBytes;
 begin
   Data := HexToBytes('000102030405060708090A0B0C0D0E0F32333425');
   if ECN_BASE64_OK = Base64Encode(Data, Res) then
     Result := Res = 'AAECAwQFBgcICQoLDA0ODzIzNCU='
+  else
+    Result := False;
+
+  if not Result then Exit;
+
+  if ECN_BASE64_OK = Base64Decode(Res, Output) then
+    Result := CompareBytes(Data, Output)
+  else
+    Result := False;
+end;
+
+function TestBase64URL: Boolean;
+var
+  Res: string;
+  Data, Output: TBytes;
+begin
+  Data := HexToBytes('7138482280EFC1DB9E401E3AF0AE710DCE7ADF7B1E105A2AC318C5FF1489C904');
+  if ECN_BASE64_OK = Base64Encode(Data, Res, True) then
+    Result := Res = 'cThIIoDvwdueQB468K5xDc5633seEFoqwxjF_xSJyQQ'
+  else
+    Result := False;
+
+  if not Result then Exit;
+
+  if ECN_BASE64_OK = Base64Decode(Res, Output) then
+    Result := CompareBytes(Data, Output)
   else
     Result := False;
 end;
@@ -1322,6 +2776,63 @@ begin
   Result := DataToHex(@P[0], Length(P)) = 'AAAAAAAAAAAAAAAABBBBBBBBBBBBBBBBCCCCCCCCCCCCCCCCDDDDDDDDDDDDDDDDEEEEEEEEEEEEEEEEFFFFFFFFFFFFFFFFEEEEEEEEEEEEEEEEAAAAAAAAAAAAAAAA';
 end;
 
+function TestAEADChaCha20Poly1305: Boolean;
+var
+  Plain, Key, AAD, Iv, EnData, DeData: TBytes;
+  Tag: TCnPoly1305Digest;
+begin
+  // 例子来自 RFC 8439
+  Plain := AnsiToBytes('Ladies and Gentlemen of the class of ''99: If I could offer you only one tip for the future, sunscreen would be it.');
+  AAD := HexToBytes('50515253C0C1C2C3C4C5C6C7');
+  Key := HexToBytes('808182838485868788898A8B8C8D8E8F909192939495969798999A9B9C9D9E9F');
+  Iv := HexToBytes('070000004041424344454647');
+
+  EnData := ChaCha20Poly1305EncryptBytes(Key, Iv, Plain, AAD, Tag);
+
+  Result := DataToHex(@Tag[0], SizeOf(TCnPoly1305Digest)) = '1AE10B594F09E26A7E902ECBD0600691';
+
+  if not Result then Exit;
+    Result := DataToHex(@EnData[0], Length(EnData)) =
+      'D31A8D34648E60DB7B86AFBC53EF7EC2A4ADED51296E08FEA9E2B5A736EE62D6' +
+      '3DBEA45E8CA9671282FAFB69DA92728B1A71DE0A9E060B2905D6A5B67ECD3B36' +
+      '92DDBD7F2D778B8C9803AEE328091B58FAB324E4FAD675945585808B4831D7BC' +
+      '3FF4DEF08E4B7A9DE576D26586CEC64B6116';
+
+  if not Result then Exit;
+
+  DeData := ChaCha20Poly1305DecryptBytes(Key, Iv, EnData, AAD, Tag);
+  Result := CompareBytes(DeData, Plain);
+end;
+
+
+function TestAEADXChaCha20Poly1305: Boolean;
+var
+  Plain, Key, AAD, Iv, EnData, DeData: TBytes;
+  Tag: TCnPoly1305Digest;
+begin
+  // 例子来自 RFC 草案
+  Plain := AnsiToBytes('Ladies and Gentlemen of the class of ''99: If I could offer you only one tip for the future, sunscreen would be it.');
+  AAD := HexToBytes('50515253C0C1C2C3C4C5C6C7');
+  Key := HexToBytes('808182838485868788898A8B8C8D8E8F909192939495969798999A9B9C9D9E9F');
+  Iv := HexToBytes('404142434445464748494a4b4c4d4e4f5051525354555657');
+
+  EnData := XChaCha20Poly1305EncryptBytes(Key, Iv, Plain, AAD, Tag);
+
+  Result := DataToHex(@Tag[0], SizeOf(TCnPoly1305Digest)) = 'C0875924C1C7987947DEAFD8780ACF49';
+
+  if not Result then Exit;
+    Result := DataToHex(@EnData[0], Length(EnData)) =
+      'BD6D179D3E83D43B9576579493C0E939572A1700252BFACCBED2902C21396CBB' +
+      '731C7F1B0B4AA6440BF3A82F4EDA7E39AE64C6708C54C216CB96B72E1213B452' +
+      '2F8C9BA40DB5D945B11B69B982C1BB9E3F3FAC2BC369488F76B2383565D3FFF9' +
+      '21F9664C97637DA9768812F615C68B13B52E';
+
+  if not Result then Exit;
+
+  DeData := XChaCha20Poly1305DecryptBytes(Key, Iv, EnData, AAD, Tag);
+  Result := CompareBytes(DeData, Plain);
+end;
+
 // ================================ ChaCha20 ===================================
 
 function TestChaCha20: Boolean;
@@ -1332,6 +2843,7 @@ var
   Nonce: TCnChaChaNonce;
   EnRes, DeRes: TBytes;
 begin
+  // 例子数据来源于 ChaCha20 的 RFC 8439
   SKey := '000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F';
   SNonce := '000000000000004A00000000';
 
@@ -1343,11 +2855,69 @@ begin
 
   ChaCha20EncryptData(Key, Nonce, @S[1], Length(S), @EnRes[0]);
   Result := BytesToHex(EnRes) = '6E2E359A2568F98041BA0728DD0D6981E97E7AEC1D4360C20A27AFCCFD9FAE0BF91B65C5524733AB8F593DABCD62B3571639D624E65152AB8F530C359F0861D807CA0DBF500D6A6156A38E088A22B65E52BC514D16CCF806818CE91AB77937365AF90BBF74A35BE6B40B8EEDF2785E42874D';
-  if not Result then
-    Exit;
+  if not Result then Exit;
 
   DeRes := ChaCha20DecryptBytes(Key, Nonce, EnRes);
   Result := (DeRes <> nil) and CompareMem(@S[1], @DeRes[0], Length(DeRes));
+end;
+
+function TestHChaCha20SubKey: Boolean;
+var
+  SKey, SNonce: AnsiString;
+  Key: TCnChaChaKey;
+  Nonce: TCnHChaChaNonce;
+  SubKey: TCnHChaChaSubKey;
+begin
+  // 例子数据来源于 XChaCha20 的 RFC 草案
+  SKey := '000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f';
+  SNonce := '000000090000004a0000000031415927';
+
+  HexToData(SKey, @Key[0]);
+  HexToData(SNonce, @Nonce[0]);
+
+  HChaCha20SubKey(Key, Nonce, SubKey);
+
+  Result := DataToHex(@SubKey[0], SizeOf(TCnHChaChaSubKey)) = '82413B4227B27BFED30E42508A877D73A0F9E4D58A74A853C12EC41326D3ECDC';
+end;
+
+function TestXChaCha20: Boolean;
+var
+  SKey, SNonce, Plain: AnsiString;
+  Key: TCnChaChaKey;
+  Nonce: TCnXChaChaNonce;
+  PT, Res: TBytes;
+begin
+  // 例子数据来源于 XChaCha20 的 RFC 草案
+  SKey := '808182838485868788898A8B8C8D8E8F909192939495969798999A9B9C9D9E9F';
+  SNonce := '404142434445464748494A4B4C4D4E4F5051525354555658';
+  Plain :=
+    '5468652064686F6C65202870726F6E6F756E6365642022646F6C652229206973' +
+    '20616C736F206B6E6F776E2061732074686520417369617469632077696C6420' +
+    '646F672C2072656420646F672C20616E642077686973746C696E6720646F672E' +
+    '2049742069732061626F7574207468652073697A65206F662061204765726D61' +
+    '6E20736865706865726420627574206C6F6F6B73206D6F7265206C696B652061' +
+    '206C6F6E672D6C656767656420666F782E205468697320686967686C7920656C' +
+    '757369766520616E6420736B696C6C6564206A756D70657220697320636C6173' +
+    '736966696564207769746820776F6C7665732C20636F796F7465732C206A6163' +
+    '6B616C732C20616E6420666F78657320696E20746865207461786F6E6F6D6963' +
+    '2066616D696C792043616E696461652E';
+
+  HexToData(SKey, @Key[0]);
+  HexToData(SNonce, @Nonce[0]);
+  PT := HexToBytes(Plain);
+
+  Res := XChaCha20EncryptBytes(Key, Nonce, PT);
+  Result := DataToHex(@Res[0], Length(Res)) =
+    '7D0A2E6B7F7C65A236542630294E063B7AB9B555A5D5149AA21E4AE1E4FBCE87' +
+    'ECC8E08A8B5E350ABE622B2FFA617B202CFAD72032A3037E76FFDCDC4376EE05' +
+    '3A190D7E46CA1DE04144850381B9CB29F051915386B8A710B8AC4D027B8B050F' +
+    '7CBA5854E028D564E453B8A968824173FC16488B8970CAC828F11AE53CABD201' +
+    '12F87107DF24EE6183D2274FE4C8B1485534EF2C5FBC1EC24BFC3663EFAA08BC' +
+    '047D29D25043532DB8391A8A3D776BF4372A6955827CCB0CDD4AF403A7CE4C63' +
+    'D595C75A43E045F0CCE1F29C8B93BD65AFC5974922F214A40B7C402CDB91AE73' +
+    'C0B63615CDAD0480680F16515A7ACE9D39236464328A37743FFC28F4DDB324F4' +
+    'D0F5BBDC270C65B1749A6EFFF1FBAA09536175CCD29FB9E6057B307320D31683' +
+    '8A9C71F70B5B5907A66F7EA49AADC409';
 end;
 
 // ================================ Poly1305 ===================================
@@ -1362,6 +2932,28 @@ begin
   HexToData('85D6BE7857556D337F4452FE42D506A80103808AFB0DB2FD4ABFF6AF4149F51B', @Key[0]);
   Dig := Poly1305Data(@S[1], Length(S), Key);
   Result := DataToHex(@Dig[0], SizeOf(TCnPoly1305Digest)) = 'A8061DC1305136C6C22B8BAF0C0127A9';
+end;
+
+function TestPoly1305Update: Boolean;
+var
+  D1, D2: TCnPoly1305Digest;
+  C: TCnPoly1305Context;
+  K: TCnPoly1305Key;
+  S, S1, S2: AnsiString;
+begin
+  S1 := '0123456789abcdefghi';
+  S2 := 'jklmnop';
+  S := S1 + S2;
+
+  FillChar(K[0], SizeOf(TCnPoly1305Key), $FF);
+
+  D1 := Poly1305Buffer(S, Length(S), K);
+  Poly1305Init(C, K);
+  Poly1305Update(C, PAnsiChar(S1), Length(S1));
+  Poly1305Update(C, PAnsiChar(S2), Length(S2));
+  Poly1305Final(C, D2);
+
+  Result := Poly1305Match(D1, D2);
 end;
 
 // ================================ ZUC ========================================
@@ -1534,6 +3126,25 @@ begin
   Result := Mac = $FAE8FF0B;
 end;
 
+// ================================ RC4 ========================================
+
+function TestRC4: Boolean;
+var
+  S, K, D: AnsiString;
+begin
+  S := 'Sample Text';
+  K := '123456';
+
+  D := RC4EncryptStrToHex(S, K);
+  Result := D = '53991317485635C81A4F56';
+
+  if not Result then Exit;
+
+  D := RC4DecryptStrFromHex(D, K);
+
+  Result := D = S;
+end;
+
 // ================================ TEA ========================================
 
 function TestTea: Boolean;
@@ -1652,6 +3263,80 @@ begin
       + '00000000000000000000000000000000000253EB20F42A7228AF9022D9F35ECE5BB71E40FCD8717B80D164AB921709996E5C43B515A262332A46CD9B163889E1');
 end;
 
+// ================================ FEC ========================================
+
+function TestHamming: Boolean;
+var
+  I: Integer;
+  IB, OB: TBits;
+  SI, SO: string;
+begin
+  IB := nil;
+  OB := nil;
+
+  try
+    IB := TBits.Create;
+    IB.Size := 128;
+
+    // 原始数据
+    for I := 0 to IB.Size - 1 do
+      IB.Bits[I] := I mod 2 = 0;
+
+    // 根据 IB 计算校验码
+    OB := TBits.Create;
+    CnCalcHammingCode(IB, OB, 8);
+
+    SO := BitsToString(OB);
+    Result := SO = '111101001010111101001010111101001010111101001010111101001010111101001010111101001010111101001010111101001010111101001010111101001010111101001010111101001010111101001010111101001010111101001010';
+    if not Result then Exit;
+
+    SI := BitsToString(IB);
+
+    // 模拟传输混乱的个别位翻转
+    IB[35] := not IB[35];
+    IB[79] := not IB[79];
+
+    // 再验证并纠错
+    CnVerifyHammingCode(OB, IB, 8);
+    Result := BitsToString(IB) = SI;
+  finally
+    OB.Free;
+    IB.Free;
+  end;
+end;
+
+// ================================ PDF ========================================
+
+function TestPDFCalcOwnerPassword: Boolean;
+var
+  O: TBytes;
+begin
+  O := CnPDFCalcOwnerCipher('123456', '654321', 4, 4, 128);
+  Result := BytesToHex(O) = 'C336FDBECB59F7B59C244B61B745F71AC5BA427B1B9102DA468E77127F1E69D6';
+end;
+
+function TestPDFCalcUserPassword: Boolean;
+var
+  U, O: TBytes;
+begin
+  O := HexToBytes('C336FDBECB59F7B59C244B61B745F71AC5BA427B1B9102DA468E77127F1E69D6');
+  U := CnPDFCalcUserCipher('654321', 4, 4, O, Cardinal(-3904), HexToBytes('04EDE6407FAD4026986F3452ECA1AC62'), 128);
+
+  Result := CompareBytes(U, HexToBytes('873B7BBDD6A0A4BCE10C44E26BD20E4F'), 16);
+end;
+
+function TestPDFCheckOwnerPassword: Boolean;
+var
+  OC, UC, ID, Key: TBytes;
+begin
+  OC := HexToBytes('B6DC51AF84CDB5A22DD5FC390618A0F8E16CAB8AF14E67CCBA5F90837AAC898B');
+  UC := HexToBytes('66AE712E6DF1888690C8CCAFF51B460BAFEE54CC25933740AFCBC7E71EA4ED99');
+  ID := HexToBytes('446C6A93022D972DEC265D7B398D54A7');
+
+  Key := CnPDFCheckOwnerPassword('123456', 1, 2, OC, UC, Cardinal(-64), ID, 0);
+  Result := CompareBytes(Key, HexToBytes('FDE36836FF'), 16);
+end;
+
 // ================================ SM2 ========================================
 
 function TestSM21: Boolean;
@@ -1689,7 +3374,7 @@ begin
       if not Result then Exit;
 
       Result := CnSM2VerifyData(U, @M[1], Length(M), Sig, Pub);
-  end;
+    end;
   finally
     Sig.Free;
     Pub.Free;
@@ -1831,6 +3516,25 @@ begin
   Data := HexToBytes('436E5061636B2054657374');
   SM3Hmac(@S[1], Length(S), @Data[0], Length(Data), Dig);
   Result := DataToHex(@Dig[0], SizeOf(TCnSM3Digest)) = '393FFDFADE8A0E6ADFF832E6E126B2713EEB48066FEA8963CF63C258F65E368F';
+end;
+
+function TestSM3Update: Boolean;
+var
+  D1, D2: TCnSM3Digest;
+  C: TCnSM3Context;
+  S, S1, S2: AnsiString;
+begin
+  S1 := '0123456789abcdefghi';
+  S2 := 'jklmnop';
+  S := S1 + S2;
+
+  D1 := SM3StringA(S);
+  SM3Init(C);
+  SM3Update(C, PAnsiChar(S1), Length(S1));
+  SM3Update(C, PAnsiChar(S2), Length(S2));
+  SM3Final(C, D2);
+
+  Result := SM3Match(D1, D2);
 end;
 
 // ================================ SM9 ========================================
@@ -2268,6 +3972,228 @@ begin
   end;
 end;
 
+function TestRSAPrivPubPkcs1: Boolean;
+const
+  PEM = '-----BEGIN RSA PRIVATE KEY-----' + SCRLF +
+    'MIIEowIBAAKCAQEAx/WjnDhkoGxhA98dT43fCQneQMzfLhwcMNU693cLcU7VlJRn' + SCRLF +
+    'JPRb04IZYn1kOuretPvMmDCDHv8r4hZxaue0IW6sUjfSgcf2kk70WT+0NMHlSjWl' + SCRLF +
+    'h3R56rePbbDyQRJZJTZS85iki49VjoWO4JUzyH4iyPto8uu6/gHdmR/bfaEMxb9W' + SCRLF +
+    'VFWENHzeznCk8+84tWzi6Chom8sryKBxaaa3b8SsfBAfutgFqNWtc69xWb5k3xqU' + SCRLF +
+    'tyFVLX9Ga9cG07lsW0Zsnw5zHNS9wQi7MIrNlfPVhsWr943rjAyea0UnXzhFQfRH' + SCRLF +
+    'GuHbNKaQTsoiDlZXfYCq4vQ/TWTcuJrflBmsBQIDAQABAoIBAQCUeCIcO48TwoUi' + SCRLF +
+    'T8a+rBN/7ZDVwoiv/vU7mQeoeP7JCgTxxmLzgHCyEjZw97O1P3FPJmtaUSL6n/Lg' + SCRLF +
+    'c1ORUitga4GNpp8p9+Rv7CnoHrHaPmHWgRDAC87+ZX8crjah9FK2m6hp8Nu0OCAJ' + SCRLF +
+    'q8dTn9UMOAPyASKCxF9afN4h9RKPKvaHI9Em0+1i9Y5MIRv5MYDhRC+9cxj3ExFX' + SCRLF +
+    'ZyAtV+IQkYIGaUEEZiE3yFhITlBQyI+W9nY/tdP9UaNwHvj4gNff9QZs2aWUcgbp' + SCRLF +
+    'uvqSzHegJpeG8wBBIi/1OAZh0lNg4isImcXcxbmaLfUTl2tcMn2bY5A54q/M97EG' + SCRLF +
+    'P9OnMVTdAoGBAOPXJwE1MlcvUzogmEl0DPQUMOztGkeqEjUNgHgXrndQBnsN2fqS' + SCRLF +
+    '2ILeZkRq0XsdEnEM5e3mt8zvLnm63IvYC14/P1gKXM24PbXMARYnQtDZR/4TJC9+' + SCRLF +
+    '1mg/mydTaDuDslww2J6gT1avJXZ4nA9A/FXG6c0kyZrDZ8COZdsW2OhTAoGBAOCs' + SCRLF +
+    'Vm7gI0u1H7RAwi6ndtnVxOLL0DNbPsWyb8yvMpS/jMTqJWBejX5ko6vtu8dTPdW4' + SCRLF +
+    'iEMDob8Q/AmWXIhGXqPZ5MGguaafnSnT+JTGqZG3f6g4y6gKoA3aOWWTROV8SEpD' + SCRLF +
+    'TvW4tflcbKJ9lCqdbPp9nO8bTka/779WOyGWTi9HAoGAWLMoQjYdlQedlSGfZ+lA' + SCRLF +
+    'Kb26lmJwOrohQHozK428pEKJY1qvI/gLRlei5LvZNd7JkS1+TjHmGGh9ZXKz7dV8' + SCRLF +
+    'B4MD/Bh8rLIvhBkZyzAZuQj+GBIHol30xr0MgDDegVzyESYLDyZF/O9O3GJ0DxQz' + SCRLF +
+    'qIk5+F18Bz5PpA1L5hFs/HUCgYBzlpZ9QplGGPAvt2VvxT5zQfSiTgNWeKop4ex8' + SCRLF +
+    '3OHj/0x3/pKuKtcW4MYH7S4/lUbpzp9kAtlTSHSypgYDIlkMaUy0hXEeFV4xJ9nr' + SCRLF +
+    'CO4yhrqJnHbChHzlw5Dl/kdi3Xb/pfNYnegZW4CUdJEm/4kSsk9sAJtb8OFyifWw' + SCRLF +
+    'CPk+fwKBgCJc9FM7r2I78I8JZcb13EK42NRuMKrbQxA9MVOgImEWRv/XlQpRbAvM' + SCRLF +
+    'FjSgW48MX1FYg1iEwU1yWVlEn8i8o2qNOiewCmwPyBIqlNXzB+Yjl3/fMVSAKSSj' + SCRLF +
+    'rZxpGqzDLndn4shtB74jrTDU+uOu8RLQhRbQVAE8TlQOusLXjY/p' + SCRLF +
+    '-----END RSA PRIVATE KEY-----';
+var
+  S, D: AnsiString;
+  Sl: TStringList;
+  Stream: TMemoryStream;
+  Priv: TCnRSAPrivateKey;
+  Pub: TCnRSAPublicKey;
+begin
+  Stream := TMemoryStream.Create;
+  S := AnsiString(PEM);
+  Stream.Write(S[1], Length(S));
+  Stream.Position := 0;
+
+  Priv := TCnRSAPrivateKey.Create;
+  Pub := TCnRSAPublicKey.Create;
+
+  Result := CnRSALoadKeysFromPem(Stream, Priv, Pub);
+  if not Result then Exit;
+
+  Result := CnRSAVerifyKeys(Priv, Pub);
+  if not Result then Exit;
+
+  Stream.Size := 0;
+  Result := CnRSASaveKeysToPem(Stream, Priv, Pub);
+  if not Result then Exit;
+
+  Stream.Position := 0;
+  Sl := TStringList.Create;
+  Sl.LoadFromStream(Stream);
+
+  D := Trim(AnsiString(Sl.Text));
+  Result := S = D;
+
+  Sl.Free;
+  Pub.Free;
+  Priv.Free;
+  Stream.Free;
+end;
+
+function TestRSAPubPkcs1: Boolean;
+const
+  PEM =
+    '-----BEGIN RSA PUBLIC KEY-----' + SCRLF +
+    'MIIBCgKCAQEAx/WjnDhkoGxhA98dT43fCQneQMzfLhwcMNU693cLcU7VlJRnJPRb' + SCRLF +
+    '04IZYn1kOuretPvMmDCDHv8r4hZxaue0IW6sUjfSgcf2kk70WT+0NMHlSjWlh3R5' + SCRLF +
+    '6rePbbDyQRJZJTZS85iki49VjoWO4JUzyH4iyPto8uu6/gHdmR/bfaEMxb9WVFWE' + SCRLF +
+    'NHzeznCk8+84tWzi6Chom8sryKBxaaa3b8SsfBAfutgFqNWtc69xWb5k3xqUtyFV' + SCRLF +
+    'LX9Ga9cG07lsW0Zsnw5zHNS9wQi7MIrNlfPVhsWr943rjAyea0UnXzhFQfRHGuHb' + SCRLF +
+    'NKaQTsoiDlZXfYCq4vQ/TWTcuJrflBmsBQIDAQAB' + SCRLF +
+    '-----END RSA PUBLIC KEY-----';
+var
+  S, D: AnsiString;
+  Sl: TStringList;
+  Stream: TMemoryStream;
+  Pub: TCnRSAPublicKey;
+begin
+  Stream := TMemoryStream.Create;
+  S := AnsiString(PEM);
+  Stream.Write(S[1], Length(S));
+  Stream.Position := 0;
+
+  Pub := TCnRSAPublicKey.Create;
+
+  Result := CnRSALoadPublicKeyFromPem(Stream, Pub);
+  if not Result then Exit;
+
+  Stream.Size := 0;
+  Result := CnRSASavePublicKeyToPem(Stream, Pub, CnRSA.cktPKCS1);
+  if not Result then Exit;
+
+  Stream.Position := 0;
+  Sl := TStringList.Create;
+  Sl.LoadFromStream(Stream);
+
+  D := Trim(AnsiString(Sl.Text));
+  Result := S = D;
+
+  Sl.Free;
+  Pub.Free;
+  Stream.Free;
+end;
+
+function TestRSAPrivPubPkcs8: Boolean;
+const
+  PEM =
+    '-----BEGIN PRIVATE KEY-----' + SCRLF +
+    'MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDH9aOcOGSgbGED' + SCRLF +
+    '3x1Pjd8JCd5AzN8uHBww1Tr3dwtxTtWUlGck9FvTghlifWQ66t60+8yYMIMe/yvi' + SCRLF +
+    'FnFq57QhbqxSN9KBx/aSTvRZP7Q0weVKNaWHdHnqt49tsPJBElklNlLzmKSLj1WO' + SCRLF +
+    'hY7glTPIfiLI+2jy67r+Ad2ZH9t9oQzFv1ZUVYQ0fN7OcKTz7zi1bOLoKGibyyvI' + SCRLF +
+    'oHFpprdvxKx8EB+62AWo1a1zr3FZvmTfGpS3IVUtf0Zr1wbTuWxbRmyfDnMc1L3B' + SCRLF +
+    'CLswis2V89WGxav3jeuMDJ5rRSdfOEVB9Eca4ds0ppBOyiIOVld9gKri9D9NZNy4' + SCRLF +
+    'mt+UGawFAgMBAAECggEBAJR4Ihw7jxPChSJPxr6sE3/tkNXCiK/+9TuZB6h4/skK' + SCRLF +
+    'BPHGYvOAcLISNnD3s7U/cU8ma1pRIvqf8uBzU5FSK2BrgY2mnyn35G/sKegesdo+' + SCRLF +
+    'YdaBEMALzv5lfxyuNqH0UrabqGnw27Q4IAmrx1Of1Qw4A/IBIoLEX1p83iH1Eo8q' + SCRLF +
+    '9ocj0SbT7WL1jkwhG/kxgOFEL71zGPcTEVdnIC1X4hCRggZpQQRmITfIWEhOUFDI' + SCRLF +
+    'j5b2dj+10/1Ro3Ae+PiA19/1BmzZpZRyBum6+pLMd6Aml4bzAEEiL/U4BmHSU2Di' + SCRLF +
+    'KwiZxdzFuZot9ROXa1wyfZtjkDnir8z3sQY/06cxVN0CgYEA49cnATUyVy9TOiCY' + SCRLF +
+    'SXQM9BQw7O0aR6oSNQ2AeBeud1AGew3Z+pLYgt5mRGrRex0ScQzl7ea3zO8uebrc' + SCRLF +
+    'i9gLXj8/WApczbg9tcwBFidC0NlH/hMkL37WaD+bJ1NoO4OyXDDYnqBPVq8ldnic' + SCRLF +
+    'D0D8VcbpzSTJmsNnwI5l2xbY6FMCgYEA4KxWbuAjS7UftEDCLqd22dXE4svQM1s+' + SCRLF +
+    'xbJvzK8ylL+MxOolYF6NfmSjq+27x1M91biIQwOhvxD8CZZciEZeo9nkwaC5pp+d' + SCRLF +
+    'KdP4lMapkbd/qDjLqAqgDdo5ZZNE5XxISkNO9bi1+Vxson2UKp1s+n2c7xtORr/v' + SCRLF +
+    'v1Y7IZZOL0cCgYBYsyhCNh2VB52VIZ9n6UApvbqWYnA6uiFAejMrjbykQoljWq8j' + SCRLF +
+    '+AtGV6Lku9k13smRLX5OMeYYaH1lcrPt1XwHgwP8GHyssi+EGRnLMBm5CP4YEgei' + SCRLF +
+    'XfTGvQyAMN6BXPIRJgsPJkX8707cYnQPFDOoiTn4XXwHPk+kDUvmEWz8dQKBgHOW' + SCRLF +
+    'ln1CmUYY8C+3ZW/FPnNB9KJOA1Z4qinh7Hzc4eP/THf+kq4q1xbgxgftLj+VRunO' + SCRLF +
+    'n2QC2VNIdLKmBgMiWQxpTLSFcR4VXjEn2esI7jKGuomcdsKEfOXDkOX+R2Lddv+l' + SCRLF +
+    '81id6BlbgJR0kSb/iRKyT2wAm1vw4XKJ9bAI+T5/AoGAIlz0UzuvYjvwjwllxvXc' + SCRLF +
+    'QrjY1G4wqttDED0xU6AiYRZG/9eVClFsC8wWNKBbjwxfUViDWITBTXJZWUSfyLyj' + SCRLF +
+    'ao06J7AKbA/IEiqU1fMH5iOXf98xVIApJKOtnGkarMMud2fiyG0HviOtMNT6467x' + SCRLF +
+    'EtCFFtBUATxOVA66wteNj+k=' + SCRLF +
+    '-----END PRIVATE KEY-----';
+var
+  S, D: AnsiString;
+  Sl: TStringList;
+  Stream: TMemoryStream;
+  Priv: TCnRSAPrivateKey;
+  Pub: TCnRSAPublicKey;
+begin
+  Stream := TMemoryStream.Create;
+  S := AnsiString(PEM);
+  Stream.Write(S[1], Length(S));
+  Stream.Position := 0;
+
+  Priv := TCnRSAPrivateKey.Create;
+  Pub := TCnRSAPublicKey.Create;
+
+  Result := CnRSALoadKeysFromPem(Stream, Priv, Pub);
+  if not Result then Exit;
+
+  Result := CnRSAVerifyKeys(Priv, Pub);
+  if not Result then Exit;
+
+  Stream.Size := 0;
+  Result := CnRSASaveKeysToPem(Stream, Priv, Pub, CnRSA.cktPKCS8);
+  if not Result then Exit;
+
+  Stream.Position := 0;
+  Sl := TStringList.Create;
+  Sl.LoadFromStream(Stream);
+
+  D := Trim(AnsiString(Sl.Text));
+  Result := S = D;
+
+  Pub.Free;
+  Priv.Free;
+  Stream.Free;
+end;
+
+function TestRSAPubPkcs8: Boolean;
+const
+  PEM =
+    '-----BEGIN PUBLIC KEY-----' + SCRLF +
+    'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAx/WjnDhkoGxhA98dT43f' + SCRLF +
+    'CQneQMzfLhwcMNU693cLcU7VlJRnJPRb04IZYn1kOuretPvMmDCDHv8r4hZxaue0' + SCRLF +
+    'IW6sUjfSgcf2kk70WT+0NMHlSjWlh3R56rePbbDyQRJZJTZS85iki49VjoWO4JUz' + SCRLF +
+    'yH4iyPto8uu6/gHdmR/bfaEMxb9WVFWENHzeznCk8+84tWzi6Chom8sryKBxaaa3' + SCRLF +
+    'b8SsfBAfutgFqNWtc69xWb5k3xqUtyFVLX9Ga9cG07lsW0Zsnw5zHNS9wQi7MIrN' + SCRLF +
+    'lfPVhsWr943rjAyea0UnXzhFQfRHGuHbNKaQTsoiDlZXfYCq4vQ/TWTcuJrflBms' + SCRLF +
+    'BQIDAQAB' + SCRLF +
+    '-----END PUBLIC KEY-----';
+var
+  S, D: AnsiString;
+  Sl: TStringList;
+  Stream: TMemoryStream;
+  Pub: TCnRSAPublicKey;
+begin
+  Stream := TMemoryStream.Create;
+  S := AnsiString(PEM);
+  Stream.Write(S[1], Length(S));
+  Stream.Position := 0;
+
+  Pub := TCnRSAPublicKey.Create;
+
+  Result := CnRSALoadPublicKeyFromPem(Stream, Pub);
+  if not Result then Exit;
+
+  Stream.Size := 0;
+  Result := CnRSASavePublicKeyToPem(Stream, Pub);
+  if not Result then Exit;
+
+  Stream.Position := 0;
+  Sl := TStringList.Create;
+  Sl.LoadFromStream(Stream);
+
+  D := Trim(AnsiString(Sl.Text));
+  Result := S = D;
+
+  Sl.Free;
+  Pub.Free;
+  Stream.Free;
+end;
+
 // ================================ KDF ========================================
 
 function TestKDFPB1: Boolean;
@@ -2279,7 +4205,6 @@ begin
   S := HexToBytes('123456');
   R := CnPBKDF1Bytes(P, S, 1000, 16, cpdfMd5);
   Result := DataToHex(@R[0], Length(R)) = '090583F4EA468E822CDC7A8C7C785E1B';
-
   if not Result then Exit;
 
   Pass := '123456';
@@ -2297,7 +4222,6 @@ begin
   S := HexToBytes('123456');
   R := CnPBKDF2Bytes(P, S, 1000, 32, cpdfSha256Hmac);
   Result := DataToHex(@R[0], Length(R)) = '87410D487A6414E9ADB9D078CBA7E28BFCB0C3767F1BD4C1A628010FF91DDD1A';
-
   if not Result then Exit;
 
   Pass := '123456';
@@ -2320,8 +4244,7 @@ begin
     PB := AnsiToBytes(P);
     S3 := AnsiString(BytesToHex(CnSM2SM9KDF(PB, I)));
     Result := (S1 = S2) and (S2 = S3);
-    if not Result then
-      Exit;
+    if not Result then Exit;
   end;
 
   Pass := HexToBytes('57E7B63623FAE5F08CDA468E872A20AFA03DED41BF1403770E040DC83AF31A67991F2B01EBF9EFD8881F0A0493000603');
@@ -2354,12 +4277,168 @@ begin
   Result := C = 23;
 end;
 
+function TestPrimeNumber3: Boolean;
+begin
+  Result := CnInt64IsPerfectPower(9682651996416);  // 42 的 8 次方，暂时通不过
+end;
+
 // ================================ 25519 ========================================
+
+function Test25519CurveMul: Boolean;
+var
+  Curve: TCnCurve25519;
+  K: TCnBigNumber;
+  P: TCnEccPoint;
+  D: TCnCurve25519Data;
+begin
+  // 测试用例来源于 RFC 7748 中的 Test Vector
+  // a546e36bf0527c9d3b16154b82465edd62144c0ac1fc5a18506a2244ba449ac4 * e6db6867583030db3594c1a424b15f7c726624ec26b3353b10a903a6d0ab1c4c
+  // 要 = c3da55379de9c6908e94ea4df28d084f32eccf03491c71f754b4075577a28552 后两者均为 u
+
+  HexToData('A546E36BF0527C9D3B16154B82465EDD62144C0AC1FC5A18506A2244BA449AC4', @D[0]);
+  K := TCnBigNumber.Create;
+  CnCurve25519DataToBigNumber(D, K);
+  CnProcess25519ScalarNumber(K);
+
+  P := TCnEccPoint.Create;
+  HexToData('E6DB6867583030DB3594C1A424B15F7C726624EC26B3353B10A903A6D0AB1C4C', @D[0]);
+  CnCurve25519DataToBigNumber(D, P.X);
+
+  Curve := TCnCurve25519.Create;
+  Curve.MultiplePoint(K, P);
+
+  CnCurve25519BigNumberToData(P.X, D);
+  Result := DataToHex(@D[0], SizeOf(TCnCurve25519Data)) = 'C3DA55379DE9C6908E94EA4DF28D084F32ECCF03491C71F754B4075577A28552';
+
+  Curve.Free;
+  P.Free;
+  K.Free;
+end;
+
+function Test25519CurveGMul: Boolean;
+var
+  Curve: TCnCurve25519;
+  K: TCnBigNumber;
+  P: TCnEccPoint;
+  D: TCnCurve25519Data;
+begin
+  // 测试用例来源于 RFC 7748 中的 Diffie-Hellman 的 Test Vector
+  // 77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a * 9
+  // 要 = 8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a 后两者均为 u
+
+  HexToData('77076D0A7318A57D3C16C17251B26645DF4C2F87EBC0992AB177FBA51DB92C2A', @D[0]);
+  K := TCnBigNumber.Create;
+  CnCurve25519DataToBigNumber(D, K);
+  CnProcess25519ScalarNumber(K);
+
+  P := TCnEccPoint.Create;
+  HexToData('0900000000000000000000000000000000000000000000000000000000000000', @D[0]);
+  CnCurve25519DataToBigNumber(D, P.X);
+
+  Curve := TCnCurve25519.Create;
+  Curve.MultiplePoint(K, P);
+
+  CnCurve25519BigNumberToData(P.X, D);
+  Result := DataToHex(@D[0], SizeOf(TCnCurve25519Data)) = '8520F0098930A754748B7DDCB43EF75A0DBF3A0D26381AF4EBA4A98EAA9B4E6A';
+
+  Curve.Free;
+  P.Free;
+  K.Free;
+end;
+
+function Test25519KeyExchange: Boolean;
+var
+  Priv1, Priv2: TCnCurve25519PrivateKey;
+  Pub1, Pub2: TCnEccPublicKey;
+  Key1, Key2, Key1O, Key2O: TCnEccPoint;
+  D: TCnCurve25519Data;
+begin
+  Priv1 := nil;
+  Priv2 := nil;
+  Pub1 := nil;
+  Pub2 := nil;
+  Key1 := nil;
+  Key2 := nil;
+  Key1O := nil;
+  Key2O := nil;
+
+  try
+    Priv1 := TCnCurve25519PrivateKey.Create;
+    Priv2 := TCnCurve25519PrivateKey.Create;
+    Pub1 := TCnEccPublicKey.Create;
+    Pub2 := TCnEccPublicKey.Create;
+    Key1 := TCnEccPoint.Create;
+    Key2 := TCnEccPoint.Create;
+    Key1O := TCnEccPoint.Create;
+    Key2O := TCnEccPoint.Create;
+
+    // 俩 Private Key 来源于 RFC 7748
+    Priv1.LoadFromHex('77076D0A7318A57D3C16C17251B26645DF4C2F87EBC0992AB177FBA51DB92C2A');
+    Priv2.LoadFromHex('5DAB087E624A8A4B79E17F8B83800EE66F3BB1292618B6FD1C2F8B27FF88E0EB');
+
+    CnCurve25519KeyExchangeStep1(Priv1, Key1); // 第一方调用，产生 Key 1
+    CnCurve25519KeyExchangeStep1(Priv2, Key2); // 另一方调用，产生 Key 2
+
+    // Key2 给一，Key1 给另一方
+
+    CnCurve25519KeyExchangeStep2(Priv1, Key2, Key1O); // 第一方调用，产生公有 Key 1O
+    CnCurve25519KeyExchangeStep2(Priv2, Key1, Key2O); // 第一方调用，产生公有 Key 2O
+
+    Result := CnEccPointsEqual(Key1O, Key2O);
+
+    // RFC 中的 Secret K 是 Key1O 的 X 坐标倒过来
+    if Result then
+    begin
+      CnCurve25519PointToData(Key1O, D);
+      Result := DataToHex(@D[0], SizeOf(TCnCurve25519Data)) = '4A5D9D5BA4CE2DE1728E3BF480350F25E07E21C947D19E3376F09B3C1E161742';
+    end;
+  finally
+    Key2O.Free;
+    Key1O.Free;
+    Key2.Free;
+    Key1.Free;
+    Pub2.Free;
+    Pub1.Free;
+    Priv2.Free;
+    Priv1.Free;
+  end;
+end;
+
+function Test25519CalcKey: Boolean;
+var
+  S, K: TCnBigNumber;
+  D: TCnEd25519Data;
+  Ed: TCnEd25519;
+  Pub: TCnEd25519PublicKey;
+begin
+  // RFC 8032 中的 Test Vector
+  // SECRET KEY: 9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60
+  // PUBLIC KEY: d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a
+
+  S := TCnBigNumber.Create;
+  K := TCnBigNumber.Create;
+  Ed := TCnEd25519.Create;
+  Pub := TCnEd25519PublicKey.Create;
+
+  HexToData('9D61B19DEFFD5A60BA844AF492EC2CC44449C5697B326919703BAC031CAE7F60', @D[0]);
+  CnEd25519DataToBigNumber(D, S);
+  CnCalcKeysFromEd25519PrivateKey(S, K, nil);
+
+  Pub.Assign(Ed.Generator);
+  Ed.MultiplePoint(K, Pub);
+
+  Pub.SaveToData(D);
+  Result := DataToHex(@D[0], SizeOf(TCnEd25519Data)) = 'D75A980182B10AB7D54BFED3C964073A0EE172F3DAA62325AF021A68F707511A';
+
+  Pub.Free;
+  Ed.Free;
+  K.Free;
+  S.Free;
+end;
 
 function Test25519Sign: Boolean;
 var
   Ed: TCnEd25519;
-  Data: TCnEd25519Data;
   PrivKey: TCnEd25519PrivateKey;
   PubKey: TCnEd25519PublicKey;
   SigData: TCnEd25519SignatureData;
@@ -2373,9 +4452,8 @@ begin
   Sig := TCnEd25519Signature.Create;
 
   try
-    PrivKey.SetHex('4CCD089B28FF96DA9DB6C346EC114E0F5B8A319F35ABA624DA8CF6ED4FB8A6FB');
-    HexToData('3D4017C3E843895A92B70AA74D1B7EBC9C982CCF2EC4968CC0CD55F12AF4660C', @Data[0]);
-    Ed.PlainToPoint(Data, PubKey);
+    PrivKey.LoadFromHex('4CCD089B28FF96DA9DB6C346EC114E0F5B8A319F35ABA624DA8CF6ED4FB8A6FB');
+    PubKey.LoadFromHex('3D4017C3E843895A92B70AA74D1B7EBC9C982CCF2EC4968CC0CD55F12AF4660C');
 
     B := $72;
     Result := CnEd25519SignData(@B, 1, PrivKey, PubKey, Sig);
@@ -2386,6 +4464,248 @@ begin
     if not Result then Exit;
 
     Result := CnEd25519VerifyData(@B, 1, Sig, PubKey);
+  finally
+    Sig.Free;
+    PubKey.Free;
+    PrivKey.Free;
+    Ed.Free;
+  end;
+end;
+
+function Test448CurveMul: Boolean;
+var
+  Curve: TCnCurve448;
+  K: TCnBigNumber;
+  P: TCnEccPoint;
+  D: TCnCurve448Data;
+begin
+  // 测试用例来源于 RFC 7748 中的 Test Vector
+  // 203d494428b8399352665ddca42f9de8fef600908e0d461cb021f8c538345dd77c3e4806e25f46d3315c44e0a5b4371282dd2c8d5be3095f
+  // * 0fbcc2f993cd56d3305b0b7d9e55d4c1a8fb5dbb52f8e9a1e9b6201b165d015894e56c4d3570bee52fe205e28a78b91cdfbde71ce8d157db
+  // 要 = 884a02576239ff7a2f2f63b2db6a9ff37047ac13568e1e30fe63c4a7ad1b3ee3a5700df34321d62077e63633c575c1c954514e99da7c179d
+  // 后两者均为 u
+
+  FillChar(D[0], SizeOf(TCnCurve448Data), 0);
+  HexToData('203D494428B8399352665DDCA42F9DE8FEF600908E0D461CB021F8C538345DD77C3E4806E25F46D3315C44E0A5B4371282DD2C8D5BE3095F', @D[0]);
+  K := TCnBigNumber.Create;
+  CnCurve448DataToBigNumber(D, K);
+  CnProcessCurve448ScalarNumber(K);
+
+  P := TCnEccPoint.Create;
+  FillChar(D[0], SizeOf(TCnCurve448Data), 0);
+  HexToData('0FBCC2F993CD56D3305B0B7D9E55D4C1A8FB5DBB52F8E9A1E9B6201B165D015894E56C4D3570BEE52FE205E28A78B91CDFBDE71CE8D157DB', @D[0]);
+  CnCurve448DataToBigNumber(D, P.X);
+
+  Curve := TCnCurve448.Create;
+  Curve.MultiplePoint(K, P);
+
+  CnCurve448BigNumberToData(P.X, D);
+  Result := DataToHex(@D[0], SizeOf(TCnCurve448Data)) = '884A02576239FF7A2F2F63B2DB6A9FF37047AC13568E1E30FE63C4A7AD1B3EE3A5700DF34321D62077E63633C575C1C954514E99DA7C179D';
+
+  Curve.Free;
+  P.Free;
+  K.Free;
+end;
+
+function Test448CurveGMul: Boolean;
+var
+  Curve: TCnCurve448;
+  K: TCnBigNumber;
+  P: TCnEccPoint;
+  D: TCnCurve448Data;
+begin
+  // 测试用例来源于 RFC 7748 中的 Diffie-Hellman 的 Test Vector
+  // 9a8f4925d1519f5775cf46b04b5800d4ee9ee8bae8bc5565d498c28dd9c9baf574a9419744897391006382a6f127ab1d9ac2d8c0a598726b * 5
+  // 要 = 9b08f7cc31b7e3e67d22d5aea121074a273bd2b83de09c63faa73d2c22c5d9bbc836647241d953d40c5b12da88120d53177f80e532c41fa0 后两者均为 u
+
+  FillChar(D[0], SizeOf(TCnCurve448Data), 0);
+  HexToData('9A8F4925D1519F5775CF46B04B5800D4EE9EE8BAE8BC5565D498C28DD9C9BAF574A9419744897391006382A6F127AB1D9AC2D8C0A598726B', @D[0]);
+  K := TCnBigNumber.Create;
+  CnCurve448DataToBigNumber(D, K);
+  CnProcessCurve448ScalarNumber(K);
+
+  P := TCnEccPoint.Create;
+  FillChar(D[0], SizeOf(TCnCurve448Data), 0);
+  HexToData('0500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000', @D[0]);
+  CnCurve448DataToBigNumber(D, P.X);
+
+  Curve := TCnCurve448.Create;
+  Curve.MultiplePoint(K, P);
+
+  CnCurve448BigNumberToData(P.X, D);
+  Result := DataToHex(@D[0], SizeOf(TCnCurve448Data)) = '9B08F7CC31B7E3E67D22D5AEA121074A273BD2B83DE09C63FAA73D2C22C5D9BBC836647241D953D40C5B12DA88120D53177F80E532C41FA0';
+
+  Curve.Free;
+  P.Free;
+  K.Free;
+end;
+
+function Test448KeyExchange: Boolean;
+var
+  Priv1, Priv2: TCnCurve448PrivateKey;
+  Pub1, Pub2: TCnEccPublicKey;
+  Key1, Key2, Key1O, Key2O: TCnEccPoint;
+  D: TCnCurve448Data;
+begin
+  Priv1 := nil;
+  Priv2 := nil;
+  Pub1 := nil;
+  Pub2 := nil;
+  Key1 := nil;
+  Key2 := nil;
+  Key1O := nil;
+  Key2O := nil;
+
+  try
+    Priv1 := TCnCurve448PrivateKey.Create;
+    Priv2 := TCnCurve448PrivateKey.Create;
+    Pub1 := TCnEccPublicKey.Create;
+    Pub2 := TCnEccPublicKey.Create;
+    Key1 := TCnEccPoint.Create;
+    Key2 := TCnEccPoint.Create;
+    Key1O := TCnEccPoint.Create;
+    Key2O := TCnEccPoint.Create;
+
+    // 俩 Private Key 来源于 RFC 7748
+    Priv1.LoadFromHex('9A8F4925D1519F5775CF46B04B5800D4EE9EE8BAE8BC5565D498C28DD9C9BAF574A9419744897391006382A6F127AB1D9AC2D8C0A598726B');
+    Priv2.LoadFromHex('1C306A7AC2A0E2E0990B294470CBA339E6453772B075811D8FAD0D1D6927C120BB5EE8972B0D3E21374C9C921B09D1B0366F10B65173992D');
+
+    CnCurve448KeyExchangeStep1(Priv1, Key1); // 第一方调用，产生 Key 1
+    CnCurve448KeyExchangeStep1(Priv2, Key2); // 另一方调用，产生 Key 2
+
+    // Key2 给一，Key1 给另一方
+
+    CnCurve448KeyExchangeStep2(Priv1, Key2, Key1O); // 第一方调用，产生公有 Key 1O
+    CnCurve448KeyExchangeStep2(Priv2, Key1, Key2O); // 第一方调用，产生公有 Key 2O
+
+    Result := CnEccPointsEqual(Key1O, Key2O);
+
+    // RFC 中的 Secret K 是 Key1O 的 X 坐标倒过来
+    if Result then
+    begin
+      CnCurve448PointToData(Key1O, D);
+      Result := DataToHex(@D[0], SizeOf(TCnCurve448Data)) = '07FFF4181AC6CC95EC1C16A94A0F74D12DA232CE40A77552281D282BB60C0B56FD2464C335543936521C24403085D59A449A5037514A879D';
+    end;
+  finally
+    Key2O.Free;
+    Key1O.Free;
+    Key2.Free;
+    Key1.Free;
+    Pub2.Free;
+    Pub1.Free;
+    Priv2.Free;
+    Priv1.Free;
+  end;
+end;
+
+function Test448CalcKey: Boolean;
+var
+  S, K: TCnBigNumber;
+  D: TCnEd448Data;
+  Ed: TCnEd448;
+  Pub: TCnEd448PublicKey;
+begin
+  // RFC 8032 中的 Test Vector
+  // SECRET KEY: c4eab05d357007c632f3dbb48489924d552b08fe0c353a0d4a1f00acda2c463afbea67c5e8d2877c5e3bc397a659949ef8021e954e0a12274e
+  // PUBLIC KEY: 43ba28f430cdff456ae531545f7ecd0ac834a55d9358c0372bfa0c6c6798c0866aea01eb00742802b8438ea4cb82169c235160627b4c3a9480
+
+  S := TCnBigNumber.Create;
+  K := TCnBigNumber.Create;
+  Ed := TCnEd448.Create;
+  Pub := TCnEd448PublicKey.Create;
+
+  HexToData('6C82A562CB808D10D632BE89C8513EBF6C929F34DDFA8C9F63C9960EF6E348A3528C8A3FCC2F044E39A3FC5B94492F8F032E7549A20098F95B', @D[0]);
+  CnEd448DataToBigNumber(D, S);
+  CnCalcKeysFromEd448PrivateKey(S, K, nil);
+
+  Pub.Assign(Ed.Generator);
+  Ed.MultiplePoint(K, Pub);
+
+  Pub.SaveToData(D);
+  Result := DataToHex(@D[0], SizeOf(TCnEd448Data)) = '5FD7449B59B461FD2CE787EC616AD46A1DA1342485A70E1F8A0EA75D80E96778EDF124769B46C7061BD6783DF1E50F6CD1FA1ABEAFE8256180';
+
+  Pub.Free;
+  Ed.Free;
+  K.Free;
+  S.Free;
+end;
+
+function Test448Sign1: Boolean;
+var
+  Ed: TCnEd448;
+  PrivKey: TCnEd448PrivateKey;
+  PubKey: TCnEd448PublicKey;
+  SigData: TCnEd448SignatureData;
+  Sig: TCnEd448Signature;
+  B: Byte;
+begin
+  // RFC 8032 中的 Test Vector
+  // Secret Key: c4eab05d357007c632f3dbb48489924d552b08fe0c353a0d4a1f00acda2c463afbea67c5e8d2877c5e3bc397a659949ef8021e954e0a12274e
+  // Public Key: 43ba28f430cdff456ae531545f7ecd0ac834a55d9358c0372bfa0c6c6798c0866aea01eb00742802b8438ea4cb82169c235160627b4c3a9480
+  // Message 1 Byte: 03
+  // User Context: nil
+
+  Ed := TCnEd448.Create;
+  PrivKey := TCnEd448PrivateKey.Create;
+  PubKey := TCnEd448PublicKey.Create;
+  Sig := TCnEd448Signature.Create;
+
+  try
+    PrivKey.LoadFromHex('C4EAB05D357007C632F3DBB48489924D552B08FE0C353A0D4A1F00ACDA2C463AFBEA67C5E8D2877C5E3BC397A659949EF8021E954E0A12274E');
+    PubKey.LoadFromHex('43BA28F430CDFF456AE531545F7ECD0AC834A55D9358C0372BFA0C6C6798C0866AEA01EB00742802B8438EA4CB82169C235160627B4C3A9480');
+
+    B := $03;
+    Result := CnEd448SignData(@B, 1, PrivKey, PubKey, Sig); // 无 UserContext
+    if not Result then Exit;
+
+    Sig.SaveToData(SigData);
+    Result := DataToHex(@SigData, SizeOf(SigData)) = '26B8F91727BD62897AF15E41EB43C377EFB9C610D48F2335CB0BD0087810F4352541B143C4B981B7E18F62DE8CCDF633FC1BF037AB7CD779805E0DBCC0AAE1CBCEE1AFB2E027DF36BC04DCECBF154336C19F0AF7E0A6472905E799F1953D2A0FF3348AB21AA4ADAFD1D234441CF807C03A00';
+    if not Result then Exit;
+
+    Result := CnEd448VerifyData(@B, 1, Sig, PubKey);
+  finally
+    Sig.Free;
+    PubKey.Free;
+    PrivKey.Free;
+    Ed.Free;
+  end;
+end;
+
+function Test448Sign2: Boolean;
+var
+  Ed: TCnEd448;
+  PrivKey: TCnEd448PrivateKey;
+  PubKey: TCnEd448PublicKey;
+  SigData: TCnEd448SignatureData;
+  Sig: TCnEd448Signature;
+  C: TBytes;
+  B: Byte;
+begin
+  // RFC 8032 中的 Test Vector
+  // Secret Key: c4eab05d357007c632f3dbb48489924d552b08fe0c353a0d4a1f00acda2c463afbea67c5e8d2877c5e3bc397a659949ef8021e954e0a12274e
+  // Public Key: 43ba28f430cdff456ae531545f7ecd0ac834a55d9358c0372bfa0c6c6798c0866aea01eb00742802b8438ea4cb82169c235160627b4c3a9480
+  // Message 1 Byte: 03
+  // User Context: 666f6f
+
+  Ed := TCnEd448.Create;
+  PrivKey := TCnEd448PrivateKey.Create;
+  PubKey := TCnEd448PublicKey.Create;
+  Sig := TCnEd448Signature.Create;
+
+  try
+    PrivKey.LoadFromHex('C4EAB05D357007C632F3DBB48489924D552B08FE0C353A0D4A1F00ACDA2C463AFBEA67C5E8D2877C5E3BC397A659949EF8021E954E0A12274E');
+    PubKey.LoadFromHex('43BA28F430CDFF456AE531545F7ECD0AC834A55D9358C0372BFA0C6C6798C0866AEA01EB00742802B8438EA4CB82169C235160627B4C3A9480');
+
+    B := $03;
+    C := HexToBytes('666F6F');
+    Result := CnEd448SignData(@B, 1, PrivKey, PubKey, Sig, C); // 有 UserContext
+    if not Result then Exit;
+
+    Sig.SaveToData(SigData);
+    Result := DataToHex(@SigData, SizeOf(SigData)) = 'D4F8F6131770DD46F40867D6FD5D5055DE43541F8C5E35ABBCD001B32A89F7D2151F7647F11D8CA2AE279FB842D607217FCE6E042F6815EA000C85741DE5C8DA1144A6A1ABA7F96DE42505D7A7298524FDA538FCCBBB754F578C1CAD10D54D0D5428407E85DCBC98A49155C13764E66C3C00';
+    if not Result then Exit;
+
+    Result := CnEd448VerifyData(@B, 1, Sig, PubKey, C);
   finally
     Sig.Free;
     PubKey.Free;
@@ -2745,6 +5065,118 @@ begin
   end;
 end;
 
+// ================================ OTS ========================================
+
+function TestOTSSM3: Boolean;
+var
+  Priv: TCnOTSSM3PrivateKey;
+  Pub: TCnOTSSM3PublicKey;
+  Sig: TCnOTSSM3Signature;
+  Ver: TCnOTSSM3VerificationKey;
+  S: AnsiString;
+  B: TBytes;
+begin
+  Result := CnOTSSM3GenerateKeys(Priv, Pub);
+  if not Result then Exit;
+
+  S := 'Test Message for Hash Based One Time Signature.';
+  B := AnsiToBytes(S);
+  CnOTSSM3SignBytes(B, Priv, Pub, Sig, Ver);
+
+  Result := CnOTSSM3VerifyBytes(B, Sig, Pub, Ver);
+end;
+
+function TestOTSSHA256: Boolean;
+var
+  Priv: TCnOTSSHA256PrivateKey;
+  Pub: TCnOTSSHA256PublicKey;
+  Sig: TCnOTSSHA256Signature;
+  Ver: TCnOTSSHA256VerificationKey;
+  S: AnsiString;
+  B: TBytes;
+begin
+  Result := CnOTSSHA256GenerateKeys(Priv, Pub);
+  if not Result then Exit;
+
+  S := 'Test Message for Hash Based One Time Signature.';
+  B := AnsiToBytes(S);
+  CnOTSSHA256SignBytes(B, Priv, Pub, Sig, Ver);
+
+  Result := CnOTSSHA256VerifyBytes(B, Sig, Pub, Ver);
+end;
+
+function TestMOTSSM3: Boolean;
+var
+  Priv: TCnMOTSSM3PrivateKey;
+  Pub: TCnMOTSSM3PublicKey;
+  Sig: TCnMOTSSM3Signature;
+  S: AnsiString;
+  B: TBytes;
+begin
+  Result := CnMOTSSM3GenerateKeys(Priv, Pub);
+  if not Result then Exit;
+
+  S := 'Test Message for Hash Based One Time Signature.';
+  B := AnsiToBytes(S);
+  CnMOTSSM3SignBytes(B, Priv, Sig);
+
+  Result := CnMOTSSM3VerifyBytes(B, Sig, Pub);
+end;
+
+function TestMOTSSHA256: Boolean;
+var
+  Priv: TCnMOTSSHA256PrivateKey;
+  Pub: TCnMOTSSHA256PublicKey;
+  Sig: TCnMOTSSHA256Signature;
+  S: AnsiString;
+  B: TBytes;
+begin
+  Result := CnMOTSSHA256GenerateKeys(Priv, Pub);
+  if not Result then Exit;
+
+  S := 'Test Message for Hash Based One Time Signature.';
+  B := AnsiToBytes(S);
+  CnMOTSSHA256SignBytes(B, Priv, Sig);
+
+  Result := CnMOTSSHA256VerifyBytes(B, Sig, Pub);
+end;
+
+function TestWOTSSM3: Boolean;
+var
+  Priv: TCnWOTSSM3PrivateKey;
+  Pub: TCnWOTSSM3PublicKey;
+  Sig: TCnWOTSSM3Signature;
+  S: AnsiString;
+  B: TBytes;
+begin
+  Result := CnWOTSSM3GenerateKeys(Priv, Pub);
+  if not Result then Exit;
+
+  S := 'Test Message for Hash Based One Time Signature.';
+  B := AnsiToBytes(S);
+  CnWOTSSM3SignBytes(B, Priv, Sig);
+
+  Result := CnWOTSSM3VerifyBytes(B, Sig, Pub);
+end;
+
+function TestWOTSSHA256: Boolean;
+var
+  Priv: TCnWOTSSHA256PrivateKey;
+  Pub: TCnWOTSSHA256PublicKey;
+  Sig: TCnWOTSSHA256Signature;
+  S: AnsiString;
+  B: TBytes;
+begin
+  Result := CnWOTSSHA256GenerateKeys(Priv, Pub);
+  if not Result then Exit;
+
+  S := 'Test Message for Hash Based One Time Signature.';
+  B := AnsiToBytes(S);
+  CnWOTSSHA256SignBytes(B, Priv, Sig);
+
+  Result := CnWOTSSHA256VerifyBytes(B, Sig, Pub);
+end;
+
 // ================================ ECC ========================================
 
 function TestEccMul: Boolean;
@@ -2788,6 +5220,148 @@ begin
     P.Free;
     Ecc.Free;
   end;
+end;
+
+function TestECCPrivPubPkcs1: Boolean;
+const
+  PEM =
+    '-----BEGIN EC PARAMETERS-----' + SCRLF +
+    'BgUrgQQACg==' + SCRLF +
+    '-----END EC PARAMETERS-----' + SCRLF +
+    '-----BEGIN EC PRIVATE KEY-----' + SCRLF +
+    'MHQCAQEEICuHh07yriJJanWerJegB55n7bE8pEDhbKNdNoegP2FnoAcGBSuBBAAK' + SCRLF +
+    'oUQDQgAEbr8v5r1XGP8R1hLozBbymC0VWmYoU/N8LaouJVaFHfvBNyqaOiaDZ5/m' + SCRLF +
+    'hIE7Y9kK1omjOY1Z9km9goNlVrc29A==' + SCRLF +
+    '-----END EC PRIVATE KEY-----';
+var
+  S, D: AnsiString;
+  Sl: TStringList;
+  Stream: TMemoryStream;
+  Priv: TCnEccPrivateKey;
+  Pub: TCnEccPublicKey;
+  CurveType: TCnEccCurveType;
+begin
+  Stream := TMemoryStream.Create;
+  S := AnsiString(PEM);
+  Stream.Write(S[1], Length(S));
+  Stream.Position := 0;
+
+  Priv := TCnEccPrivateKey.Create;
+  Pub := TCnEccPublicKey.Create;
+
+  Result := CnEccLoadKeysFromPem(Stream, Priv, Pub, CurveType);
+
+  if not Result then Exit;
+
+  Result := CnEccVerifyKeys(CurveType, Priv, Pub);
+
+  if not Result then Exit;
+
+  Stream.Size := 0;
+  Result := CnEccSaveKeysToPem(Stream, Priv, Pub, CurveType);
+
+  if not Result then Exit;
+
+  Stream.Position := 0;
+  Sl := TStringList.Create;
+  Sl.LoadFromStream(Stream);
+
+  D := Trim(AnsiString(Sl.Text));
+  Result := S = D;
+
+  Pub.Free;
+  Priv.Free;
+  Stream.Free;
+end;
+
+function TestECCPrivPubPkcs8: Boolean;
+const
+  PEM =
+    '-----BEGIN PRIVATE KEY-----' + SCRLF +
+    'MIGEAgEAMBAGByqGSM49AgEGBSuBBAAKBG0wawIBAQQgK4eHTvKuIklqdZ6sl6AH' + SCRLF +
+    'nmftsTykQOFso102h6A/YWehRANCAARuvy/mvVcY/xHWEujMFvKYLRVaZihT83wt' + SCRLF +
+    'qi4lVoUd+8E3Kpo6JoNnn+aEgTtj2QrWiaM5jVn2Sb2Cg2VWtzb0' + SCRLF +
+    '-----END PRIVATE KEY-----';
+var
+  S, D: AnsiString;
+  Sl: TStringList;
+  Stream: TMemoryStream;
+  Priv: TCnEccPrivateKey;
+  Pub: TCnEccPublicKey;
+  CurveType: TCnEccCurveType;
+begin
+  Stream := TMemoryStream.Create;
+  S := AnsiString(PEM);
+  Stream.Write(S[1], Length(S));
+  Stream.Position := 0;
+
+  Priv := TCnEccPrivateKey.Create;
+  Pub := TCnEccPublicKey.Create;
+
+  Result := CnEccLoadKeysFromPem(Stream, Priv, Pub, CurveType);
+
+  if not Result then Exit;
+
+  Result := CnEccVerifyKeys(CurveType, Priv, Pub);
+
+  if not Result then Exit;
+
+  Stream.Size := 0;
+  Result := CnEccSaveKeysToPem(Stream, Priv, Pub, CurveType, CnECC.cktPKCS8);
+
+  if not Result then Exit;
+
+  Stream.Position := 0;
+  Sl := TStringList.Create;
+  Sl.LoadFromStream(Stream);
+
+  D := Trim(AnsiString(Sl.Text));
+  Result := S = D;
+
+  Pub.Free;
+  Priv.Free;
+  Stream.Free;
+end;
+
+function TestECCPub: Boolean;
+const
+  PEM =
+    '-----BEGIN PUBLIC KEY-----' + SCRLF +
+    'MFYwEAYHKoZIzj0CAQYFK4EEAAoDQgAEbr8v5r1XGP8R1hLozBbymC0VWmYoU/N8' + SCRLF +
+    'LaouJVaFHfvBNyqaOiaDZ5/mhIE7Y9kK1omjOY1Z9km9goNlVrc29A==' + SCRLF +
+    '-----END PUBLIC KEY-----';
+var
+  S, D: AnsiString;
+  Sl: TStringList;
+  Stream: TMemoryStream;
+  Pub: TCnEccPublicKey;
+  CurveType: TCnEccCurveType;
+begin
+  Stream := TMemoryStream.Create;
+  S := AnsiString(PEM);
+  Stream.Write(S[1], Length(S));
+  Stream.Position := 0;
+
+  Pub := TCnEccPublicKey.Create;
+
+  Result := CnEccLoadPublicKeyFromPem(Stream, Pub, CurveType);
+
+  if not Result then Exit;
+
+  Stream.Size := 0;
+  Result := CnEccSavePublicKeyToPem(Stream, Pub, CurveType);
+
+  if not Result then Exit;
+
+  Stream.Position := 0;
+  Sl := TStringList.Create;
+  Sl.LoadFromStream(Stream);
+
+  D := Trim(AnsiString(Sl.Text));
+  Result := S = D;
+
+  Pub.Free;
+  Stream.Free;
 end;
 
 function TestECCSchoof: Boolean;

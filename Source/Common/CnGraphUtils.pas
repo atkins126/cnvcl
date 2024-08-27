@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2023 CnPack 开发组                       }
+{                   (C)Copyright 2001-2024 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -13,7 +13,7 @@
 {            您应该已经和开发包一起收到一份 CnPack 发布协议的副本。如果        }
 {        还没有，可访问我们的网站：                                            }
 {                                                                              }
-{            网站地址：http://www.cnpack.org                                   }
+{            网站地址：https://www.cnpack.org                                  }
 {            电子邮件：master@cnpack.org                                       }
 {                                                                              }
 {******************************************************************************}
@@ -28,7 +28,9 @@ unit CnGraphUtils;
 * 开发平台：PWin98SE + Delphi 5.0
 * 兼容测试：PWin9X/2000/XP + Delphi 5/6
 * 本 地 化：该单元中的字符串均符合本地化处理方式
-* 修改记录：2021.09.28 V1.1
+* 修改记录：2024.06.09 V1.2
+*               加入几个高版本的 TPoint/TRect 封装函数
+*           2021.09.28 V1.1
 *               加入一个平滑拉伸绘制位图的函数，使用 GDI+
 *           2002.10.20 V1.0
 *               创建单元
@@ -153,6 +155,52 @@ function DrawBmpToIcon(Bmp: TBitmap; Icon: TIcon): Boolean;
 procedure StretchDrawBmp(Src, Dst: TBitmap; Smooth: Boolean = True);
 {* 将位图 Src 拉伸绘制至 Dst，支持 GDI+ 时可以使用平滑拉伸}
 
+//==============================================================================
+// 高版本 Rect、Point 等函数的低版本实现
+//==============================================================================
+
+function CnCreatePoint(X, Y: Integer): TPoint;
+{* 根据 X、Y 坐标创建一个点}
+
+function CnGetRectWidth(const Rect: TRect): Integer;
+{* 返回 TRect 的宽度}
+
+function CnGetRectHeight(const Rect: TRect): Integer;
+{* 返回 TRect 的高度}
+
+function CnGetRectCenter(const Rect: TRect): TPoint;
+{* 返回 TRect 的中心点坐标}
+
+function CnGetRectIsEmpty(const Rect: TRect): Boolean;
+{* 返回 TRect 是否为空}
+
+procedure CnSetRectWidth(var Rect: TRect; Value: Integer);
+{* 设置一 TRect 的宽度}
+
+procedure CnSetRectHeight(var Rect: TRect; Value: Integer);
+{* 设置一 TRect 的高度}
+
+procedure CnRectInflate(var Rect: TRect; DX, DY: Integer);
+{* 缩小一个 TRect}
+
+procedure CnRectOffset(var Rect: TRect; DX, DY: Integer);
+{* 偏移一个 TRect}
+
+procedure CnRectCopy(const Source: TRect; var Dest: TRect);
+{* 复制一个 Rect}
+
+function CnRectContains(const Rect: TRect; const PT: TPoint): Boolean;
+{* 返回一 TRect 是否包含一个点，注意包含左上边，但不包含右下边}
+
+procedure CnSetRectLocation(var Rect: TRect; const X, Y: Integer); overload;
+{* 设置 TRect 的左上角坐标，参数为 X、Y 坐标}
+
+procedure CnSetRectLocation(var Rect: TRect; const P: TPoint); overload;
+{* 设置 TRect 的左上角坐标，参数为一个点}
+
+procedure CnCanvasRoundRect(const Canvas: TCanvas; const Rect: TRect; CX, CY: Integer);
+{* 在 Canvas 上绘制圆角矩形}
+
 {$IFNDEF SUPPORT_GDIPLUS}
 
 procedure CnStartUpGdiPlus;
@@ -161,6 +209,9 @@ procedure CnShutDownGdiPlus;
 {* 由于 DLL 中不允许跟着单元来初始化/释放 GDI+，所以输出给宿主调用，释放 GDI+}
 
 {$ENDIF}
+
+function FontEqual(A, B: TFont): Boolean;
+{* 比较俩字体对象的各属性是否相等}
 
 implementation
 
@@ -673,6 +724,131 @@ begin
   else
     Dst.Canvas.Draw(0, 0, Src);
 {$ENDIF}
+end;
+
+function FontEqual(A, B: TFont): Boolean;
+begin
+  if (A = nil) and (B = nil) then
+  begin
+    Result := True;
+    Exit;
+  end
+  else if (A = nil) or (B = nil) then
+  begin
+    Result := False;
+    Exit
+  end
+  else
+  begin
+    Result := False;
+
+    if A.Name <> B.Name then
+      Exit;
+    if A.Size <> B.Size then
+      Exit;
+    if A.Style <> B.Style then
+      Exit;
+    if A.Color <> B.Color then
+      Exit;
+    if A.Height <> B.Height then
+      Exit;
+    if A.Charset <> B.Charset then
+      Exit;
+    if A.Pitch <> B.Pitch then
+      Exit;
+    if A.PixelsPerInch <> B.PixelsPerInch then
+      Exit;
+
+    Result := True;
+  end;
+end;
+function CnCreatePoint(X, Y: Integer): TPoint;
+begin
+  Result.X := X;
+  Result.Y := Y;
+end;
+
+function CnGetRectWidth(const Rect: TRect): Integer;
+begin
+  Result := Rect.Right - Rect.Left;
+end;
+
+function CnGetRectHeight(const Rect: TRect): Integer;
+begin
+  Result := Rect.Bottom - Rect.Top;
+end;
+
+function CnGetRectCenter(const Rect: TRect): TPoint;
+begin
+  Result.X := (Rect.Right - Rect.Left) div 2 + Rect.Left;
+  Result.Y := (Rect.Bottom - Rect.Top) div 2 + Rect.Top;
+end;
+
+function CnGetRectIsEmpty(const Rect: TRect): Boolean;
+begin
+  Result := (Rect.Right <= Rect.Left) or (Rect.Bottom <= Rect.Top);
+end;
+
+procedure CnSetRectWidth(var Rect: TRect; Value: Integer);
+begin
+  Rect.Right := Rect.Left + Value;
+end;
+
+procedure CnSetRectHeight(var Rect: TRect; Value: Integer);
+begin
+  Rect.Bottom := Rect.Top + Value;
+end;
+
+procedure CnRectInflate(var Rect: TRect; DX, DY: Integer);
+begin
+  Rect.Left := Rect.Left - DX;
+  Rect.Right := Rect.Right + DX;
+  Rect.Top := Rect.Top - DY;
+  Rect.Bottom := Rect.Bottom + DY;
+end;
+
+procedure CnRectOffset(var Rect: TRect; DX, DY: Integer);
+begin
+  if @Rect <> nil then
+  begin
+    Inc(Rect.Left, DX);
+    Inc(Rect.Right, DX);
+    Inc(Rect.Top, DY);
+    Inc(Rect.Bottom, DY);
+  end;
+end;
+
+procedure CnRectCopy(const Source: TRect; var Dest: TRect);
+begin
+  if (@Source <> nil) and (@Dest <> nil) then
+  begin
+    Dest.Left := Source.Left;
+    Dest.Top := Source.Top;
+    Dest.Right := Source.Right;
+    Dest.Bottom := Source.Bottom;
+  end;
+end;
+
+function CnRectContains(const Rect: TRect; const PT: TPoint): Boolean;
+begin
+  Result := (PT.X >= Rect.Left) and (PT.X < Rect.Right) and (PT.Y >= Rect.Top)
+    and (PT.Y < Rect.Bottom);
+end;
+
+procedure CnSetRectLocation(var Rect: TRect; const X, Y: Integer);
+begin
+  OffsetRect(Rect, X - Rect.Left, Y - Rect.Top);
+end;
+
+procedure CnSetRectLocation(var Rect: TRect; const P: TPoint);
+begin
+  CnSetRectLocation(Rect, P.X, P.Y);
+end;
+
+procedure CnCanvasRoundRect(const Canvas: TCanvas; const Rect: TRect; CX, CY: Integer);
+begin
+  if Canvas <> nil then
+    Canvas.RoundRect(Rect.Left, Rect.Top, Rect.Right, Rect.Bottom, CX, CY);
 end;
 
 {$IFNDEF SUPPORT_GDIPLUS}

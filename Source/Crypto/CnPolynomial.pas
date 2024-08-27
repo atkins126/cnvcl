@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2023 CnPack 开发组                       }
+{                   (C)Copyright 2001-2024 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -13,7 +13,7 @@
 {            您应该已经和开发包一起收到一份 CnPack 发布协议的副本。如果        }
 {        还没有，可访问我们的网站：                                            }
 {                                                                              }
-{            网站地址：http://www.cnpack.org                                   }
+{            网站地址：https://www.cnpack.org                                  }
 {            电子邮件：master@cnpack.org                                       }
 {                                                                              }
 {******************************************************************************}
@@ -23,14 +23,23 @@ unit CnPolynomial;
 ================================================================================
 * 软件名称：开发包基础库
 * 单元名称：多项式运算实现单元
-* 单元作者：刘啸（liuxiao@cnpack.org）
-* 备    注：1、支持普通的整系数多项式四则运算，除法只支持除数最高次数为 1 的情况
-*           支持有限扩域范围内的多项式四则运算，系数均 mod p 并且结果对本原多项式求余
-*           2、支持大整数系数多项式以及有理分式在普通四则运算以及在有限扩域范围内的运算
+* 单元作者：CnPack 开发组 (master@cnpack.org)
+* 备    注：本单元实现了系数为 Int64 及大整数的一元与二元多项式运算，以及一元有理分式的运算。
+*
+*           支持普通的整系数多项式四则运算，除法只支持除数最高次数为 1 的情况。
+*           支持有限扩域范围内的多项式四则运算，系数均 mod p 并且结果对本原多项式求余。
+*           支持大整数系数多项式以及有理分式在普通四则运算以及在有限扩域范围内的运算。
+*
+*           注：素数幂模下多项式环的整系数多项式求逆判断算法来源于《一种新的重模剩余类环中元素逆的求法》，
+*              河北省科学院学报，2009 年 3 月（注意其中的计算算法不靠谱）。
+*              实际计算算法来源于 stackoverflow 上 William Whyte 以及 Sonel Sharam 的帖子。
+*
 * 开发平台：PWin7 + Delphi 5.0
 * 兼容测试：暂未进行
 * 本 地 化：该单元无需本地化处理
-* 修改记录：2021.12.01 V1.6
+* 修改记录：2023.09.01 V1.7
+*               实现素数幂模下多项式环的整系数多项式求逆
+*           2021.12.01 V1.6
 *               实现 BigNumber 范围内的二元整系数多项式及其运算，包括有限域内
 *           2021.11.17 V1.5
 *               实现 Int64 范围内的二元整系数多项式及其运算，包括有限域内
@@ -100,7 +109,7 @@ type
     function IsMonic: Boolean;
     {* 是否首一多项式}
     property MaxDegree: Integer read GetMaxDegree write SetMaxDegree;
-    {* 最高次数，0 开始，基于 Count 所以只能是 Integer}
+    {* 最高次数，0 开始，基于 Count 所以只能是 Integer，下标遍历时使用 0 到 MaxDegree}
   end;
 
   TCnInt64RationalPolynomial = class(TPersistent)
@@ -355,15 +364,17 @@ function Int64PolynomialNttMul(const Res: TCnInt64Polynomial; P1: TCnInt64Polyno
   注：多项式系数只支持 [0, CN_P) 区间，多项式项数必须小于模数的 2^23，因此适用范围也不广}
 
 function Int64PolynomialDiv(const Res: TCnInt64Polynomial; const Remain: TCnInt64Polynomial;
-  const P: TCnInt64Polynomial; const Divisor: TCnInt64Polynomial): Boolean;
+  const P: TCnInt64Polynomial; const Divisor: TCnInt64Polynomial; ErrMulFactor: PInt64 = nil): Boolean;
 {* 两个一元整系数多项式对象相除，商放至 Res 中，余数放在 Remain 中，返回相除是否成功，
    注意当商式或余式出现无法整除的分数时会返回 False，表示无法支持，调用者务必判断返回值
+   返回 False 时如 ErrMulFactor 参数不为空，则会返回被除式各系数应当乘上多少才可以整除的值
    Res 或 Remail 可以是 nil，不给出对应结果。P 可以是 Divisor，Res 可以是 P 或 Divisor}
 
 function Int64PolynomialMod(const Res: TCnInt64Polynomial; const P: TCnInt64Polynomial;
-  const Divisor: TCnInt64Polynomial): Boolean;
+  const Divisor: TCnInt64Polynomial; ErrMulFactor: PInt64 = nil): Boolean;
 {* 两个一元整系数多项式对象求余，余数放至 Res 中，返回求余是否成功，
-   注意当商式或余式出现无法整除的分数时会返回 False，表示无法支持，调用者务必判断返回值，
+   注意当商式或余式出现无法整除的分数时会返回 False，表示无法支持，调用者务必判断返回值
+   返回 False 时如 ErrMulFactor 参数不为空，则会返回被除式各系数应当乘上多少才可以整除的值
    Res 可以是 P 或 Divisor，P 可以是 Divisor}
 
 function Int64PolynomialPower(const Res: TCnInt64Polynomial;
@@ -373,6 +384,10 @@ function Int64PolynomialPower(const Res: TCnInt64Polynomial;
 
 function Int64PolynomialReduce(const P: TCnInt64Polynomial): Integer;
 {* 化简一元整系数多项式系数，也就是找多项式系数的最大公约数，各个系数除以它，返回最大公约数}
+
+procedure Int64PolynomialCentralize(const P: TCnInt64Polynomial; Modulus: Int64);
+{* 对一元整系数多项式系数进行中心化处理，也即把 [0, M - 1] 改为 [1 - (M + 1) div 2, M div 2]
+   也即大于 M div 2 的系数要减 M，注意 Modulus 不一定是素数}
 
 function Int64PolynomialGreatestCommonDivisor(const Res: TCnInt64Polynomial;
   const P1, P2: TCnInt64Polynomial): Boolean;
@@ -424,15 +439,19 @@ function Int64PolynomialGaloisMul(const Res: TCnInt64Polynomial; const P1: TCnIn
 
 function Int64PolynomialGaloisDiv(const Res: TCnInt64Polynomial;
   const Remain: TCnInt64Polynomial; const P: TCnInt64Polynomial;
-  const Divisor: TCnInt64Polynomial; Prime: Int64; Primitive: TCnInt64Polynomial = nil): Boolean;
+  const Divisor: TCnInt64Polynomial; Prime: Int64; Primitive: TCnInt64Polynomial = nil;
+  ErrMulFactor: PInt64 = nil): Boolean;
 {* 两个一元整系数多项式对象在 Prime 次方阶有限域上相除，商放至 Res 中，余数放在 Remain 中，返回相除是否成功，
    调用者需自行保证 Prime 是素数且本原多项式 Primitive 为不可约多项式
+   返回 False 时如 ErrMulFactor 参数不为空，则会返回被除式各系数应当乘上多少才可以整除的值
    Res 或 Remail 可以是 nil，不给出对应结果。P 可以是 Divisor，Res 可以是 P 或 Divisor}
 
 function Int64PolynomialGaloisMod(const Res: TCnInt64Polynomial; const P: TCnInt64Polynomial;
-  const Divisor: TCnInt64Polynomial; Prime: Int64; Primitive: TCnInt64Polynomial = nil): Boolean;
+  const Divisor: TCnInt64Polynomial; Prime: Int64; Primitive: TCnInt64Polynomial = nil;
+  ErrMulFactor: PInt64 = nil): Boolean;
 {* 两个一元整系数多项式对象在 Prime 次方阶有限域上求余，余数放至 Res 中，返回求余是否成功，
    调用者需自行保证 Prime 是素数且本原多项式 Primitive 为不可约多项式
+   返回 False 时如 ErrMulFactor 参数不为空，则会返回被除式各系数应当乘上多少才可以整除的值
    Res 可以是 P 或 Divisor，P 可以是 Divisor}
 
 function Int64PolynomialGaloisPower(const Res, P: TCnInt64Polynomial;
@@ -474,7 +493,13 @@ procedure Int64PolynomialGaloisModularInverse(const Res: TCnInt64Polynomial;
   X, Modulus: TCnInt64Polynomial; Prime: Int64; CheckGcd: Boolean = False);
 {* 求一元整系数多项式 X 在 Prime 次方阶有限域上针对 Modulus 的模反多项式或叫模逆元多项式 Y，
    满足 (X * Y) mod M = 1，调用者须尽量保证 X、Modulus 互素，且 Res 不能为 X 或 Modulus
-   CheckGcd 参数为 True 时，内部会检查 X、Modulus 是否互素}
+   CheckGcd 参数为 True 时，内部会检查 X、Modulus 是否互素，不互素则抛出异常}
+
+function Int64PolynomialGaloisPrimePowerModularInverse(const Res: TCnInt64Polynomial;
+  X, Modulus: TCnInt64Polynomial; PrimeRoot, Exponent: Integer): Boolean;
+{* 求一元整系数多项式 X 在素数的多次幂模也就是 PrimeRoot 的 Exponent 次方阶有限域上
+   针对 Modulus 的模反多项式或叫模逆元多项式 Y，满足 (X * Y) mod M = 1
+   返回求逆是否成功，Res 不能为 X 或 Modulus}
 
 function Int64PolynomialGaloisCompose(const Res: TCnInt64Polynomial;
   const F, P: TCnInt64Polynomial; Prime: Int64; Primitive: TCnInt64Polynomial = nil): Boolean;
@@ -738,15 +763,17 @@ function BigNumberPolynomialMul(const Res: TCnBigNumberPolynomial; P1: TCnBigNum
 {* 两个一元大整系数多项式对象相乘，结果放至 Res 中，返回相乘是否成功，P1 可以是 P2，Res 可以是 P1 或 P2}
 
 function BigNumberPolynomialDiv(const Res: TCnBigNumberPolynomial; const Remain: TCnBigNumberPolynomial;
-  const P: TCnBigNumberPolynomial; const Divisor: TCnBigNumberPolynomial): Boolean;
+  const P: TCnBigNumberPolynomial; const Divisor: TCnBigNumberPolynomial; ErrMulFactor: TCnBigNumber = nil): Boolean;
 {* 两个一元大整系数多项式对象相除，商放至 Res 中，余数放在 Remain 中，返回相除是否成功，
    注意当商式或余式出现无法整除的分数时会返回 False，表示无法支持，调用者务必判断返回值
+   返回 False 时如 ErrMulFactor 参数不为空，则会返回被除式各系数应当乘上多少才可以整除的值
    Res 或 Remail 可以是 nil，不给出对应结果。P 可以是 Divisor，Res 可以是 P 或 Divisor}
 
 function BigNumberPolynomialMod(const Res: TCnBigNumberPolynomial; const P: TCnBigNumberPolynomial;
-  const Divisor: TCnBigNumberPolynomial): Boolean;
+  const Divisor: TCnBigNumberPolynomial; ErrMulFactor: TCnBigNumber = nil): Boolean;
 {* 两个一元大整系数多项式对象求余，余数放至 Res 中，返回求余是否成功，
-   注意当商式或余式出现无法整除的分数时会返回 False，表示无法支持，调用者务必判断返回值，
+   注意当商式或余式出现无法整除的分数时会返回 False，表示无法支持，调用者务必判断返回值
+   返回 False 时如 ErrMulFactor 参数不为空，则会返回被除式各系数应当乘上多少才可以整除的值
    Res 可以是 P 或 Divisor，P 可以是 Divisor}
 
 function BigNumberPolynomialPower(const Res: TCnBigNumberPolynomial;
@@ -755,6 +782,10 @@ function BigNumberPolynomialPower(const Res: TCnBigNumberPolynomial;
 
 procedure BigNumberPolynomialReduce(const P: TCnBigNumberPolynomial);
 {* 化简一元大整系数多项式系数，也就是找多项式系数的最大公约数，各个系数除以它}
+
+procedure BigNumberPolynomialCentralize(const P: TCnBigNumberPolynomial; Modulus: TCnBigNumber);
+{* 对一元大整系数多项式系数进行中心化处理，也即把 [0, M - 1] 改为 [1 - (M + 1) div 2, M div 2]
+   也即大于 M div 2 的系数要减 M，注意 Modulus 不一定是素数}
 
 function BigNumberPolynomialGreatestCommonDivisor(const Res: TCnBigNumberPolynomial;
   const P1, P2: TCnBigNumberPolynomial): Boolean;
@@ -813,14 +844,14 @@ function BigNumberPolynomialGaloisMul(const Res: TCnBigNumberPolynomial;
 function BigNumberPolynomialGaloisDiv(const Res: TCnBigNumberPolynomial;
   const Remain: TCnBigNumberPolynomial; const P: TCnBigNumberPolynomial;
   const Divisor: TCnBigNumberPolynomial; Prime: TCnBigNumber;
-  Primitive: TCnBigNumberPolynomial = nil): Boolean;
+  Primitive: TCnBigNumberPolynomial = nil; ErrMulFactor: TCnBigNumber = nil): Boolean;
 {* 两个一元大整系数多项式对象在 Prime 次方阶有限域上相除，商放至 Res 中，余数放在 Remain 中，返回相除是否成功，
    调用者需自行保证 Prime 是素数且本原多项式 Primitive 为不可约多项式
    Res 或 Remail 可以是 nil，不给出对应结果。P 可以是 Divisor，Res 可以是 P 或 Divisor}
 
 function BigNumberPolynomialGaloisMod(const Res: TCnBigNumberPolynomial;
   const P: TCnBigNumberPolynomial; const Divisor: TCnBigNumberPolynomial;
-  Prime: TCnBigNumber; Primitive: TCnBigNumberPolynomial = nil): Boolean;
+  Prime: TCnBigNumber; Primitive: TCnBigNumberPolynomial = nil; ErrMulFactor: TCnBigNumber = nil): Boolean;
 {* 两个一元大整系数多项式对象在 Prime 次方阶有限域上求余，余数放至 Res 中，返回求余是否成功，
    调用者需自行保证 Prime 是素数且本原多项式 Primitive 为不可约多项式
    Res 可以是 P 或 Divisor，P 可以是 Divisor}
@@ -891,6 +922,12 @@ procedure BigNumberPolynomialGaloisModularInverse(const Res: TCnBigNumberPolynom
 {* 求一元大整系数多项式 X 在 Prime 次方阶有限域上针对 Modulus 的模反多项式或叫模逆元多项式 Y，
    满足 (X * Y) mod M = 1，调用者须尽量保证 X、Modulus 互素，且 Res 不能为 X 或 Modulus
    CheckGcd 参数为 True 时，内部会检查 X、Modulus 是否互素}
+
+function BigNumberPolynomialGaloisPrimePowerModularInverse(const Res: TCnBigNumberPolynomial;
+  X, Modulus: TCnBigNumberPolynomial; PrimeRoot: TCnBigNumber; Exponent: Integer): Boolean;
+{* 求一元大整系数多项式 X 在素数的多次幂模也就是 PrimeRoot 的 Exponent 次方阶有限域上
+   针对 Modulus 的模反多项式或叫模逆元多项式 Y，满足 (X * Y) mod M = 1
+   返回求逆是否成功，Res 不能为 X 或 Modulus}
 
 function BigNumberPolynomialGaloisCompose(const Res: TCnBigNumberPolynomial;
   const F, P: TCnBigNumberPolynomial; Prime: TCnBigNumber; Primitive: TCnBigNumberPolynomial = nil): Boolean;
@@ -1674,6 +1711,9 @@ procedure BigNumberBiPolynomialGaloisMulWord(const P: TCnBigNumberBiPolynomial; 
 procedure BigNumberBiPolynomialGaloisDivWord(const P: TCnBigNumberBiPolynomial; N: Int64; Prime: TCnBigNumber);
 {* 将 Prime 次方阶有限域上的二元大整系数多项式各项系数除以 N，也就是乘以 N 的逆元再 mod Prime}
 
+procedure Int64PolynomialToBigNumberPolynomial(const Dst: TCnBigNumberPolynomial; const Src: TCnInt64Polynomial);
+{* 将一 Int64 整系数多项式赋值给一大整系数多项式}
+
 var
   CnInt64PolynomialOne: TCnInt64Polynomial = nil;     // 表示 1 的 Int64 多项式常量
   CnInt64PolynomialZero: TCnInt64Polynomial = nil;    // 表示 0 的 Int64 多项式常量
@@ -1684,10 +1724,11 @@ var
 implementation
 
 resourcestring
-  SCnInvalidDegree = 'Invalid Degree %d';
-  // SCnErrorDivExactly = 'Can NOT Divide Exactly for Integer Polynomial.';
-  SCnInvalidExponent = 'Invalid Exponent %d';
-  SCnDegreeTooLarge = 'Degree Too Large';
+  SCnErrorPolynomialInvalidDegree = 'Invalid Degree %d';
+  SCnErrorPolynomialInvalidExponent = 'Invalid Exponent %d';
+  SCnErrorPolynomialDegreeTooLarge = 'Degree Too Large';
+  SCnErrorPolynomialGCDMustOne = 'Modular Inverse Need GCD = 1';
+  SCnErrorPolynomialGaloisInvalidDegree = 'Galois Division Polynomial Invalid Degree';
 
 var
   FLocalInt64PolynomialPool: TCnInt64PolynomialPool = nil;
@@ -1701,7 +1742,7 @@ var
 procedure CheckDegree(Degree: Integer);
 begin
   if Degree < 0 then
-    raise ECnPolynomialException.CreateFmt(SCnInvalidDegree, [Degree]);
+    raise ECnPolynomialException.CreateFmt(SCnErrorPolynomialInvalidDegree, [Degree]);
 end;
 
 function VarPower(const VarName: string; E: Integer): string;
@@ -2358,7 +2399,7 @@ begin
     // 如果不是 2 的整数次幂
     M := GetUInt32HighBits(Cardinal(M)); // M 得到最高位的 1 的位置，不会是 -1
     if M > 30 then
-      raise ECnPolynomialException.Create(SCnDegreeTooLarge);
+      raise ECnPolynomialException.Create(SCnErrorPolynomialDegreeTooLarge);
 
     Inc(M);
     M := 1 shl M; // 得到比 M 大的最小的 2 的整数次幂
@@ -2443,7 +2484,7 @@ begin
     // 如果不是 2 的整数次幂
     M := GetUInt32HighBits(Cardinal(M)); // M 得到最高位的 1 的位置，不会是 -1
     if M > 30 then
-      raise ECnPolynomialException.Create(SCnDegreeTooLarge);
+      raise ECnPolynomialException.Create(SCnErrorPolynomialDegreeTooLarge);
 
     Inc(M);
     M := 1 shl M; // 得到比 M 大的最小的 2 的整数次幂
@@ -2489,7 +2530,7 @@ begin
 end;
 
 function Int64PolynomialDiv(const Res: TCnInt64Polynomial; const Remain: TCnInt64Polynomial;
-  const P: TCnInt64Polynomial; const Divisor: TCnInt64Polynomial): Boolean;
+  const P: TCnInt64Polynomial; const Divisor: TCnInt64Polynomial; ErrMulFactor: PInt64): Boolean;
 var
   SubRes: TCnInt64Polynomial; // 容纳递减差
   MulRes: TCnInt64Polynomial; // 容纳除数乘积
@@ -2498,7 +2539,7 @@ var
   T: Int64;
 begin
   if Int64PolynomialIsZero(Divisor) then
-    raise ECnPolynomialException.Create(SDivByZero);
+    raise EDivByZero.Create(SDivByZero);
 
   if Divisor.MaxDegree > P.MaxDegree then // 除式次数高不够除，直接变成余数
   begin
@@ -2533,8 +2574,13 @@ begin
       if (SubRes[P.MaxDegree - I] mod Divisor[Divisor.MaxDegree]) <> 0 then
       begin
         Result := False;
+        if ErrMulFactor <> nil then
+        begin
+          // Divisor[Divisor.MaxDegree] 乘以两者的最大公约数
+          ErrMulFactor^ := Divisor[Divisor.MaxDegree] *
+            CnInt64GreatestCommonDivisor(SubRes[P.MaxDegree - I], Divisor[Divisor.MaxDegree]);
+        end;
         Exit;
-        // raise ECnPolynomialException.Create(SCnErrorDivExactly);
       end;
 
       Int64PolynomialCopy(MulRes, Divisor);
@@ -2559,9 +2605,9 @@ begin
 end;
 
 function Int64PolynomialMod(const Res: TCnInt64Polynomial; const P: TCnInt64Polynomial;
-  const Divisor: TCnInt64Polynomial): Boolean;
+  const Divisor: TCnInt64Polynomial; ErrMulFactor: PInt64): Boolean;
 begin
-  Result := Int64PolynomialDiv(nil, Res, P, Divisor);
+  Result := Int64PolynomialDiv(nil, Res, P, Divisor, ErrMulFactor);
 end;
 
 function Int64PolynomialPower(const Res: TCnInt64Polynomial;
@@ -2583,7 +2629,7 @@ begin
     Exit;
   end
   else if Exponent < 0 then
-    raise ECnPolynomialException.CreateFmt(SCnInvalidExponent, [Exponent]);
+    raise ECnPolynomialException.CreateFmt(SCnErrorPolynomialInvalidExponent, [Exponent]);
 
   T := FLocalInt64PolynomialPool.Obtain;
   Int64PolynomialCopy(T, P);
@@ -2647,12 +2693,23 @@ begin
   end;
 end;
 
+procedure Int64PolynomialCentralize(const P: TCnInt64Polynomial; Modulus: Int64);
+var
+  I: Integer;
+  K: Int64;
+begin
+  K := Modulus div 2;
+  for I := 0 to P.MaxDegree do
+    if P[I] > K then
+      P[I] := P[I] - Modulus;
+end;
+
 function Int64PolynomialGreatestCommonDivisor(const Res: TCnInt64Polynomial;
   const P1, P2: TCnInt64Polynomial): Boolean;
 var
   A, B, C: TCnInt64Polynomial;
+  MF: Int64;
 begin
-  Result := False;
   A := nil;
   B := nil;
   C := nil;
@@ -2676,8 +2733,8 @@ begin
     while not B.IsZero do
     begin
       Int64PolynomialCopy(C, B);        // 备份 B
-      if not Int64PolynomialMod(B, A, B) then   // A mod B 给 B
-        Exit;
+      while not Int64PolynomialMod(B, A, B, @MF) do   // A mod B 给 B
+        Int64PolynomialMulWord(A, MF);
 
       // B 要系数约分化简
       Int64PolynomialReduce(B);
@@ -2932,7 +2989,8 @@ end;
 
 function Int64PolynomialGaloisDiv(const Res: TCnInt64Polynomial;
   const Remain: TCnInt64Polynomial; const P: TCnInt64Polynomial;
-  const Divisor: TCnInt64Polynomial; Prime: Int64; Primitive: TCnInt64Polynomial): Boolean;
+  const Divisor: TCnInt64Polynomial; Prime: Int64;
+  Primitive: TCnInt64Polynomial; ErrMulFactor: PInt64): Boolean;
 var
   SubRes: TCnInt64Polynomial; // 容纳递减差
   MulRes: TCnInt64Polynomial; // 容纳除数乘积
@@ -2941,9 +2999,9 @@ var
   K, T: Int64;
 begin
   if Int64PolynomialIsZero(Divisor) then
-    raise ECnPolynomialException.Create(SDivByZero);
+    raise EDivByZero.Create(SDivByZero);
 
-  // 无需担心不能整除的问题，因为有逆元和 mod 操作
+  // 无需担心不能整除的问题，因为有逆元和 mod 操作，但逆元不存在时不好整只能出错
 
   if Divisor.MaxDegree > P.MaxDegree then // 除式次数高不够除，直接变成余数
   begin
@@ -2972,7 +3030,7 @@ begin
     if Divisor[Divisor.MaxDegree] = 1 then
       K := 1
     else
-      K := CnInt64ModularInverse2(Divisor[Divisor.MaxDegree], Prime); // K 是除式最高位的逆元
+      K := CnInt64ModularInverse2(Divisor[Divisor.MaxDegree], Prime); // K 是除式最高位的逆元，注意可能为 0
 
     for I := 0 to D do
     begin
@@ -2981,9 +3039,32 @@ begin
       Int64PolynomialCopy(MulRes, Divisor);
       Int64PolynomialShiftLeft(MulRes, D - I);                 // 对齐到 SubRes 的最高次
 
-      // 除式要乘一个数，这个数是 SubRes 最高位除以除式最高位得到的结果，也即 SubRes 最高位乘以除式最高位的逆元再 mod Prime
-      T := Int64NonNegativeMulMod(SubRes[P.MaxDegree - I], K, Prime);
-      Int64PolynomialGaloisMulWord(MulRes, T, Prime);          // 除式乘到最高次系数相同
+      if K <> 0 then // 有模逆元
+      begin
+        // 除式要乘一个数，这个数是 SubRes 最高位除以除式最高位得到的结果，也即 SubRes 最高位乘以除式最高位的逆元再 mod Prime
+        T := Int64NonNegativeMulMod(SubRes[P.MaxDegree - I], K, Prime);
+        Int64PolynomialGaloisMulWord(MulRes, T, Prime);          // 除式乘到最高次系数相同
+      end
+      else  // Prime 和除式最高位不互素时模逆元 K 不存在，要分整除和不整除两种情况
+      begin
+        T := SubRes[P.MaxDegree - I] mod Divisor[Divisor.MaxDegree];
+        if T <> 0 then  // 不整除又没有模逆元，无论如何都没法除，只能出错退出
+        begin
+          Result := False;
+          if ErrMulFactor <> nil then
+          begin
+            // Divisor[Divisor.MaxDegree] 乘以两者的最大公约数
+            ErrMulFactor^ := Divisor[Divisor.MaxDegree] *
+              CnInt64GreatestCommonDivisor(SubRes[P.MaxDegree - I], Divisor[Divisor.MaxDegree]);
+          end;
+          Exit;
+        end
+        else
+        begin
+          T := SubRes[P.MaxDegree - I] div Divisor[Divisor.MaxDegree];
+          Int64PolynomialGaloisMulWord(MulRes, T, Prime);      // 除式乘到最高次系数相同
+        end;
+      end;
 
       DivRes[D - I] := T;                                      // 对应位的商放到 DivRes 位置
       Int64PolynomialGaloisSub(SubRes, SubRes, MulRes, Prime); // 减求模后结果重新放回 SubRes
@@ -3008,10 +3089,11 @@ begin
   end;
 end;
 
-function Int64PolynomialGaloisMod(const Res: TCnInt64Polynomial; const P: TCnInt64Polynomial;
-  const Divisor: TCnInt64Polynomial; Prime: Int64; Primitive: TCnInt64Polynomial): Boolean;
+function Int64PolynomialGaloisMod(const Res: TCnInt64Polynomial;
+  const P: TCnInt64Polynomial; const Divisor: TCnInt64Polynomial; Prime: Int64;
+  Primitive: TCnInt64Polynomial; ErrMulFactor: PInt64): Boolean;
 begin
-  Result := Int64PolynomialGaloisDiv(nil, Res, P, Divisor, Prime, Primitive);
+  Result := Int64PolynomialGaloisDiv(nil, Res, P, Divisor, Prime, Primitive, ErrMulFactor);
 end;
 
 function Int64PolynomialGaloisPower(const Res, P: TCnInt64Polynomial;
@@ -3093,7 +3175,7 @@ var
   B: Boolean;
 begin
   if N = 0 then
-    raise ECnPolynomialException.Create(SDivByZero);
+    raise EDivByZero.Create(SDivByZero);
 
   B := N < 0;
   if B then
@@ -3120,6 +3202,7 @@ function Int64PolynomialGaloisGreatestCommonDivisor(const Res: TCnInt64Polynomia
 var
   A, B, C: TCnInt64Polynomial;
 begin
+  Result := False;
   A := nil;
   B := nil;
   C := nil;
@@ -3143,7 +3226,15 @@ begin
     while not B.IsZero do
     begin
       Int64PolynomialCopy(C, B);          // 备份 B
-      Int64PolynomialGaloisMod(B, A, B, Prime);  // A mod B 给 B
+      if not Int64PolynomialGaloisMod(B, A, B, Prime) then  // A mod B 给 B
+        Exit;
+
+      if B.MaxDegree = 0 then  // 如果是常数项则变为 1
+      begin
+        if B[0] <> 0 then
+          B[0] := 1;
+      end;
+
       Int64PolynomialCopy(A, C);          // 原始 B 给 A
     end;
 
@@ -3251,7 +3342,7 @@ begin
       G := FLocalInt64PolynomialPool.Obtain;
       Int64PolynomialGaloisGreatestCommonDivisor(G, X, Modulus, Prime);
       if not G.IsOne then
-        raise ECnPolynomialException.Create('Modular Inverse Need GCD = 1');
+        raise ECnPolynomialException.Create(SCnErrorPolynomialGCDMustOne);
     end;
 
     X1 := FLocalInt64PolynomialPool.Obtain;
@@ -3265,6 +3356,67 @@ begin
     FLocalInt64PolynomialPool.Recycle(X1);
     FLocalInt64PolynomialPool.Recycle(Y);
     FLocalInt64PolynomialPool.Recycle(G);
+  end;
+end;
+
+function Int64PolynomialGaloisPrimePowerModularInverse(const Res: TCnInt64Polynomial;
+  X, Modulus: TCnInt64Polynomial; PrimeRoot, Exponent: Integer): Boolean;
+var
+  F, G, T: TCnInt64Polynomial;
+  N: Integer;
+  P: Int64;
+begin
+  // 原始 X 和 Modulus 是模 PrimeRoot^Exponent 下的，各系数对 PrimeRoot 求模得到 F 和 G 俩多项式
+
+  if Exponent < 2 then
+    raise ECnPolynomialException.Create(SCnErrorPolynomialInvalidExponent);
+
+  F := nil;
+  G := nil;
+  T := nil;
+
+  try
+    F := FLocalInt64PolynomialPool.Obtain;
+    G := FLocalInt64PolynomialPool.Obtain;
+
+    Int64PolynomialCopy(F, X);
+    Int64PolynomialCopy(G, Modulus);
+
+    Int64PolynomialNonNegativeModWord(F, PrimeRoot);
+    Int64PolynomialNonNegativeModWord(G, PrimeRoot);
+
+    T := FLocalInt64PolynomialPool.Obtain;
+    Int64PolynomialGaloisGreatestCommonDivisor(T, F, G, PrimeRoot);
+
+    Result := T.IsOne;  // F G 释放了可以复用
+    if not Result then  // 须 PrimeRoot 下互素 PrimeRoot^Exponent 下才有逆元
+      Exit;
+
+    Int64PolynomialGaloisModularInverse(T, F, G, PrimeRoot); // 求 PrimeRoot 模下的逆多项式
+
+    N := 2;
+    while N <= Exponent do
+    begin
+      // T := (p * T - X * T^2) in Ring(p^n, M)
+
+      P := Int64NonNegativPower(PrimeRoot, N);
+
+      Int64PolynomialGaloisMul(F, T, T, P);
+      Int64PolynomialGaloisMul(F, F, X, P);
+
+      Int64PolynomialGaloisMulWord(T, PrimeRoot, P);
+      Int64PolynomialGaloisSub(T, T, F, P, Modulus);
+
+      N := N + 1;
+    end;
+
+    // Result := T in Ring(p^e, M)
+    P := Int64NonNegativPower(PrimeRoot, Exponent);
+    Result := Int64PolynomialGaloisMod(Res, T, Modulus, P);
+  finally
+    FLocalInt64PolynomialPool.Recycle(T);
+    FLocalInt64PolynomialPool.Recycle(G);
+    FLocalInt64PolynomialPool.Recycle(F);
   end;
 end;
 
@@ -3385,7 +3537,7 @@ var
   D1, D2, D3, Y4: TCnInt64Polynomial;
 begin
   if Degree < 0 then
-    raise ECnPolynomialException.Create('Galois Division Polynomial Invalid Degree')
+    raise ECnPolynomialException.Create(SCnErrorPolynomialGaloisInvalidDegree)
   else if Degree = 0 then
   begin
     outDivisionPolynomial.SetCoefficents([0]);  // f0(X) = 0
@@ -3794,7 +3946,7 @@ var
   N: TCnInt64Polynomial;
 begin
   if R2.IsZero then
-    raise EDivByZero.Create('Divide by Zero.');
+    raise EDivByZero.Create(SDivByZero);
 
   N := FLocalInt64PolynomialPool.Obtain; // 交叉相乘，必须用中间变量，防止 RationalResult 是 Number1 或 Number 2
   try
@@ -3915,7 +4067,7 @@ procedure Int64RationalPolynomialDiv(R1: TCnInt64RationalPolynomial;
   P1: TCnInt64Polynomial; RationalResult: TCnInt64RationalPolynomial);
 begin
   if P1.IsZero then
-    raise EDivByZero.Create('Divide by Zero.')
+    raise EDivByZero.Create(SDivByZero)
   else if P1.IsOne then
     RationalResult.Assign(R1)
   else
@@ -4135,7 +4287,7 @@ var
   N: TCnInt64Polynomial;
 begin
   if R2.IsZero then
-    raise EDivByZero.Create('Divide by Zero.');
+    raise EDivByZero.Create(SDivByZero);
 
   N := FLocalInt64PolynomialPool.Obtain; // 交叉相乘，必须用中间变量，防止 RationalResult 是 Number1 或 Number 2
   try
@@ -4260,7 +4412,7 @@ procedure Int64RationalPolynomialGaloisDiv(R1: TCnInt64RationalPolynomial;
   P1: TCnInt64Polynomial; RationalResult: TCnInt64RationalPolynomial; Prime: Int64); overload;
 begin
   if P1.IsZero then
-    raise EDivByZero.Create('Divide by Zero.')
+    raise EDivByZero.Create(SDivByZero)
   else if P1.IsOne then
     RationalResult.Assign(R1)
   else
@@ -4699,9 +4851,9 @@ begin
   Result := Dst;
   if Src <> Dst then
   begin
-    Dst.Clear;
+    Dst.MaxDegree := Src.MaxDegree;
     for I := 0 to Src.Count - 1 do
-      Dst.Add(BigNumberDuplicate(Src[I]));
+      BigNumberCopy(Dst[I], Src[I]);
     Dst.CorrectTop;
   end;
 end;
@@ -5117,7 +5269,7 @@ begin
 end;
 
 function BigNumberPolynomialDiv(const Res: TCnBigNumberPolynomial; const Remain: TCnBigNumberPolynomial;
-  const P: TCnBigNumberPolynomial; const Divisor: TCnBigNumberPolynomial): Boolean;
+  const P: TCnBigNumberPolynomial; const Divisor: TCnBigNumberPolynomial; ErrMulFactor: TCnBigNumber): Boolean;
 var
   SubRes: TCnBigNumberPolynomial; // 容纳递减差
   MulRes: TCnBigNumberPolynomial; // 容纳除数乘积
@@ -5126,7 +5278,7 @@ var
   T, R: TCnBigNumber;
 begin
   if BigNumberPolynomialIsZero(Divisor) then
-    raise ECnPolynomialException.Create(SDivByZero);
+    raise EDivByZero.Create(SDivByZero);
 
   if Divisor.MaxDegree > P.MaxDegree then // 除式次数高不够除，直接变成余数
   begin
@@ -5168,7 +5320,15 @@ begin
         Exit;
 
       if not T.IsZero then
+      begin
+        if ErrMulFactor <> nil then
+        begin
+          // Divisor[Divisor.MaxDegree] 乘以两者的最大公约数
+          if BigNumberGcd(T, SubRes[P.MaxDegree - I], Divisor[Divisor.MaxDegree]) then
+            BigNumberMul(ErrMulFactor, Divisor[Divisor.MaxDegree], T);
+        end;
         Exit;
+      end;
 
       BigNumberPolynomialCopy(MulRes, Divisor);
       BigNumberPolynomialShiftLeft(MulRes, D - I);                 // 对齐到 SubRes 的最高次
@@ -5195,9 +5355,9 @@ begin
 end;
 
 function BigNumberPolynomialMod(const Res: TCnBigNumberPolynomial; const P: TCnBigNumberPolynomial;
-  const Divisor: TCnBigNumberPolynomial): Boolean;
+  const Divisor: TCnBigNumberPolynomial; ErrMulFactor: TCnBigNumber): Boolean;
 begin
-  Result := BigNumberPolynomialDiv(nil, Res, P, Divisor);
+  Result := BigNumberPolynomialDiv(nil, Res, P, Divisor, ErrMulFactor);
 end;
 
 function BigNumberPolynomialPower(const Res: TCnBigNumberPolynomial;
@@ -5220,7 +5380,7 @@ begin
     Exit;
   end
   else if Exponent.IsNegative then
-    raise ECnPolynomialException.CreateFmt(SCnInvalidExponent, [Exponent.ToDec]);
+    raise ECnPolynomialException.CreateFmt(SCnErrorPolynomialInvalidExponent, [Exponent.ToDec]);
 
   T := FLocalBigNumberPolynomialPool.Obtain;
   BigNumberPolynomialCopy(T, P);
@@ -5273,19 +5433,37 @@ begin
   end;
 end;
 
+procedure BigNumberPolynomialCentralize(const P: TCnBigNumberPolynomial; Modulus: TCnBigNumber);
+var
+  I: Integer;
+  K: TCnBigNumber;
+begin
+  K := FLocalBigNumberPool.Obtain;
+  try
+    BigNumberShiftRightOne(K, Modulus);
+    for I := 0 to P.MaxDegree do
+      if BigNumberCompare(P[I], K) > 0 then
+        BigNumberSub(P[I], P[I], Modulus);
+  finally
+    FLocalBigNumberPool.Recycle(K);
+  end;
+end;
+
 function BigNumberPolynomialGreatestCommonDivisor(const Res: TCnBigNumberPolynomial;
   const P1, P2: TCnBigNumberPolynomial): Boolean;
 var
   A, B, C: TCnBigNumberPolynomial;
+  MF: TCnBigNumber;
 begin
-  Result := False;
   A := nil;
   B := nil;
   C := nil;
+  MF := nil;
 
   try
     A := FLocalBigNumberPolynomialPool.Obtain;
     B := FLocalBigNumberPolynomialPool.Obtain;
+    MF := FLocalBigNumberPool.Obtain;
 
     if P1.MaxDegree >= P2.MaxDegree then
     begin
@@ -5302,8 +5480,8 @@ begin
     while not B.IsZero do
     begin
       BigNumberPolynomialCopy(C, B);        // 备份 B
-      if not BigNumberPolynomialMod(B, A, B) then   // A mod B 给 B
-        Exit;
+      while not BigNumberPolynomialMod(B, A, B, MF) do   // A mod B 给 B
+        BigNumberPolynomialMulBigNumber(A, MF);
 
       // B 要系数约分化简
       BigNumberPolynomialReduce(B);
@@ -5313,9 +5491,10 @@ begin
     BigNumberPolynomialCopy(Res, A);
     Result := True;
   finally
-    FLocalBigNumberPolynomialPool.Recycle(A);
-    FLocalBigNumberPolynomialPool.Recycle(B);
+    FLocalBigNumberPool.Recycle(MF);
     FLocalBigNumberPolynomialPool.Recycle(C);
+    FLocalBigNumberPolynomialPool.Recycle(B);
+    FLocalBigNumberPolynomialPool.Recycle(A);
   end;
 end;
 
@@ -5597,16 +5776,18 @@ end;
 function BigNumberPolynomialGaloisDiv(const Res: TCnBigNumberPolynomial;
   const Remain: TCnBigNumberPolynomial; const P: TCnBigNumberPolynomial;
   const Divisor: TCnBigNumberPolynomial; Prime: TCnBigNumber;
-  Primitive: TCnBigNumberPolynomial = nil): Boolean;
+  Primitive: TCnBigNumberPolynomial; ErrMulFactor: TCnBigNumber): Boolean;
 var
   SubRes: TCnBigNumberPolynomial; // 容纳递减差
   MulRes: TCnBigNumberPolynomial; // 容纳除数乘积
   DivRes: TCnBigNumberPolynomial; // 容纳临时商
   I, D: Integer;
   K, T: TCnBigNumber;
+  Co: Boolean;
 begin
+  Result := False;
   if BigNumberPolynomialIsZero(Divisor) then
-    raise ECnPolynomialException.Create(SDivByZero);
+    raise EDivByZero.Create(SDivByZero);
 
   if Divisor.MaxDegree > P.MaxDegree then // 除式次数高不够除，直接变成余数
   begin
@@ -5635,11 +5816,13 @@ begin
     DivRes.MaxDegree := D;
     MulRes := FLocalBigNumberPolynomialPool.Obtain;
 
+    Co := True;
     K := FLocalBigNumberPool.Obtain;
     if Divisor[Divisor.MaxDegree].IsOne then
       K.SetOne
     else
-      BigNumberModularInverse(K, Divisor[Divisor.MaxDegree], Prime);
+      Co := BigNumberModularInverse(K, Divisor[Divisor.MaxDegree], Prime, True);
+      // 要传 CheckGcd 为 True 以在不互素时返回 Co 为 False
 
     for I := 0 to D do
     begin
@@ -5648,9 +5831,31 @@ begin
       BigNumberPolynomialCopy(MulRes, Divisor);
       BigNumberPolynomialShiftLeft(MulRes, D - I);             // 对齐到 SubRes 的最高次
 
-      // 除式要乘一个数，这个数是 SubRes 最高位除以除式最高位得到的结果，也即 SubRes 最高位乘以除式最高位的逆元再 mod Prime
-      BigNumberDirectMulMod(T, SubRes[P.MaxDegree - I], K, Prime);
-      BigNumberPolynomialGaloisMulBigNumber(MulRes, T, Prime);          // 除式乘到最高次系数相同
+      if Co then // 互素有模逆元
+      begin
+        // 除式要乘一个数，这个数是 SubRes 最高位除以除式最高位得到的结果，也即 SubRes 最高位乘以除式最高位的逆元再 mod Prime
+        BigNumberDirectMulMod(T, SubRes[P.MaxDegree - I], K, Prime);
+        BigNumberPolynomialGaloisMulBigNumber(MulRes, T, Prime);          // 除式乘到最高次系数相同
+      end
+      else // Prime 和除式最高位不互素时模逆元 K 不存在，要分整除和不整除两种情况
+      begin
+        BigNumberMod(T, SubRes[P.MaxDegree - I], Divisor[Divisor.MaxDegree]);
+        if not T.IsZero then // 不整除又没有模逆元，无论如何都没法除，只能出错退出
+        begin
+          if ErrMulFactor <> nil then
+          begin
+            // Divisor[Divisor.MaxDegree] 乘以两者的最大公约数
+            if BigNumberGcd(T, SubRes[P.MaxDegree - I], Divisor[Divisor.MaxDegree]) then
+              BigNumberMul(ErrMulFactor, Divisor[Divisor.MaxDegree], T);
+          end;
+          Exit;
+        end
+        else
+        begin
+          BigNumberDiv(T, nil, SubRes[P.MaxDegree - I], Divisor[Divisor.MaxDegree]);
+          BigNumberPolynomialGaloisMulBigNumber(MulRes, T, Prime); // 除式乘到最高次系数相同
+        end;
+      end;
 
       BigNumberCopy(DivRes[D - I], T);                             // 对应位的商放到 DivRes 位置
       BigNumberPolynomialGaloisSub(SubRes, SubRes, MulRes, Prime); // 减求模后结果重新放回 SubRes
@@ -5679,14 +5884,14 @@ end;
 
 function BigNumberPolynomialGaloisMod(const Res: TCnBigNumberPolynomial;
   const P: TCnBigNumberPolynomial; const Divisor: TCnBigNumberPolynomial;
-  Prime: TCnBigNumber; Primitive: TCnBigNumberPolynomial = nil): Boolean;
+  Prime: TCnBigNumber; Primitive: TCnBigNumberPolynomial; ErrMulFactor: TCnBigNumber): Boolean;
 begin
-  Result := BigNumberPolynomialGaloisDiv(nil, Res, P, Divisor, Prime, Primitive);
+  Result := BigNumberPolynomialGaloisDiv(nil, Res, P, Divisor, Prime, Primitive, ErrMulFactor);
 end;
 
 function BigNumberPolynomialGaloisPower(const Res: TCnBigNumberPolynomial;
   const P: TCnBigNumberPolynomial; Exponent: TCnBigNumber;
-  Prime: TCnBigNumber; Primitive: TCnBigNumberPolynomial = nil): Boolean;
+  Prime: TCnBigNumber; Primitive: TCnBigNumberPolynomial): Boolean;
 var
   T: TCnBigNumberPolynomial;
   E: TCnBigNumber;
@@ -5705,7 +5910,7 @@ begin
     Exit;
   end
   else if Exponent.IsNegative then
-    raise ECnPolynomialException.CreateFmt(SCnInvalidExponent, [Exponent]);
+    raise ECnPolynomialException.CreateFmt(SCnErrorPolynomialInvalidExponent, [Exponent]);
 
   T := FLocalBigNumberPolynomialPool.Obtain;
   BigNumberPolynomialCopy(T, P);
@@ -5733,7 +5938,7 @@ end;
 
 function BigNumberPolynomialGaloisPower(const Res: TCnBigNumberPolynomial;
   const P: TCnBigNumberPolynomial; Exponent: Cardinal; Prime: TCnBigNumber;
-  Primitive: TCnBigNumberPolynomial = nil): Boolean; overload;
+  Primitive: TCnBigNumberPolynomial): Boolean; overload;
 var
   T: TCnBigNumber;
 begin
@@ -5795,7 +6000,7 @@ var
   K, T: TCnBigNumber;
 begin
   if N = 0 then
-    raise ECnPolynomialException.Create(SDivByZero);
+    raise EDivByZero.Create(SDivByZero);
 
   K := nil;
   T := nil;
@@ -5857,7 +6062,7 @@ var
   B: Boolean;
 begin
   if N.IsZero then
-    raise ECnPolynomialException.Create(SDivByZero);
+    raise EDivByZero.Create(SDivByZero);
 
   B := N.IsNegative;
   if B then
@@ -5917,6 +6122,13 @@ begin
     begin
       BigNumberPolynomialCopy(C, B);          // 备份 B
       BigNumberPolynomialGaloisMod(B, A, B, Prime);  // A mod B 给 B
+
+      if B.MaxDegree = 0 then  // 如果是常数项则变为 1
+      begin
+        if not B[0].IsZero then
+          B[0].SetOne;
+      end;
+
       BigNumberPolynomialCopy(A, C);          // 原始 B 给 A
     end;
 
@@ -6024,7 +6236,7 @@ begin
       G := FLocalBigNumberPolynomialPool.Obtain;
       BigNumberPolynomialGaloisGreatestCommonDivisor(G, X, Modulus, Prime);
       if not G.IsOne then
-        raise ECnPolynomialException.Create('Modular Inverse Need GCD = 1');
+        raise ECnPolynomialException.Create(SCnErrorPolynomialGCDMustOne);
     end;
 
     X1 := FLocalBigNumberPolynomialPool.Obtain;
@@ -6038,6 +6250,70 @@ begin
     FLocalBigNumberPolynomialPool.Recycle(X1);
     FLocalBigNumberPolynomialPool.Recycle(Y);
     FLocalBigNumberPolynomialPool.Recycle(G);
+  end;
+end;
+
+function BigNumberPolynomialGaloisPrimePowerModularInverse(const Res: TCnBigNumberPolynomial;
+  X, Modulus: TCnBigNumberPolynomial; PrimeRoot: TCnBigNumber; Exponent: Integer): Boolean;
+var
+  F, G, T: TCnBigNumberPolynomial;
+  N: Integer;
+  P: TCnBigNumber;
+begin
+  // 原始 X 和 Modulus 是模 PrimeRoot^Exponent 下的，各系数对 PrimeRoot 求模得到 F 和 G 俩多项式
+
+  if Exponent < 2 then
+    raise ECnPolynomialException.Create(SCnErrorPolynomialInvalidExponent);
+
+  F := nil;
+  G := nil;
+  T := nil;
+  P := nil;
+
+  try
+    F := FLocalBigNumberPolynomialPool.Obtain;
+    G := FLocalBigNumberPolynomialPool.Obtain;
+
+    BigNumberPolynomialCopy(F, X);
+    BigNumberPolynomialCopy(G, Modulus);
+
+    BigNumberPolynomialNonNegativeModBigNumber(F, PrimeRoot);
+    BigNumberPolynomialNonNegativeModBigNumber(G, PrimeRoot);
+
+    T := FLocalBigNumberPolynomialPool.Obtain;
+    BigNumberPolynomialGaloisGreatestCommonDivisor(T, F, G, PrimeRoot);
+
+    Result := T.IsOne;  // F G 释放了可以复用
+    if not Result then  // 须 PrimeRoot 下互素 PrimeRoot^Exponent 下才有逆元
+      Exit;
+
+    BigNumberPolynomialGaloisModularInverse(T, F, G, PrimeRoot); // 求 PrimeRoot 模下的逆多项式
+
+    N := 2;
+    P := FLocalBigNumberPool.Obtain;
+    while N <= Exponent do
+    begin
+      // T := (p * T - X * T^2) in Ring(p^n, M)
+
+      BigNumberPower(P, PrimeRoot, Cardinal(N));
+
+      BigNumberPolynomialGaloisMul(F, T, T, P);
+      BigNumberPolynomialGaloisMul(F, F, X, P);
+
+      BigNumberPolynomialGaloisMulBigNumber(T, PrimeRoot, P);
+      BigNumberPolynomialGaloisSub(T, T, F, P, Modulus);
+
+      N := N + 1;
+    end;
+
+    // Result := T in Ring(p^e, M)
+    BigNumberPower(P, PrimeRoot, Cardinal(Exponent));
+    Result := BigNumberPolynomialGaloisMod(Res, T, Modulus, P);
+  finally
+    FLocalBigNumberPool.Recycle(P);
+    FLocalBigNumberPolynomialPool.Recycle(T);
+    FLocalBigNumberPolynomialPool.Recycle(G);
+    FLocalBigNumberPolynomialPool.Recycle(F);
   end;
 end;
 
@@ -6483,7 +6759,7 @@ var
   N: TCnBigNumberPolynomial;
 begin
   if R2.IsZero then
-    raise EDivByZero.Create('Divide by Zero.');
+    raise EDivByZero.Create(SDivByZero);
 
   N := FLocalBigNumberPolynomialPool.Obtain; // 交叉相乘，必须用中间变量，防止 RationalResult 是 Number1 或 Number 2
   try
@@ -6608,7 +6884,7 @@ procedure BigNumberRationalPolynomialDiv(R1: TCnBigNumberRationalPolynomial;
   P1: TCnBigNumberPolynomial; RationalResult: TCnBigNumberRationalPolynomial); overload;
 begin
   if P1.IsZero then
-    raise EDivByZero.Create('Divide by Zero.')
+    raise EDivByZero.Create(SDivByZero)
   else if P1.IsOne then
     RationalResult.Assign(R1)
   else
@@ -6828,7 +7104,7 @@ var
   N: TCnBigNumberPolynomial;
 begin
   if R2.IsZero then
-    raise EDivByZero.Create('Divide by Zero.');
+    raise EDivByZero.Create(SDivByZero);
 
   N := FLocalBigNumberPolynomialPool.Obtain; // 交叉相乘，必须用中间变量，防止 RationalResult 是 Number1 或 Number 2
   try
@@ -6953,7 +7229,7 @@ procedure BigNumberRationalPolynomialGaloisDiv(R1: TCnBigNumberRationalPolynomia
   P1: TCnBigNumberPolynomial; RationalResult: TCnBigNumberRationalPolynomial; Prime: TCnBigNumber); overload;
 begin
   if P1.IsZero then
-    raise EDivByZero.Create('Divide by Zero.')
+    raise EDivByZero.Create(SDivByZero)
   else if P1.IsOne then
     RationalResult.Assign(R1)
   else
@@ -7186,7 +7462,7 @@ function TCnInt64BiPolynomial.GetYFactorsList(
   Index: Integer): TCnInt64List;
 begin
   if (Index < 0) or (Index >= FXs.Count) then
-    raise ECnPolynomialException.CreateFmt(SCnInvalidDegree, [Index]);
+    raise ECnPolynomialException.CreateFmt(SCnErrorPolynomialInvalidDegree, [Index]);
 
   Result := TCnInt64List(FXs[Index]);
 end;
@@ -7758,7 +8034,7 @@ var
 begin
   Result := False;
   if Int64BiPolynomialIsZero(Divisor) then
-    raise ECnPolynomialException.Create(SDivByZero);
+    raise EDivByZero.Create(SDivByZero);
 
   if Divisor.MaxXDegree > P.MaxXDegree then // 除式次数高不够除，直接变成余数
   begin
@@ -7843,7 +8119,7 @@ begin
     Exit;
   end
   else if Exponent < 0 then
-    raise ECnPolynomialException.CreateFmt(SCnInvalidExponent, [Exponent]);
+    raise ECnPolynomialException.CreateFmt(SCnErrorPolynomialInvalidExponent, [Exponent]);
 
   T := FLocalInt64BiPolynomialPool.Obtain;
   Int64BiPolynomialCopy(T, P);
@@ -8125,7 +8401,7 @@ var
 begin
   Result := False;
   if Int64BiPolynomialIsZero(Divisor) then
-    raise ECnPolynomialException.Create(SDivByZero);
+    raise EDivByZero.Create(SDivByZero);
 
   if Divisor.MaxXDegree > P.MaxXDegree then // 除式次数高不够除，直接变成余数
   begin
@@ -8326,7 +8602,7 @@ var
   B: Boolean;
 begin
   if N = 0 then
-    raise ECnPolynomialException.Create(SDivByZero);
+    raise EDivByZero.Create(SDivByZero);
 
   B := N < 0;
   if B then
@@ -9092,7 +9368,7 @@ var
 begin
   Result := False;
   if BigNumberBiPolynomialIsZero(Divisor) then
-    raise ECnPolynomialException.Create(SDivByZero);
+    raise EDivByZero.Create(SDivByZero);
 
   if Divisor.MaxXDegree > P.MaxXDegree then // 除式次数高不够除，直接变成余数
   begin
@@ -9178,7 +9454,7 @@ begin
     Exit;
   end
   else if Exponent.IsNegative then
-    raise ECnPolynomialException.CreateFmt(SCnInvalidExponent, [Exponent.ToDec]);
+    raise ECnPolynomialException.CreateFmt(SCnErrorPolynomialInvalidExponent, [Exponent.ToDec]);
 
   T := FLocalBigNumberBiPolynomialPool.Obtain;
   BigNumberBiPolynomialCopy(T, P);
@@ -9595,7 +9871,7 @@ var
 begin
   Result := False;
   if BigNumberBiPolynomialIsZero(Divisor) then
-    raise ECnPolynomialException.Create(SDivByZero);
+    raise EDivByZero.Create(SDivByZero);
 
   if Divisor.MaxXDegree > P.MaxXDegree then // 除式次数高不够除，直接变成余数
   begin
@@ -9689,7 +9965,7 @@ begin
     Exit;
   end
   else if Exponent.IsNegative then
-    raise ECnPolynomialException.CreateFmt(SCnInvalidExponent, [Exponent.ToDec]);
+    raise ECnPolynomialException.CreateFmt(SCnErrorPolynomialInvalidExponent, [Exponent.ToDec]);
 
   T := FLocalBigNumberBiPolynomialPool.Obtain;
   BigNumberBiPolynomialCopy(T, P);
@@ -9892,6 +10168,15 @@ begin
   end;
 end;
 
+procedure Int64PolynomialToBigNumberPolynomial(const Dst: TCnBigNumberPolynomial;
+  const Src: TCnInt64Polynomial);
+var
+  I: Integer;
+begin
+  Dst.MaxDegree := Src.MaxDegree;
+  for I := 0 to Src.MaxDegree do
+    Dst[I].SetInt64(Src[I]);
+end;
 { TCnBigNumberBiPolynomial }
 
 procedure TCnBigNumberBiPolynomial.Clear;
@@ -10049,7 +10334,7 @@ function TCnBigNumberBiPolynomial.GetYFactorsList(
   Index: Integer): TCnSparseBigNumberList;
 begin
   if Index < 0 then
-    raise ECnPolynomialException.CreateFmt(SCnInvalidDegree, [Index]);
+    raise ECnPolynomialException.CreateFmt(SCnErrorPolynomialInvalidDegree, [Index]);
 
   if Index >= FXs.Count then
     FXs.Count := Index + 1;

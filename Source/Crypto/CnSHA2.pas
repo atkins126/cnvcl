@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2023 CnPack 开发组                       }
+{                   (C)Copyright 2001-2024 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -13,7 +13,7 @@
 {            您应该已经和开发包一起收到一份 CnPack 发布协议的副本。如果        }
 {        还没有，可访问我们的网站：                                            }
 {                                                                              }
-{            网站地址：http://www.cnpack.org                                   }
+{            网站地址：https://www.cnpack.org                                  }
 {            电子邮件：master@cnpack.org                                       }
 {                                                                              }
 {******************************************************************************}
@@ -22,10 +22,12 @@ unit CnSHA2;
 {* |<PRE>
 ================================================================================
 * 软件名称：开发包基础库
-* 单元名称：SHA2(SHA224/256/384/512) 算法实现单元
-* 单元作者：刘啸（Liu Xiao）
-* 备    注：D567下可以用有符号 Int64 代替无符号 UInt64 来计算 SHA512/384，原因是
-*           基于补码规则，有无符号数的加减移位以及溢出的舍弃机制等都相同，唯一不
+* 单元名称：SHA2 杂凑算法实现单元
+* 单元作者：CnPack 开发组 (master@cnpack.org)
+*           从匿名/佚名 C 代码与 Pascal 代码混合移植而来并补充部分功能。
+* 备    注：本单元实现了 SHA2 系列杂凑算法及对应的 HMAC 算法，包括 SHA224/256/384/512。
+*           注：Delphi 5/6/7 本单元用了有符号 Int64 代替无符号 UInt64 来计算 SHA512/384，
+*           原因是基于补码规则，有无符号数的加减移位以及溢出的舍弃机制等都相同，唯一不
 *           同的是比较，而本单元中没有类似的比较。
 * 开发平台：PWinXP + Delphi 5.0
 * 兼容测试：PWinXP/7 + Delphi 5/6
@@ -39,7 +41,7 @@ unit CnSHA2;
 *           2016.09.30 V1.1
 *               实现 SHA512/384。D567下用有符号 Int64 代替无符号 UInt64
 *           2016.09.27 V1.0
-*               创建单元。从网上佚名 C 代码与 Pascal 代码混合移植而来
+*               创建单元。
 ================================================================================
 |</PRE>}
 
@@ -56,15 +58,19 @@ type
 
   PCnSHA224Digest = ^TCnSHA224Digest;
   TCnSHA224Digest = array[0..27] of Byte;
+  {* SHA224 杂凑结果类型}
 
   PCnSHA256Digest = ^TCnSHA256Digest;
   TCnSHA256Digest = array[0..31] of Byte;
+  {* SHA256 杂凑结果类型}
 
   PCnSHA384Digest = ^TCnSHA384Digest;
   TCnSHA384Digest = array[0..47] of Byte;
+  {* SHA384 杂凑结果类型}
 
   PCnSHA512Digest = ^TCnSHA512Digest;
   TCnSHA512Digest = array[0..63] of Byte;
+  {* SHA512 杂凑结果类型}
 
   TCnSHA256Context = packed record
     DataLen: Cardinal;
@@ -91,6 +97,34 @@ type
   TCnSHACalcProgressFunc = procedure(ATotal, AProgress: Int64; var Cancel:
     Boolean) of object;
   {* 进度回调事件类型声明}
+
+function SHA224(Input: PAnsiChar; ByteLength: Cardinal): TCnSHA224Digest;
+{* 对数据块进行 SHA224 计算
+ |<PRE>
+   Input: PAnsiChar      - 要计算的数据块的首地址
+   ByteLength: Cardinal  - 数据块的字节长度
+ |</PRE>}
+
+function SHA256(Input: PAnsiChar; ByteLength: Cardinal): TCnSHA256Digest;
+{* 对数据块进行 SHA256 计算
+ |<PRE>
+   Input: PAnsiChar      - 要计算的数据块的首地址
+   ByteLength: Cardinal  - 数据块的字节长度
+ |</PRE>}
+
+function SHA384(Input: PAnsiChar; ByteLength: Cardinal): TCnSHA384Digest;
+{* 对数据块进行 SHA384 计算
+ |<PRE>
+   Input: PAnsiChar      - 要计算的数据块的首地址
+   ByteLength: Cardinal  - 数据块的字节长度
+ |</PRE>}
+
+function SHA512(Input: PAnsiChar; ByteLength: Cardinal): TCnSHA512Digest;
+{* 对数据块进行 SHA512 计算
+ |<PRE>
+   Input: PAnsiChar      - 要计算的数据块的首地址
+   ByteLength: Cardinal  - 数据块的字节长度
+ |</PRE>}
 
 function SHA224Buffer(const Buffer; Count: Cardinal): TCnSHA224Digest;
 {* 对数据块进行 SHA224 计算
@@ -172,29 +206,59 @@ function SHA512String(const Str: string): TCnSHA512Digest;
    Str: string       - 要计算的字符串
  |</PRE>}
 
-function SHA224UnicodeString(const Str: {$IFDEF UNICODE} string {$ELSE} WideString {$ENDIF}): TCnSHA224Digest;
+{$IFDEF UNICODE}
+
+function SHA224UnicodeString(const Str: string): TCnSHA224Digest;
 {* 对 UnicodeString 类型数据进行直接的 SHA224 计算，不进行转换
  |<PRE>
-   Str: UnicodeString/WideString       - 要计算的宽字符串
+   Str: UnicodeString       - 要计算的宽字符串
  |</PRE>}
 
-function SHA256UnicodeString(const Str: {$IFDEF UNICODE} string {$ELSE} WideString {$ENDIF}): TCnSHA256Digest;
+function SHA256UnicodeString(const Str: string): TCnSHA256Digest;
 {* 对 UnicodeString 类型数据进行直接的 SHA256 计算，不进行转换
  |<PRE>
-   Str: UnicodeString/WideString       - 要计算的宽字符串
+   Str: UnicodeString       - 要计算的宽字符串
  |</PRE>}
 
-function SHA384UnicodeString(const Str: {$IFDEF UNICODE} string {$ELSE} WideString {$ENDIF}): TCnSHA384Digest;
+function SHA384UnicodeString(const Str: string): TCnSHA384Digest;
 {* 对 UnicodeString 类型数据进行直接的 SHA384 计算，不进行转换
  |<PRE>
-   Str: UnicodeString/WideString       - 要计算的宽字符串
+   Str: UnicodeString       - 要计算的宽字符串
  |</PRE>}
 
-function SHA512UnicodeString(const Str: {$IFDEF UNICODE} string {$ELSE} WideString {$ENDIF}): TCnSHA512Digest;
+function SHA512UnicodeString(const Str: string): TCnSHA512Digest;
 {* 对 UnicodeString 类型数据进行直接的 SHA512 计算，不进行转换
  |<PRE>
-   Str: UnicodeString/WideString       - 要计算的宽字符串
+   Str: UnicodeString       - 要计算的宽字符串
  |</PRE>}
+
+{$ELSE}
+
+function SHA224UnicodeString(const Str: WideString): TCnSHA224Digest;
+{* 对 UnicodeString 类型数据进行直接的 SHA224 计算，不进行转换
+ |<PRE>
+   Str: WideString       - 要计算的宽字符串
+ |</PRE>}
+
+function SHA256UnicodeString(const Str: WideString): TCnSHA256Digest;
+{* 对 UnicodeString 类型数据进行直接的 SHA256 计算，不进行转换
+ |<PRE>
+   Str: WideString       - 要计算的宽字符串
+ |</PRE>}
+
+function SHA384UnicodeString(const Str: WideString): TCnSHA384Digest;
+{* 对 UnicodeString 类型数据进行直接的 SHA384 计算，不进行转换
+ |<PRE>
+   Str: WideString       - 要计算的宽字符串
+ |</PRE>}
+
+function SHA512UnicodeString(const Str: WideString): TCnSHA512Digest;
+{* 对 UnicodeString 类型数据进行直接的 SHA512 计算，不进行转换
+ |<PRE>
+   Str: WideString       - 要计算的宽字符串
+ |</PRE>}
+
+{$ENDIF}
 
 function SHA224StringA(const Str: AnsiString): TCnSHA224Digest;
 {* 对 AnsiString 类型数据进行 SHA224 计算
@@ -408,28 +472,28 @@ function SHA512Match(const D1, D2: TCnSHA512Digest): Boolean;
    D2: TSHA512Digest   - 需要比较的 SHA512 计算值
  |</PRE>}
 
-function SHA224DigestToStr(aDig: TCnSHA224Digest): string;
+function SHA224DigestToStr(Digest: TCnSHA224Digest): string;
 {* SHA224 计算值转 string
  |<PRE>
-   aDig: TSHA224Digest   - 需要转换的 SHA224 计算值
+   Digest: TSHA224Digest   - 需要转换的 SHA224 计算值
  |</PRE>}
 
-function SHA256DigestToStr(aDig: TCnSHA256Digest): string;
+function SHA256DigestToStr(Digest: TCnSHA256Digest): string;
 {* SHA256 计算值转 string
  |<PRE>
-   aDig: TSHA256Digest   - 需要转换的 SHA256 计算值
+   Digest: TSHA256Digest   - 需要转换的 SHA256 计算值
  |</PRE>}
 
-function SHA384DigestToStr(aDig: TCnSHA384Digest): string;
+function SHA384DigestToStr(Digest: TCnSHA384Digest): string;
 {* SHA384 计算值转 string
  |<PRE>
-   aDig: TSHA384Digest   - 需要转换的 SHA384 计算值
+   Digest: TSHA384Digest   - 需要转换的 SHA384 计算值
  |</PRE>}
 
-function SHA512DigestToStr(aDig: TCnSHA512Digest): string;
+function SHA512DigestToStr(Digest: TCnSHA512Digest): string;
 {* SHA512 计算值转 string
  |<PRE>
-   aDig: TSHA512Digest   - 需要转换的 SHA512 计算值
+   Digest: TSHA512Digest   - 需要转换的 SHA512 计算值
  |</PRE>}
 
 procedure SHA224Hmac(Key: PAnsiChar; KeyLength: Integer; Input: PAnsiChar;
@@ -504,42 +568,37 @@ const
     $3C9EBE0A15C9BEBC, $431D67C49C100D4C, $4CC5D4BECB3E42B6, $597F299CFC657E2A,
     $5FCB6FAB3AD6FAEC, $6C44198C4A475817);
 
-function ROTLeft256(A, B: Cardinal): Cardinal;
-begin
-  Result := (A shl B) or (A shr (32 - B));
-end;
-
-function ROTRight256(A, B: Cardinal): Cardinal;
+function ROTRight256(A, B: Cardinal): Cardinal; {$IFDEF SUPPORT_INLINE} inline; {$ENDIF}
 begin
   Result := (A shr B) or (A shl (32 - B));
 end;
 
-function ROTRight512(X: TUInt64; Y: Integer): TUInt64;
+function ROTRight512(X: TUInt64; Y: Integer): TUInt64; {$IFDEF SUPPORT_INLINE} inline; {$ENDIF}
 begin
   Result := (X shr Y) or (X shl (64 - Y));
 end;
 
-function SHR512(X: TUInt64; Y: Integer): TUInt64;
+function SHR512(X: TUInt64; Y: Integer): TUInt64; {$IFDEF SUPPORT_INLINE} inline; {$ENDIF}
 begin
   Result := (X and $FFFFFFFFFFFFFFFF) shr Y;
 end;
 
-function CH256(X, Y, Z: Cardinal): Cardinal;
+function CH256(X, Y, Z: Cardinal): Cardinal; {$IFDEF SUPPORT_INLINE} inline; {$ENDIF}
 begin
   Result := (X and Y) xor ((not X) and Z);
 end;
 
-function CH512(X, Y, Z: TUInt64): TUInt64;
+function CH512(X, Y, Z: TUInt64): TUInt64; {$IFDEF SUPPORT_INLINE} inline; {$ENDIF}
 begin
   Result := (((Y xor Z) and X) xor Z);
 end;
 
-function MAJ256(X, Y, Z: Cardinal): Cardinal;
+function MAJ256(X, Y, Z: Cardinal): Cardinal; {$IFDEF SUPPORT_INLINE} inline; {$ENDIF}
 begin
   Result := (X and Y) xor (X and Z) xor (Y and Z);
 end;
 
-function MAJ512(X, Y, Z: TUInt64): TUInt64;
+function MAJ512(X, Y, Z: TUInt64): TUInt64; {$IFDEF SUPPORT_INLINE} inline; {$ENDIF}
 begin
   Result := ((X or Y) and Z) or (X and Y);
 end;
@@ -1009,6 +1068,46 @@ begin
 end;
 
 // 对数据块进行 SHA224 计算
+function SHA224(Input: PAnsiChar; ByteLength: Cardinal): TCnSHA224Digest;
+var
+  Context: TCnSHA224Context;
+begin
+  SHA224Init(Context);
+  SHA224Update(Context, Input, ByteLength);
+  SHA224Final(Context, Result);
+end;
+
+// 对数据块进行 SHA256 计算
+function SHA256(Input: PAnsiChar; ByteLength: Cardinal): TCnSHA256Digest;
+var
+  Context: TCnSHA256Context;
+begin
+  SHA256Init(Context);
+  SHA256Update(Context, Input, ByteLength);
+  SHA256Final(Context, Result);
+end;
+
+// 对数据块进行 SHA384 计算
+function SHA384(Input: PAnsiChar; ByteLength: Cardinal): TCnSHA384Digest;
+var
+  Context: TCnSHA384Context;
+begin
+  SHA384Init(Context);
+  SHA384Update(Context, Input, ByteLength);
+  SHA384Final(Context, Result);
+end;
+
+// 对数据块进行 SHA512 计算
+function SHA512(Input: PAnsiChar; ByteLength: Cardinal): TCnSHA512Digest;
+var
+  Context: TCnSHA512Context;
+begin
+  SHA512Init(Context);
+  SHA512Update(Context, Input, ByteLength);
+  SHA512Final(Context, Result);
+end;
+
+// 对数据块进行 SHA224 计算
 function SHA224Buffer(const Buffer; Count: Cardinal): TCnSHA224Digest;
 var
   Context: TCnSHA224Context;
@@ -1125,7 +1224,11 @@ begin
 end;
 
 // 对 UnicodeString 类型数据进行直接的 SHA224 计算，不进行转换
-function SHA224UnicodeString(const Str: {$IFDEF UNICODE} string {$ELSE} WideString {$ENDIF}): TCnSHA224Digest;
+{$IFDEF UNICODE}
+function SHA224UnicodeString(const Str: string): TCnSHA224Digest;
+{$ELSE}
+function SHA224UnicodeString(const Str: WideString): TCnSHA224Digest;
+{$ENDIF}
 var
   Context: TCnSHA224Context;
 begin
@@ -1135,7 +1238,11 @@ begin
 end;
 
 // 对 UnicodeString 类型数据进行直接的 SHA256 计算，不进行转换
-function SHA256UnicodeString(const Str: {$IFDEF UNICODE} string {$ELSE} WideString {$ENDIF}): TCnSHA256Digest;
+{$IFDEF UNICODE}
+function SHA256UnicodeString(const Str: string): TCnSHA256Digest;
+{$ELSE}
+function SHA256UnicodeString(const Str: WideString): TCnSHA256Digest;
+{$ENDIF}
 var
   Context: TCnSHA256Context;
 begin
@@ -1145,7 +1252,11 @@ begin
 end;  
 
 // 对 UnicodeString 类型数据进行直接的 SHA384 计算，不进行转换
-function SHA384UnicodeString(const Str: {$IFDEF UNICODE} string {$ELSE} WideString {$ENDIF}): TCnSHA384Digest;
+{$IFDEF UNICODE}
+function SHA384UnicodeString(const Str: string): TCnSHA384Digest;
+{$ELSE}
+function SHA384UnicodeString(const Str: WideString): TCnSHA384Digest;
+{$ENDIF}
 var
   Context: TCnSHA384Context;
 begin
@@ -1155,7 +1266,11 @@ begin
 end;  
 
 // 对 UnicodeString 类型数据进行直接的 SHA512 计算，不进行转换
-function SHA512UnicodeString(const Str: {$IFDEF UNICODE} string {$ELSE} WideString {$ENDIF}): TCnSHA512Digest;
+{$IFDEF UNICODE}
+function SHA512UnicodeString(const Str: string): TCnSHA512Digest;
+{$ELSE}
+function SHA512UnicodeString(const Str: WideString): TCnSHA512Digest;
+{$ENDIF}
 var
   Context: TCnSHA512Context;
 begin
@@ -1163,8 +1278,6 @@ begin
   SHA512Update(Context, PAnsiChar(@Str[1]), Length(Str) * SizeOf(WideChar));
   SHA512Final(Context, Result);
 end;
-
-
 
 // 对 AnsiString 类型数据进行 SHA224 计算
 function SHA224StringA(const Str: AnsiString): TCnSHA224Digest;
@@ -1691,43 +1804,27 @@ begin
 end;
 
 // SHA224 计算值转 string
-function SHA224DigestToStr(aDig: TCnSHA224Digest): string;
-var
-  I: Integer;
+function SHA224DigestToStr(Digest: TCnSHA224Digest): string;
 begin
-  SetLength(Result, 28);
-  for I := 1 to 28 do
-    Result[I] := Chr(aDig[I - 1]);
+  Result := MemoryToString(@Digest[0], SizeOf(TCnSHA224Digest));
 end;
 
 // SHA256 计算值转 string
-function SHA256DigestToStr(aDig: TCnSHA256Digest): string;
-var
-  I: Integer;
+function SHA256DigestToStr(Digest: TCnSHA256Digest): string;
 begin
-  SetLength(Result, 32);
-  for I := 1 to 32 do
-    Result[I] := Chr(aDig[I - 1]);
+  Result := MemoryToString(@Digest[0], SizeOf(TCnSHA256Digest));
 end;
 
 // SHA384 计算值转 string
-function SHA384DigestToStr(aDig: TCnSHA384Digest): string;
-var
-  I: Integer;
+function SHA384DigestToStr(Digest: TCnSHA384Digest): string;
 begin
-  SetLength(Result, 48);
-  for I := 1 to 48 do
-    Result[I] := Chr(aDig[I - 1]);
+  Result := MemoryToString(@Digest[0], SizeOf(TCnSHA384Digest));
 end;
 
 // SHA512 计算值转 string
-function SHA512DigestToStr(aDig: TCnSHA512Digest): string;
-var
-  I: Integer;
+function SHA512DigestToStr(Digest: TCnSHA512Digest): string;
 begin
-  SetLength(Result, 64);
-  for I := 1 to 64 do
-    Result[I] := Chr(aDig[I - 1]);
+  Result := MemoryToString(@Digest[0], SizeOf(TCnSHA512Digest));
 end;
 
 procedure SHA224HmacInit(var Context: TCnSHA224Context; Key: PAnsiChar; KeyLength: Integer);
@@ -1947,4 +2044,3 @@ begin
 end;
 
 end.
-

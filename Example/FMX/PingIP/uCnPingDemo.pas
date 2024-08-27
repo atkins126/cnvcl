@@ -13,7 +13,7 @@
 {            您应该已经和开发包一起收到一份 CnPack 发布协议的副本。如果        }
 {        还没有，可访问我们的网站：                                            }
 {                                                                              }
-{            网站地址：http://www.cnpack.org                                   }
+{            网站地址：https://www.cnpack.org                                  }
 {            电子邮件：master@cnpack.org                                       }
 {                                                                              }
 {******************************************************************************}
@@ -179,7 +179,7 @@ const
   BOOL_STRS: array[False..True] of string = ('False', 'True');
 var
   I: Integer;
-  IpGroups: TIPGroup;
+  IpGroups: TCnIPGroup;
 begin
   CheckIP(TButton(Sender));
   IP.IPAddress := FLocalIP;

@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2023 CnPack 开发组                       }
+{                   (C)Copyright 2001-2024 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -13,7 +13,7 @@
 {            您应该已经和开发包一起收到一份 CnPack 发布协议的副本。如果        }
 {        还没有，可访问我们的网站：                                            }
 {                                                                              }
-{            网站地址：http://www.cnpack.org                                   }
+{            网站地址：https://www.cnpack.org                                  }
 {            电子邮件：master@cnpack.org                                       }
 {                                                                              }
 {******************************************************************************}
@@ -22,10 +22,11 @@ unit CnOTP;
 {* |<PRE>
 ================================================================================
 * 软件名称：开发包基础库
-* 单元名称：动态口令实现单元
-* 单元作者：刘啸 (liuxiao@cnpack.org)
-* 备    注：参考《GB/T 38556-2020 信息安全技术动态口令密码应用技术规范》
-*           以及 RFC 4226 与 RFC 6238
+* 单元名称：一次性密码/动态口令实现单元
+* 单元作者：CnPack 开发组 (master@cnpack.org)
+* 备    注：本单元实现了一次性密码与动态口令功能，
+*           参考《GB/T 38556-2020 信息安全技术动态口令密码应用技术规范》
+*           以及 RFC 4226 与 RFC 6238。
 * 开发平台：Win 7
 * 修改记录：2023.04.11 V1.1
 *                增加 RFC 4226 的 HOTP 实现与 RFC 6238 的 TOTP 实现
@@ -164,11 +165,11 @@ uses
   CnSM3, CnSM4, CnSHA1, CnSHA2;
 
 resourcestring
-  SCnInvalidDataLength = 'Invalid Data or Length';
-  SCnInvalidDigits = 'Invalid Digits';
-  SCnInvalidPeriod = 'Invalid Period';
+  SCnErrorOTPInvalidDataLength = 'Invalid Data or Length';
+  SCnErrorOTPInvalidDigits = 'Invalid Digits';
+  SCnErrorOTPInvalidPeriod = 'Invalid Period';
 
-function EpochSeconds: Int64;
+function EpochSeconds: Int64; {$IFDEF SUPPORT_INLINE} inline; {$ENDIF}
 var
   D: TDateTime;
 begin
@@ -334,7 +335,7 @@ procedure TCnDynamicToken.SetChallengeCode(Code: Pointer;
   CodeByteLength: Integer);
 begin
   if (Code = nil) or (CodeByteLength < CN_CHALLENGE_MIN_LENGTH) then
-    raise ECnOneTimePasswordException.Create(SCnInvalidDataLength);
+    raise ECnOneTimePasswordException.Create(SCnErrorOTPInvalidDataLength);
 
   SetLength(FChallengeCode, CodeByteLength);
   Move(Code^, FChallengeCode[0], CodeByteLength);
@@ -343,7 +344,7 @@ end;
 procedure TCnDynamicToken.SetDigits(const Value: Integer);
 begin
   if Value <= 0 then
-    raise ECnOneTimePasswordException.Create(SCnInvalidDigits);
+    raise ECnOneTimePasswordException.Create(SCnErrorOTPInvalidDigits);
 
   FDigits := Value;
 end;
@@ -356,7 +357,7 @@ end;
 procedure TCnDynamicToken.SetPeriod(const Value: Integer);
 begin
   if (Value <= 0) or (Value > CN_PERIOD_MAX_SECOND) then
-    raise ECnOneTimePasswordException.Create(SCnInvalidPeriod);
+    raise ECnOneTimePasswordException.Create(SCnErrorOTPInvalidPeriod);
 
   FPeriod := Value;
 end;
@@ -365,7 +366,7 @@ procedure TCnDynamicToken.SetSeedKey(Key: Pointer;
   KeyByteLength: Integer);
 begin
   if (Key = nil) or (KeyByteLength < CN_SEED_KEY_MIN_LENGTH) then
-    raise ECnOneTimePasswordException.Create(SCnInvalidDataLength);
+    raise ECnOneTimePasswordException.Create(SCnErrorOTPInvalidDataLength);
 
   SetLength(FSeedKey, KeyByteLength);
   Move(Key^, FSeedKey[0], KeyByteLength);
@@ -420,7 +421,7 @@ end;
 procedure TCnHOTPGenerator.SetDigits(const Value: Integer);
 begin
   if Value <= 0 then
-    raise ECnOneTimePasswordException.Create(SCnInvalidDigits);
+    raise ECnOneTimePasswordException.Create(SCnErrorOTPInvalidDigits);
 
   FDigits := Value;
 end;
@@ -429,7 +430,7 @@ procedure TCnHOTPGenerator.SetSeedKey(Key: Pointer;
   KeyByteLength: Integer);
 begin
   if (Key = nil) or (KeyByteLength <= 0) then
-    raise ECnOneTimePasswordException.Create(SCnInvalidDataLength);
+    raise ECnOneTimePasswordException.Create(SCnErrorOTPInvalidDataLength);
 
   SetLength(FSeedKey, KeyByteLength);
   Move(Key^, FSeedKey[0], KeyByteLength);
@@ -498,7 +499,7 @@ end;
 procedure TCnTOTPGenerator.SetDigits(const Value: Integer);
 begin
   if Value <= 0 then
-    raise ECnOneTimePasswordException.Create(SCnInvalidDigits);
+    raise ECnOneTimePasswordException.Create(SCnErrorOTPInvalidDigits);
 
   FDigits := Value;
 end;
@@ -506,7 +507,7 @@ end;
 procedure TCnTOTPGenerator.SetPeriod(const Value: Integer);
 begin
   if (Value <= 0) or (Value > CN_PERIOD_MAX_SECOND) then
-    raise ECnOneTimePasswordException.Create(SCnInvalidPeriod);
+    raise ECnOneTimePasswordException.Create(SCnErrorOTPInvalidPeriod);
 
   FPeriod := Value;
 end;
@@ -515,7 +516,7 @@ procedure TCnTOTPGenerator.SetSeedKey(Key: Pointer;
   KeyByteLength: Integer);
 begin
   if (Key = nil) or (KeyByteLength <= 0) then
-    raise ECnOneTimePasswordException.Create(SCnInvalidDataLength);
+    raise ECnOneTimePasswordException.Create(SCnErrorOTPInvalidDataLength);
 
   SetLength(FSeedKey, KeyByteLength);
   Move(Key^, FSeedKey[0], KeyByteLength);

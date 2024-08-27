@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2023 CnPack 开发组                       }
+{                   (C)Copyright 2001-2024 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -13,7 +13,7 @@
 {            您应该已经和开发包一起收到一份 CnPack 发布协议的副本。如果        }
 {        还没有，可访问我们的网站：                                            }
 {                                                                              }
-{            网站地址：http://www.cnpack.org                                   }
+{            网站地址：https://www.cnpack.org                                  }
 {            电子邮件：master@cnpack.org                                       }
 {                                                                              }
 {******************************************************************************}
@@ -23,7 +23,7 @@ unit CnDebug;
 ================================================================================
 * 软件名称：CnDebugger
 * 单元名称：CnDebug 调试信息输出接口单元
-* 单元作者：刘啸（liuxiao@cnpack.org）
+* 单元作者：CnPack 开发组 (master@cnpack.org)
 * 备    注：该单元定义并实现了 CnDebugger 输出信息的接口内容，
 *           支持 Win32 和 Win64 以及 Unicode 与非 Unicode
 *           部分接口内容引用了 overseer 的 udbg 单元内容
@@ -112,7 +112,6 @@ interface
 
 {$IFDEF NDEBUG}
   {$UNDEF DEBUG}
-  {$UNDEF USE_JCL}
   {$UNDEF SUPPORT_EVALUATE}
   {$UNDEF ALLDEBUG}
   {$UNDEF DUMP_TO_FILE}
@@ -239,9 +238,9 @@ type
   // ===================== 以上结构定义需要和 Viewer 共享 ======================
 
 {$IFDEF MSWINDOWS}
-  TCnCriticalSection = TRTLCriticalSection;
+  TCnDebugCriticalSection = TRTLCriticalSection;
 {$ELSE}
-  TCnCriticalSection = TCriticalSection;
+  TCnDebugCriticalSection = TCriticalSection;
 {$ENDIF}
 
   TCnFindComponentEvent = procedure(Sender: TObject; AComponent: TComponent;
@@ -291,7 +290,7 @@ type
     FTimes: TList;
     FFilter: TCnDebugFilter;
     FChannel: TCnDebugChannel;
-    FCSThrdId: TCnCriticalSection;
+    FCSThrdId: TCnDebugCriticalSection;
     FAutoStart: Boolean;
     FViewerAutoStartCalled: Boolean;
     // 内部变量，控制不朝 Viewer 输出
@@ -317,6 +316,8 @@ type
 
     function GetActive: Boolean;
     procedure SetActive(const Value: Boolean);
+    function IntArrayToString(ArrayAddress: Pointer; ElementCount, ElementSize: Integer;
+      Sign: Boolean): string;
     function SizeToString(ASize: TSize): string;
     function PointToString(APoint: TPoint): string;
     function RectToString(ARect: TRect): string;
@@ -474,6 +475,10 @@ type
     procedure LogComponentWithTag(AComponent: TComponent; const ATag: string);
     procedure LogCurrentStack(const AMsg: string = '');
     procedure LogConstArray(const Arr: array of const; const AMsg: string = '');
+    procedure LogIntegerArray(const Arr: array of Integer; const AMsg: string = ''); overload;
+    procedure LogIntegerArray(const ArrAddr: Pointer; Count: Integer; const AMsg: string = ''); overload;
+    procedure LogCardinalArray(const Arr: array of Cardinal; const AMsg: string = ''); overload;
+    procedure LogCardinalArray(const ArrAddr: Pointer; Count: Integer; const AMsg: string = ''); overload;
     procedure LogClass(const AClass: TClass; const AMsg: string = '');
     procedure LogClassByName(const AClassName: string; const AMsg: string = '');
     procedure LogInterface(const AIntf: IUnknown; const AMsg: string = '');
@@ -557,6 +562,10 @@ type
     procedure TraceComponentWithTag(AComponent: TComponent; const ATag: string);
     procedure TraceCurrentStack(const AMsg: string = '');
     procedure TraceConstArray(const Arr: array of const; const AMsg: string = '');
+    procedure TraceIntegerArray(const Arr: array of Integer; const AMsg: string = ''); overload;
+    procedure TraceIntegerArray(const ArrAddr: Pointer; Count: Integer; const AMsg: string = ''); overload;
+    procedure TraceCardinalArray(const Arr: array of Cardinal; const AMsg: string = ''); overload;
+    procedure TraceCardinalArray(const ArrAddr: Pointer; Count: Integer; const AMsg: string = ''); overload;
     procedure TraceClass(const AClass: TClass; const AMsg: string = '');
     procedure TraceClassByName(const AClassName: string; const AMsg: string = '');
     procedure TraceInterface(const AIntf: IUnknown; const AMsg: string = '');
@@ -750,6 +759,9 @@ const
   SCnUnknownError = 'Unknown Error! ';
   SCnLastErrorFmt = 'Last Error (Code: %d): %s';
   SCnConstArray = 'Array of Const:';
+  SCnIntegerArray = 'Array of Int32:';
+  SCnCardinalArray = 'Array of UInt32:';
+  SCnEmptyArray = '<Empty Array>';
   SCnClass = 'Class:';
   SCnHierarchy = 'Hierarchy:';
   SCnClassFmt = '%s ClassName %s. InstanceSize %d%s%s';
@@ -790,19 +802,19 @@ type
 
 var
   FCnDebugger: TCnDebugger = nil;
-  FCnDebuggerCriticalSection: TCnCriticalSection;
-  FStartCriticalSection: TCnCriticalSection; // 用于多线程内控制启动 CnDebugViewer
+  FCnDebuggerCriticalSection: TCnDebugCriticalSection;
+  FStartCriticalSection: TCnDebugCriticalSection; // 用于多线程内控制启动 CnDebugViewer
 
   FFixedCalling: Cardinal = 0;
 
   FUseLocalSession: Boolean = {$IFDEF LOCAL_SESSION}True{$ELSE}False{$ENDIF};
 
 {$IFDEF CAPTURE_STACK}
-  FInProcessCriticalSection: TCnCriticalSection;
+  FInProcessCriticalSection: TCnDebugCriticalSection;
   FInProcessModuleList: TCnInProcessModuleList = nil;
 {$ENDIF}
 
-procedure CnEnterCriticalSection(Section: TCnCriticalSection);
+procedure CnEnterCriticalSection(Section: TCnDebugCriticalSection);
 begin
 {$IFDEF MSWINDOWS}
   EnterCriticalSection(Section);
@@ -811,7 +823,7 @@ begin
 {$ENDIF}
 end;
 
-procedure CnLeaveCriticalSection(Section: TCnCriticalSection);
+procedure CnLeaveCriticalSection(Section: TCnDebugCriticalSection);
 begin
 {$IFDEF MSWINDOWS}
   LeaveCriticalSection(Section);
@@ -1109,16 +1121,15 @@ begin
             end;
           tkClass:
             begin
-              OrdValue := GetOrdProp(PropOwner, PropertyInfo);
-              if OrdValue = 0 then
+              NextObject := GetObjectProp(PropOwner, PropertyInfo);
+              if NextObject = nil then
               begin
                 NewLine := Prefix + '  ' + PropertyName + ': ' + PropertyTypeName + ' = <' +
-                  TypeInfoName(PropertyType) + '> (not assigned)';
+                  TypeInfoName(PropertyType) + '> (Not Assigned)';
                 List.Add(NewLine);
               end
               else
               begin
-                NextObject := TObject(OrdValue);
                 NewLine := Prefix + '  ' + PropertyName + ': ' + PropertyTypeName + ' = <' +
                   TypeInfoName(PropertyType) + '>';
                 if NextObject is TComponent then
@@ -1137,7 +1148,7 @@ begin
                   try
                     AddObjectToStringList(NextObject, List, Level + 1);
                   except
-                    List.Add('*** Exception triggered ***');
+                    List.Add(SCnObjException);
                   end;
                 end;
               end;
@@ -1421,7 +1432,7 @@ begin
 {$IFDEF MSWINDOWS}
   InitializeCriticalSection(FCSThrdId);
 {$ELSE}
-  FCSThrdId := TCnCriticalSection.Create;
+  FCSThrdId := TCnDebugCriticalSection.Create;
 {$ENDIF}
   CreateChannel;
 
@@ -2082,8 +2093,10 @@ end;
 
 procedure TCnDebugger.LogSet(const ASet; ASetSize: Integer;
   SetElementTypInfo: PTypeInfo; const AMsg: string);
+{$IFDEF DEBUG}
 var
   SetVal: Integer;
+{$ENDIF}
 begin
 {$IFDEF DEBUG}
   if (ASetSize <= 0) or (ASetSize > SizeOf(Integer)) then
@@ -2388,7 +2401,7 @@ procedure TCnDebugger.LogRawString(const Value: string);
 begin
 {$IFDEF DEBUG}
   if Value <> '' then
-    TraceMemDump(Pointer(Value), Length(Value) * SizeOf(Char));
+    LogMemDump(Pointer(Value), Length(Value) * SizeOf(Char));
 {$ENDIF}
 end;
 
@@ -2396,7 +2409,7 @@ procedure TCnDebugger.LogRawAnsiString(const Value: AnsiString);
 begin
 {$IFDEF DEBUG}
   if Value <> '' then
-    TraceMemDump(Pointer(Value), Length(Value) * SizeOf(AnsiChar));
+    LogMemDump(Pointer(Value), Length(Value) * SizeOf(AnsiChar));
 {$ENDIF}
 end;
 
@@ -2404,7 +2417,7 @@ procedure TCnDebugger.LogRawWideString(const Value: WideString);
 begin
 {$IFDEF DEBUG}
   if Value <> '' then
-    TraceMemDump(Pointer(Value), Length(Value) * SizeOf(WideChar));
+    LogMemDump(Pointer(Value), Length(Value) * SizeOf(WideChar));
 {$ENDIF}
 end;
 
@@ -2415,9 +2428,9 @@ begin
     Exit;
 
   if AMsg = '' then
-    TraceMsg(Strings.Text)
+    LogMsg(Strings.Text)
   else
-    TraceMsg(AMsg + SCnCRLF + Strings.Text);
+    LogMsg(AMsg + SCnCRLF + Strings.Text);
 {$ENDIF}
 end;
 
@@ -2456,6 +2469,185 @@ begin
     LogFull(FormatMsg('%s %s', [AMsg, FormatConstArray(Arr)]), CurrentTag,
       CurrentLevel, CurrentMsgType);
 {$ENDIF}
+end;
+
+procedure TCnDebugger.LogIntegerArray(const Arr: array of Integer; const AMsg: string);
+{$IFDEF DEBUG}
+var
+  P: Pointer;
+{$ENDIF}
+begin
+{$IFDEF DEBUG}
+  if Length(Arr) = 0 then
+    P := nil
+  else
+    P := @Arr[0];
+
+  if AMsg = '' then
+    LogFull(FormatMsg('%s %s', [SCnIntegerArray,
+      IntArrayToString(P, Length(Arr), SizeOf(Integer), True)]),
+      CurrentTag, CurrentLevel, CurrentMsgType)
+  else
+    LogFull(FormatMsg('%s %s', [AMsg,
+      IntArrayToString(P, Length(Arr), SizeOf(Integer), True)]),
+      CurrentTag, CurrentLevel, CurrentMsgType);
+{$ENDIF}
+end;
+
+procedure TCnDebugger.LogIntegerArray(const ArrAddr: Pointer; Count: Integer;
+  const AMsg: string);
+begin
+{$IFDEF DEBUG}
+  if AMsg = '' then
+    LogFull(FormatMsg('%s %s', [SCnIntegerArray,
+      IntArrayToString(ArrAddr, Count, SizeOf(Integer), True)]),
+      CurrentTag, CurrentLevel, CurrentMsgType)
+  else
+    LogFull(FormatMsg('%s %s', [AMsg,
+      IntArrayToString(ArrAddr, Count, SizeOf(Integer), True)]),
+      CurrentTag, CurrentLevel, CurrentMsgType);
+{$ENDIF}
+end;
+
+procedure TCnDebugger.LogCardinalArray(const Arr: array of Cardinal; const AMsg: string);
+{$IFDEF DEBUG}
+var
+  P: Pointer;
+{$ENDIF}
+begin
+{$IFDEF DEBUG}
+  if Length(Arr) = 0 then
+    P := nil
+  else
+    P := @Arr[0];
+
+  if AMsg = '' then
+    LogFull(FormatMsg('%s %s', [SCnIntegerArray,
+      IntArrayToString(P, Length(Arr), SizeOf(Cardinal), False)]),
+      CurrentTag, CurrentLevel, CurrentMsgType)
+  else
+    LogFull(FormatMsg('%s %s', [AMsg,
+      IntArrayToString(P, Length(Arr), SizeOf(Cardinal), False)]),
+      CurrentTag, CurrentLevel, CurrentMsgType);
+{$ENDIF}
+end;
+
+procedure TCnDebugger.LogCardinalArray(const ArrAddr: Pointer; Count: Integer;
+  const AMsg: string);
+begin
+{$IFDEF DEBUG}
+  if AMsg = '' then
+    LogFull(FormatMsg('%s %s', [SCnIntegerArray,
+      IntArrayToString(ArrAddr, Count, SizeOf(Cardinal), False)]),
+      CurrentTag, CurrentLevel, CurrentMsgType)
+  else
+    LogFull(FormatMsg('%s %s', [AMsg,
+      IntArrayToString(ArrAddr, Count, SizeOf(Cardinal), False)]),
+      CurrentTag, CurrentLevel, CurrentMsgType);
+{$ENDIF}
+end;
+
+function TCnDebugger.IntArrayToString(ArrayAddress: Pointer;
+  ElementCount, ElementSize: Integer; Sign: Boolean): string;
+var
+  I: Integer;
+  PtrInt8: PShortInt;
+  PtrUInt8: PByte;
+  PtrInt16: PSmallInt;
+  PtrUInt16: PWORD;
+  PtrInt32: PInteger;
+  PtrUInt32: PDWORD;
+begin
+  if (ArrayAddress = nil) or (ElementCount = 0) or (ElementSize <= 0) then
+  begin
+    Result := SCnEmptyArray;
+    Exit;
+  end;
+
+  Result := '';
+  case ElementSize of
+    1:
+      begin
+        if Sign then
+        begin
+          PtrInt8 := PShortInt(ArrayAddress);
+          for I := 0 to ElementCount - 1 do
+          begin
+            if I = 0 then
+              Result := Format('%d', [PtrInt8^])
+            else
+              Result := Result + ',' + Format('%d', [PtrInt8^]);
+            Inc(PtrInt8);
+          end;
+        end
+        else
+        begin
+          PtrUInt8 := PByte(ArrayAddress);
+          for I := 0 to ElementCount - 1 do
+          begin
+            if I = 0 then
+              Result := Format('%u', [PtrUInt8^])
+            else
+              Result := Result + ',' + Format('%u', [PtrUInt8^]);
+            Inc(PtrUInt8);
+          end;
+        end;
+      end;
+    2:
+      begin
+        if Sign then
+        begin
+          PtrInt16 := PSmallInt(ArrayAddress);
+          for I := 0 to ElementCount - 1 do
+          begin
+            if I = 0 then
+              Result := Format('%d', [PtrInt16^])
+            else
+              Result := Result + ',' + Format('%d', [PtrInt16^]);
+            Inc(PtrInt16);
+          end;
+        end
+        else
+        begin
+          PtrUInt16 := PWord(ArrayAddress);
+          for I := 0 to ElementCount - 1 do
+          begin
+            if I = 0 then
+              Result := Format('%u', [PtrUInt16^])
+            else
+              Result := Result + ',' + Format('%u', [PtrUInt16^]);
+            Inc(PtrUInt16);
+          end;
+        end;
+      end;
+    4:
+      begin
+        if Sign then
+        begin
+          PtrInt32 := PInteger(ArrayAddress);
+          for I := 0 to ElementCount - 1 do
+          begin
+            if I = 0 then
+              Result := Format('%d', [PtrInt32^])
+            else
+              Result := Result + ',' + Format('%d', [PtrInt32^]);
+            Inc(PtrInt32);
+          end;
+        end
+        else
+        begin
+          PtrUInt32 := PDWORD(ArrayAddress);
+          for I := 0 to ElementCount - 1 do
+          begin
+            if I = 0 then
+              Result := Format('%u', [PtrUInt32^])
+            else
+              Result := Result + ',' + Format('%u', [PtrUInt32^]);
+            Inc(PtrUInt32);
+          end;
+        end;
+      end;
+  end;
 end;
 
 function TCnDebugger.PointToString(APoint: TPoint): string;
@@ -3213,6 +3405,70 @@ begin
       CurrentLevel, CurrentMsgType);
 end;
 
+procedure TCnDebugger.TraceIntegerArray(const Arr: array of Integer; const AMsg: string);
+var
+  P: Pointer;
+begin
+  if Length(Arr) = 0 then
+    P := nil
+  else
+    P := @Arr[0];
+
+  if AMsg = '' then
+    TraceFull(FormatMsg('%s %s', [SCnIntegerArray,
+      IntArrayToString(P, Length(Arr), SizeOf(Integer), True)]),
+      CurrentTag, CurrentLevel, CurrentMsgType)
+  else
+    TraceFull(FormatMsg('%s %s', [AMsg,
+      IntArrayToString(P, Length(Arr), SizeOf(Integer), True)]),
+      CurrentTag, CurrentLevel, CurrentMsgType);
+end;
+
+procedure TCnDebugger.TraceIntegerArray(const ArrAddr: Pointer; Count: Integer;
+  const AMsg: string);
+begin
+  if AMsg = '' then
+    TraceFull(FormatMsg('%s %s', [SCnIntegerArray,
+      IntArrayToString(ArrAddr, Count, SizeOf(Integer), True)]),
+      CurrentTag, CurrentLevel, CurrentMsgType)
+  else
+    TraceFull(FormatMsg('%s %s', [AMsg,
+      IntArrayToString(ArrAddr, Count, SizeOf(Integer), True)]),
+      CurrentTag, CurrentLevel, CurrentMsgType);
+end;
+
+procedure TCnDebugger.TraceCardinalArray(const Arr: array of Cardinal; const AMsg: string);
+var
+  P: Pointer;
+begin
+  if Length(Arr) = 0 then
+    P := nil
+  else
+    P := @Arr[0];
+
+  if AMsg = '' then
+    TraceFull(FormatMsg('%s %s', [SCnIntegerArray,
+      IntArrayToString(P, Length(Arr), SizeOf(Cardinal), False)]),
+      CurrentTag, CurrentLevel, CurrentMsgType)
+  else
+    TraceFull(FormatMsg('%s %s', [AMsg,
+      IntArrayToString(P, Length(Arr), SizeOf(Cardinal), False)]),
+      CurrentTag, CurrentLevel, CurrentMsgType);
+end;
+
+procedure TCnDebugger.TraceCardinalArray(const ArrAddr: Pointer; Count: Integer;
+  const AMsg: string);
+begin
+  if AMsg = '' then
+    TraceFull(FormatMsg('%s %s', [SCnIntegerArray,
+      IntArrayToString(ArrAddr, Count, SizeOf(Cardinal), False)]),
+      CurrentTag, CurrentLevel, CurrentMsgType)
+  else
+    TraceFull(FormatMsg('%s %s', [AMsg,
+      IntArrayToString(ArrAddr, Count, SizeOf(Cardinal), False)]),
+      CurrentTag, CurrentLevel, CurrentMsgType);
+end;
+
 function TCnDebugger.GetDiscardedMessageCount: Integer;
 begin
 {$IFNDEF NDEBUG}
@@ -3621,8 +3877,42 @@ begin
     WM_EXITSIZEMOVE         : Result := Format('WM_EXITSIZEMOVE: %d/$%x', [AMessage, AMessage]);
     WM_DROPFILES            : Result := Format('WM_DROPFILES: %d/$%x', [AMessage, AMessage]);
     WM_MDIREFRESHMENU       : Result := Format('WM_MDIREFRESHMENU: %d/$%x', [AMessage, AMessage]);
+
+    $0238                   : Result := Format('WM_POINTERDEVICECHANGE: %d/$%x', [AMessage, AMessage]);
+    $0239                   : Result := Format('WM_POINTERDEVICEINRANGE: %d/$%x', [AMessage, AMessage]);
+    $023A                   : Result := Format('WM_POINTERDEVICEOUTOFRANGE: %d/$%x', [AMessage, AMessage]);
+    $0240                   : Result := Format('WM_TOUCH: %d/$%x', [AMessage, AMessage]);
+    $0241                   : Result := Format('WM_NCPOINTERUPDATE: %d/$%x', [AMessage, AMessage]);
+    $0242                   : Result := Format('WM_NCPOINTERDOWN: %d/$%x', [AMessage, AMessage]);
+    $0243                   : Result := Format('WM_NCPOINTERUP: %d/$%x', [AMessage, AMessage]);
+    $0245                   : Result := Format('WM_POINTERUPDATE: %d/$%x', [AMessage, AMessage]);
+    $0246                   : Result := Format('WM_POINTERDOWN: %d/$%x', [AMessage, AMessage]);
+    $0247                   : Result := Format('WM_POINTERUP: %d/$%x', [AMessage, AMessage]);
+    $0249                   : Result := Format('WM_POINTERENTER: %d/$%x', [AMessage, AMessage]);
+    $024A                   : Result := Format('WM_POINTERLEAVE: %d/$%x', [AMessage, AMessage]);
+    $024B                   : Result := Format('WM_POINTERACTIVATE: %d/$%x', [AMessage, AMessage]);
+    $024C                   : Result := Format('WM_POINTERCAPTURECHANGED: %d/$%x', [AMessage, AMessage]);
+    $024D                   : Result := Format('WM_TOUCHHITTESTING: %d/$%x', [AMessage, AMessage]);
+    $024E                   : Result := Format('WM_POINTERWHEEL: %d/$%x', [AMessage, AMessage]);
+    $024F                   : Result := Format('WM_POINTERHWHEEL: %d/$%x', [AMessage, AMessage]);
+    $0250                   : Result := Format('DM_POINTERHITTEST: %d/$%x', [AMessage, AMessage]);
+    $0251                   : Result := Format('WM_POINTERROUTEDTO: %d/$%x', [AMessage, AMessage]);
+    $0252                   : Result := Format('WM_POINTERROUTEDAWAY: %d/$%x', [AMessage, AMessage]);
+    $0253                   : Result := Format('WM_POINTERROUTEDRELEASED: %d/$%x', [AMessage, AMessage]);
+
     WM_MOUSEHOVER           : Result := Format('WM_MOUSEHOVER: %d/$%x', [AMessage, AMessage]);
     WM_MOUSELEAVE           : Result := Format('WM_MOUSELEAVE: %d/$%x', [AMessage, AMessage]);
+
+    $02A0                   : Result := Format('WM_NCMOUSEHOVER: %d/$%x', [AMessage, AMessage]);
+    $02A2                   : Result := Format('WM_NCMOUSELEAVE: %d/$%x', [AMessage, AMessage]);
+    $02B1                   : Result := Format('WM_WTSSESSION_CHANGE: %d/$%x', [AMessage, AMessage]);
+    $02C0                   : Result := Format('WM_TABLET_FIRST: %d/$%x', [AMessage, AMessage]);
+    $02DF                   : Result := Format('WM_TABLET_LAST: %d/$%x', [AMessage, AMessage]);
+    $02E0                   : Result := Format('WM_DPICHANGED: %d/$%x', [AMessage, AMessage]);
+    $02E2                   : Result := Format('WM_DPICHANGED_BEFOREPARENT: %d/$%x', [AMessage, AMessage]);
+    $02E3                   : Result := Format('WM_DPICHANGED_AFTERPARENT: %d/$%x', [AMessage, AMessage]);
+    $02E4                   : Result := Format('WM_GETDPISCALEDSIZE: %d/$%x', [AMessage, AMessage]);
+
     WM_CUT                  : Result := Format('WM_CUT: %d/$%x', [AMessage, AMessage]);
     WM_COPY                 : Result := Format('WM_COPY: %d/$%x', [AMessage, AMessage]);
     WM_PASTE                : Result := Format('WM_PASTE: %d/$%x', [AMessage, AMessage]);
@@ -3731,6 +4021,34 @@ begin
     CM_HINTSHOWPAUSE        : Result := Format('CM_HINTSHOWPAUSE: %d/$%x', [AMessage, AMessage]);
     CM_DOCKNOTIFICATION     : Result := Format('CM_DOCKNOTIFICATION: %d/$%x', [AMessage, AMessage]);
     CM_MOUSEWHEEL           : Result := Format('CM_MOUSEWHEEL: %d/$%x', [AMessage, AMessage]);
+    // Add some New Definitions
+    CM_BASE + 68            : Result := Format('CM_ISSHORTCUT: %d/$%x', [AMessage, AMessage]);
+    CM_BASE + 69            : Result := Format('CM_UPDATEACTIONS: %d/$%x', [AMessage, AMessage]);
+    CM_BASE + 70            : Result := Format('CM_INVALIDATEDOCKHOST: %d/$%x', [AMessage, AMessage]);
+    CM_BASE + 71            : Result := Format('CM_SETACTIVECONTROL: %d/$%x', [AMessage, AMessage]);
+    CM_BASE + 72            : Result := Format('CM_POPUPHWNDDESTROY: %d/$%x', [AMessage, AMessage]);
+    CM_BASE + 73            : Result := Format('CM_CREATEPOPUP: %d/$%x', [AMessage, AMessage]);
+    CM_BASE + 74            : Result := Format('CM_DESTROYHANDLE: %d/$%x', [AMessage, AMessage]);
+    CM_BASE + 75            : Result := Format('CM_MOUSEACTIVATE: %d/$%x', [AMessage, AMessage]);
+    CM_BASE + 76            : Result := Format('CM_CONTROLLISTCHANGING: %d/$%x', [AMessage, AMessage]);
+    CM_BASE + 77            : Result := Format('CM_BUFFEREDPRINTCLIENT: %d/$%x', [AMessage, AMessage]);
+    CM_BASE + 78            : Result := Format('CM_UNTHEMECONTROL: %d/$%x', [AMessage, AMessage]);
+    CM_BASE + 79            : Result := Format('CM_DOUBLEBUFFEREDCHANGED: %d/$%x', [AMessage, AMessage]);
+    CM_BASE + 80            : Result := Format('CM_PARENTDOUBLEBUFFEREDCHANGED: %d/$%x', [AMessage, AMessage]);
+    CM_BASE + 81            : Result := Format('CM_STYLECHANGED: %d/$%x', [AMessage, AMessage]);
+    CM_BASE + 82            : Result := Format('CM_GESTURE: %d/$%x', [AMessage, AMessage]);
+    CM_BASE + 83            : Result := Format('CM_CUSTOMGESTURESCHANGED: %d/$%x', [AMessage, AMessage]);
+    CM_BASE + 84            : Result := Format('CM_GESTUREMANAGERCHANGED: %d/$%x', [AMessage, AMessage]);
+    CM_BASE + 85            : Result := Format('CM_STANDARDGESTURESCHANGED: %d/$%x', [AMessage, AMessage]);
+    CM_BASE + 86            : Result := Format('CM_INPUTLANGCHANGE: %d/$%x', [AMessage, AMessage]);
+    CM_BASE + 87            : Result := Format('CM_TABLETOPTIONSCHANGED: %d/$%x', [AMessage, AMessage]);
+    CM_BASE + 88            : Result := Format('CM_PARENTTABLETOPTIONSCHANGED: %d/$%x', [AMessage, AMessage]);
+    CM_BASE + 89            : Result := Format('CM_CUSTOMSTYLECHANGED: %d/$%x', [AMessage, AMessage]);
+    CM_BASE + 90            : Result := Format('CM_SYSFONTSALLCHANGED: %d/$%x', [AMessage, AMessage]);
+    CM_BASE + 91            : Result := Format('CM_PARENTVISIBLECHANGED: %d/$%x',  [AMessage, AMessage]);
+    CM_BASE + 92            : Result := Format('CM_SYSCOMMAND: %d/$%x', [AMessage, AMessage]);
+    CM_BASE + 93            : Result := Format('CM_REMOTESESSIONSTATUSCHANGED: %d/$%x', [AMessage, AMessage]);
+    CM_BASE + 94            : Result := Format('CM_STYLEELEMENTSCHANGED: %d/$%x', [AMessage, AMessage]);
     // VCL Control Notifications
     CN_BASE                 : Result := Format('CN_BASE: %d/$%x', [AMessage, AMessage]);
     CN_CHARTOITEM           : Result := Format('CN_CHARTOITEM: %d/$%x', [AMessage, AMessage]);
@@ -4301,8 +4619,10 @@ end;
 
 procedure TCnDebugger.LogAnsiCharSet(const ASet: TCnAnsiCharSet;
   const AMsg: string);
+{$IFDEF DEBUG}
 var
   SetVal: TCnAnsiCharSet;
+{$ENDIF}
 begin
 {$IFDEF DEBUG}
   SetVal := ASet;
@@ -4993,9 +5313,10 @@ end;
 
 procedure TCnMapFileChannel.UpdateFlush;
 begin
-  if AutoFlush then
+  if FAutoFlush then
   begin
-    FQueueFlush := CreateEvent(nil, False, False, PChar(SCnDebugFlushEventName));
+    if FQueueFlush = 0 then
+      FQueueFlush := CreateEvent(nil, False, False, PChar(SCnDebugFlushEventName));
   end
   else if FQueueFlush <> 0 then
   begin
@@ -5017,10 +5338,10 @@ initialization
   InitializeCriticalSection(FInProcessCriticalSection);
   {$ENDIF}
   {$ELSE}
-  FStartCriticalSection := TCnCriticalSection.Create;
-  FCnDebuggerCriticalSection := TCnCriticalSection.Create;
+  FStartCriticalSection := TCnDebugCriticalSection.Create;
+  FCnDebuggerCriticalSection := TCnDebugCriticalSection.Create;
   {$IFDEF CAPTURE_STACK}
-  FInProcessCriticalSection := TCnCriticalSection.Create;
+  FInProcessCriticalSection := TCnDebugCriticalSection.Create;
   {$ENDIF}
   {$ENDIF}
   FCnDebugger := TCnDebugger.Create;

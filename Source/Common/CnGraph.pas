@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2023 CnPack 开发组                       }
+{                   (C)Copyright 2001-2024 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -13,7 +13,7 @@
 {            您应该已经和开发包一起收到一份 CnPack 发布协议的副本。如果        }
 {        还没有，可访问我们的网站：                                            }
 {                                                                              }
-{            网站地址：http://www.cnpack.org                                   }
+{            网站地址：https://www.cnpack.org                                  }
 {            电子邮件：master@cnpack.org                                       }
 {                                                                              }
 {******************************************************************************}
@@ -23,7 +23,7 @@ unit CnGraph;
 ================================================================================
 * 软件名称：CnPack 公共单元
 * 单元名称：实现图的单元
-* 单元作者：刘啸 (liuxiao@cnpack.org)
+* 单元作者：CnPack 开发组 (master@cnpack.org)
 * 备    注：支持跨平台
 * 开发平台：Win 7 + Delphi 5.01
 * 兼容测试：PWin9X/2000/XP + Delphi 5/6/7 + C++Builder 5/6
@@ -113,7 +113,7 @@ type
   {* 遍历图时触发访问某顶点的事件，Vertex 是顶点}
 
   TCnGraph = class(TObject)
-  {* 图实现类}
+  {* 图实现类，支持有向和无向两种模式}
   private
     FVertexes: TObjectList;
     FDirected: Boolean;
@@ -194,6 +194,12 @@ procedure CnGraphMatrixToStrings(Matrix: TCnGraphMatrix; List: TStrings);
 {* 将矩阵转换为字符串列表用来显示}
 
 implementation
+
+resourcestring
+  SCnErrorGraphNoVertexes = 'NO Vertexes.';
+  SCnErrorGraphNoEdges = 'NO Edges.';
+  SCnErrorGraphNoIndegreeForUndirectedGraph = 'NO InDegree for Undirected Graph.';
+  SCnErrorGraphNoOutdegreeForUndirectedGraph = 'NO OutDegree for Undirected Graph.';
 
 procedure CnGraphMatrixToStrings(Matrix: TCnGraphMatrix; List: TStrings);
 var
@@ -437,7 +443,7 @@ var
   VR, VC: TCnVertex;
 begin
   if VertexCount = 0 then
-    raise ECnGraphException.Create('NO Vertexes.');
+    raise ECnGraphException.Create(SCnErrorGraphNoVertexes);
 
   SetLength(Result, VertexCount, VertexCount);
 
@@ -459,9 +465,10 @@ var
   Row, Col, I, Idx: Integer;
 begin
   if VertexCount = 0 then
-    raise ECnGraphException.Create('NO Vertexes.');
+    raise ECnGraphException.Create(SCnErrorGraphNoVertexes);
+
   if EdgeCount = 0 then
-    raise ECnGraphException.Create('NO Edges.');
+    raise ECnGraphException.Create(SCnErrorGraphNoEdges);
 
   SetLength(Result, VertexCount, EdgeCount);
 
@@ -530,7 +537,7 @@ end;
 function TCnGraph.GetVertexInDegree(Vertex: TCnVertex): Integer;
 begin
   if not FDirected then
-    raise ECnGraphException.Create('NO InDegree for Undirected Graph.');
+    raise ECnGraphException.Create(SCnErrorGraphNoIndegreeForUndirectedGraph);
 
   if HasVertex(Vertex) then
     Result := Vertex.InNeighbourCount
@@ -541,7 +548,7 @@ end;
 function TCnGraph.GetVertexOutDegree(Vertex: TCnVertex): Integer;
 begin
   if not FDirected then
-    raise ECnGraphException.Create('NO OutDegree for Undirected Graph.');
+    raise ECnGraphException.Create(SCnErrorGraphNoOutdegreeForUndirectedGraph);
 
   if HasVertex(Vertex) then
     Result := Vertex.OutNeighbourCount

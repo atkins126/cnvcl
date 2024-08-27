@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2023 CnPack 开发组                       }
+{                   (C)Copyright 2001-2024 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -13,7 +13,7 @@
 {            您应该已经和开发包一起收到一份 CnPack 发布协议的副本。如果        }
 {        还没有，可访问我们的网站：                                            }
 {                                                                              }
-{            网站地址：http://www.cnpack.org                                   }
+{            网站地址：https://www.cnpack.org                                  }
 {            电子邮件：master@cnpack.org                                       }
 {                                                                              }
 {******************************************************************************}
@@ -24,11 +24,13 @@ unit CnHashTable;
 * 软件名称：开发包基础库
 * 单元名称：高性能 Hash 表单元
 * 单元作者：Chinbo（Shenloqi）
-* 备    注：该单元实现了高性能哈希表
+* 备    注：该单元实现了高性能 String 对 Object 的哈希表
 * 开发平台：PWin2K SP3 + Delphi 7
 * 兼容测试：PWin9X/2000/XP + Delphi 6/7 C++Builder 6
 * 本 地 化：该单元中的字符串均符合本地化处理方式
-* 修改记录：2006.08.23
+* 修改记录：2024.02.04
+*                增加对 Delphi 5 的支持，待测试
+*           2006.08.23
 *                创建单元
 ================================================================================
 |</PRE>}
@@ -38,7 +40,7 @@ interface
 {$I CnPack.inc}
 
 {$IFDEF COMPILER5}
-  'Error: Delphi 5/C++Builder 5 NOT support!';
+//  'Error: Delphi 5/C++Builder 5 NOT support!';
 {$ENDIF}
 
 uses
@@ -54,7 +56,7 @@ var
 type
   TCnBucket = class(TStringList)
   protected
-    function CompareStrings(const S1, S2: string): Integer; override;
+    function CompareStrings(const S1, S2: string): Integer; {$IFNDEF COMPILER5} override; {$ENDIF}
   public
     constructor Create(const InitCapacity: Integer);
 
@@ -104,10 +106,10 @@ type
     procedure BeginUpdate;
     procedure EndUpdate;
 
-    procedure Add(const S: string; obj: TObject); virtual;
+    procedure Add(const S: string; Obj: TObject); virtual;
     procedure Clear; virtual;
     procedure Delete(const S: string); virtual;
-    procedure Put(const S: string; obj: TObject); virtual;
+    procedure Put(const S: string; Obj: TObject); virtual;
 
     procedure BuildSortedList;
 
@@ -362,24 +364,23 @@ const
     ($D5DD39AB, $6C6ED05C), ($AC8205D1, $281A651A), ($657DE587, $520F9BA8),
     ($CBD92E4D, $D98E1F86));
 
-function CRC8(const S: string): Byte; {$IFDEF SUPPORT_INLINE} inline; {$ENDIF}
+function CRC8(const S: PByteArray; iCount: Integer): Byte; {$IFDEF SUPPORT_INLINE} inline; {$ENDIF}
 var
-  I, iLen, iStep: Integer;
+  I, iStep: Integer;
 begin
   Result := 0;
-  iLen := Length(S);
-  if iLen < 32 then
+  if iCount < 32 then
   begin
-    for I := 1 to iLen do
+    for I := 0 to iCount - 1 do
     begin
       Result := CRC8Table[Result xor Byte(S[I])];
     end;
   end
   else
   begin
-    iStep := iLen div 32 + 1;
+    iStep := iCount div 32 + 1;
     I := 1;
-    while I < iLen do
+    while I < iCount do
     begin
       Result := CRC8Table[Result xor Byte(S[I])];
       Inc(I, iStep);
@@ -396,7 +397,7 @@ begin
   begin
     for I := 0 to iCount - 1 do
     begin
-      Result := CRC16Table[Result shr (CRC16Bits-8)] xor Word((Result shl 8)) xor S[I];
+      Result := CRC16Table[Result shr (CRC16Bits - 8)] xor Word((Result shl 8)) xor S[I];
     end;
   end
   else
@@ -406,13 +407,13 @@ begin
     DecCount := iCount - 1;
     while I < DecCount do
     begin
-      Result := CRC16Table[Result shr (CRC16Bits-8)] xor Word((Result shl 8)) xor S[I];
+      Result := CRC16Table[Result shr (CRC16Bits - 8)] xor Word((Result shl 8)) xor S[I];
       Inc(I, Step);
     end;
   end;
   for I := 0 to Crc16Bytes - 1 do
   begin
-    Result := CRC16Table[Result shr (CRC16Bits-8)] xor Word((Result shl 8)) xor (OldCRC shr (CRC16Bits-8));
+    Result := CRC16Table[Result shr (CRC16Bits - 8)] xor Word((Result shl 8)) xor (OldCRC shr (CRC16Bits - 8));
     OldCRC := Word(OldCRC shl 8);
   end;
 end;
@@ -436,13 +437,13 @@ begin
     DecCount := iCount - 1;
     while I < DecCount do
     begin
-      Result := Crc32Table[Result shr (CRC32Bits-8)] xor (Result shl 8) xor S[I];
+      Result := Crc32Table[Result shr (CRC32Bits - 8)] xor (Result shl 8) xor S[I];
       Inc(I, Step);
     end;
   end;
   for I := 0 to Crc32Bytes - 1 do
   begin
-    Result := Crc32Table[Result shr (CRC32Bits-8)] xor (Result shl 8) xor (OldCRC shr (CRC32Bits-8));
+    Result := Crc32Table[Result shr (CRC32Bits - 8)] xor (Result shl 8) xor (OldCRC shr (CRC32Bits - 8));
     OldCRC := OldCRC shl 8;
   end;
 end;
@@ -455,7 +456,13 @@ begin
   if Sorted and Find(S, Result) then
     Objects[Result] := AObject
   else
+  begin
+{$IFDEF COMPILER5}
+    inherited AddObject(s, AObject);
+{$ELSE}
     InsertItem(Result, S, AObject);
+{$ENDIF}
+  end;
 end;
 
 {$ifopt R+}
@@ -687,7 +694,10 @@ begin
     Capacity := InitCapacity;
 
   Sorted := True;
+
+{$IFNDEF COMPILER5}
   CaseSensitive := True;
+{$ENDIF}
 end;
 
 function TCnBucket.EnsureAddObject(const S: string;
@@ -701,16 +711,21 @@ begin
   begin
     Find(S, Result);
   end;
+
+{$IFDEF COMPILER5}
+  inherited AddObject(s, AObject);
+{$ELSE}
   InsertItem(Result, S, AObject);
+{$ENDIF}
 end;
 
 { TCnHashTableBase }
 
-procedure TCnHashTable.Add(const S: string; obj: TObject);
+procedure TCnHashTable.Add(const S: string; Obj: TObject);
 begin
   with Find(S) do
   begin
-    EnsureAddObject(S, obj);
+    EnsureAddObject(S, Obj);
     NeedRebuildBucketCounts;
     DoRehash(Count);
   end;
@@ -742,7 +757,7 @@ end;
 
 procedure TCnHashTable.BuildSortedList;
 var
-  I, j: Integer;
+  I, J: Integer;
 begin
   with FSortedList do
   begin
@@ -750,10 +765,8 @@ begin
     Capacity := Self.Count;
     for I := 0 to FBucketCount - 1 do
     begin
-      for j := 0 to FBuckets[I].Count - 1 do
-      begin
-        AddObject(FBuckets[I].Strings[j], FBuckets[I].Objects[j]);
-      end;
+      for J := 0 to FBuckets[I].Count - 1 do
+        AddObject(FBuckets[I].Strings[J], FBuckets[I].Objects[J]);
     end;
     Sort;
   end;
@@ -1000,14 +1013,14 @@ begin
     FCount := -1;
 end;
 
-procedure TCnHashTable.Put(const S: string; obj: TObject);
+procedure TCnHashTable.Put(const S: string; Obj: TObject);
 var
   I: Integer;
 begin
   with Find(S) do
   begin
     I := Count;
-    AddObject(S, obj);
+    AddObject(S, Obj);
     if I <> Count then
     begin
       NeedRebuildBucketCounts;
@@ -1037,7 +1050,7 @@ procedure TCnHashTable.RehashTo(NewSize: Integer; const InitCapacity: Integer);
 var
   TmpBuckets: TCnBucketDynArray;
   TmpBucketSize: Integer;
-  I, j: Integer;
+  I, J: Integer;
 begin
   Assert(NewSize > 0);
   if NewSize = FBucketCount then
@@ -1062,11 +1075,8 @@ begin
   begin
     with TmpBuckets[I] do
     begin
-      for j := 0 to Count - 1 do
-      begin
-//        Self.Put(Strings[j], Objects[j]);
-        Self.Add(Strings[j], Objects[j]);
-      end;
+      for J := 0 to Count - 1 do
+        Self.Add(Strings[J], Objects[J]);
       Free;
     end;
   end;
@@ -1091,7 +1101,7 @@ end;
 
 function TCnHashTableSmall.HashOf(const S: string): Cardinal;
 begin
-  Result := CRC8(S);
+  Result := CRC8(Pointer(S), Length(S) * SizeOf(Char));
 end;
 
 procedure TCnHashTableSmall.RehashTo(NewSize: Integer;

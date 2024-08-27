@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2023 CnPack 开发组                       }
+{                   (C)Copyright 2001-2024 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -13,7 +13,7 @@
 {            您应该已经和开发包一起收到一份 CnPack 发布协议的副本。如果        }
 {        还没有，可访问我们的网站：                                            }
 {                                                                              }
-{            网站地址：http://www.cnpack.org                                   }
+{            网站地址：https://www.cnpack.org                                  }
 {            电子邮件：master@cnpack.org                                       }
 {                                                                              }
 {******************************************************************************}
@@ -22,9 +22,10 @@ unit CnSHA1;
 {* |<PRE>
 ================================================================================
 * 软件名称：开发包基础库
-* 单元名称：SHA1 算法实现单元
-* 单元作者：刘啸（Liu Xiao）
-* 备    注：
+* 单元名称：SHA1 杂凑算法实现单元
+* 单元作者：CnPack 开发组 (master@cnpack.org)
+*           从匿名/佚名代码移植而来并补充部分功能。
+* 备    注：本单元实现了 SHA1 杂凑算法及对应的 HMAC 算法。
 * 开发平台：PWin2000Pro + Delphi 5.0
 * 兼容测试：PWin9X/2000/XP + Delphi 5/6
 * 本 地 化：该单元中的字符串均符合本地化处理方式
@@ -39,7 +40,7 @@ unit CnSHA1;
 *           2014.10.22 V1.1
 *               加入 HMAC 方法
 *           2010.07.14 V1.0
-*               创建单元。从网上佚名代码移植而来，加入部分功能
+*               创建单元。
 ================================================================================
 |</PRE>}
 
@@ -66,6 +67,13 @@ type
   TCnSHA1CalcProgressFunc = procedure (ATotal, AProgress: Int64;
     var Cancel: Boolean) of object;
   {* 进度回调事件类型声明}
+
+function SHA1(Input: PAnsiChar; ByteLength: Cardinal): TCnSHA1Digest;
+{* 对数据块进行 SHA-1 计算
+ |<PRE>
+   Input: PAnsiChar      - 要计算的数据块的首地址
+   ByteLength: Cardinal  - 数据块的字节长度
+ |</PRE>}
 
 function SHA1Buffer(const Buffer; Count: Cardinal): TCnSHA1Digest;
 {* 对数据块进行 SHA1 计算
@@ -99,11 +107,23 @@ function SHA1StringW(const Str: WideString): TCnSHA1Digest;
    Str: WideString       - 要计算的字符串
  |</PRE>}
 
-function SHA1UnicodeString(const Str: {$IFDEF UNICODE} string {$ELSE} WideString {$ENDIF}): TCnSHA1Digest;
+{$IFDEF UNICODE}
+
+function SHA1UnicodeString(const Str: string): TCnSHA1Digest;
 {* 对 UnicodeString 类型数据进行直接的 SHA1 计算，不进行转换
  |<PRE>
-   Str: UnicodeString/WideString       - 要计算的宽字符串
+   Str: UnicodeString       - 要计算的宽字符串
  |</PRE>}
+
+{$ELSE}
+
+function SHA1UnicodeString(const Str: WideString): TCnSHA1Digest;
+{* 对 UnicodeString 类型数据进行直接的 SHA1 计算，不进行转换
+ |<PRE>
+   Str: WideString       - 要计算的宽字符串
+ |</PRE>}
+
+{$ENDIF}
 
 function SHA1File(const FileName: string;
   CallBack: TCnSHA1CalcProgressFunc = nil): TCnSHA1Digest;
@@ -146,10 +166,10 @@ function SHA1Match(const D1, D2: TCnSHA1Digest): Boolean;
    D2: TSHA1Digest   - 需要比较的 SHA1 计算值
  |</PRE>}
 
-function SHA1DigestToStr(aDig: TCnSHA1Digest): string;
+function SHA1DigestToStr(Digest: TCnSHA1Digest): string;
 {* SHA1 计算值转 string
  |<PRE>
-   aDig: TSHA1Digest   - 需要转换的 SHA1 计算值
+   Digest: TSHA1Digest   - 需要转换的 SHA1 计算值
  |</PRE>}
 
 procedure SHA1Hmac(Key: PAnsiChar; KeyLength: Integer; Input: PAnsiChar;
@@ -166,52 +186,22 @@ const
   HMAC_SHA1_BLOCK_SIZE_BYTE = 64;
   HMAC_SHA1_OUTPUT_LENGTH_BYTE = 20;
 
-function LRot16(X: Word; C: Integer): Word;
-begin
-  Result := X shl (C and 15) + X shr (16 - C and 15);
-end;
-
-function RRot16(X: Word; C: Integer): Word;
-begin
-  Result := X shr (C and 15) + X shl (16 - C and 15);
-end;
-
-function LRot32(X: Cardinal; C: Integer): Cardinal;
+function LRot32(X: Cardinal; C: Integer): Cardinal; {$IFDEF SUPPORT_INLINE} inline; {$ENDIF}
 begin
   Result := X shl (C and 31) + X shr (32 - C and 31);
 end;
 
-function RRot32(X: Cardinal; C: Integer): Cardinal;
-begin
-  Result := X shr (C and 31) + X shl (32 - C and 31);
-end;
-
-procedure XorBlock(I1, I2, O1: PByteArray; Len: Integer);
-var
-  I: Integer;
-begin
-  for I := 0 to Len - 1 do
-    O1^[I] := I1^[I] xor I2^[I];
-end;
-
-procedure IncBlock(P: PByteArray; Len: Integer);
-begin
-  Inc(P^[Len - 1]);
-  if (P^[Len - 1] = 0) and (Len > 1) then
-    IncBlock(P, Len - 1);
-end;
-
-function F1(x, y, z: Cardinal): Cardinal;
+function F1(x, y, z: Cardinal): Cardinal; {$IFDEF SUPPORT_INLINE} inline; {$ENDIF}
 begin
   Result := z xor (x and (y xor z));
 end;
 
-function F2(x, y, z: Cardinal): Cardinal;
+function F2(x, y, z: Cardinal): Cardinal; {$IFDEF SUPPORT_INLINE} inline; {$ENDIF}
 begin
   Result := x xor y xor z;
 end;
 
-function F3(x, y, z: Cardinal): Cardinal;
+function F3(x, y, z: Cardinal): Cardinal; {$IFDEF SUPPORT_INLINE} inline; {$ENDIF}
 begin
   Result := (x and y) or (z and (x or y));
 end;
@@ -371,6 +361,16 @@ begin
 end;
 
 // 对数据块进行 SHA1 计算
+function SHA1(Input: PAnsiChar; ByteLength: Cardinal): TCnSHA1Digest;
+var
+  Context: TCnSHA1Context;
+begin
+  SHA1Init(Context);
+  SHA1Update(Context, Input, ByteLength);
+  SHA1Final(Context, Result);
+end;
+
+// 对数据块进行 SHA1 计算
 function SHA1Buffer(const Buffer; Count: Cardinal): TCnSHA1Digest;
 var
   Context: TCnSHA1Context;
@@ -418,7 +418,11 @@ begin
   SHA1Final(Context, Result);
 end;
 
-function SHA1UnicodeString(const Str: {$IFDEF UNICODE} string {$ELSE} WideString {$ENDIF}): TCnSHA1Digest;
+{$IFDEF UNICODE}
+function SHA1UnicodeString(const Str: string): TCnSHA1Digest;
+{$ELSE}
+function SHA1UnicodeString(const Str: WideString): TCnSHA1Digest;
+{$ENDIF}
 var
   Context: TCnSHA1Context;
 begin
@@ -598,13 +602,9 @@ begin
 end;
 
 // SHA1 计算值转 string
-function SHA1DigestToStr(aDig: TCnSHA1Digest): string;
-var
-  I: Integer;
+function SHA1DigestToStr(Digest: TCnSHA1Digest): string;
 begin
-  SetLength(Result, 20);
-  for I := 1 to 20 do
-    Result[I] := Chr(aDig[I - 1]);
+  Result := MemoryToString(@Digest[0], SizeOf(TCnSHA1Digest));
 end;
 
 procedure SHA1HmacInit(var Ctx: TCnSHA1Context; Key: PAnsiChar; KeyLength: Integer);

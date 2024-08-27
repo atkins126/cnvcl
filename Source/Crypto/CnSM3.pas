@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2023 CnPack 开发组                       }
+{                   (C)Copyright 2001-2024 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -13,7 +13,7 @@
 {            您应该已经和开发包一起收到一份 CnPack 发布协议的副本。如果        }
 {        还没有，可访问我们的网站：                                            }
 {                                                                              }
-{            网站地址：http://www.cnpack.org                                   }
+{            网站地址：https://www.cnpack.org                                  }
 {            电子邮件：master@cnpack.org                                       }
 {                                                                              }
 {******************************************************************************}
@@ -22,11 +22,13 @@ unit CnSM3;
 {* |<PRE>
 ================================================================================
 * 软件名称：开发包基础库
-* 单元名称：国产散列算法 SM3 实现单元
-* 单元作者：刘啸（liuxiao@cnpack.org)
-* 备    注：参考国密算法公开文档《SM3 Cryptographic Hash Algorith》
+* 单元名称：国家商用密码 SM3 杂凑算法实现单元
+* 单元作者：CnPack 开发组（master@cnpack.org)
+*           参考并部分移植了 goldboar 的 C 代码
+* 备    注：本单元实现了国家商用密码 SM3 杂凑算法及对应的 HMAC 算法。
+*           参考国密算法公开文档《SM3 Cryptographic Hash Algorith》
 *           http://www.oscca.gov.cn/UpFile/20101222141857786.pdf
-*           并参考移植 goldboar 的 C 代码
+*
 * 开发平台：Windows 7 + Delphi 5.0
 * 兼容测试：PWin9X/2000/XP/7 + Delphi 5/6
 * 本 地 化：该单元中的字符串均符合本地化处理方式
@@ -49,7 +51,7 @@ uses
 type
   TCnSM3Context = packed record
     Total: array[0..1] of Cardinal;     {!< number of bytes processed  }
-    State: array[0..8] of Cardinal;     {!< intermediate digest state  }
+    State: array[0..7] of Cardinal;     {!< intermediate digest state  }
     Buffer: array[0..63] of Byte;       {!< data block being processed }
     Ipad: array[0..63] of Byte;         {!< HMAC: inner padding        }
     Opad: array[0..63] of Byte;         {!< HMAC: outer padding        }
@@ -124,11 +126,23 @@ function SM3StringW(const Str: WideString): TCnSM3Digest;
    Str: WideString       - 要计算的字符串
  |</PRE>}
 
-function SM3UnicodeString(const Str: {$IFDEF UNICODE} string {$ELSE} WideString {$ENDIF}): TCnSM3Digest;
+{$IFDEF UNICODE}
+
+function SM3UnicodeString(const Str: string): TCnSM3Digest;
 {* 对 UnicodeString 类型数据进行直接的 SM3 计算，不进行转换
  |<PRE>
-   Str: UnicodeString/WideString       - 要计算的宽字符串
+   Str: UnicodeString       - 要计算的宽字符串
  |</PRE>}
+
+{$ELSE}
+
+function SM3UnicodeString(const Str: WideString): TCnSM3Digest;
+{* 对 UnicodeString 类型数据进行直接的 SM3 计算，不进行转换
+ |<PRE>
+   Str: WideString       - 要计算的宽字符串
+ |</PRE>}
+
+{$ENDIF}
 
 function SM3File(const FileName: string; CallBack: TCnSM3CalcProgressFunc = nil): TCnSM3Digest;
 {* 对指定文件内容进行 SM3 计算
@@ -219,6 +233,7 @@ begin
   Result := (X and $FFFFFFFF) shl N;
 end;
 
+// 循环左移。注意 N 为 0 或 32 时返回值仍为 X，N 为 33 时返回值等于 N 为 1 时的返回值
 function ROTL(X: Cardinal; N: Integer): Cardinal;
 begin
   Result := SM3Shl(X, N) or (X shr (32 - N));
@@ -251,7 +266,7 @@ begin
   FillChar(Context.Buffer, SizeOf(Context.Buffer), 0);
 end;
 
-// 一次处理 64byte 也就是512bit 数据块
+// 一次处理 64 字节也就是 512 位数据块
 procedure SM3Process(var Context: TCnSM3Context; Data: PAnsiChar);
 var
   SS1, SS2, TT1, TT2: Cardinal;
@@ -555,7 +570,11 @@ begin
 end;
 
 // 对 UnicodeString 类型数据进行直接的 SM3 计算，不进行转换
-function SM3UnicodeString(const Str: {$IFDEF UNICODE} string {$ELSE} WideString {$ENDIF}): TCnSM3Digest;
+{$IFDEF UNICODE}
+function SM3UnicodeString(const Str: string): TCnSM3Digest;
+{$ELSE}
+function SM3UnicodeString(const Str: WideString): TCnSM3Digest;
+{$ENDIF}
 var
   Context: TCnSM3Context;
 begin
@@ -720,16 +739,8 @@ begin
 end;
 
 function SM3Match(const D1, D2: TCnSM3Digest): Boolean;
-var
-  I: Integer;
 begin
-  I := 0;
-  Result := True;
-  while Result and (I < 32) do
-  begin
-    Result := D1[I] = D2[I];
-    Inc(I);
-  end;
+  Result := CompareMem(@D1[0], @D2[0], SizeOf(TCnSM3Digest));
 end;
 
 end.

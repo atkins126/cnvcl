@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2023 CnPack 开发组                       }
+{                   (C)Copyright 2001-2024 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -13,7 +13,7 @@
 {            您应该已经和开发包一起收到一份 CnPack 发布协议的副本。如果        }
 {        还没有，可访问我们的网站：                                            }
 {                                                                              }
-{            网站地址：http://www.cnpack.org                                   }
+{            网站地址：https://www.cnpack.org                                  }
 {            电子邮件：master@cnpack.org                                       }
 {                                                                              }
 {******************************************************************************}
@@ -22,9 +22,13 @@ unit CnCRC32;
 {* |<PRE>
 ================================================================================
 * 软件名称：开发包基础库
-* 单元名称：CRC32/CRC64 循环冗余校验单元
+* 单元名称：CRC 循环冗余校验单元
 * 单元作者：周劲羽 (zjy@cnpack.org)
-* 备    注：
+* 备    注：本单元实现了 CRC8/CRC16/CRC32/CRC64 循环冗余校验算法。
+*           注意由于 CRC 算法的规范及多项式存在多种情况，本单元中的 CRC 算法均注明了
+*           其规范（如 CCITT）、初始值、异或值及使用的多项式。
+*           使用时如果遇到结果与其他软件的计算有差异的情况，请核对相应参数是否一致。      
+*
 * 开发平台：PWin2000Pro + Delphi 5.0
 * 兼容测试：PWin9X/2000/XP + Delphi 5/6
 * 本 地 化：该单元中的字符串均符合本地化处理方式
@@ -55,7 +59,7 @@ uses
   SysUtils, Classes, CnNative {$IFDEF MSWINDOWS}, Windows {$ENDIF};
 
 //------------------------------------------------------------------------------
-// CRC8 系列函数（CCITT），初始值 00，结果异或值 00，多项式为 x8+x2+x+1
+// CRC8 系列函数（CCITT），初始值 $00，结果异或值 $00，多项式为 x8+x2+x+1
 //------------------------------------------------------------------------------
 
 function CalcCRC8Byte(OrgCRC8: Byte; B: Byte): Byte;
@@ -91,7 +95,7 @@ function FileCRC8(const Filename: string; var CRC: Byte; StartPos: Int64 = 0;
  |</PRE>}
 
 //------------------------------------------------------------------------------
-// CRC16 系列函数（CCITT），初始值 FFFF，结果异或值 0000，多项式为 x16+x12+x5+1
+// CRC16 系列函数（CCITT），初始值 $FFFF，结果异或值 $0000，多项式为 x16+x12+x5+1
 //------------------------------------------------------------------------------
 
 function CalcCRC16Byte(OrgCRC16: Word; B: Byte): Word;
@@ -127,7 +131,7 @@ function FileCRC16(const FileName: string; var CRC: Word; StartPos: Int64 = 0;
  |</PRE>}
 
 //------------------------------------------------------------------------------
-// CRC32 系列函数，初始值 FFFFFFFF，结果异或值 FFFFFFFF
+// CRC32 系列函数，初始值 $FFFFFFFF，结果异或值 $FFFFFFFF
 // 多项式为 x32+x26+x23+x22+x16+x12+x11+x10+x8+x7+x5+x4+x2+x+1
 //------------------------------------------------------------------------------
 
@@ -164,7 +168,7 @@ function FileCRC32(const FileName: string; var CRC: Cardinal; StartPos: Int64 = 
  |</PRE>}
 
 //------------------------------------------------------------------------------
-// CRC64 系列函数（ECMA），初始值 FFFFFFFFFFFFFFFF，结果异或值 FFFFFFFFFFFFFFFF
+// CRC64 系列函数（ECMA），初始值 $FFFFFFFFFFFFFFFF，结果异或值 $FFFFFFFFFFFFFFFF
 // 多项式为
 // x64+x62+x57+x55+x54+x53+x52+x47+x46+x45+x40+x39+x38+x37+x35+x33+
 // x32+x31+x29+x27+x24+x23+x22+x21+x19+x17+x13+x12+x10+x9+x7+x4+x+1
@@ -174,7 +178,7 @@ function CRC64Calc(const OrgCRC64: Int64; const Data; ByteLength: Cardinal): Int
 {* 计算 CRC64 值
  |<PRE>
    OrgCRC64: Int64          - 起始 CRC64 值，默认应传 0，内部会求反变成 FFFFFFFFFFFFFFFF 以符合 CCITT 的要求
-   const Data               - 要计算的数据块
+   const Data               - 要计算的数据块，一般不传地址
    ByteLength: Cardinal     - 数据块长度
    Result: Int64            - 返回 CRC64 计算结果，已与 FFFFFFFFFFFFFFFF 异或过了以符合 CCITT 的要求
  |</PRE>}
@@ -432,6 +436,8 @@ begin
   Result := CRC8Calc(OrgCRC8, PAnsiChar(Data[0])^, Length(Data));
 end;
 
+{$IFNDEF MSWINDOWS}
+
 function InternalCRC8Stream(Stream: TStream; const BufSize: Cardinal;
   var CRC: Byte): Boolean;
 var
@@ -473,7 +479,9 @@ begin
   end;
 end;
 
-// 计算文件 CRC 值，参数分别为：文件名、CRC 值、起始地址、计算长度
+{$ENDIF}
+
+// 计算文件 CRC8 值，参数分别为：文件名、CRC8 值、起始地址、计算长度
 function FileCRC8(const FileName: string; var CRC: Byte; StartPos: Int64 = 0;
   ByteLength: Int64 = 0): Boolean;
 var
@@ -587,6 +595,8 @@ begin
   Result := CRC16Calc(OrgCRC16, PAnsiChar(Data[0])^, Length(Data));
 end;
 
+{$IFNDEF MSWINDOWS}
+
 function InternalCRC16Stream(Stream: TStream; const BufSize: Cardinal;
   var CRC: Word): Boolean;
 var
@@ -628,7 +638,9 @@ begin
   end;
 end;
 
-// 计算文件 CRC 值，参数分别为：文件名、CRC 值、起始地址、计算长度
+{$ENDIF}
+
+// 计算文件 CRC16 值，参数分别为：文件名、CRC16 值、起始地址、计算长度
 function FileCRC16(const FileName: string; var CRC: Word; StartPos: Int64 = 0;
   ByteLength: Int64 = 0): Boolean;
 var
@@ -741,6 +753,8 @@ begin
   Result := CRC32Calc(OrgCRC32, PAnsiChar(Data[0])^, Length(Data));
 end;
 
+{$IFNDEF MSWINDOWS}
+
 function InternalCRC32Stream(Stream: TStream; const BufSize: Cardinal;
   var CRC: Cardinal): Boolean;
 var
@@ -782,7 +796,9 @@ begin
   end;
 end;
 
-// 计算文件 CRC 值，参数分别为：文件名、CRC 值、起始地址、计算长度
+{$ENDIF}
+
+// 计算文件 CRC32 值，参数分别为：文件名、CRC32 值、起始地址、计算长度
 function FileCRC32(const FileName: string; var CRC: Cardinal; StartPos: Int64 = 0;
   ByteLength: Int64 = 0): Boolean;
 var
@@ -909,6 +925,8 @@ begin
   Result := CRC64Calc(OrgCRC64, PAnsiChar(Data[0])^, Length(Data));
 end;
 
+{$IFNDEF MSWINDOWS}
+
 function InternalCRC64Stream(Stream: TStream; const BufSize: Cardinal;
   var CRC: Int64): Boolean;
 var
@@ -950,7 +968,9 @@ begin
   end;
 end;
 
-// 计算文件 CRC64 值，参数分别为：文件名、CRC 值、起始地址、计算长度
+{$ENDIF}
+
+// 计算文件 CRC64 值，参数分别为：文件名、CRC64 值、起始地址、计算长度
 function FileCRC64(const FileName: string; var CRC: Int64; StartPos: Int64 = 0;
   ByteLength: Int64 = 0): Boolean;
 var
@@ -1079,9 +1099,8 @@ begin
 end;
 
 initialization
-//  Make_CRC32Table; // 初始化CRC32表
+//  Make_CRC32Table; // 初始化 CRC32 表
   
-  Make_CRC64Table; // 初始化CRC64表
+  Make_CRC64Table; // 初始化 CRC64 表
 
 end.
-

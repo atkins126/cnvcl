@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2023 CnPack 开发组                       }
+{                   (C)Copyright 2001-2024 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -13,7 +13,7 @@
 {            您应该已经和开发包一起收到一份 CnPack 发布协议的副本。如果        }
 {        还没有，可访问我们的网站：                                            }
 {                                                                              }
-{            网站地址：http://www.cnpack.org                                   }
+{            网站地址：https://www.cnpack.org                                  }
 {            电子邮件：master@cnpack.org                                       }
 {                                                                              }
 {******************************************************************************}
@@ -81,10 +81,16 @@ function CnFmxIsInheritedFromFrame(AObject: TObject): Boolean;
 {* 获取一个 Object 是否继承自 FMX.TFrame 类}
 
 function CnFmxGetControlRect(AControl: TComponent): TRect;
-{* 获取一个 FMX 的 Control 的 Rect，内部手工计算}
+{* 获取一个 FMX 的 Control 的基于其 Parent 的 Rect，内部手工计算}
 
 procedure CnFmxSetControlRect(AControl: TComponent; ARect: TRect);
-{* 设置一个 FMX 的 Control 的 Rect，内部手工计算}
+{* 设置一个 FMX 的 Control 的基于其 Parent 的 Rect，内部手工计算}
+
+function CnFmxGetControlScreenRect(AControl: TComponent): TRect;
+{* 获取一个 FMX 的 Control 的基于屏幕坐标的 Rect，内部手工计算}
+
+procedure CnFmxSetControlScreenRect(AControl: TComponent; ARect: TRect);
+{* 设置一个 FMX 的 Control 的基于屏幕坐标的 Rect，内部手工计算}
 
 function CnFmxGetControlPositionValue(AControl: TComponent;
   PosType: TCnFmxPosType): Integer;
@@ -120,6 +126,15 @@ procedure CnFmxMoveSubControl(FromControl, ToControl: TComponent);
 
 function CnFmxGetControlPosition(AControl: TComponent): TSmallPoint;
 {* 返回 FMX Control 的位置}
+
+procedure CnFmxGetScreenFormsWithName(const Name: string; OutForms: TList);
+{* 遍历 Screen 的所有 Form 实例，将名称等于该名字的实例加入列表，名字为空时全加}
+
+procedure CnFmxGetScreenFormsWithClassName(const ClsName: string; OutForms: TList);
+{* 遍历 Screen 的所有 Form 实例，将类名等于该名字的实例加入列表}
+
+function CnFmxGetFmxApplication: TComponent;
+{* 返回 FMX 框架里的 Application 实例}
 
 implementation
 
@@ -239,7 +254,7 @@ var
   AParent: TFmxObject;
 begin
   // Local 与 Absolute 坐标的转换会出 AV，因此没法支持，暂时全使用相对坐标
-  // 也就是说只支持同一 Parent 下的
+  // 也就是说 Rect 是基于 Parent 下的而非屏幕的
   if (AControl <> nil) and AControl.InheritsFrom(TControl) then
   begin
     AParent := TControl(AControl).Parent;
@@ -280,6 +295,90 @@ begin
       // P2 := TControl(AParent).AbsoluteToLocal(P2);
       TControl(AControl).SetBounds(P1.X, P1.Y, P2.X - P1.X, P2.Y - P1.Y);
     end;
+  end;
+end;
+
+function CnFmxGetControlScreenRect(AControl: TComponent): TRect;
+var
+  AParent: TFmxObject;
+  R, PF: TPointF;
+begin
+  if (AControl <> nil) and (AControl.InheritsFrom(TControl)) then
+  begin
+    R.X := TControl(AControl).Position.X;
+    R.Y := TControl(AControl).Position.Y;
+
+    // 循环找到最顶层的相对坐标
+    AParent := TControl(AControl).Parent;
+    while (AParent <> nil) and (AParent is TControl) and not (AParent is TCommonCustomForm) do
+    begin
+      R.X := R.X + TControl(AParent).Position.X;
+      R.Y := R.Y + TControl(AParent).Position.Y;
+      AParent := TControl(AParent).Parent;
+    end;
+
+    // 再加上最顶层的左上角坐标，变成屏幕坐标
+    if (AParent <> nil) and (AParent is TCommonCustomForm) then
+    begin
+      PF.X := 0;
+      PF.Y := 0;
+      PF := TCommonCustomForm(AParent).ClientToScreen(PF);
+
+      R.X := R.X + PF.X;
+      R.Y := R.Y + PF.Y;
+    end;
+
+    Result.Left := Trunc(R.X);
+    Result.Top := Trunc(R.Y);
+{$IFDEF FMX_CONTROL_HAS_SIZE}
+    Result.Right := Result.Left + Trunc(TControl(AControl).Size.Width);
+    Result.Bottom := Result.Top + Trunc(TControl(AControl).Size.Height);
+{$ELSE}
+    Result.Right := Result.Left + Trunc(TControl(AControl).Width);
+    Result.Bottom := Result.Top + Trunc(TControl(AControl).Height);
+{$ENDIF}
+  end;
+end;
+
+procedure CnFmxSetControlScreenRect(AControl: TComponent; ARect: TRect);
+var
+  AParent: TFmxObject;
+  R, PF: TPointF;
+  BRect: TRect;
+begin
+  if (AControl <> nil) and (AControl.InheritsFrom(TControl)) then
+  begin
+    R.X := 0; // 该 Control 在 Parent 左上角时的相对坐标
+    R.Y := 0;
+
+    // 循环找到最顶层的相对坐标
+    AParent := TControl(AControl).Parent;
+    while (AParent <> nil) and (AParent is TControl) and not (AParent is TCommonCustomForm) do
+    begin
+      R.X := R.X + TControl(AParent).Position.X;
+      R.Y := R.Y + TControl(AParent).Position.Y;
+      AParent := TControl(AParent).Parent;
+    end;
+
+    // 再加上最顶层的左上角坐标，变成屏幕坐标
+    if (AParent <> nil) and (AParent is TCommonCustomForm) then
+    begin
+      PF.X := 0;
+      PF.Y := 0;
+      PF := TCommonCustomForm(AParent).ClientToScreen(PF);
+
+      R.X := R.X + PF.X;
+      R.Y := R.Y + PF.Y;
+    end;
+
+    // 基于屏幕的 Rect，都减去 Control 的 Parent 的左上角在屏幕上的坐标，
+    // 就变成了基于 Control 的 Parent 的坐标
+    BRect.Left := Trunc(ARect.Left - R.X);
+    BRect.Top := Trunc(ARect.Top - R.Y);
+    BRect.Right := Trunc(ARect.Right - R.X);
+    BRect.Bottom := Trunc(ARect.Bottom - R.Y);
+
+    TControl(AControl).SetBounds(BRect.Left, BRect.Top, BRect.Width, BRect.Height);
   end;
 end;
 
@@ -488,6 +587,33 @@ begin
     Result.x := Trunc(TControl(AControl).Position.X);
     Result.y := Trunc(TControl(AControl).Position.Y);
   end;
+end;
+
+procedure CnFmxGetScreenFormsWithName(const Name: string; OutForms: TList);
+var
+  I: Integer;
+begin
+  for I := 0 to Screen.FormCount - 1 do
+  begin
+    if (Name = '') or (Screen.Forms[I].Name = Name) then
+      OutForms.Add(Screen.Forms[I]);
+  end;
+end;
+
+procedure CnFmxGetScreenFormsWithClassName(const ClsName: string; OutForms: TList);
+var
+  I: Integer;
+begin
+  for I := 0 to Screen.FormCount - 1 do
+  begin
+    if Screen.Forms[I].ClassNameIs(ClsName) then
+      OutForms.Add(Screen.Forms[I]);
+  end;
+end;
+
+function CnFmxGetFmxApplication: TComponent;
+begin
+  Result := Application;
 end;
 
 procedure CreateFmxSetFixArray;

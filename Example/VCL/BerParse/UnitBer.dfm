@@ -50,6 +50,7 @@ object FormParseBer: TFormParseBer
     Anchors = [akLeft, akTop, akRight, akBottom]
     AutoExpand = True
     Indent = 19
+    PopupMenu = pmTree
     TabOrder = 2
     OnCollapsing = tv1Collapsing
     OnDblClick = tv1DblClick
@@ -75,6 +76,7 @@ object FormParseBer: TFormParseBer
     Top = 424
     Width = 75
     Height = 25
+    Anchors = [akLeft, akBottom]
     Caption = 'Write'
     TabOrder = 5
     OnClick = btnWriteClick
@@ -106,5 +108,22 @@ object FormParseBer: TFormParseBer
   object dlgSave: TSaveDialog
     Left = 360
     Top = 392
+  end
+  object pmTree: TPopupMenu
+    Left = 544
+    Top = 256
+    object ShowContent1: TMenuItem
+      Caption = 'Show Content'
+      Default = True
+      OnClick = ShowContent1Click
+    end
+    object SaveNodeContent1: TMenuItem
+      Caption = 'Save Node Data...'
+      OnClick = SaveNodeContent1Click
+    end
+    object SaveNodeContent2: TMenuItem
+      Caption = 'Save Node Content...'
+      OnClick = SaveNodeContent2Click
+    end
   end
 end

@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2023 CnPack 开发组                       }
+{                   (C)Copyright 2001-2024 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -13,7 +13,7 @@
 {            您应该已经和开发包一起收到一份 CnPack 发布协议的副本。如果        }
 {        还没有，可访问我们的网站：                                            }
 {                                                                              }
-{            网站地址：http://www.cnpack.org                                   }
+{            网站地址：https://www.cnpack.org                                  }
 {            电子邮件：master@cnpack.org                                       }
 {                                                                              }
 {******************************************************************************}
@@ -24,16 +24,18 @@ unit CnCheckTreeView;
 * 软件名称：界面组件包
 * 单元名称：带检查框的 TreeView 控件单元
 * 单元作者：周劲羽 (zjy@cnpack.org)
-*           刘啸（liuxiao@cnpack.org)
+*           CnPack 开发组（master@cnpack.org)
 * 备    注：使用 TreeNode 的 StateIndex 来保存检查框设置，用户请勿手动更改该值
-            使用 OverlayIndex 来保存 Enable 设置，当 CanDisableNode 属性为 True
-            时，用户请勿手动更改该值，另外 OnCustomDrawItem 事件用来绘制 Node 在
-            Disable 时的效果，用户可重写此事件进行其他风格的绘制。
+*           使用 OverlayIndex 来保存 Enable 设置，当 CanDisableNode 属性为 True
+*           时，用户请勿手动更改该值，另外 OnCustomDrawItem 事件用来绘制 Node 在
+*           Disable 时的效果，用户可重写此事件进行其他风格的绘制。
+*           注：Delphi 12 下对 Check 状态的初始化不能在 Form 的 Create 事件里做，
+*           得在 Show 事件里做，否则树的勾选状态显示全是否，实际内部又是正确的。
 * 开发平台：PWin2000Pro + Delphi 5.0
 * 兼容测试：PWin9X/2000/XP + Delphi 5/6
 * 本 地 化：该单元中的字符串均符合本地化处理方式
 * 修改记录：2008.04.10 V1.2
-*               修改SyncParentNode、SyncChildNode函数，
+*               修改 SyncParentNode、SyncChildNode 函数，
 *               使其在有 CheckBox 的时候才会同步节点的状态 by Jackson.He
 *               增加一方法 HideCheckBox 用来隐藏某节点的复选框
 *           2007.11.07 V1.1
@@ -58,9 +60,11 @@ type
   TCnStateChangeEvent = procedure (Sender: TObject; Node: TTreeNode;
     OldState, NewState: TCheckBoxState) of object;
 
+{$IFDEF SUPPORT_32_AND_64}
+  [ComponentPlatformsAttribute(pidWin32 or pidWin64)]
+{$ENDIF}
   TCnCheckTreeView = class(TTreeView)
   private
-    { Private declarations }
     FStateImages: TImageList;
     FUpdateCount: Integer;
     FOnStateChange: TCnStateChangeEvent;
@@ -75,7 +79,6 @@ type
     procedure SetNodeEnabled(Node: TTreeNode; const Value: Boolean);
     procedure SetCanDisableNode(const Value: Boolean);
   protected
-    { Protected declarations }
     procedure WndProc(var message: TMessage); override;
     procedure KeyPress(var Key: Char); override;
     procedure Loaded; override;
@@ -89,7 +92,6 @@ type
     procedure SyncParentNode(Node: TTreeNode);
     procedure SetUpdateState(Updating: Boolean);
   public
-    { Public declarations }
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
     procedure BeginUpdate;
@@ -123,6 +125,10 @@ begin
   FStateImages.Handle := ImageList_LoadBitmap(hInstance, 'CNTREEVIEWSTATE',
     16, 0, clFuchsia);
   StateImages := FStateImages;
+
+{$IFDEF DELPHI120_ATHENS_UP}
+  CheckBoxes := True;
+{$ENDIF}
   OnCustomDrawItem := DoCustomDrawItem;
 end;
 
@@ -143,7 +149,7 @@ end;
   作者:      jackson.he
   日期:      2008.04.11
   参数:      Node: TTreeNode
-  功能:      返回节点的check状态，注意对没有check框的节点的状态返回为unchecked
+  功能:      返回节点的 Check 状态，注意对没有 Check 框的节点的状态返回为 unChecked
   返回值:    TCheckBoxState
 -------------------------------------------------------------------------------}
 function TCnCheckTreeView.GetCheckBoxState(Node: TTreeNode): TCheckBoxState;
@@ -222,7 +228,7 @@ end;
 
 procedure TCnCheckTreeView.SyncNodes;
 var
-  i: Integer;
+  I: Integer;
 
   function DoSyncNodeState(Node: TTreeNode): TCheckBoxState;
   var
@@ -268,39 +274,39 @@ var
     Result := GetCheckBoxState(Node);
   end;
 begin
-  for i := 0 to Items.Count - 1 do
-    DoSyncNodeState(Items[i]);
+  for I := 0 to Items.Count - 1 do
+    DoSyncNodeState(Items[I]);
 end;
 
 // 同步子节点状态，子节点拷贝父节点状态
 procedure TCnCheckTreeView.SyncChildNode(Node: TTreeNode);
 var
-  i: Integer;
+  I: Integer;
   ParentNode: TTreeNode;
 begin
   if Node.StateIndex <> Ord(cbGrayed) + 1 then
-    for i := 0 to Node.Count - 1 do
+    for I := 0 to Node.Count - 1 do
     begin
-      // 同步的子节点Node.Item[i]必须是有check框类型的节点
-      if TCheckBoxState(Node.Item[i].StateIndex - 1) in [cbUnchecked, cbChecked, cbGrayed] then
+      // 同步的子节点Node.Item[I]必须是有 Check 框类型的节点
+      if TCheckBoxState(Node.Item[I].StateIndex - 1) in [cbUnchecked, cbChecked, cbGrayed] then
       begin
         ParentNode := Node;
         if not (TCheckBoxState(Node.StateIndex - 1) in [cbUnchecked, cbChecked, cbGrayed]) then
         begin
-          // 如果当前节点Node的状态是没有check框的，则必须往上找有check框的父节点的状态
+          // 如果当前节点 Node 的状态是没有 Check 框的，则必须往上找有 Check 框的父节点的状态
           while (ParentNode <> Items.Item[0]) and
-                (not (TCheckBoxState(ParentNode.StateIndex - 1) in [cbUnchecked, cbChecked, cbGrayed])) do
+            (not (TCheckBoxState(ParentNode.StateIndex - 1) in [cbUnchecked, cbChecked, cbGrayed])) do
           begin
             ParentNode := ParentNode.Parent;
           end;
-          Node.Item[i].StateIndex := ParentNode.StateIndex;
+          Node.Item[I].StateIndex := ParentNode.StateIndex;
         end else
         begin
-          // 如果当前节点Node的状态有check框的，直接同步
-          Node.Item[i].StateIndex := Node.StateIndex;
+          // 如果当前节点 Node 的状态有 Check 框的，直接同步
+          Node.Item[I].StateIndex := Node.StateIndex;
         end;
       end;
-      SyncChildNode(Node.Item[i]);
+      SyncChildNode(Node.Item[I]);
     end;
 end;
 
@@ -309,12 +315,12 @@ procedure TCnCheckTreeView.SyncParentNode(Node: TTreeNode);
 var
   SelCount, UnSelCount, Count: Integer;
   ParentNode, ChildNode: TTreeNode;
-
   SubSelCount, SubUnSelCount, SubCount: Integer;
-  // 如果当前节点Node是没有check的，查找当前节点中有Check框的选择的和没有选择的节点数量
+
+  // 如果当前节点 Node 是没有 Check 的，查找当前节点中有 Check 框的选择的和没有选择的节点数量
   procedure CheckNode(Node: TTreeNode);
   var
-    i: Integer;
+    I: Integer;
   begin
     case TCheckBoxState(Node.StateIndex - 1) of
       cbUnchecked:
@@ -330,17 +336,18 @@ var
       cbGrayed:
         begin
           Inc(SubCount);
-        end;  
+        end;
     end;
 
     if Node.HasChildren then
     begin
-      for i:= 0 to Node.Count - 1 do
+      for I:= 0 to Node.Count - 1 do
       begin
-        CheckNode(Node.Item[i]);
-      end;  
+        CheckNode(Node.Item[I]);
+      end;
     end;
-  end;  
+  end;
+
 begin
   ParentNode := Node.Parent;
   if ParentNode <> nil then
@@ -351,18 +358,18 @@ begin
     ChildNode := ParentNode.GetFirstChild;
     while ChildNode <> nil do
     begin
-      // 检查check状态不能用 GetCheckBoxState了。。
+      // 检查 Check 状态不能用 GetCheckBoxState 了。
       if TCheckBoxState(ChildNode.StateIndex - 1) = cbChecked then
       begin
         Inc(SelCount);
-      // 检查check状态不能用 GetCheckBoxState了。。
+      // 检查 Check 状态不能用 GetCheckBoxState 了。
       end else if TCheckBoxState(ChildNode.StateIndex - 1) = cbUnchecked then
       begin
         Inc(UnSelCount);
       end else if not (TCheckBoxState(ChildNode.StateIndex - 1) in [cbUnchecked, cbChecked, cbGrayed]) then
       begin
-        // 如果ChildNode节点是没有check框的，
-        // 则需要看有check节点的总数以及有check框没有选中的总数以及选中的总数状态
+        // 如果 ChildNode 节点是没有 Check 框的，
+        // 则需要看有 Check 节点的总数以及有 Check 框没有选中的总数以及选中的总数状态
         SubUnSelCount := 0;
         SubSelCount := 0;
         SubCount := 0;
@@ -375,7 +382,7 @@ begin
         if SubSelCount = SubCount then
         begin
           Inc(SelCount);
-        end;  
+        end;
       end;
       Inc(Count);
       ChildNode := ParentNode.GetNextChild(ChildNode);
@@ -384,22 +391,24 @@ begin
     if SelCount = Count then
     begin
       if (ParentNode.StateIndex <> Ord(cbChecked) + 1) and
-         (TCheckBoxState(ParentNode.StateIndex - 1) in [cbUnchecked, cbChecked, cbGrayed]) then
+        (TCheckBoxState(ParentNode.StateIndex - 1) in [cbUnchecked, cbChecked, cbGrayed]) then
       begin
         ParentNode.StateIndex := Ord(cbChecked) + 1;
       end;
-    end else if UnSelCount = Count then
+    end
+    else if UnSelCount = Count then
     begin
       if (ParentNode.StateIndex <> Ord(cbUnchecked) + 1) and
          (TCheckBoxState(ParentNode.StateIndex - 1) in [cbUnchecked, cbChecked, cbGrayed]) then
       begin
         ParentNode.StateIndex := Ord(cbUnchecked) + 1;
       end;
-    end else if (ParentNode.StateIndex <> Ord(cbGrayed) + 1) and
-            (TCheckBoxState(ParentNode.StateIndex - 1) in [cbUnchecked, cbChecked, cbGrayed]) then
+    end
+    else if (ParentNode.StateIndex <> Ord(cbGrayed) + 1) and
+      (TCheckBoxState(ParentNode.StateIndex - 1) in [cbUnchecked, cbChecked, cbGrayed]) then
     begin
       ParentNode.StateIndex := Ord(cbGrayed) + 1;
-    end;   
+    end;
     SyncParentNode(ParentNode);
   end;
 end;
@@ -409,8 +418,8 @@ begin
   case message.Msg of
     WM_LBUTTONDOWN, WM_LBUTTONDBLCLK:
       begin
-        if ToggleCheckedByPos(TWMLButtonDown(message).XPos, TWMLButtonDown(message).YPos)
-          then
+        if ToggleCheckedByPos(TWMLButtonDown(message).XPos,
+          TWMLButtonDown(message).YPos) then
           Exit;
       end;
     WM_LBUTTONUP, WM_RBUTTONUP:
@@ -426,14 +435,16 @@ end;
 procedure TCnCheckTreeView.BeginUpdate;
 begin
   Items.BeginUpdate;
-  if FUpdateCount = 0 then SetUpdateState(True);
+  if FUpdateCount = 0 then
+    SetUpdateState(True);
   Inc(FUpdateCount);
 end;
 
 procedure TCnCheckTreeView.EndUpdate;
 begin
   Dec(FUpdateCount);
-  if FUpdateCount = 0 then SetUpdateState(False);
+  if FUpdateCount = 0 then
+    SetUpdateState(False);
   Items.EndUpdate;
 end;
 
@@ -457,7 +468,7 @@ begin
     end;
   finally
     Items.EndUpdate;
-  end;          
+  end;
 end;
 
 procedure TCnCheckTreeView.SelectNone;
@@ -494,7 +505,7 @@ begin
     end;
   finally
     Items.EndUpdate;
-  end;          
+  end;
 end;
 
 procedure TCnCheckTreeView.HideCheckBox(Node: TTreeNode);
@@ -554,7 +565,7 @@ begin
   Result := True;
   if Node = nil then
     Exit;
-    
+
   if FCanDisableNode and not GetNodeEnabled(Node) then
     Result := False
   else
@@ -569,7 +580,7 @@ begin
     Canvas.Font.Color := clGray;
     Canvas.Brush.Color := clBtnFace;
   end;
-  
+
   DefaultDraw := True;
 end;
 

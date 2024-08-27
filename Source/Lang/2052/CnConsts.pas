@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2023 CnPack 开发组                       }
+{                   (C)Copyright 2001-2024 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -13,7 +13,7 @@
 {            您应该已经和开发包一起收到一份 CnPack 发布协议的副本。如果        }
 {        还没有，可访问我们的网站：                                            }
 {                                                                              }
-{            网站地址：http://www.cnpack.org                                   }
+{            网站地址：https://www.cnpack.org                                  }
 {            电子邮件：master@cnpack.org                                       }
 {                                                                              }
 {******************************************************************************}
@@ -82,20 +82,20 @@ var
 const
   // 开发包信息
   SCnPackAbout = 'CnPack';
-  SCnPackVer = 'Ver 0.1.2.5';
+  SCnPackVer = 'Ver 0.1.3.1';
   SCnPackStr = SCnPackAbout + ' ' + SCnPackVer;
-  SCnPackUrl = 'http://www.cnpack.org';
-  SCnPackBbsUrl = 'http://bbs.cnpack.org';
+  SCnPackUrl = 'https://www.cnpack.org';
+  SCnPackBbsUrl = 'https://bbs.cnpack.org';
   SCnPackNewsUrl = 'news://news.cnpack.org';
-  SCnPackSourceUrl = 'http://github.com/cnpack';
+  SCnPackSourceUrl = 'https://github.com/cnpack';
   SCnPackEmail = 'master@cnpack.org';
   SCnPackBugEmail = 'bugs@cnpack.org';
   SCnPackSuggestionsEmail = 'suggestions@cnpack.org';
 
-  SCnPackDonationUrl = 'http://www.cnpack.org/foundation.php';
+  SCnPackDonationUrl = 'https://www.cnpack.org/foundation.php';
   SCnPackDonationUrlSF = 'http://sourceforge.net/donate/index.php?group_id=110999';
   SCnPackGroup = 'CnPack 开发组';
-  SCnPackCopyright = '(C)Copyright 2001-2023 ' + SCnPackGroup;
+  SCnPackCopyright = '(C)Copyright 2001-2024 ' + SCnPackGroup;
 
   // CnPropEditors
   SCopyrightFmtStr =
@@ -118,11 +118,12 @@ resourcestring
 
   // 开发组成员信息请在后面添加，注意本地化处理
 var
+  SCnPack_Team: string = 'CnPack开发组';
   SCnPack_Zjy: string = '周劲羽';
   SCnPack_Shenloqi: string = '沈龙强(Chinbo)';
   SCnPack_xiaolv: string = '吕宏庆';
   SCnPack_Flier: string = 'Flier Lu';
-  SCnPack_LiuXiao: string = '刘啸(Passion)';
+  SCnPack_LiuXiao: string = 'CnPack 开发组(Passion)';
   SCnPack_PanYing: string = '潘鹰(Pan Ying)';
   SCnPack_Hubdog: string = '陈省(Hubdog)';
   SCnPack_Wyb_star: string = '王玉宝';
@@ -152,12 +153,15 @@ var
   SCnPack_ZiMin: string = '子旻';
   SCnPack_rarnu: string = 'rarnu';
   SCnPack_dejoy: string = 'dejoy';
+  SCnPack_Rain: string = 'Rain';
+  SCnPack_cnwinds: string = 'cnwinds';
 
   // CnCommon
   SUnknowError: string = '未知错误';
   SErrorCode: string = '错误代码：';
 
 const
+  SCnPack_TeamEmail = 'master@cnpack.org';
   SCnPack_ZjyEmail = 'zjy@cnpack.org';
   SCnPack_ShenloqiEmail = 'Shenloqi@hotmail.com';
   SCnPack_xiaolvEmail = 'xiaolv888@etang.com';
@@ -192,6 +196,8 @@ const
   SCnPack_ZiMinEmail = '441414288@qq.com';
   SCnPack_rarnuEmail = 'rarnu@cnpack.org';
   SCnPack_dejoyEmail = 'dejoybbs@163.com';
+  SCnPack_RainEmail = SCnPack_TeamEmail;
+  SCnPack_cnwindsEmail = SCnPack_TeamEmail;
 
   // CnMemProf
   SCnPackMemMgr = '内存管理监视器';

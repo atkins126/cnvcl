@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2023 CnPack 开发组                       }
+{                   (C)Copyright 2001-2024 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -13,7 +13,7 @@
 {            您应该已经和开发包一起收到一份 CnPack 发布协议的副本。如果        }
 {        还没有，可访问我们的网站：                                            }
 {                                                                              }
-{            网站地址：http://www.cnpack.org                                   }
+{            网站地址：https://www.cnpack.org                                  }
 {            电子邮件：master@cnpack.org                                       }
 {                                                                              }
 {******************************************************************************}
@@ -30,18 +30,33 @@ unit CnAES;
 {* |<PRE>
 ================================================================================
 * 软件名称：开发包基础库
-* 单元名称：AES 实现单元
-* 单元作者：刘啸 (liuxiao@cnpack.org)
-* 备    注：从 EldoS, Alexander Ionov 的单元移植而来，保留原有版权信息
-*           对齐方式均在末尾补 0，单元内部不支持 PKCS 之类的，如需要，请在外部调用
-*           CnPemUtils 中的 PKCS 处理函数
+* 单元名称：AES 对称加解密算法实现单元
+* 单元作者：CnPack 开发组 (master@cnpack.org)
+*           自 EldoS, Alexander Ionov 的单元移植而来并补充功能，保留原有版权信息
+* 备    注：本单元实现了 AES 128/192/256 对称加解密算法，分块大小固定 16 字节，块模式
+*           的对齐方式均在末尾补 0。本单元内部不支持 PKCS 等块对齐方式，如需要，请在外部调用
+*           CnPemUtils.pas 单元中的 PKCS 系列函数对加解密内容进行额外处理。
+*
 *           另外高版本 Delphi 中请尽量避免使用 AnsiString 参数版本的函数（十六进制除外），
 *           避免不可视字符出现乱码影响加解密结果。
 *
 *           补充：============= Java 中默认的 AES 对应此处的 AES256 ============
+*           另外，C++Builder 5/6 下对 overload 的函数大概率存在判断错误从而调用
+*           混乱的情形，故本单元做了处理，部分 overload 函数仅在 Delphi 下存在，
+*           额外再封装了部分不同名的函数以支持 C++Builder 5/6 下编译运行。
+*
+*           ECB/CBC 是块模式，需要处理对齐。CFB/OFB/CTR 是异或明文密文的流模式，无需对齐到块。
+*
+*           另外，CTR 模式符合 RFC 3686 规范，以外界传递的 4 字节 Nonce、8 字节
+*           初始化向量，4 字节网络字节序的计数器，拼成 16 字节的真正的初始化向量
+*           参与 AES 块加密运算，加解密均为块加密再异或的动作。
 *
 * 开发平台：Delphi5 + Win 7
-* 修改记录：2022.06.21 V1.1
+* 修改记录：2024.07.25 V1.3
+*               加入 CTR 模式的支持，遵循 RFC 3686 规范
+*           2024.05.26 V1.2
+*               补充部分支持 C++Builder 的函数
+*           2022.06.21 V1.1
 *               加入几个字节数组到十六进制字符串之间的加解密函数
 *           2021.12.11 V1.2
 *               加入 CFB/OFB 模式的支持
@@ -94,17 +109,23 @@ type
   PCnAESExpandedKey192 = ^TCnAESExpandedKey192;
   PCnAESExpandedKey256 = ^TCnAESExpandedKey256;
 
+  TCnAESCTRNonce = array[0..3] of Byte;
+  TCnAESCTRIv = array[0..7] of Byte;
+
 // Key Expansion Routines for Encryption
 
-procedure ExpandAESKeyForEncryption(const Key: TCnAESKey128;
-  var ExpandedKey: TCnAESExpandedKey128); overload;
-procedure ExpandAESKeyForEncryption(const Key: TCnAESKey192;
-  var ExpandedKey: TCnAESExpandedKey192); overload;
-procedure ExpandAESKeyForEncryption(const Key: TCnAESKey256;
-  var ExpandedKey: TCnAESExpandedKey256); overload;
+procedure ExpandAESKeyForEncryption128(const Key: TCnAESKey128;
+  var ExpandedKey: TCnAESExpandedKey128);
+procedure ExpandAESKeyForEncryption192(const Key: TCnAESKey192;
+  var ExpandedKey: TCnAESExpandedKey192);
+procedure ExpandAESKeyForEncryption256(const Key: TCnAESKey256;
+  var ExpandedKey: TCnAESExpandedKey256);
 
 // Block Encryption Routines 独立块加密，InBuf 和 OutBuf 可以是同一块区域
 
+{$IFNDEF BCB5OR6}
+
+// 因 C++Builder 的 overload 混乱问题，以下仨函数仅 Delphi 下可用
 procedure EncryptAES(const InBuf: TCnAESBuffer; const Key: TCnAESExpandedKey128;
   var OutBuf: TCnAESBuffer); overload;
 procedure EncryptAES(const InBuf: TCnAESBuffer; const Key: TCnAESExpandedKey192;
@@ -112,8 +133,21 @@ procedure EncryptAES(const InBuf: TCnAESBuffer; const Key: TCnAESExpandedKey192;
 procedure EncryptAES(const InBuf: TCnAESBuffer; const Key: TCnAESExpandedKey256;
   var OutBuf: TCnAESBuffer); overload;
 
-// Stream Encryption Routines (ECB mode) ECB 流加密
+{$ENDIF}
 
+// 新增的仨函数，Delphi 和 C++Builder 下均可用
+procedure EncryptAES128(const InBuf: TCnAESBuffer; const Key: TCnAESExpandedKey128;
+  var OutBuf: TCnAESBuffer);
+procedure EncryptAES192(const InBuf: TCnAESBuffer; const Key: TCnAESExpandedKey192;
+  var OutBuf: TCnAESBuffer);
+procedure EncryptAES256(const InBuf: TCnAESBuffer; const Key: TCnAESExpandedKey256;
+  var OutBuf: TCnAESBuffer);
+
+// Stream Encryption Routines (ECB mode) ECB 块加密
+
+{$IFNDEF BCB5OR6}
+
+// 因 C++Builder 的 overload 混乱问题，以下六函数仅 Delphi 下可用
 procedure EncryptAESStreamECB(Source: TStream; Count: Cardinal;
   const Key: TCnAESKey128; Dest: TStream); overload;
 procedure EncryptAESStreamECB(Source: TStream; Count: Cardinal;
@@ -129,8 +163,29 @@ procedure EncryptAESStreamECB(Source: TStream; Count: Cardinal;
 procedure EncryptAESStreamECB(Source: TStream; Count: Cardinal;
   const ExpandedKey: TCnAESExpandedKey256; Dest: TStream); overload;
 
-// Stream Encryption Routines (CBC mode) CBC 流加密
+{$ENDIF}
 
+// 新增的六函数，Delphi 和 C++Builder 下均可用
+procedure EncryptAES128StreamECB(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey128; Dest: TStream);
+procedure EncryptAES128StreamECBExpanded(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey128; Dest: TStream);
+
+procedure EncryptAES192StreamECB(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey192; Dest: TStream);
+procedure EncryptAES192StreamECBExpanded(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey192; Dest: TStream);
+
+procedure EncryptAES256StreamECB(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey256; Dest: TStream);
+procedure EncryptAES256StreamECBExpanded(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey256; Dest: TStream);
+
+// Stream Encryption Routines (CBC mode) CBC 块加密
+
+{$IFNDEF BCB5OR6}
+
+// 因 C++Builder 的 overload 混乱问题，以下六函数仅 Delphi 下可用
 procedure EncryptAESStreamCBC(Source: TStream; Count: Cardinal;
   const Key: TCnAESKey128; const InitVector: TCnAESBuffer; Dest: TStream); overload;
 procedure EncryptAESStreamCBC(Source: TStream; Count: Cardinal;
@@ -148,9 +203,33 @@ procedure EncryptAESStreamCBC(Source: TStream; Count: Cardinal;
 procedure EncryptAESStreamCBC(Source: TStream; Count: Cardinal;
   const ExpandedKey: TCnAESExpandedKey256; const InitVector: TCnAESBuffer;
   Dest: TStream); overload;
+
+{$ENDIF}
+
+// 新增的六函数，Delphi 和 C++Builder 下均可用
+procedure EncryptAES128StreamCBC(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey128; const InitVector: TCnAESBuffer; Dest: TStream);
+procedure EncryptAES128StreamCBCExpanded(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey128; const InitVector: TCnAESBuffer;
+  Dest: TStream);
+
+procedure EncryptAES192StreamCBC(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey192; const InitVector: TCnAESBuffer; Dest: TStream);
+procedure EncryptAES192StreamCBCExpanded(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey192; const InitVector: TCnAESBuffer;
+  Dest: TStream);
+
+procedure EncryptAES256StreamCBC(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey256; const InitVector: TCnAESBuffer; Dest: TStream);
+procedure EncryptAES256StreamCBCExpanded(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey256; const InitVector: TCnAESBuffer;
+  Dest: TStream);
 
 // Stream Encryption Routines (CFB mode) CFB 流加密
 
+{$IFNDEF BCB5OR6}
+
+// 因 C++Builder 的 overload 混乱问题，以下六函数仅 Delphi 下可用
 procedure EncryptAESStreamCFB(Source: TStream; Count: Cardinal;
   const Key: TCnAESKey128; const InitVector: TCnAESBuffer; Dest: TStream); overload;
 procedure EncryptAESStreamCFB(Source: TStream; Count: Cardinal;
@@ -168,9 +247,33 @@ procedure EncryptAESStreamCFB(Source: TStream; Count: Cardinal;
 procedure EncryptAESStreamCFB(Source: TStream; Count: Cardinal;
   const ExpandedKey: TCnAESExpandedKey256; const InitVector: TCnAESBuffer;
   Dest: TStream); overload;
+
+{$ENDIF}
+
+// 新增的六函数，Delphi 和 C++Builder 下均可用
+procedure EncryptAES128StreamCFB(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey128; const InitVector: TCnAESBuffer; Dest: TStream);
+procedure EncryptAES128StreamCFBExpanded(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey128; const InitVector: TCnAESBuffer;
+  Dest: TStream);
+
+procedure EncryptAES192StreamCFB(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey192; const InitVector: TCnAESBuffer; Dest: TStream);
+procedure EncryptAES192StreamCFBExpanded(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey192; const InitVector: TCnAESBuffer;
+  Dest: TStream);
+
+procedure EncryptAES256StreamCFB(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey256; const InitVector: TCnAESBuffer; Dest: TStream);
+procedure EncryptAES256StreamCFBExpanded(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey256; const InitVector: TCnAESBuffer;
+  Dest: TStream);
 
 // Stream Encryption Routines (OFB mode) OFB 流加密
 
+{$IFNDEF BCB5OR6}
+
+// 因 C++Builder 的 overload 混乱问题，以下六函数仅 Delphi 下可用
 procedure EncryptAESStreamOFB(Source: TStream; Count: Cardinal;
   const Key: TCnAESKey128; const InitVector: TCnAESBuffer; Dest: TStream); overload;
 procedure EncryptAESStreamOFB(Source: TStream; Count: Cardinal;
@@ -189,8 +292,82 @@ procedure EncryptAESStreamOFB(Source: TStream; Count: Cardinal;
   const ExpandedKey: TCnAESExpandedKey256; const InitVector: TCnAESBuffer;
   Dest: TStream); overload;
 
+{$ENDIF}
+
+// 新增的六函数，Delphi 和 C++Builder 下均可用
+procedure EncryptAES128StreamOFB(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey128; const InitVector: TCnAESBuffer; Dest: TStream);
+procedure EncryptAES128StreamOFBExpanded(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey128; const InitVector: TCnAESBuffer;
+  Dest: TStream);
+
+procedure EncryptAES192StreamOFB(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey192; const InitVector: TCnAESBuffer; Dest: TStream);
+procedure EncryptAES192StreamOFBExpanded(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey192; const InitVector: TCnAESBuffer;
+  Dest: TStream);
+
+procedure EncryptAES256StreamOFB(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey256; const InitVector: TCnAESBuffer; Dest: TStream);
+procedure EncryptAES256StreamOFBExpanded(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey256; const InitVector: TCnAESBuffer;
+  Dest: TStream);
+
+// Stream Encryption Routines (CTR mode) CTR 流加密
+
+{$IFNDEF BCB5OR6}
+
+// 因 C++Builder 的 overload 混乱问题，以下六函数仅 Delphi 下可用
+procedure EncryptAESStreamCTR(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey128; const Nonce: TCnAESCTRNonce;
+  const InitVector: TCnAESCTRIv; Dest: TStream); overload;
+procedure EncryptAESStreamCTR(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey128; const Nonce: TCnAESCTRNonce;
+  const InitVector: TCnAESCTRIv; Dest: TStream); overload;
+
+procedure EncryptAESStreamCTR(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey192; const Nonce: TCnAESCTRNonce;
+  const InitVector: TCnAESCTRIv; Dest: TStream); overload;
+procedure EncryptAESStreamCTR(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey192; const Nonce: TCnAESCTRNonce;
+  const InitVector: TCnAESCTRIv; Dest: TStream); overload;
+
+procedure EncryptAESStreamCTR(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey256; const Nonce: TCnAESCTRNonce;
+  const InitVector: TCnAESCTRIv; Dest: TStream); overload;
+procedure EncryptAESStreamCTR(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey256; const Nonce: TCnAESCTRNonce;
+  const InitVector: TCnAESCTRIv; Dest: TStream); overload;
+
+{$ENDIF}
+
+// 新增的六函数，Delphi 和 C++Builder 下均可用
+procedure EncryptAES128StreamCTR(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey128; const Nonce: TCnAESCTRNonce;
+  const InitVector: TCnAESCTRIv; Dest: TStream);
+procedure EncryptAES128StreamCTRExpanded(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey128; const Nonce: TCnAESCTRNonce;
+  const InitVector: TCnAESCTRIv; Dest: TStream);
+
+procedure EncryptAES192StreamCTR(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey192; const Nonce: TCnAESCTRNonce;
+  const InitVector: TCnAESCTRIv; Dest: TStream);
+procedure EncryptAES192StreamCTRExpanded(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey192; const Nonce: TCnAESCTRNonce;
+  const InitVector: TCnAESCTRIv; Dest: TStream);
+
+procedure EncryptAES256StreamCTR(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey256; const Nonce: TCnAESCTRNonce;
+  const InitVector: TCnAESCTRIv; Dest: TStream);
+procedure EncryptAES256StreamCTRExpanded(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey256; const Nonce: TCnAESCTRNonce;
+  const InitVector: TCnAESCTRIv; Dest: TStream);
+
 // Key Transformation Routines for Decryption
 
+{$IFNDEF BCB5OR6}
+
+// 因 C++Builder 的 overload 混乱问题，以下六函数仅 Delphi 下可用
 procedure ExpandAESKeyForDecryption(var ExpandedKey: TCnAESExpandedKey128); overload;
 procedure ExpandAESKeyForDecryption(const Key: TCnAESKey128;
   var ExpandedKey: TCnAESExpandedKey128); overload;
@@ -203,8 +380,26 @@ procedure ExpandAESKeyForDecryption(var ExpandedKey: TCnAESExpandedKey256); over
 procedure ExpandAESKeyForDecryption(const Key: TCnAESKey256;
   var ExpandedKey: TCnAESExpandedKey256); overload;
 
+{$ENDIF}
+
+// 新增的六函数，Delphi 和 C++Builder 下均可用
+procedure ExpandAESKeyForDecryption128(var ExpandedKey: TCnAESExpandedKey128);
+procedure ExpandAESKeyForDecryption128Expanded(const Key: TCnAESKey128;
+  var ExpandedKey: TCnAESExpandedKey128);
+
+procedure ExpandAESKeyForDecryption192(var ExpandedKey: TCnAESExpandedKey192);
+procedure ExpandAESKeyForDecryption192Expanded(const Key: TCnAESKey192;
+  var ExpandedKey: TCnAESExpandedKey192);
+
+procedure ExpandAESKeyForDecryption256(var ExpandedKey: TCnAESExpandedKey256);
+procedure ExpandAESKeyForDecryption256Expanded(const Key: TCnAESKey256;
+  var ExpandedKey: TCnAESExpandedKey256);
+
 // Block Decryption Routines  独立块解密
 
+{$IFNDEF BCB5OR6}
+
+// 因 C++Builder 的 overload 混乱问题，以下仨函数仅 Delphi 下可用
 procedure DecryptAES(const InBuf: TCnAESBuffer; const Key: TCnAESExpandedKey128;
   var OutBuf: TCnAESBuffer); overload;
 procedure DecryptAES(const InBuf: TCnAESBuffer; const Key: TCnAESExpandedKey192;
@@ -212,8 +407,21 @@ procedure DecryptAES(const InBuf: TCnAESBuffer; const Key: TCnAESExpandedKey192;
 procedure DecryptAES(const InBuf: TCnAESBuffer; const Key: TCnAESExpandedKey256;
   var OutBuf: TCnAESBuffer); overload;
 
-// Stream Decryption Routines (ECB mode) ECB 流解密
+{$ENDIF}
 
+// 新增的仨函数，Delphi 和 C++Builder 下均可用
+procedure DecryptAES128(const InBuf: TCnAESBuffer; const Key: TCnAESExpandedKey128;
+  var OutBuf: TCnAESBuffer);
+procedure DecryptAES192(const InBuf: TCnAESBuffer; const Key: TCnAESExpandedKey192;
+  var OutBuf: TCnAESBuffer);
+procedure DecryptAES256(const InBuf: TCnAESBuffer; const Key: TCnAESExpandedKey256;
+  var OutBuf: TCnAESBuffer);
+
+// Stream Decryption Routines (ECB mode) ECB 块解密
+
+{$IFNDEF BCB5OR6}
+
+// 因 C++Builder 的 overload 混乱问题，以下六函数仅 Delphi 下可用
 procedure DecryptAESStreamECB(Source: TStream; Count: Cardinal;
   const Key: TCnAESKey128; Dest: TStream); overload;
 procedure DecryptAESStreamECB(Source: TStream; Count: Cardinal;
@@ -229,8 +437,29 @@ procedure DecryptAESStreamECB(Source: TStream; Count: Cardinal;
 procedure DecryptAESStreamECB(Source: TStream; Count: Cardinal;
   const ExpandedKey: TCnAESExpandedKey256; Dest: TStream); overload;
 
-// Stream Decryption Routines (CBC mode) CBC 流解密
+{$ENDIF}
 
+// 新增的六函数，Delphi 和 C++Builder 下均可用
+procedure DecryptAES128StreamECB(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey128; Dest: TStream);
+procedure DecryptAES128StreamECBExpanded(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey128; Dest: TStream);
+
+procedure DecryptAES192StreamECB(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey192; Dest: TStream);
+procedure DecryptAES192StreamECBExpanded(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey192; Dest: TStream);
+
+procedure DecryptAES256StreamECB(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey256; Dest: TStream);
+procedure DecryptAES256StreamECBExpanded(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey256; Dest: TStream);
+
+// Stream Decryption Routines (CBC mode) CBC 块解密
+
+{$IFNDEF BCB5OR6}
+
+// 因 C++Builder 的 overload 混乱问题，以下六函数仅 Delphi 下可用
 procedure DecryptAESStreamCBC(Source: TStream; Count: Cardinal;
   const Key: TCnAESKey128; const InitVector: TCnAESBuffer; Dest: TStream); overload;
 procedure DecryptAESStreamCBC(Source: TStream; Count: Cardinal;
@@ -248,9 +477,33 @@ procedure DecryptAESStreamCBC(Source: TStream; Count: Cardinal;
 procedure DecryptAESStreamCBC(Source: TStream; Count: Cardinal;
   const ExpandedKey: TCnAESExpandedKey256; const InitVector: TCnAESBuffer;
   Dest: TStream); overload;
+
+{$ENDIF}
+
+// 新增的六函数，Delphi 和 C++Builder 下均可用
+procedure DecryptAES128StreamCBC(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey128; const InitVector: TCnAESBuffer; Dest: TStream);
+procedure DecryptAES128StreamCBCExpanded(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey128; const InitVector: TCnAESBuffer;
+  Dest: TStream);
+
+procedure DecryptAES192StreamCBC(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey192; const InitVector: TCnAESBuffer; Dest: TStream);
+procedure DecryptAES192StreamCBCExpanded(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey192; const InitVector: TCnAESBuffer;
+  Dest: TStream);
+
+procedure DecryptAES256StreamCBC(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey256; const InitVector: TCnAESBuffer; Dest: TStream);
+procedure DecryptAES256StreamCBCExpanded(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey256; const InitVector: TCnAESBuffer;
+  Dest: TStream);
 
 // Stream Decryption Routines (CFB mode) CFB 流解密
 
+{$IFNDEF BCB5OR6}
+
+// 因 C++Builder 的 overload 混乱问题，以下六函数仅 Delphi 下可用
 procedure DecryptAESStreamCFB(Source: TStream; Count: Cardinal;
   const Key: TCnAESKey128; const InitVector: TCnAESBuffer; Dest: TStream); overload;
 procedure DecryptAESStreamCFB(Source: TStream; Count: Cardinal;
@@ -268,9 +521,33 @@ procedure DecryptAESStreamCFB(Source: TStream; Count: Cardinal;
 procedure DecryptAESStreamCFB(Source: TStream; Count: Cardinal;
   const ExpandedKey: TCnAESExpandedKey256; const InitVector: TCnAESBuffer;
   Dest: TStream); overload;
+
+{$ENDIF}
+
+// 新增的六函数，Delphi 和 C++Builder 下均可用
+procedure DecryptAES128StreamCFB(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey128; const InitVector: TCnAESBuffer; Dest: TStream);
+procedure DecryptAES128StreamCFBExpanded(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey128; const InitVector: TCnAESBuffer;
+  Dest: TStream);
+
+procedure DecryptAES192StreamCFB(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey192; const InitVector: TCnAESBuffer; Dest: TStream);
+procedure DecryptAES192StreamCFBExpanded(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey192; const InitVector: TCnAESBuffer;
+  Dest: TStream);
+
+procedure DecryptAES256StreamCFB(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey256; const InitVector: TCnAESBuffer; Dest: TStream);
+procedure DecryptAES256StreamCFBExpanded(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey256; const InitVector: TCnAESBuffer;
+  Dest: TStream);
 
 // Stream Decryption Routines (OFB mode) OFB 流解密
 
+{$IFNDEF BCB5OR6}
+
+// 因 C++Builder 的 overload 混乱问题，以下六函数仅 Delphi 下可用
 procedure DecryptAESStreamOFB(Source: TStream; Count: Cardinal;
   const Key: TCnAESKey128; const InitVector: TCnAESBuffer; Dest: TStream); overload;
 procedure DecryptAESStreamOFB(Source: TStream; Count: Cardinal;
@@ -288,6 +565,77 @@ procedure DecryptAESStreamOFB(Source: TStream; Count: Cardinal;
 procedure DecryptAESStreamOFB(Source: TStream; Count: Cardinal;
   const ExpandedKey: TCnAESExpandedKey256; const InitVector: TCnAESBuffer;
   Dest: TStream); overload;
+
+{$ENDIF}
+
+// 新增的六函数，Delphi 和 C++Builder 下均可用
+procedure DecryptAES128StreamOFB(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey128; const InitVector: TCnAESBuffer; Dest: TStream);
+procedure DecryptAES128StreamOFBExpanded(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey128; const InitVector: TCnAESBuffer;
+  Dest: TStream);
+
+procedure DecryptAES192StreamOFB(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey192; const InitVector: TCnAESBuffer; Dest: TStream);
+procedure DecryptAES192StreamOFBExpanded(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey192; const InitVector: TCnAESBuffer;
+  Dest: TStream);
+
+procedure DecryptAES256StreamOFB(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey256; const InitVector: TCnAESBuffer; Dest: TStream);
+procedure DecryptAES256StreamOFBExpanded(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey256; const InitVector: TCnAESBuffer;
+  Dest: TStream);
+
+// Stream Decryption Routines (CTR mode) CTR 流解密
+
+{$IFNDEF BCB5OR6}
+
+// 因 C++Builder 的 overload 混乱问题，以下六函数仅 Delphi 下可用
+procedure DecryptAESStreamCTR(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey128; const Nonce: TCnAESCTRNonce;
+  const InitVector: TCnAESCTRIv; Dest: TStream); overload;
+procedure DecryptAESStreamCTR(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey128; const Nonce: TCnAESCTRNonce;
+  const InitVector: TCnAESCTRIv; Dest: TStream); overload;
+
+procedure DecryptAESStreamCTR(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey192; const Nonce: TCnAESCTRNonce;
+  const InitVector: TCnAESCTRIv; Dest: TStream); overload;
+procedure DecryptAESStreamCTR(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey192; const Nonce: TCnAESCTRNonce;
+  const InitVector: TCnAESCTRIv; Dest: TStream); overload;
+
+procedure DecryptAESStreamCTR(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey256; const Nonce: TCnAESCTRNonce;
+  const InitVector: TCnAESCTRIv; Dest: TStream); overload;
+procedure DecryptAESStreamCTR(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey256; const Nonce: TCnAESCTRNonce;
+  const InitVector: TCnAESCTRIv; Dest: TStream); overload;
+
+{$ENDIF}
+
+// 新增的六函数，Delphi 和 C++Builder 下均可用
+procedure DecryptAES128StreamCTR(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey128; const Nonce: TCnAESCTRNonce;
+  const InitVector: TCnAESCTRIv; Dest: TStream);
+procedure DecryptAES128StreamCTRExpanded(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey128; const Nonce: TCnAESCTRNonce;
+  const InitVector: TCnAESCTRIv; Dest: TStream);
+
+procedure DecryptAES192StreamCTR(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey192; const Nonce: TCnAESCTRNonce;
+  const InitVector: TCnAESCTRIv; Dest: TStream);
+procedure DecryptAES192StreamCTRExpanded(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey192; const Nonce: TCnAESCTRNonce;
+  const InitVector: TCnAESCTRIv; Dest: TStream);
+
+procedure DecryptAES256StreamCTR(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey256; const Nonce: TCnAESCTRNonce;
+  const InitVector: TCnAESCTRIv; Dest: TStream);
+procedure DecryptAES256StreamCTRExpanded(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey256; const Nonce: TCnAESCTRNonce;
+  const InitVector: TCnAESCTRIv; Dest: TStream);
 
 // ============== 明文字符串与密文十六进制字符串之间的加解密 ===================
 
@@ -295,7 +643,7 @@ function AESEncryptEcbStrToHex(Value: AnsiString; Key: AnsiString;
   KeyBit: TCnKeyBitType = kbt128): AnsiString;
 {* AES ECB 模式加密字符串并将其转换成十六进制}
 
-function AESDecryptEcbStrFromHex(Value: AnsiString; Key: AnsiString;
+function AESDecryptEcbStrFromHex(const HexStr: AnsiString; Key: AnsiString;
   KeyBit: TCnKeyBitType = kbt128): AnsiString;
 {* AES ECB 解密十六进制字符串}
 
@@ -303,7 +651,7 @@ function AESEncryptCbcStrToHex(Value: AnsiString; Key: AnsiString;
   const Iv: TCnAESBuffer; KeyBit: TCnKeyBitType = kbt128): AnsiString;
 {* AES CBC 模式加密字符串并将其转换成十六进制}
 
-function AESDecryptCbcStrFromHex(Value: AnsiString; Key: AnsiString;
+function AESDecryptCbcStrFromHex(const HexStr: AnsiString; Key: AnsiString;
   const Iv: TCnAESBuffer; KeyBit: TCnKeyBitType = kbt128): AnsiString;
 {* AES CBC 解密十六进制字符串}
 
@@ -311,7 +659,7 @@ function AESEncryptCfbStrToHex(Value: AnsiString; Key: AnsiString;
   const Iv: TCnAESBuffer; KeyBit: TCnKeyBitType = kbt128): AnsiString;
 {* AES CFB 模式加密字符串并将其转换成十六进制}
 
-function AESDecryptCfbStrFromHex(Value: AnsiString; Key: AnsiString;
+function AESDecryptCfbStrFromHex(const HexStr: AnsiString; Key: AnsiString;
   const Iv: TCnAESBuffer; KeyBit: TCnKeyBitType = kbt128): AnsiString;
 {* AES CFB 解密十六进制字符串}
 
@@ -319,9 +667,17 @@ function AESEncryptOfbStrToHex(Value: AnsiString; Key: AnsiString;
   const Iv: TCnAESBuffer; KeyBit: TCnKeyBitType = kbt128): AnsiString;
 {* AES OFB 模式加密字符串并将其转换成十六进制}
 
-function AESDecryptOfbStrFromHex(Value: AnsiString; Key: AnsiString;
+function AESDecryptOfbStrFromHex(const HexStr: AnsiString; Key: AnsiString;
   const Iv: TCnAESBuffer; KeyBit: TCnKeyBitType = kbt128): AnsiString;
 {* AES OFB 解密十六进制字符串}
+
+function AESEncryptCtrStrToHex(Value: AnsiString; Key: AnsiString;
+  const Nonce: TCnAESCTRNonce; const Iv: TCnAESCTRIv; KeyBit: TCnKeyBitType = kbt128): AnsiString;
+{* AES CTR 模式加密字符串并将其转换成十六进制}
+
+function AESDecryptCtrStrFromHex(const HexStr: AnsiString; Key: AnsiString;
+  const Nonce: TCnAESCTRNonce; const Iv: TCnAESCTRIv; KeyBit: TCnKeyBitType = kbt128): AnsiString;
+{* AES CTR 解密十六进制字符串}
 
 // ================= 明文字节数组与密文字节数组之间的加解密 ====================
 
@@ -349,40 +705,52 @@ function AESEncryptOfbBytes(Value, Key, Iv: TBytes; KeyBit: TCnKeyBitType = kbt1
 function AESDecryptOfbBytes(Value, Key, Iv: TBytes; KeyBit: TCnKeyBitType = kbt128): TBytes;
 {* AES OFB 模式解密字节数组}
 
+function AESEncryptCtrBytes(Value, Key, Nonce, Iv: TBytes; KeyBit: TCnKeyBitType = kbt128): TBytes;
+{* AES CTR 模式加密字节数组}
+
+function AESDecryptCtrBytes(Value, Key, Nonce, Iv: TBytes; KeyBit: TCnKeyBitType = kbt128): TBytes;
+{* AES CTR 模式解密字节数组}
+
 // ============== 明文字节数组与密文十六进制字符串之间的加解密 =================
 
 function AESEncryptEcbBytesToHex(Value, Key: TBytes; KeyBit: TCnKeyBitType = kbt128): AnsiString;
 {* AES ECB 模式加密字节数组并将其转换成十六进制}
 
-function AESDecryptEcbBytesFromHex(Value: AnsiString; Key: TBytes; KeyBit: TCnKeyBitType = kbt128): TBytes;
+function AESDecryptEcbBytesFromHex(const HexStr: AnsiString; Key: TBytes; KeyBit: TCnKeyBitType = kbt128): TBytes;
 {* AES ECB 解密十六进制字符串并返回字节数组}
 
 function AESEncryptCbcBytesToHex(Value, Key, Iv: TBytes; KeyBit: TCnKeyBitType = kbt128): AnsiString;
 {* AES CBC 模式加密字节数组并将其转换成十六进制}
 
-function AESDecryptCbcBytesFromHex(Value: AnsiString; Key, Iv: TBytes; KeyBit: TCnKeyBitType = kbt128): TBytes;
+function AESDecryptCbcBytesFromHex(const HexStr: AnsiString; Key, Iv: TBytes; KeyBit: TCnKeyBitType = kbt128): TBytes;
 {* AES CBC 解密十六进制字符串并返回字节数组}
 
 function AESEncryptCfbBytesToHex(Value, Key, Iv: TBytes; KeyBit: TCnKeyBitType = kbt128): AnsiString;
 {* AES CFB 模式加密字节数组并将其转换成十六进制}
 
-function AESDecryptCfbBytesFromHex(Value: AnsiString; Key, Iv: TBytes; KeyBit: TCnKeyBitType = kbt128): TBytes;
+function AESDecryptCfbBytesFromHex(const HexStr: AnsiString; Key, Iv: TBytes; KeyBit: TCnKeyBitType = kbt128): TBytes;
 {* AES CFB 解密十六进制字符串并返回字节数组}
 
 function AESEncryptOfbBytesToHex(Value, Key, Iv: TBytes; KeyBit: TCnKeyBitType = kbt128): AnsiString;
 {* AES OFB 模式加密字节数组并将其转换成十六进制}
 
-function AESDecryptOfbBytesFromHex(Value: AnsiString; Key, Iv: TBytes; KeyBit: TCnKeyBitType = kbt128): TBytes;
+function AESDecryptOfbBytesFromHex(const HexStr: AnsiString; Key, Iv: TBytes; KeyBit: TCnKeyBitType = kbt128): TBytes;
 {* AES OFB 解密十六进制字符串并返回字节数组}
+
+function AESEncryptCtrBytesToHex(Value, Key, Nonce, Iv: TBytes; KeyBit: TCnKeyBitType = kbt128): AnsiString;
+{* AES CTR 模式加密字节数组并将其转换成十六进制}
+
+function AESDecryptCtrBytesFromHex(const HexStr: AnsiString; Key, Nonce, Iv: TBytes; KeyBit: TCnKeyBitType = kbt128): TBytes;
+{* AES CTR 解密十六进制字符串并返回字节数组}
 
 implementation
 
 resourcestring
-  SInvalidInBufSize = 'Invalid Buffer Size for Decryption';
-  SReadError = 'Stream Read Error';
-  SWriteError = 'Stream Write Error';
+  SCnErrorAESInvalidInBufSize = 'Invalid Buffer Size for Decryption';
+  SCnErrorAESReadError = 'Stream Read Error';
+  SCnErrorAESWriteError = 'Stream Write Error';
 
-function Min(A, B: Integer): Integer;
+function Min(A, B: Integer): Integer; {$IFDEF SUPPORT_INLINE} inline; {$ENDIF}
 begin
   if A < B then
     Result := A
@@ -539,8 +907,8 @@ const
     $000000E1, $00000069, $00000014, $00000063, $00000055, $00000021, $0000000C, $0000007D
   );
 
-procedure ExpandAESKeyForEncryption(const Key: TCnAESKey128; var ExpandedKey:
-  TCnAESExpandedKey128); overload;
+procedure ExpandAESKeyForEncryption128(const Key: TCnAESKey128; var ExpandedKey:
+  TCnAESExpandedKey128);
 var
   I, J: Integer;
   T: Cardinal;
@@ -566,8 +934,8 @@ begin
   until I >= 40;
 end;
 
-procedure ExpandAESKeyForEncryption(const Key: TCnAESKey192; var ExpandedKey:
-  TCnAESExpandedKey192); overload;
+procedure ExpandAESKeyForEncryption192(const Key: TCnAESKey192; var ExpandedKey:
+  TCnAESExpandedKey192);
 var
   I, J: Integer;
   T: Cardinal;
@@ -597,8 +965,8 @@ begin
   until I >= 46;
 end;
 
-procedure ExpandAESKeyForEncryption(const Key: TCnAESKey256; var ExpandedKey:
-  TCnAESExpandedKey256); overload;
+procedure ExpandAESKeyForEncryption256(const Key: TCnAESKey256; var ExpandedKey:
+  TCnAESExpandedKey256);
 var
   I, J: Integer;
   T: Cardinal;
@@ -638,8 +1006,31 @@ begin
   until I >= 52;
 end;
 
+{$IFNDEF BCB5OR6}
+
+// 因 C++Builder 的 overload 混乱问题，以下仨函数仅 Delphi 下可用
 procedure EncryptAES(const InBuf: TCnAESBuffer; const Key: TCnAESExpandedKey128;
-  var OutBuf: TCnAESBuffer); overload;
+  var OutBuf: TCnAESBuffer);
+begin
+  EncryptAES128(InBuf, Key, OutBuf);
+end;
+
+procedure EncryptAES(const InBuf: TCnAESBuffer; const Key: TCnAESExpandedKey192;
+  var OutBuf: TCnAESBuffer);
+begin
+  EncryptAES192(InBuf, Key, OutBuf);
+end;
+
+procedure EncryptAES(const InBuf: TCnAESBuffer; const Key: TCnAESExpandedKey256;
+  var OutBuf: TCnAESBuffer);
+begin
+  EncryptAES256(InBuf, Key, OutBuf);
+end;
+
+{$ENDIF}
+
+procedure EncryptAES128(const InBuf: TCnAESBuffer; const Key: TCnAESExpandedKey128;
+  var OutBuf: TCnAESBuffer);
 var
   T0, T1: array [0..3] of Cardinal;
   W0, W1, W2, W3: Cardinal;
@@ -829,8 +1220,8 @@ begin
   PCardinal(@OutBuf[12])^ := T0[3];
 end;
 
-procedure EncryptAES(const InBuf: TCnAESBuffer; const Key: TCnAESExpandedKey192;
-  var OutBuf: TCnAESBuffer); overload;
+procedure EncryptAES192(const InBuf: TCnAESBuffer; const Key: TCnAESExpandedKey192;
+  var OutBuf: TCnAESBuffer);
 var
   T0, T1: array [0..3] of Cardinal;
   W0, W1, W2, W3: Cardinal;
@@ -1054,8 +1445,8 @@ begin
   PCardinal(@OutBuf[12])^ := T0[3];
 end;
 
-procedure EncryptAES(const InBuf: TCnAESBuffer; const Key: TCnAESExpandedKey256;
-  var OutBuf: TCnAESBuffer); overload;
+procedure EncryptAES256(const InBuf: TCnAESBuffer; const Key: TCnAESExpandedKey256;
+  var OutBuf: TCnAESBuffer);
 var
   T0, T1: array [0..3] of Cardinal;
   W0, W1, W2, W3: Cardinal;
@@ -1313,7 +1704,45 @@ begin
   PCardinal(@OutBuf[12])^ := T0[3];
 end;
 
-procedure ExpandAESKeyForDecryption(var ExpandedKey: TCnAESExpandedKey128); overload;
+{$IFNDEF BCB5OR6}
+
+// 因 C++Builder 的 overload 混乱问题，以下六函数仅 Delphi 下可用
+procedure ExpandAESKeyForDecryption(var ExpandedKey: TCnAESExpandedKey128);
+begin
+  ExpandAESKeyForDecryption128(ExpandedKey);
+end;
+
+procedure ExpandAESKeyForDecryption(const Key: TCnAESKey128;
+  var ExpandedKey: TCnAESExpandedKey128);
+begin
+  ExpandAESKeyForDecryption128Expanded(Key, ExpandedKey);
+end;
+
+procedure ExpandAESKeyForDecryption(var ExpandedKey: TCnAESExpandedKey192);
+begin
+  ExpandAESKeyForDecryption192(ExpandedKey);
+end;
+
+procedure ExpandAESKeyForDecryption(const Key: TCnAESKey192;
+  var ExpandedKey: TCnAESExpandedKey192);
+begin
+  ExpandAESKeyForDecryption192Expanded(Key, ExpandedKey);
+end;
+
+procedure ExpandAESKeyForDecryption(var ExpandedKey: TCnAESExpandedKey256);
+begin
+  ExpandAESKeyForDecryption256(ExpandedKey);
+end;
+
+procedure ExpandAESKeyForDecryption(const Key: TCnAESKey256;
+  var ExpandedKey: TCnAESExpandedKey256);
+begin
+  ExpandAESKeyForDecryption256Expanded(Key, ExpandedKey);
+end;
+
+{$ENDIF}
+
+procedure ExpandAESKeyForDecryption128(var ExpandedKey: TCnAESExpandedKey128);
 var
   I: Integer;
   U, F2, F4, F8, F9: Cardinal;
@@ -1367,14 +1796,14 @@ begin
   end;
 end;
 
-procedure ExpandAESKeyForDecryption(const Key: TCnAESKey128; var ExpandedKey:
-  TCnAESExpandedKey128); overload;
+procedure ExpandAESKeyForDecryption128Expanded(const Key: TCnAESKey128; var ExpandedKey:
+  TCnAESExpandedKey128);
 begin
-  ExpandAESKeyForEncryption(Key, ExpandedKey);
-  ExpandAESKeyForDecryption(ExpandedKey);
+  ExpandAESKeyForEncryption128(Key, ExpandedKey);
+  ExpandAESKeyForDecryption128(ExpandedKey);
 end;
 
-procedure ExpandAESKeyForDecryption(var ExpandedKey: TCnAESExpandedKey192); overload;
+procedure ExpandAESKeyForDecryption192(var ExpandedKey: TCnAESExpandedKey192);
 var
   I: Integer;
   U, F2, F4, F8, F9: Cardinal;
@@ -1428,14 +1857,14 @@ begin
   end;
 end;
 
-procedure ExpandAESKeyForDecryption(const Key: TCnAESKey192; var ExpandedKey:
-  TCnAESExpandedKey192); overload;
+procedure ExpandAESKeyForDecryption192Expanded(const Key: TCnAESKey192; var ExpandedKey:
+  TCnAESExpandedKey192);
 begin
-  ExpandAESKeyForEncryption(Key, ExpandedKey);
-  ExpandAESKeyForDecryption(ExpandedKey);
+  ExpandAESKeyForEncryption192(Key, ExpandedKey);
+  ExpandAESKeyForDecryption192(ExpandedKey);
 end;
 
-procedure ExpandAESKeyForDecryption(var ExpandedKey: TCnAESExpandedKey256); overload;
+procedure ExpandAESKeyForDecryption256(var ExpandedKey: TCnAESExpandedKey256);
 var
   I: Integer;
   U, F2, F4, F8, F9: Cardinal;
@@ -1489,15 +1918,38 @@ begin
   end;
 end;
 
-procedure ExpandAESKeyForDecryption(const Key: TCnAESKey256; var ExpandedKey:
-  TCnAESExpandedKey256); overload;
+procedure ExpandAESKeyForDecryption256Expanded(const Key: TCnAESKey256; var ExpandedKey:
+  TCnAESExpandedKey256);
 begin
-  ExpandAESKeyForEncryption(Key, ExpandedKey);
-  ExpandAESKeyForDecryption(ExpandedKey);
+  ExpandAESKeyForEncryption256(Key, ExpandedKey);
+  ExpandAESKeyForDecryption256(ExpandedKey);
 end;
 
+{$IFNDEF BCB5OR6}
+
+// 因 C++Builder 的 overload 混乱问题，以下仨函数仅 Delphi 下可用
 procedure DecryptAES(const InBuf: TCnAESBuffer; const Key: TCnAESExpandedKey128;
-  var OutBuf: TCnAESBuffer); overload;
+  var OutBuf: TCnAESBuffer);
+begin
+  DecryptAES128(InBuf, Key, OutBuf);
+end;
+
+procedure DecryptAES(const InBuf: TCnAESBuffer; const Key: TCnAESExpandedKey192;
+  var OutBuf: TCnAESBuffer);
+begin
+  DecryptAES192(InBuf, Key, OutBuf);
+end;
+
+procedure DecryptAES(const InBuf: TCnAESBuffer; const Key: TCnAESExpandedKey256;
+  var OutBuf: TCnAESBuffer);
+begin
+  DecryptAES256(InBuf, Key, OutBuf);
+end;
+
+{$ENDIF}
+
+procedure DecryptAES128(const InBuf: TCnAESBuffer; const Key: TCnAESExpandedKey128;
+  var OutBuf: TCnAESBuffer);
 var
   T0, T1: array [0..3] of Cardinal;
   W0, W1, W2, W3: Cardinal;
@@ -1687,8 +2139,8 @@ begin
   PCardinal(@OutBuf[12])^ := T0[3];
 end;
 
-procedure DecryptAES(const InBuf: TCnAESBuffer; const Key: TCnAESExpandedKey192;
-  var OutBuf: TCnAESBuffer); overload;
+procedure DecryptAES192(const InBuf: TCnAESBuffer; const Key: TCnAESExpandedKey192;
+  var OutBuf: TCnAESBuffer);
 var
   T0, T1: array [0..3] of Cardinal;
   W0, W1, W2, W3: Cardinal;
@@ -1912,7 +2364,7 @@ begin
   PCardinal(@OutBuf[12])^ := T0[3];
 end;
 
-procedure DecryptAES(const InBuf: TCnAESBuffer; const Key: TCnAESExpandedKey256;
+procedure DecryptAES256(const InBuf: TCnAESBuffer; const Key: TCnAESExpandedKey256;
   var OutBuf: TCnAESBuffer);
 var
   T0, T1: array [0..3] of Cardinal;
@@ -2173,35 +2625,76 @@ end;
 
 // Stream Encryption Routines (ECB mode)
 
+{$IFNDEF BCB5OR6}
+
+// 因 C++Builder 的 overload 混乱问题，以下六函数仅 Delphi 下可用
 procedure EncryptAESStreamECB(Source: TStream; Count: Cardinal;
-  const Key: TCnAESKey128; Dest: TStream); overload;
+  const Key: TCnAESKey128; Dest: TStream);
+begin
+  EncryptAES128StreamECB(Source, Count, Key, Dest);
+end;
+
+procedure EncryptAESStreamECB(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey128; Dest: TStream);
+begin
+  EncryptAES128StreamECBExpanded(Source, Count, ExpandedKey, Dest);
+end;
+
+procedure EncryptAESStreamECB(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey192; Dest: TStream);
+begin
+  EncryptAES192StreamECB(Source, Count, Key, Dest);
+end;
+
+procedure EncryptAESStreamECB(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey192; Dest: TStream);
+begin
+  EncryptAES192StreamECBExpanded(Source, Count, ExpandedKey, Dest);
+end;
+
+procedure EncryptAESStreamECB(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey256; Dest: TStream);
+begin
+  EncryptAES256StreamECB(Source, Count, Key, Dest);
+end;
+
+procedure EncryptAESStreamECB(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey256; Dest: TStream);
+begin
+  EncryptAES256StreamECBExpanded(Source, Count, ExpandedKey, Dest);
+end;
+
+{$ENDIF}
+
+procedure EncryptAES128StreamECB(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey128; Dest: TStream);
 var
   ExpandedKey: TCnAESExpandedKey128;
 begin
-  ExpandAESKeyForEncryption(Key, ExpandedKey);
-  EncryptAESStreamECB(Source, Count, ExpandedKey, Dest);
+  ExpandAESKeyForEncryption128(Key, ExpandedKey);
+  EncryptAES128StreamECBExpanded(Source, Count, ExpandedKey, Dest);
 end;
 
-procedure EncryptAESStreamECB(Source: TStream; Count: Cardinal;
-  const Key: TCnAESKey192; Dest: TStream); overload;
+procedure EncryptAES192StreamECB(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey192; Dest: TStream);
 var
   ExpandedKey: TCnAESExpandedKey192;
 begin
-  ExpandAESKeyForEncryption(Key, ExpandedKey);
-  EncryptAESStreamECB(Source, Count, ExpandedKey, Dest);
+  ExpandAESKeyForEncryption192(Key, ExpandedKey);
+  EncryptAES192StreamECBExpanded(Source, Count, ExpandedKey, Dest);
 end;
 
-procedure EncryptAESStreamECB(Source: TStream; Count: Cardinal;
-  const Key: TCnAESKey256; Dest: TStream); overload;
+procedure EncryptAES256StreamECB(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey256; Dest: TStream);
 var
   ExpandedKey: TCnAESExpandedKey256;
 begin
-  ExpandAESKeyForEncryption(Key, ExpandedKey);
-  EncryptAESStreamECB(Source, Count, ExpandedKey, Dest);
+  ExpandAESKeyForEncryption256(Key, ExpandedKey);
+  EncryptAES256StreamECBExpanded(Source, Count, ExpandedKey, Dest);
 end;
 
-procedure EncryptAESStreamECB(Source: TStream; Count: Cardinal;
-  const ExpandedKey: TCnAESExpandedKey128; Dest: TStream); overload;
+procedure EncryptAES128StreamECBExpanded(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey128; Dest: TStream);
 var
   TempIn, TempOut: TCnAESBuffer;
   Done: Cardinal;
@@ -2213,32 +2706,33 @@ begin
   end
   else Count := Min(Count, Source.Size - Source.Position);
   if Count = 0 then Exit;
+
   while Count >= SizeOf(TCnAESBuffer) do
   begin
     Done := Source.Read(TempIn, SizeOf(TempIn));
     if Done < SizeOf(TempIn) then
-      raise EStreamError.Create(SReadError);
-    EncryptAES(TempIn, ExpandedKey, TempOut);
+      raise EStreamError.Create(SCnErrorAESReadError);
+    EncryptAES128(TempIn, ExpandedKey, TempOut);
     Done := Dest.Write(TempOut, SizeOf(TempOut));
     if Done < SizeOf(TempOut) then
-      raise EStreamError.Create(SWriteError);
+      raise EStreamError.Create(SCnErrorAESWriteError);
     Dec(Count, SizeOf(TCnAESBuffer));
   end;
   if Count > 0 then
   begin
     Done := Source.Read(TempIn, Count);
     if Done < Count then
-      raise EStreamError.Create(SReadError);
+      raise EStreamError.Create(SCnErrorAESReadError);
     FillChar(TempIn[Count], SizeOf(TempIn) - Count, 0);
-    EncryptAES(TempIn, ExpandedKey, TempOut);
+    EncryptAES128(TempIn, ExpandedKey, TempOut);
     Done := Dest.Write(TempOut, SizeOf(TempOut));
     if Done < SizeOf(TempOut) then
-      raise EStreamError.Create(SWriteError);
+      raise EStreamError.Create(SCnErrorAESWriteError);
   end;
 end;
 
-procedure EncryptAESStreamECB(Source: TStream; Count: Cardinal;
-  const ExpandedKey: TCnAESExpandedKey192; Dest: TStream); overload;
+procedure EncryptAES192StreamECBExpanded(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey192; Dest: TStream);
 var
   TempIn, TempOut: TCnAESBuffer;
   Done: Cardinal;
@@ -2250,32 +2744,33 @@ begin
   end
   else Count := Min(Count, Source.Size - Source.Position);
   if Count = 0 then Exit;
+
   while Count >= SizeOf(TCnAESBuffer) do
   begin
     Done := Source.Read(TempIn, SizeOf(TempIn));
     if Done < SizeOf(TempIn) then
-      raise EStreamError.Create(SReadError);
-    EncryptAES(TempIn, ExpandedKey, TempOut);
+      raise EStreamError.Create(SCnErrorAESReadError);
+    EncryptAES192(TempIn, ExpandedKey, TempOut);
     Done := Dest.Write(TempOut, SizeOf(TempOut));
     if Done < SizeOf(TempOut) then
-      raise EStreamError.Create(SWriteError);
+      raise EStreamError.Create(SCnErrorAESWriteError);
     Dec(Count, SizeOf(TCnAESBuffer));
   end;
   if Count > 0 then
   begin
     Done := Source.Read(TempIn, Count);
     if Done < Count then
-      raise EStreamError.Create(SReadError);
+      raise EStreamError.Create(SCnErrorAESReadError);
     FillChar(TempIn[Count], SizeOf(TempIn) - Count, 0);
-    EncryptAES(TempIn, ExpandedKey, TempOut);
+    EncryptAES192(TempIn, ExpandedKey, TempOut);
     Done := Dest.Write(TempOut, SizeOf(TempOut));
     if Done < SizeOf(TempOut) then
-      raise EStreamError.Create(SWriteError);
+      raise EStreamError.Create(SCnErrorAESWriteError);
   end;
 end;
 
-procedure EncryptAESStreamECB(Source: TStream; Count: Cardinal;
-  const ExpandedKey: TCnAESExpandedKey256; Dest: TStream); overload;
+procedure EncryptAES256StreamECBExpanded(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey256; Dest: TStream);
 var
   TempIn, TempOut: TCnAESBuffer;
   Done: Cardinal;
@@ -2287,43 +2782,85 @@ begin
   end
   else Count := Min(Count, Source.Size - Source.Position);
   if Count = 0 then Exit;
+
   while Count >= SizeOf(TCnAESBuffer) do
   begin
     Done := Source.Read(TempIn, SizeOf(TempIn));
     if Done < SizeOf(TempIn) then
-      raise EStreamError.Create(SReadError);
-    EncryptAES(TempIn, ExpandedKey, TempOut);
+      raise EStreamError.Create(SCnErrorAESReadError);
+    EncryptAES256(TempIn, ExpandedKey, TempOut);
     Done := Dest.Write(TempOut, SizeOf(TempOut));
     if Done < SizeOf(TempOut) then
-      raise EStreamError.Create(SWriteError);
+      raise EStreamError.Create(SCnErrorAESWriteError);
     Dec(Count, SizeOf(TCnAESBuffer));
   end;
   if Count > 0 then
   begin
     Done := Source.Read(TempIn, Count);
     if Done < Count then
-      raise EStreamError.Create(SReadError);
+      raise EStreamError.Create(SCnErrorAESReadError);
     FillChar(TempIn[Count], SizeOf(TempIn) - Count, 0);
-    EncryptAES(TempIn, ExpandedKey, TempOut);
+    EncryptAES256(TempIn, ExpandedKey, TempOut);
     Done := Dest.Write(TempOut, SizeOf(TempOut));
     if Done < SizeOf(TempOut) then
-      raise EStreamError.Create(SWriteError);
+      raise EStreamError.Create(SCnErrorAESWriteError);
   end;
 end;
 
 // Stream Decryption Routines (ECB mode)
 
+{$IFNDEF BCB5OR6}
+
+// 因 C++Builder 的 overload 混乱问题，以下六函数仅 Delphi 下可用
 procedure DecryptAESStreamECB(Source: TStream; Count: Cardinal;
-  const Key: TCnAESKey128; Dest: TStream); overload;
+  const Key: TCnAESKey128; Dest: TStream);
+begin
+  DecryptAES128StreamECB(Source, Count, Key, Dest);
+end;
+
+procedure DecryptAESStreamECB(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey128; Dest: TStream);
+begin
+  DecryptAES128StreamECBExpanded(Source, Count, ExpandedKey, Dest);
+end;
+
+procedure DecryptAESStreamECB(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey192; Dest: TStream);
+begin
+  DecryptAES192StreamECB(Source, Count, Key, Dest);
+end;
+
+procedure DecryptAESStreamECB(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey192; Dest: TStream);
+begin
+  DecryptAES192StreamECBExpanded(Source, Count, ExpandedKey, Dest);
+end;
+
+procedure DecryptAESStreamECB(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey256; Dest: TStream);
+begin
+  DecryptAES256StreamECB(Source, Count, Key, Dest);
+end;
+
+procedure DecryptAESStreamECB(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey256; Dest: TStream);
+begin
+  DecryptAES256StreamECBExpanded(Source, Count, ExpandedKey, Dest);
+end;
+
+{$ENDIF}
+
+procedure DecryptAES128StreamECB(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey128; Dest: TStream);
 var
   ExpandedKey: TCnAESExpandedKey128;
 begin
-  ExpandAESKeyForDecryption(Key, ExpandedKey);
-  DecryptAESStreamECB(Source, Count, ExpandedKey, Dest);
+  ExpandAESKeyForDecryption128Expanded(Key, ExpandedKey);
+  DecryptAES128StreamECBExpanded(Source, Count, ExpandedKey, Dest);
 end;
 
-procedure DecryptAESStreamECB(Source: TStream; Count: Cardinal;
-  const ExpandedKey: TCnAESExpandedKey128; Dest: TStream); overload;
+procedure DecryptAES128StreamECBExpanded(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey128; Dest: TStream);
 var
   TempIn, TempOut: TCnAESBuffer;
   Done: Cardinal;
@@ -2335,32 +2872,33 @@ begin
   end
   else Count := Min(Count, Source.Size - Source.Position);
   if Count = 0 then Exit;
+
   if (Count mod SizeOf(TCnAESBuffer)) > 0 then
-    raise ECnAESError.Create(SInvalidInBufSize);
+    raise ECnAESError.Create(SCnErrorAESInvalidInBufSize);
   while Count >= SizeOf(TCnAESBuffer) do
   begin
     Done := Source.Read(TempIn, SizeOf(TempIn));
     if Done < SizeOf(TempIn) then
-      raise EStreamError.Create(SReadError);
-    DecryptAES(TempIn, ExpandedKey, TempOut);
+      raise EStreamError.Create(SCnErrorAESReadError);
+    DecryptAES128(TempIn, ExpandedKey, TempOut);
     Done := Dest.Write(TempOut, SizeOf(TempOut));
     if Done < SizeOf(TempOut) then
-      raise EStreamError.Create(SWriteError);
+      raise EStreamError.Create(SCnErrorAESWriteError);
     Dec(Count, SizeOf(TCnAESBuffer));
   end;
 end;
 
-procedure DecryptAESStreamECB(Source: TStream; Count: Cardinal;
-  const Key: TCnAESKey192; Dest: TStream); overload;
+procedure DecryptAES192StreamECB(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey192; Dest: TStream);
 var
   ExpandedKey: TCnAESExpandedKey192;
 begin
-  ExpandAESKeyForDecryption(Key, ExpandedKey);
-  DecryptAESStreamECB(Source, Count, ExpandedKey, Dest);
+  ExpandAESKeyForDecryption192Expanded(Key, ExpandedKey);
+  DecryptAES192StreamECBExpanded(Source, Count, ExpandedKey, Dest);
 end;
 
-procedure DecryptAESStreamECB(Source: TStream; Count: Cardinal;
-  const ExpandedKey: TCnAESExpandedKey192; Dest: TStream); overload;
+procedure DecryptAES192StreamECBExpanded(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey192; Dest: TStream);
 var
   TempIn, TempOut: TCnAESBuffer;
   Done: Cardinal;
@@ -2372,32 +2910,33 @@ begin
   end
   else Count := Min(Count, Source.Size - Source.Position);
   if Count = 0 then Exit;
+
   if (Count mod SizeOf(TCnAESBuffer)) > 0 then
-    raise ECnAESError.Create(SInvalidInBufSize);
+    raise ECnAESError.Create(SCnErrorAESInvalidInBufSize);
   while Count >= SizeOf(TCnAESBuffer) do
   begin
     Done := Source.Read(TempIn, SizeOf(TempIn));
     if Done < SizeOf(TempIn) then
-      raise EStreamError.Create(SReadError);
-    DecryptAES(TempIn, ExpandedKey, TempOut);
+      raise EStreamError.Create(SCnErrorAESReadError);
+    DecryptAES192(TempIn, ExpandedKey, TempOut);
     Done := Dest.Write(TempOut, SizeOf(TempOut));
     if Done < SizeOf(TempOut) then
-      raise EStreamError.Create(SWriteError);
+      raise EStreamError.Create(SCnErrorAESWriteError);
     Dec(Count, SizeOf(TCnAESBuffer));
   end;
 end;
 
-procedure DecryptAESStreamECB(Source: TStream; Count: Cardinal;
-  const Key: TCnAESKey256; Dest: TStream); overload;
+procedure DecryptAES256StreamECB(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey256; Dest: TStream);
 var
   ExpandedKey: TCnAESExpandedKey256;
 begin
-  ExpandAESKeyForDecryption(Key, ExpandedKey);
-  DecryptAESStreamECB(Source, Count, ExpandedKey, Dest);
+  ExpandAESKeyForDecryption256Expanded(Key, ExpandedKey);
+  DecryptAES256StreamECBExpanded(Source, Count, ExpandedKey, Dest);
 end;
 
-procedure DecryptAESStreamECB(Source: TStream; Count: Cardinal;
-  const ExpandedKey: TCnAESExpandedKey256; Dest: TStream); overload;
+procedure DecryptAES256StreamECBExpanded(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey256; Dest: TStream);
 var
   TempIn, TempOut: TCnAESBuffer;
   Done: Cardinal;
@@ -2409,35 +2948,80 @@ begin
   end
   else Count := Min(Count, Source.Size - Source.Position);
   if Count = 0 then Exit;
+
   if (Count mod SizeOf(TCnAESBuffer)) > 0 then
-    raise ECnAESError.Create(SInvalidInBufSize);
+    raise ECnAESError.Create(SCnErrorAESInvalidInBufSize);
   while Count >= SizeOf(TCnAESBuffer) do
   begin
     Done := Source.Read(TempIn, SizeOf(TempIn));
     if Done < SizeOf(TempIn) then
-      raise EStreamError.Create(SReadError);
-    DecryptAES(TempIn, ExpandedKey, TempOut);
+      raise EStreamError.Create(SCnErrorAESReadError);
+    DecryptAES256(TempIn, ExpandedKey, TempOut);
     Done := Dest.Write(TempOut, SizeOf(TempOut));
     if Done < SizeOf(TempOut) then
-      raise EStreamError.Create(SWriteError);
+      raise EStreamError.Create(SCnErrorAESWriteError);
     Dec(Count, SizeOf(TCnAESBuffer));
   end;
 end;
 
 // Stream Encryption Routines (CBC mode)
 
+{$IFNDEF BCB5OR6}
+
+// 因 C++Builder 的 overload 混乱问题，以下六函数仅 Delphi 下可用
 procedure EncryptAESStreamCBC(Source: TStream; Count: Cardinal;
-  const Key: TCnAESKey128; const InitVector: TCnAESBuffer; Dest: TStream); overload;
-var
-  ExpandedKey: TCnAESExpandedKey128;
+  const Key: TCnAESKey128; const InitVector: TCnAESBuffer; Dest: TStream);
 begin
-  ExpandAESKeyForEncryption(Key, ExpandedKey);
-  EncryptAESStreamCBC(Source, Count, ExpandedKey, InitVector, Dest);
+  EncryptAES128StreamCBC(Source, Count, Key, InitVector, Dest);
 end;
 
 procedure EncryptAESStreamCBC(Source: TStream; Count: Cardinal;
   const ExpandedKey: TCnAESExpandedKey128; const InitVector: TCnAESBuffer;
-  Dest: TStream); overload;
+  Dest: TStream);
+begin
+  EncryptAES128StreamCBCExpanded(Source, Count, ExpandedKey, InitVector, Dest);
+end;
+
+procedure EncryptAESStreamCBC(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey192; const InitVector: TCnAESBuffer; Dest: TStream);
+begin
+  EncryptAES192StreamCBC(Source, Count, Key, InitVector, Dest);
+end;
+
+procedure EncryptAESStreamCBC(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey192; const InitVector: TCnAESBuffer;
+  Dest: TStream);
+begin
+  EncryptAES192StreamCBCExpanded(Source, Count, ExpandedKey, InitVector, Dest);
+end;
+
+procedure EncryptAESStreamCBC(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey256; const InitVector: TCnAESBuffer; Dest: TStream);
+begin
+  EncryptAES256StreamCBC(Source, Count, Key, InitVector, Dest);
+end;
+
+procedure EncryptAESStreamCBC(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey256; const InitVector: TCnAESBuffer;
+  Dest: TStream);
+begin
+  EncryptAES256StreamCBCExpanded(Source, Count, ExpandedKey, InitVector, Dest);
+end;
+
+{$ENDIF}
+
+procedure EncryptAES128StreamCBC(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey128; const InitVector: TCnAESBuffer; Dest: TStream);
+var
+  ExpandedKey: TCnAESExpandedKey128;
+begin
+  ExpandAESKeyForEncryption128(Key, ExpandedKey);
+  EncryptAES128StreamCBCExpanded(Source, Count, ExpandedKey, InitVector, Dest);
+end;
+
+procedure EncryptAES128StreamCBCExpanded(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey128; const InitVector: TCnAESBuffer;
+  Dest: TStream);
 var
   TempIn, TempOut, Vector: TCnAESBuffer;
   Done: Cardinal;
@@ -2449,20 +3033,21 @@ begin
   end
   else Count := Min(Count, Source.Size - Source.Position);
   if Count = 0 then Exit;
+
   Vector := InitVector;
   while Count >= SizeOf(TCnAESBuffer) do
   begin
     Done := Source.Read(TempIn, SizeOf(TempIn));
     if Done < SizeOf(TempIn) then
-      raise EStreamError.Create(SReadError); // 要求每一块都是整块
+      raise EStreamError.Create(SCnErrorAESReadError); // 要求每一块都是整块
     PCardinal(@TempIn[0])^ := PCardinal(@TempIn[0])^ xor PCardinal(@Vector[0])^;
     PCardinal(@TempIn[4])^ := PCardinal(@TempIn[4])^ xor PCardinal(@Vector[4])^;
     PCardinal(@TempIn[8])^ := PCardinal(@TempIn[8])^ xor PCardinal(@Vector[8])^;
     PCardinal(@TempIn[12])^ := PCardinal(@TempIn[12])^ xor PCardinal(@Vector[12])^; // 原始块内容与 IV 先异或
-    EncryptAES(TempIn, ExpandedKey, TempOut);                                       // 异或结果再加密
+    EncryptAES128(TempIn, ExpandedKey, TempOut);                                    // 异或结果再加密
     Done := Dest.Write(TempOut, SizeOf(TempOut));                                   // 加密内容写入结果
     if Done < SizeOf(TempOut) then
-      raise EStreamError.Create(SWriteError);
+      raise EStreamError.Create(SCnErrorAESWriteError);
     Vector := TempOut;                                                              // 加密内容代替原始 IV 供下一次异或使用
     Dec(Count, SizeOf(TCnAESBuffer));
   end;
@@ -2470,31 +3055,31 @@ begin
   begin
     Done := Source.Read(TempIn, Count);
     if Done < Count then
-      raise EStreamError.Create(SReadError);
+      raise EStreamError.Create(SCnErrorAESReadError);
     FillChar(TempIn[Count], SizeOf(TempIn) - Count, 0);
     PCardinal(@TempIn[0])^ := PCardinal(@TempIn[0])^ xor PCardinal(@Vector[0])^;
     PCardinal(@TempIn[4])^ := PCardinal(@TempIn[4])^ xor PCardinal(@Vector[4])^;
     PCardinal(@TempIn[8])^ := PCardinal(@TempIn[8])^ xor PCardinal(@Vector[8])^;
     PCardinal(@TempIn[12])^ := PCardinal(@TempIn[12])^ xor PCardinal(@Vector[12])^;
-    EncryptAES(TempIn, ExpandedKey, TempOut);
+    EncryptAES128(TempIn, ExpandedKey, TempOut);
     Done := Dest.Write(TempOut, SizeOf(TempOut));
     if Done < SizeOf(TempOut) then
-      raise EStreamError.Create(SWriteError);
+      raise EStreamError.Create(SCnErrorAESWriteError);
   end;
 end;
 
-procedure EncryptAESStreamCBC(Source: TStream; Count: Cardinal;
-  const Key: TCnAESKey192; const InitVector: TCnAESBuffer; Dest: TStream); overload;
+procedure EncryptAES192StreamCBC(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey192; const InitVector: TCnAESBuffer; Dest: TStream);
 var
   ExpandedKey: TCnAESExpandedKey192;
 begin
-  ExpandAESKeyForEncryption(Key, ExpandedKey);
-  EncryptAESStreamCBC(Source, Count, ExpandedKey, InitVector, Dest);
+  ExpandAESKeyForEncryption192(Key, ExpandedKey);
+  EncryptAES192StreamCBCExpanded(Source, Count, ExpandedKey, InitVector, Dest);
 end;
 
-procedure EncryptAESStreamCBC(Source: TStream; Count: Cardinal;
+procedure EncryptAES192StreamCBCExpanded(Source: TStream; Count: Cardinal;
   const ExpandedKey: TCnAESExpandedKey192;  const InitVector: TCnAESBuffer;
-  Dest: TStream); overload;
+  Dest: TStream);
 var
   TempIn, TempOut, Vector: TCnAESBuffer;
   Done: Cardinal;
@@ -2506,20 +3091,21 @@ begin
   end
   else Count := Min(Count, Source.Size - Source.Position);
   if Count = 0 then Exit;
+
   Vector := InitVector;
   while Count >= SizeOf(TCnAESBuffer) do
   begin
     Done := Source.Read(TempIn, SizeOf(TempIn));
     if Done < SizeOf(TempIn) then
-      raise EStreamError.Create(SReadError);
+      raise EStreamError.Create(SCnErrorAESReadError);
     PCardinal(@TempIn[0])^ := PCardinal(@TempIn[0])^ xor PCardinal(@Vector[0])^;
     PCardinal(@TempIn[4])^ := PCardinal(@TempIn[4])^ xor PCardinal(@Vector[4])^;
     PCardinal(@TempIn[8])^ := PCardinal(@TempIn[8])^ xor PCardinal(@Vector[8])^;
     PCardinal(@TempIn[12])^ := PCardinal(@TempIn[12])^ xor PCardinal(@Vector[12])^;
-    EncryptAES(TempIn, ExpandedKey, TempOut);
+    EncryptAES192(TempIn, ExpandedKey, TempOut);
     Done := Dest.Write(TempOut, SizeOf(TempOut));
     if Done < SizeOf(TempOut) then
-      raise EStreamError.Create(SWriteError);
+      raise EStreamError.Create(SCnErrorAESWriteError);
     Vector := TempOut;
     Dec(Count, SizeOf(TCnAESBuffer));
   end;
@@ -2527,31 +3113,31 @@ begin
   begin
     Done := Source.Read(TempIn, Count);
     if Done < Count then
-      raise EStreamError.Create(SReadError);
+      raise EStreamError.Create(SCnErrorAESReadError);
     FillChar(TempIn[Count], SizeOf(TempIn) - Count, 0);
     PCardinal(@TempIn[0])^ := PCardinal(@TempIn[0])^ xor PCardinal(@Vector[0])^;
     PCardinal(@TempIn[4])^ := PCardinal(@TempIn[4])^ xor PCardinal(@Vector[4])^;
     PCardinal(@TempIn[8])^ := PCardinal(@TempIn[8])^ xor PCardinal(@Vector[8])^;
     PCardinal(@TempIn[12])^ := PCardinal(@TempIn[12])^ xor PCardinal(@Vector[12])^;
-    EncryptAES(TempIn, ExpandedKey, TempOut);
+    EncryptAES192(TempIn, ExpandedKey, TempOut);
     Done := Dest.Write(TempOut, SizeOf(TempOut));
     if Done < SizeOf(TempOut) then
-      raise EStreamError.Create(SWriteError);
+      raise EStreamError.Create(SCnErrorAESWriteError);
   end;
 end;
 
-procedure EncryptAESStreamCBC(Source: TStream; Count: Cardinal;
-  const Key: TCnAESKey256; const InitVector: TCnAESBuffer; Dest: TStream); overload;
+procedure EncryptAES256StreamCBC(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey256; const InitVector: TCnAESBuffer; Dest: TStream);
 var
   ExpandedKey: TCnAESExpandedKey256;
 begin
-  ExpandAESKeyForEncryption(Key, ExpandedKey);
-  EncryptAESStreamCBC(Source, Count, ExpandedKey, InitVector, Dest);
+  ExpandAESKeyForEncryption256(Key, ExpandedKey);
+  EncryptAES256StreamCBCExpanded(Source, Count, ExpandedKey, InitVector, Dest);
 end;
 
-procedure EncryptAESStreamCBC(Source: TStream; Count: Cardinal;
+procedure EncryptAES256StreamCBCExpanded(Source: TStream; Count: Cardinal;
   const ExpandedKey: TCnAESExpandedKey256; const InitVector: TCnAESBuffer;
-  Dest: TStream); overload;
+  Dest: TStream);
 var
   TempIn, TempOut, Vector: TCnAESBuffer;
   Done: Cardinal;
@@ -2563,20 +3149,21 @@ begin
   end
   else Count := Min(Count, Source.Size - Source.Position);
   if Count = 0 then Exit;
+
   Vector := InitVector;
   while Count >= SizeOf(TCnAESBuffer) do
   begin
     Done := Source.Read(TempIn, SizeOf(TempIn));
     if Done < SizeOf(TempIn) then
-      raise EStreamError.Create(SReadError);
+      raise EStreamError.Create(SCnErrorAESReadError);
     PCardinal(@TempIn[0])^ := PCardinal(@TempIn[0])^ xor PCardinal(@Vector[0])^;
     PCardinal(@TempIn[4])^ := PCardinal(@TempIn[4])^ xor PCardinal(@Vector[4])^;
     PCardinal(@TempIn[8])^ := PCardinal(@TempIn[8])^ xor PCardinal(@Vector[8])^;
     PCardinal(@TempIn[12])^ := PCardinal(@TempIn[12])^ xor PCardinal(@Vector[12])^;
-    EncryptAES(TempIn, ExpandedKey, TempOut);
+    EncryptAES256(TempIn, ExpandedKey, TempOut);
     Done := Dest.Write(TempOut, SizeOf(TempOut));
     if Done < SizeOf(TempOut) then
-      raise EStreamError.Create(SWriteError);
+      raise EStreamError.Create(SCnErrorAESWriteError);
     Vector := TempOut;
     Dec(Count, SizeOf(TCnAESBuffer));
   end;
@@ -2584,79 +3171,77 @@ begin
   begin
     Done := Source.Read(TempIn, Count);
     if Done < Count then
-      raise EStreamError.Create(SReadError);
+      raise EStreamError.Create(SCnErrorAESReadError);
     FillChar(TempIn[Count], SizeOf(TempIn) - Count, 0);
     PCardinal(@TempIn[0])^ := PCardinal(@TempIn[0])^ xor PCardinal(@Vector[0])^;
     PCardinal(@TempIn[4])^ := PCardinal(@TempIn[4])^ xor PCardinal(@Vector[4])^;
     PCardinal(@TempIn[8])^ := PCardinal(@TempIn[8])^ xor PCardinal(@Vector[8])^;
     PCardinal(@TempIn[12])^ := PCardinal(@TempIn[12])^ xor PCardinal(@Vector[12])^;
-    EncryptAES(TempIn, ExpandedKey, TempOut);
+    EncryptAES256(TempIn, ExpandedKey, TempOut);
     Done := Dest.Write(TempOut, SizeOf(TempOut));
     if Done < SizeOf(TempOut) then
-      raise EStreamError.Create(SWriteError);
+      raise EStreamError.Create(SCnErrorAESWriteError);
   end;
 end;
 
 // Stream Decryption Routines (CBC mode)
 
+{$IFNDEF BCB5OR6}
+
+// 因 C++Builder 的 overload 混乱问题，以下六函数仅 Delphi 下可用
 procedure DecryptAESStreamCBC(Source: TStream; Count: Cardinal;
-  const Key: TCnAESKey128; const InitVector: TCnAESBuffer; Dest: TStream); overload;
-var
-  ExpandedKey: TCnAESExpandedKey128;
+  const Key: TCnAESKey128; const InitVector: TCnAESBuffer; Dest: TStream);
 begin
-  ExpandAESKeyForDecryption(Key, ExpandedKey);
-  DecryptAESStreamCBC(Source, Count, ExpandedKey, InitVector, Dest);
+  DecryptAES128StreamCBC(Source, Count, Key, InitVector, Dest);
 end;
 
 procedure DecryptAESStreamCBC(Source: TStream; Count: Cardinal;
   const ExpandedKey: TCnAESExpandedKey128; const InitVector: TCnAESBuffer;
-  Dest: TStream); overload;
-var
-  TempIn, TempOut: TCnAESBuffer;
-  Vector1, Vector2: TCnAESBuffer;
-  Done: Cardinal;
+  Dest: TStream);
 begin
-  if Count = 0 then
-  begin
-    Source.Position := 0;
-    Count := Source.Size;
-  end
-  else Count := Min(Count, Source.Size - Source.Position);
-  if Count = 0 then Exit;
-  if (Count mod SizeOf(TCnAESBuffer)) > 0 then
-    raise ECnAESError.Create(SInvalidInBufSize);
-  Vector1 := InitVector;
-  while Count >= SizeOf(TCnAESBuffer) do
-  begin
-    Done := Source.Read(TempIn, SizeOf(TempIn));
-    if Done < SizeOf(TempIn) then
-      raise EStreamError(SReadError);
-    Vector2 := TempIn;
-    DecryptAES(TempIn, ExpandedKey, TempOut);
-    PCardinal(@TempOut[0])^ := PCardinal(@TempOut[0])^ xor PCardinal(@Vector1[0])^;
-    PCardinal(@TempOut[4])^ := PCardinal(@TempOut[4])^ xor PCardinal(@Vector1[4])^;
-    PCardinal(@TempOut[8])^ := PCardinal(@TempOut[8])^ xor PCardinal(@Vector1[8])^;
-    PCardinal(@TempOut[12])^ := PCardinal(@TempOut[12])^ xor PCardinal(@Vector1[12])^;
-    Done := Dest.Write(TempOut, SizeOf(TempOut));
-    if Done < SizeOf(TempOut) then
-      raise EStreamError(SWriteError);
-    Vector1 := Vector2;
-    Dec(Count, SizeOf(TCnAESBuffer));
-  end;
+  DecryptAES128StreamCBCExpanded(Source, Count, ExpandedKey, InitVector, Dest);
 end;
 
 procedure DecryptAESStreamCBC(Source: TStream; Count: Cardinal;
-  const Key: TCnAESKey192; const InitVector: TCnAESBuffer; Dest: TStream); overload;
-var
-  ExpandedKey: TCnAESExpandedKey192;
+  const Key: TCnAESKey192; const InitVector: TCnAESBuffer; Dest: TStream);
 begin
-  ExpandAESKeyForDecryption(Key, ExpandedKey);
-  DecryptAESStreamCBC(Source, Count, ExpandedKey, InitVector, Dest);
+  DecryptAES192StreamCBC(Source, Count, Key, InitVector, Dest);
 end;
 
 procedure DecryptAESStreamCBC(Source: TStream; Count: Cardinal;
   const ExpandedKey: TCnAESExpandedKey192; const InitVector: TCnAESBuffer;
-  Dest: TStream); overload;
+  Dest: TStream);
+begin
+  DecryptAES192StreamCBCExpanded(Source, Count, ExpandedKey, InitVector, Dest);
+end;
+
+procedure DecryptAESStreamCBC(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey256; const InitVector: TCnAESBuffer; Dest: TStream);
+begin
+  DecryptAES256StreamCBC(Source, Count, Key, InitVector, Dest);
+end;
+
+procedure DecryptAESStreamCBC(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey256; const InitVector: TCnAESBuffer;
+  Dest: TStream);
+begin
+  DecryptAES256StreamCBCExpanded(Source, Count, ExpandedKey, InitVector, Dest);
+end;
+
+{$ENDIF}
+
+procedure DecryptAES128StreamCBC(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey128; const InitVector: TCnAESBuffer; Dest: TStream);
+var
+  ExpandedKey: TCnAESExpandedKey128;
+begin
+  ExpandAESKeyForDecryption128Expanded(Key, ExpandedKey);
+  DecryptAES128StreamCBCExpanded(Source, Count, ExpandedKey, InitVector, Dest);
+end;
+
+procedure DecryptAES128StreamCBCExpanded(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey128; const InitVector: TCnAESBuffer;
+  Dest: TStream);
 var
   TempIn, TempOut: TCnAESBuffer;
   Vector1, Vector2: TCnAESBuffer;
@@ -2669,40 +3254,41 @@ begin
   end
   else Count := Min(Count, Source.Size - Source.Position);
   if Count = 0 then Exit;
+
   if (Count mod SizeOf(TCnAESBuffer)) > 0 then
-    raise ECnAESError.Create(SInvalidInBufSize);
+    raise ECnAESError.Create(SCnErrorAESInvalidInBufSize);
   Vector1 := InitVector;
   while Count >= SizeOf(TCnAESBuffer) do
   begin
     Done := Source.Read(TempIn, SizeOf(TempIn));
     if Done < SizeOf(TempIn) then
-      raise EStreamError(SReadError);
+      raise EStreamError(SCnErrorAESReadError);
     Vector2 := TempIn;
-    DecryptAES(TempIn, ExpandedKey, TempOut);
+    DecryptAES128(TempIn, ExpandedKey, TempOut);
     PCardinal(@TempOut[0])^ := PCardinal(@TempOut[0])^ xor PCardinal(@Vector1[0])^;
     PCardinal(@TempOut[4])^ := PCardinal(@TempOut[4])^ xor PCardinal(@Vector1[4])^;
     PCardinal(@TempOut[8])^ := PCardinal(@TempOut[8])^ xor PCardinal(@Vector1[8])^;
     PCardinal(@TempOut[12])^ := PCardinal(@TempOut[12])^ xor PCardinal(@Vector1[12])^;
     Done := Dest.Write(TempOut, SizeOf(TempOut));
     if Done < SizeOf(TempOut) then
-      raise EStreamError(SWriteError);
+      raise EStreamError(SCnErrorAESWriteError);
     Vector1 := Vector2;
     Dec(Count, SizeOf(TCnAESBuffer));
   end;
 end;
 
-procedure DecryptAESStreamCBC(Source: TStream; Count: Cardinal;
-  const Key: TCnAESKey256; const InitVector: TCnAESBuffer; Dest: TStream); overload;
+procedure DecryptAES192StreamCBC(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey192; const InitVector: TCnAESBuffer; Dest: TStream);
 var
-  ExpandedKey: TCnAESExpandedKey256;
+  ExpandedKey: TCnAESExpandedKey192;
 begin
-  ExpandAESKeyForDecryption(Key, ExpandedKey);
-  DecryptAESStreamCBC(Source, Count, ExpandedKey, InitVector, Dest);
+  ExpandAESKeyForDecryption192Expanded(Key, ExpandedKey);
+  DecryptAES192StreamCBCExpanded(Source, Count, ExpandedKey, InitVector, Dest);
 end;
 
-procedure DecryptAESStreamCBC(Source: TStream; Count: Cardinal;
-  const ExpandedKey: TCnAESExpandedKey256; const InitVector: TCnAESBuffer;
-  Dest: TStream); overload;
+procedure DecryptAES192StreamCBCExpanded(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey192; const InitVector: TCnAESBuffer;
+  Dest: TStream);
 var
   TempIn, TempOut: TCnAESBuffer;
   Vector1, Vector2: TCnAESBuffer;
@@ -2715,23 +3301,71 @@ begin
   end
   else Count := Min(Count, Source.Size - Source.Position);
   if Count = 0 then Exit;
+
   if (Count mod SizeOf(TCnAESBuffer)) > 0 then
-    raise ECnAESError.Create(SInvalidInBufSize);        // CBC 由于密文最后输出是因为 AES 分块加密产生的（不是其他的异或）所以必须整数块
+    raise ECnAESError.Create(SCnErrorAESInvalidInBufSize);
   Vector1 := InitVector;
   while Count >= SizeOf(TCnAESBuffer) do
   begin
     Done := Source.Read(TempIn, SizeOf(TempIn));
     if Done < SizeOf(TempIn) then
-      raise EStreamError(SReadError);
+      raise EStreamError(SCnErrorAESReadError);
     Vector2 := TempIn;
-    DecryptAES(TempIn, ExpandedKey, TempOut);         // 读出密文先解密
+    DecryptAES192(TempIn, ExpandedKey, TempOut);
+    PCardinal(@TempOut[0])^ := PCardinal(@TempOut[0])^ xor PCardinal(@Vector1[0])^;
+    PCardinal(@TempOut[4])^ := PCardinal(@TempOut[4])^ xor PCardinal(@Vector1[4])^;
+    PCardinal(@TempOut[8])^ := PCardinal(@TempOut[8])^ xor PCardinal(@Vector1[8])^;
+    PCardinal(@TempOut[12])^ := PCardinal(@TempOut[12])^ xor PCardinal(@Vector1[12])^;
+    Done := Dest.Write(TempOut, SizeOf(TempOut));
+    if Done < SizeOf(TempOut) then
+      raise EStreamError(SCnErrorAESWriteError);
+    Vector1 := Vector2;
+    Dec(Count, SizeOf(TCnAESBuffer));
+  end;
+end;
+
+procedure DecryptAES256StreamCBC(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey256; const InitVector: TCnAESBuffer; Dest: TStream);
+var
+  ExpandedKey: TCnAESExpandedKey256;
+begin
+  ExpandAESKeyForDecryption256Expanded(Key, ExpandedKey);
+  DecryptAES256StreamCBCExpanded(Source, Count, ExpandedKey, InitVector, Dest);
+end;
+
+procedure DecryptAES256StreamCBCExpanded(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey256; const InitVector: TCnAESBuffer;
+  Dest: TStream);
+var
+  TempIn, TempOut: TCnAESBuffer;
+  Vector1, Vector2: TCnAESBuffer;
+  Done: Cardinal;
+begin
+  if Count = 0 then
+  begin
+    Source.Position := 0;
+    Count := Source.Size;
+  end
+  else Count := Min(Count, Source.Size - Source.Position);
+  if Count = 0 then Exit;
+
+  if (Count mod SizeOf(TCnAESBuffer)) > 0 then
+    raise ECnAESError.Create(SCnErrorAESInvalidInBufSize);        // CBC 由于密文最后输出是因为 AES 分块加密产生的（不是其他的异或）所以必须整数块
+  Vector1 := InitVector;
+  while Count >= SizeOf(TCnAESBuffer) do
+  begin
+    Done := Source.Read(TempIn, SizeOf(TempIn));
+    if Done < SizeOf(TempIn) then
+      raise EStreamError(SCnErrorAESReadError);
+    Vector2 := TempIn;
+    DecryptAES256(TempIn, ExpandedKey, TempOut);         // 读出密文先解密
     PCardinal(@TempOut[0])^ := PCardinal(@TempOut[0])^ xor PCardinal(@Vector1[0])^;   // 解密后的内容和 Iv 异或得到明文
     PCardinal(@TempOut[4])^ := PCardinal(@TempOut[4])^ xor PCardinal(@Vector1[4])^;
     PCardinal(@TempOut[8])^ := PCardinal(@TempOut[8])^ xor PCardinal(@Vector1[8])^;
     PCardinal(@TempOut[12])^ := PCardinal(@TempOut[12])^ xor PCardinal(@Vector1[12])^;
     Done := Dest.Write(TempOut, SizeOf(TempOut));      // 明文写出去
     if Done < SizeOf(TempOut) then
-      raise EStreamError(SWriteError);
+      raise EStreamError(SCnErrorAESWriteError);
     Vector1 := Vector2;                                // 保留密文取代 Iv 作为下一次和解密内容异或的内容
     Dec(Count, SizeOf(TCnAESBuffer));
   end;
@@ -2739,16 +3373,60 @@ end;
 
 // Stream Encryption Routines (CFB mode)
 
+{$IFNDEF BCB5OR6}
+
+// 因 C++Builder 的 overload 混乱问题，以下六函数仅 Delphi 下可用
 procedure EncryptAESStreamCFB(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey128; const InitVector: TCnAESBuffer; Dest: TStream);
+begin
+  EncryptAES128StreamCFB(Source, Count, Key, InitVector, Dest);
+end;
+
+procedure EncryptAESStreamCFB(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey128; const InitVector: TCnAESBuffer;
+  Dest: TStream);
+begin
+  EncryptAES128StreamCFBExpanded(Source, Count, ExpandedKey, InitVector, Dest);
+end;
+
+procedure EncryptAESStreamCFB(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey192; const InitVector: TCnAESBuffer; Dest: TStream);
+begin
+  EncryptAES192StreamCFB(Source, Count, Key, InitVector, Dest);
+end;
+
+procedure EncryptAESStreamCFB(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey192; const InitVector: TCnAESBuffer;
+  Dest: TStream);
+begin
+  EncryptAES192StreamCFBExpanded(Source, Count, ExpandedKey, InitVector, Dest);
+end;
+
+procedure EncryptAESStreamCFB(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey256; const InitVector: TCnAESBuffer; Dest: TStream);
+begin
+  EncryptAES256StreamCFB(Source, Count, Key, InitVector, Dest);
+end;
+
+procedure EncryptAESStreamCFB(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey256; const InitVector: TCnAESBuffer;
+  Dest: TStream);
+begin
+  EncryptAES256StreamCFBExpanded(Source, Count, ExpandedKey, InitVector, Dest);
+end;
+
+{$ENDIF}
+
+procedure EncryptAES128StreamCFB(Source: TStream; Count: Cardinal;
   const Key: TCnAESKey128; const InitVector: TCnAESBuffer; Dest: TStream);
 var
   ExpandedKey: TCnAESExpandedKey128;
 begin
-  ExpandAESKeyForDecryption(Key, ExpandedKey);
-  EncryptAESStreamCFB(Source, Count, ExpandedKey, InitVector, Dest);
+  ExpandAESKeyForEncryption128(Key, ExpandedKey);
+  EncryptAES128StreamCFBExpanded(Source, Count, ExpandedKey, InitVector, Dest);
 end;
 
-procedure EncryptAESStreamCFB(Source: TStream; Count: Cardinal;
+procedure EncryptAES128StreamCFBExpanded(Source: TStream; Count: Cardinal;
   const ExpandedKey: TCnAESExpandedKey128; const InitVector: TCnAESBuffer;
   Dest: TStream);
 var
@@ -2762,20 +3440,21 @@ begin
   end
   else Count := Min(Count, Source.Size - Source.Position);
   if Count = 0 then Exit;
+
   Vector := InitVector;
   while Count >= SizeOf(TCnAESBuffer) do
   begin
     Done := Source.Read(TempIn, SizeOf(TempIn));
     if Done < SizeOf(TempIn) then
-      raise EStreamError.Create(SReadError);
-    EncryptAES(Vector, ExpandedKey, TempOut);                                       // Key 先加密 Iv
+      raise EStreamError.Create(SCnErrorAESReadError);
+    EncryptAES128(Vector, ExpandedKey, TempOut);                                       // Key 先加密 Iv
     PCardinal(@TempOut[0])^ := PCardinal(@TempIn[0])^ xor PCardinal(@TempOut[0])^;  // 加密结果与明文异或
     PCardinal(@TempOut[4])^ := PCardinal(@TempIn[4])^ xor PCardinal(@TempOut[4])^;
     PCardinal(@TempOut[8])^ := PCardinal(@TempIn[8])^ xor PCardinal(@TempOut[8])^;
     PCardinal(@TempOut[12])^ := PCardinal(@TempIn[12])^ xor PCardinal(@TempOut[12])^;
     Done := Dest.Write(TempOut, SizeOf(TempOut));                                   // 异或的结果写进密文结果
     if Done < SizeOf(TempOut) then
-      raise EStreamError.Create(SWriteError);
+      raise EStreamError.Create(SCnErrorAESWriteError);
     Vector := TempOut;                                                              // 密文结果取代 Iv 供下一轮加密
     Dec(Count, SizeOf(TCnAESBuffer));
   end;
@@ -2783,28 +3462,28 @@ begin
   begin
     Done := Source.Read(TempIn, Count);
     if Done < Count then
-      raise EStreamError.Create(SReadError);
-    EncryptAES(Vector, ExpandedKey, TempOut);
+      raise EStreamError.Create(SCnErrorAESReadError);
+    EncryptAES128(Vector, ExpandedKey, TempOut);
     PCardinal(@TempOut[0])^ := PCardinal(@TempIn[0])^ xor PCardinal(@TempOut[0])^;
     PCardinal(@TempOut[4])^ := PCardinal(@TempIn[4])^ xor PCardinal(@TempOut[4])^;
     PCardinal(@TempOut[8])^ := PCardinal(@TempIn[8])^ xor PCardinal(@TempOut[8])^;
     PCardinal(@TempOut[12])^ := PCardinal(@TempIn[12])^ xor PCardinal(@TempOut[12])^;
     Done := Dest.Write(TempOut, Count);  // 最后写入的只包括密文长度的部分，无需整个块
     if Done < Count then
-      raise EStreamError.Create(SWriteError);
+      raise EStreamError.Create(SCnErrorAESWriteError);
   end;
 end;
 
-procedure EncryptAESStreamCFB(Source: TStream; Count: Cardinal;
+procedure EncryptAES192StreamCFB(Source: TStream; Count: Cardinal;
   const Key: TCnAESKey192; const InitVector: TCnAESBuffer; Dest: TStream);
 var
   ExpandedKey: TCnAESExpandedKey192;
 begin
-  ExpandAESKeyForDecryption(Key, ExpandedKey);
-  EncryptAESStreamCFB(Source, Count, ExpandedKey, InitVector, Dest);
+  ExpandAESKeyForEncryption192(Key, ExpandedKey);
+  EncryptAES192StreamCFBExpanded(Source, Count, ExpandedKey, InitVector, Dest);
 end;
 
-procedure EncryptAESStreamCFB(Source: TStream; Count: Cardinal;
+procedure EncryptAES192StreamCFBExpanded(Source: TStream; Count: Cardinal;
   const ExpandedKey: TCnAESExpandedKey192; const InitVector: TCnAESBuffer;
   Dest: TStream);
 var
@@ -2818,20 +3497,21 @@ begin
   end
   else Count := Min(Count, Source.Size - Source.Position);
   if Count = 0 then Exit;
+
   Vector := InitVector;
   while Count >= SizeOf(TCnAESBuffer) do
   begin
     Done := Source.Read(TempIn, SizeOf(TempIn));
     if Done < SizeOf(TempIn) then
-      raise EStreamError.Create(SReadError);
-    EncryptAES(Vector, ExpandedKey, TempOut);
+      raise EStreamError.Create(SCnErrorAESReadError);
+    EncryptAES192(Vector, ExpandedKey, TempOut);
     PCardinal(@TempOut[0])^ := PCardinal(@TempIn[0])^ xor PCardinal(@TempOut[0])^;
     PCardinal(@TempOut[4])^ := PCardinal(@TempIn[4])^ xor PCardinal(@TempOut[4])^;
     PCardinal(@TempOut[8])^ := PCardinal(@TempIn[8])^ xor PCardinal(@TempOut[8])^;
     PCardinal(@TempOut[12])^ := PCardinal(@TempIn[12])^ xor PCardinal(@TempOut[12])^;
     Done := Dest.Write(TempOut, SizeOf(TempOut));
     if Done < SizeOf(TempOut) then
-      raise EStreamError.Create(SWriteError);
+      raise EStreamError.Create(SCnErrorAESWriteError);
     Vector := TempOut;
     Dec(Count, SizeOf(TCnAESBuffer));
   end;
@@ -2839,28 +3519,28 @@ begin
   begin
     Done := Source.Read(TempIn, Count);
     if Done < Count then
-      raise EStreamError.Create(SReadError);
-    EncryptAES(Vector, ExpandedKey, TempOut);
+      raise EStreamError.Create(SCnErrorAESReadError);
+    EncryptAES192(Vector, ExpandedKey, TempOut);
     PCardinal(@TempOut[0])^ := PCardinal(@TempIn[0])^ xor PCardinal(@TempOut[0])^;
     PCardinal(@TempOut[4])^ := PCardinal(@TempIn[4])^ xor PCardinal(@TempOut[4])^;
     PCardinal(@TempOut[8])^ := PCardinal(@TempIn[8])^ xor PCardinal(@TempOut[8])^;
     PCardinal(@TempOut[12])^ := PCardinal(@TempIn[12])^ xor PCardinal(@TempOut[12])^;
     Done := Dest.Write(TempOut, Count);
     if Done < Count then
-      raise EStreamError.Create(SWriteError);
+      raise EStreamError.Create(SCnErrorAESWriteError);
   end;
 end;
 
-procedure EncryptAESStreamCFB(Source: TStream; Count: Cardinal;
+procedure EncryptAES256StreamCFB(Source: TStream; Count: Cardinal;
   const Key: TCnAESKey256; const InitVector: TCnAESBuffer; Dest: TStream);
 var
   ExpandedKey: TCnAESExpandedKey256;
 begin
-  ExpandAESKeyForDecryption(Key, ExpandedKey);
-  EncryptAESStreamCFB(Source, Count, ExpandedKey, InitVector, Dest);
+  ExpandAESKeyForEncryption256(Key, ExpandedKey);
+  EncryptAES256StreamCFBExpanded(Source, Count, ExpandedKey, InitVector, Dest);
 end;
 
-procedure EncryptAESStreamCFB(Source: TStream; Count: Cardinal;
+procedure EncryptAES256StreamCFBExpanded(Source: TStream; Count: Cardinal;
   const ExpandedKey: TCnAESExpandedKey256; const InitVector: TCnAESBuffer;
   Dest: TStream);
 var
@@ -2874,20 +3554,21 @@ begin
   end
   else Count := Min(Count, Source.Size - Source.Position);
   if Count = 0 then Exit;
+
   Vector := InitVector;
   while Count >= SizeOf(TCnAESBuffer) do
   begin
     Done := Source.Read(TempIn, SizeOf(TempIn));
     if Done < SizeOf(TempIn) then
-      raise EStreamError.Create(SReadError);
-    EncryptAES(Vector, ExpandedKey, TempOut);
+      raise EStreamError.Create(SCnErrorAESReadError);
+    EncryptAES256(Vector, ExpandedKey, TempOut);
     PCardinal(@TempOut[0])^ := PCardinal(@TempIn[0])^ xor PCardinal(@TempOut[0])^;
     PCardinal(@TempOut[4])^ := PCardinal(@TempIn[4])^ xor PCardinal(@TempOut[4])^;
     PCardinal(@TempOut[8])^ := PCardinal(@TempIn[8])^ xor PCardinal(@TempOut[8])^;
     PCardinal(@TempOut[12])^ := PCardinal(@TempIn[12])^ xor PCardinal(@TempOut[12])^;
     Done := Dest.Write(TempOut, SizeOf(TempOut));
     if Done < SizeOf(TempOut) then
-      raise EStreamError.Create(SWriteError);
+      raise EStreamError.Create(SCnErrorAESWriteError);
     Vector := TempOut;
     Dec(Count, SizeOf(TCnAESBuffer));
   end;
@@ -2895,30 +3576,74 @@ begin
   begin
     Done := Source.Read(TempIn, Count);
     if Done < Count then
-      raise EStreamError.Create(SReadError);
-    EncryptAES(Vector, ExpandedKey, TempOut);
+      raise EStreamError.Create(SCnErrorAESReadError);
+    EncryptAES256(Vector, ExpandedKey, TempOut);
     PCardinal(@TempOut[0])^ := PCardinal(@TempIn[0])^ xor PCardinal(@TempOut[0])^;
     PCardinal(@TempOut[4])^ := PCardinal(@TempIn[4])^ xor PCardinal(@TempOut[4])^;
     PCardinal(@TempOut[8])^ := PCardinal(@TempIn[8])^ xor PCardinal(@TempOut[8])^;
     PCardinal(@TempOut[12])^ := PCardinal(@TempIn[12])^ xor PCardinal(@TempOut[12])^;
     Done := Dest.Write(TempOut, Count);
     if Done < Count then
-      raise EStreamError.Create(SWriteError);
+      raise EStreamError.Create(SCnErrorAESWriteError);
   end;
 end;
 
 // Stream Decryption Routines (CFB mode)
 
+{$IFNDEF BCB5OR6}
+
+// 因 C++Builder 的 overload 混乱问题，以下六函数仅 Delphi 下可用
 procedure DecryptAESStreamCFB(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey128; const InitVector: TCnAESBuffer; Dest: TStream);
+begin
+  DecryptAES128StreamCFB(Source, Count, Key, InitVector, Dest);
+end;
+
+procedure DecryptAESStreamCFB(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey128; const InitVector: TCnAESBuffer;
+  Dest: TStream);
+begin
+  DecryptAES128StreamCFBExpanded(Source, Count, ExpandedKey, InitVector, Dest);
+end;
+
+procedure DecryptAESStreamCFB(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey192; const InitVector: TCnAESBuffer; Dest: TStream);
+begin
+  DecryptAES192StreamCFB(Source, Count, Key, InitVector, Dest);
+end;
+
+procedure DecryptAESStreamCFB(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey192; const InitVector: TCnAESBuffer;
+  Dest: TStream);
+begin
+  DecryptAES192StreamCFBExpanded(Source, Count, ExpandedKey, InitVector, Dest);
+end;
+
+procedure DecryptAESStreamCFB(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey256; const InitVector: TCnAESBuffer; Dest: TStream);
+begin
+  DecryptAES256StreamCFB(Source, Count, Key, InitVector, Dest);
+end;
+
+procedure DecryptAESStreamCFB(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey256; const InitVector: TCnAESBuffer;
+  Dest: TStream);
+begin
+  DecryptAES256StreamCFBExpanded(Source, Count, ExpandedKey, InitVector, Dest);
+end;
+
+{$ENDIF}
+
+procedure DecryptAES128StreamCFB(Source: TStream; Count: Cardinal;
   const Key: TCnAESKey128; const InitVector: TCnAESBuffer; Dest: TStream);
 var
   ExpandedKey: TCnAESExpandedKey128;
 begin
-  ExpandAESKeyForDecryption(Key, ExpandedKey);
-  DecryptAESStreamCFB(Source, Count, ExpandedKey, InitVector, Dest);
+  ExpandAESKeyForEncryption128(Key, ExpandedKey);
+  DecryptAES128StreamCFBExpanded(Source, Count, ExpandedKey, InitVector, Dest);
 end;
 
-procedure DecryptAESStreamCFB(Source: TStream; Count: Cardinal;
+procedure DecryptAES128StreamCFBExpanded(Source: TStream; Count: Cardinal;
   const ExpandedKey: TCnAESExpandedKey128; const InitVector: TCnAESBuffer;
   Dest: TStream);
 var
@@ -2940,15 +3665,15 @@ begin
   begin
     Done := Source.Read(TempIn, SizeOf(TempIn));       // 读出密文
     if Done < SizeOf(TempIn) then
-      raise EStreamError(SReadError);
-    EncryptAES(Vector, ExpandedKey, TempOut);         // Iv 先加密——注意是加密！不是解密！
+      raise EStreamError(SCnErrorAESReadError);
+    EncryptAES128(Vector, ExpandedKey, TempOut);         // Iv 先加密——注意是加密！不是解密！
     PCardinal(@TempOut[0])^ := PCardinal(@TempOut[0])^ xor PCardinal(@TempIn[0])^;   // 加密后的内容和密文异或得到明文
     PCardinal(@TempOut[4])^ := PCardinal(@TempOut[4])^ xor PCardinal(@TempIn[4])^;
     PCardinal(@TempOut[8])^ := PCardinal(@TempOut[8])^ xor PCardinal(@TempIn[8])^;
     PCardinal(@TempOut[12])^ := PCardinal(@TempOut[12])^ xor PCardinal(@TempIn[12])^;
     Done := Dest.Write(TempOut, SizeOf(TempOut));      // 明文写出去
     if Done < SizeOf(TempOut) then
-      raise EStreamError(SWriteError);
+      raise EStreamError(SCnErrorAESWriteError);
     Vector := TempIn;                                 // 保留密文取代 Iv 作为下一次加密再异或的内容
     Dec(Count, SizeOf(TCnAESBuffer));
   end;
@@ -2956,28 +3681,28 @@ begin
   begin
     Done := Source.Read(TempIn, Count);
     if Done < Count then
-      raise EStreamError(SReadError);
-    EncryptAES(Vector, ExpandedKey, TempOut);
+      raise EStreamError(SCnErrorAESReadError);
+    EncryptAES128(Vector, ExpandedKey, TempOut);
     PCardinal(@TempOut[0])^ := PCardinal(@TempOut[0])^ xor PCardinal(@TempIn[0])^;   // 加密后的内容和密文异或得到明文
     PCardinal(@TempOut[4])^ := PCardinal(@TempOut[4])^ xor PCardinal(@TempIn[4])^;
     PCardinal(@TempOut[8])^ := PCardinal(@TempOut[8])^ xor PCardinal(@TempIn[8])^;
     PCardinal(@TempOut[12])^ := PCardinal(@TempOut[12])^ xor PCardinal(@TempIn[12])^;
     Done := Dest.Write(TempOut, Count);      // 明文写出去
     if Done < Count then
-      raise EStreamError(SWriteError);
+      raise EStreamError(SCnErrorAESWriteError);
   end;
 end;
 
-procedure DecryptAESStreamCFB(Source: TStream; Count: Cardinal;
+procedure DecryptAES192StreamCFB(Source: TStream; Count: Cardinal;
   const Key: TCnAESKey192; const InitVector: TCnAESBuffer; Dest: TStream);
 var
   ExpandedKey: TCnAESExpandedKey192;
 begin
-  ExpandAESKeyForDecryption(Key, ExpandedKey);
-  DecryptAESStreamCFB(Source, Count, ExpandedKey, InitVector, Dest);
+  ExpandAESKeyForEncryption192(Key, ExpandedKey);
+  DecryptAES192StreamCFBExpanded(Source, Count, ExpandedKey, InitVector, Dest);
 end;
 
-procedure DecryptAESStreamCFB(Source: TStream; Count: Cardinal;
+procedure DecryptAES192StreamCFBExpanded(Source: TStream; Count: Cardinal;
   const ExpandedKey: TCnAESExpandedKey192; const InitVector: TCnAESBuffer;
   Dest: TStream);
 var
@@ -2998,15 +3723,15 @@ begin
   begin
     Done := Source.Read(TempIn, SizeOf(TempIn));
     if Done < SizeOf(TempIn) then
-      raise EStreamError(SReadError);
-    EncryptAES(Vector, ExpandedKey, TempOut);
+      raise EStreamError(SCnErrorAESReadError);
+    EncryptAES192(Vector, ExpandedKey, TempOut);
     PCardinal(@TempOut[0])^ := PCardinal(@TempOut[0])^ xor PCardinal(@TempIn[0])^;
     PCardinal(@TempOut[4])^ := PCardinal(@TempOut[4])^ xor PCardinal(@TempIn[4])^;
     PCardinal(@TempOut[8])^ := PCardinal(@TempOut[8])^ xor PCardinal(@TempIn[8])^;
     PCardinal(@TempOut[12])^ := PCardinal(@TempOut[12])^ xor PCardinal(@TempIn[12])^;
     Done := Dest.Write(TempOut, SizeOf(TempOut));
     if Done < SizeOf(TempOut) then
-      raise EStreamError(SWriteError);
+      raise EStreamError(SCnErrorAESWriteError);
     Vector := TempIn;
     Dec(Count, SizeOf(TCnAESBuffer));
   end;
@@ -3014,28 +3739,28 @@ begin
   begin
     Done := Source.Read(TempIn, Count);
     if Done < Count then
-      raise EStreamError(SReadError);
-    EncryptAES(Vector, ExpandedKey, TempOut);
+      raise EStreamError(SCnErrorAESReadError);
+    EncryptAES192(Vector, ExpandedKey, TempOut);
     PCardinal(@TempOut[0])^ := PCardinal(@TempOut[0])^ xor PCardinal(@TempIn[0])^;
     PCardinal(@TempOut[4])^ := PCardinal(@TempOut[4])^ xor PCardinal(@TempIn[4])^;
     PCardinal(@TempOut[8])^ := PCardinal(@TempOut[8])^ xor PCardinal(@TempIn[8])^;
     PCardinal(@TempOut[12])^ := PCardinal(@TempOut[12])^ xor PCardinal(@TempIn[12])^;
     Done := Dest.Write(TempOut, Count);
     if Done < Count then
-      raise EStreamError(SWriteError);
+      raise EStreamError(SCnErrorAESWriteError);
   end;
 end;
 
-procedure DecryptAESStreamCFB(Source: TStream; Count: Cardinal;
+procedure DecryptAES256StreamCFB(Source: TStream; Count: Cardinal;
   const Key: TCnAESKey256; const InitVector: TCnAESBuffer; Dest: TStream);
 var
   ExpandedKey: TCnAESExpandedKey256;
 begin
-  ExpandAESKeyForDecryption(Key, ExpandedKey);
-  DecryptAESStreamCFB(Source, Count, ExpandedKey, InitVector, Dest);
+  ExpandAESKeyForEncryption256(Key, ExpandedKey);
+  DecryptAES256StreamCFBExpanded(Source, Count, ExpandedKey, InitVector, Dest);
 end;
 
-procedure DecryptAESStreamCFB(Source: TStream; Count: Cardinal;
+procedure DecryptAES256StreamCFBExpanded(Source: TStream; Count: Cardinal;
   const ExpandedKey: TCnAESExpandedKey256; const InitVector: TCnAESBuffer;
   Dest: TStream);
 var
@@ -3056,15 +3781,15 @@ begin
   begin
     Done := Source.Read(TempIn, SizeOf(TempIn));
     if Done < SizeOf(TempIn) then
-      raise EStreamError(SReadError);
-    EncryptAES(Vector, ExpandedKey, TempOut);
+      raise EStreamError(SCnErrorAESReadError);
+    EncryptAES256(Vector, ExpandedKey, TempOut);
     PCardinal(@TempOut[0])^ := PCardinal(@TempOut[0])^ xor PCardinal(@TempIn[0])^;
     PCardinal(@TempOut[4])^ := PCardinal(@TempOut[4])^ xor PCardinal(@TempIn[4])^;
     PCardinal(@TempOut[8])^ := PCardinal(@TempOut[8])^ xor PCardinal(@TempIn[8])^;
     PCardinal(@TempOut[12])^ := PCardinal(@TempOut[12])^ xor PCardinal(@TempIn[12])^;
     Done := Dest.Write(TempOut, SizeOf(TempOut));
     if Done < SizeOf(TempOut) then
-      raise EStreamError(SWriteError);
+      raise EStreamError(SCnErrorAESWriteError);
     Vector := TempIn;
     Dec(Count, SizeOf(TCnAESBuffer));
   end;
@@ -3072,30 +3797,74 @@ begin
   begin
     Done := Source.Read(TempIn, Count);
     if Done < Count then
-      raise EStreamError(SReadError);
-    EncryptAES(Vector, ExpandedKey, TempOut);
+      raise EStreamError(SCnErrorAESReadError);
+    EncryptAES256(Vector, ExpandedKey, TempOut);
     PCardinal(@TempOut[0])^ := PCardinal(@TempOut[0])^ xor PCardinal(@TempIn[0])^;
     PCardinal(@TempOut[4])^ := PCardinal(@TempOut[4])^ xor PCardinal(@TempIn[4])^;
     PCardinal(@TempOut[8])^ := PCardinal(@TempOut[8])^ xor PCardinal(@TempIn[8])^;
     PCardinal(@TempOut[12])^ := PCardinal(@TempOut[12])^ xor PCardinal(@TempIn[12])^;
     Done := Dest.Write(TempOut, Count);
     if Done < Count then
-      raise EStreamError(SWriteError);
+      raise EStreamError(SCnErrorAESWriteError);
   end;
 end;
 
 // Stream Encryption Routines (OFB mode)
 
+{$IFNDEF BCB5OR6}
+
+// 因 C++Builder 的 overload 混乱问题，以下六函数仅 Delphi 下可用
 procedure EncryptAESStreamOFB(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey128; const InitVector: TCnAESBuffer; Dest: TStream);
+begin
+  EncryptAES128StreamOFB(Source, Count, Key, InitVector, Dest);
+end;
+
+procedure EncryptAESStreamOFB(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey128; const InitVector: TCnAESBuffer;
+  Dest: TStream);
+begin
+  EncryptAES128StreamOFBExpanded(Source, Count, ExpandedKey, InitVector, Dest);
+end;
+
+procedure EncryptAESStreamOFB(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey192; const InitVector: TCnAESBuffer; Dest: TStream);
+begin
+  EncryptAES192StreamOFB(Source, Count, Key, InitVector, Dest);
+end;
+
+procedure EncryptAESStreamOFB(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey192; const InitVector: TCnAESBuffer;
+  Dest: TStream);
+begin
+  EncryptAES192StreamOFBExpanded(Source, Count, ExpandedKey, InitVector, Dest);
+end;
+
+procedure EncryptAESStreamOFB(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey256; const InitVector: TCnAESBuffer; Dest: TStream);
+begin
+  EncryptAES256StreamOFB(Source, Count, Key, InitVector, Dest);
+end;
+
+procedure EncryptAESStreamOFB(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey256; const InitVector: TCnAESBuffer;
+  Dest: TStream);
+begin
+  EncryptAES256StreamOFBExpanded(Source, Count, ExpandedKey, InitVector, Dest);
+end;
+
+{$ENDIF}
+
+procedure EncryptAES128StreamOFB(Source: TStream; Count: Cardinal;
   const Key: TCnAESKey128; const InitVector: TCnAESBuffer; Dest: TStream);
 var
   ExpandedKey: TCnAESExpandedKey128;
 begin
-  ExpandAESKeyForDecryption(Key, ExpandedKey);
-  EncryptAESStreamOFB(Source, Count, ExpandedKey, InitVector, Dest);
+  ExpandAESKeyForEncryption128(Key, ExpandedKey);
+  EncryptAES128StreamOFBExpanded(Source, Count, ExpandedKey, InitVector, Dest);
 end;
 
-procedure EncryptAESStreamOFB(Source: TStream; Count: Cardinal;
+procedure EncryptAES128StreamOFBExpanded(Source: TStream; Count: Cardinal;
   const ExpandedKey: TCnAESExpandedKey128; const InitVector: TCnAESBuffer;
   Dest: TStream);
 var
@@ -3109,20 +3878,21 @@ begin
   end
   else Count := Min(Count, Source.Size - Source.Position);
   if Count = 0 then Exit;
+
   Vector := InitVector;
   while Count >= SizeOf(TCnAESBuffer) do
   begin
     Done := Source.Read(TempIn, SizeOf(TempIn));
     if Done < SizeOf(TempIn) then
-      raise EStreamError.Create(SReadError);
-    EncryptAES(Vector, ExpandedKey, TempOut);                                      // Key 先加密 Iv
+      raise EStreamError.Create(SCnErrorAESReadError);
+    EncryptAES128(Vector, ExpandedKey, TempOut);                                      // Key 先加密 Iv
     PCardinal(@TempIn[0])^ := PCardinal(@TempIn[0])^ xor PCardinal(@TempOut[0])^;  // 加密结果与明文异或
     PCardinal(@TempIn[4])^ := PCardinal(@TempIn[4])^ xor PCardinal(@TempOut[4])^;
     PCardinal(@TempIn[8])^ := PCardinal(@TempIn[8])^ xor PCardinal(@TempOut[8])^;
     PCardinal(@TempIn[12])^ := PCardinal(@TempIn[12])^ xor PCardinal(@TempOut[12])^;
     Done := Dest.Write(TempIn, SizeOf(TempIn));                                    // 异或的结果写进密文结果
     if Done < SizeOf(TempIn) then
-      raise EStreamError.Create(SWriteError);
+      raise EStreamError.Create(SCnErrorAESWriteError);
     Vector := TempOut;                                                             // 加密结果取代 Iv 供下一轮加密，注意不是异或结果
     Dec(Count, SizeOf(TCnAESBuffer));
   end;
@@ -3130,28 +3900,28 @@ begin
   begin
     Done := Source.Read(TempIn, Count);
     if Done < Count then
-      raise EStreamError.Create(SReadError);
-    EncryptAES(Vector, ExpandedKey, TempOut);
+      raise EStreamError.Create(SCnErrorAESReadError);
+    EncryptAES128(Vector, ExpandedKey, TempOut);
     PCardinal(@TempIn[0])^ := PCardinal(@TempIn[0])^ xor PCardinal(@TempOut[0])^;
     PCardinal(@TempIn[4])^ := PCardinal(@TempIn[4])^ xor PCardinal(@TempOut[4])^;
     PCardinal(@TempIn[8])^ := PCardinal(@TempIn[8])^ xor PCardinal(@TempOut[8])^;
     PCardinal(@TempIn[12])^ := PCardinal(@TempIn[12])^ xor PCardinal(@TempOut[12])^;
     Done := Dest.Write(TempIn, Count);  // 最后写入的只包括密文长度的部分，无需整个块
     if Done < Count then
-      raise EStreamError.Create(SWriteError);
+      raise EStreamError.Create(SCnErrorAESWriteError);
   end;
 end;
 
-procedure EncryptAESStreamOFB(Source: TStream; Count: Cardinal;
+procedure EncryptAES192StreamOFB(Source: TStream; Count: Cardinal;
   const Key: TCnAESKey192; const InitVector: TCnAESBuffer; Dest: TStream);
 var
   ExpandedKey: TCnAESExpandedKey192;
 begin
-  ExpandAESKeyForDecryption(Key, ExpandedKey);
-  EncryptAESStreamOFB(Source, Count, ExpandedKey, InitVector, Dest);
+  ExpandAESKeyForEncryption192(Key, ExpandedKey);
+  EncryptAES192StreamOFBExpanded(Source, Count, ExpandedKey, InitVector, Dest);
 end;
 
-procedure EncryptAESStreamOFB(Source: TStream; Count: Cardinal;
+procedure EncryptAES192StreamOFBExpanded(Source: TStream; Count: Cardinal;
   const ExpandedKey: TCnAESExpandedKey192; const InitVector: TCnAESBuffer;
   Dest: TStream);
 var
@@ -3165,20 +3935,21 @@ begin
   end
   else Count := Min(Count, Source.Size - Source.Position);
   if Count = 0 then Exit;
+
   Vector := InitVector;
   while Count >= SizeOf(TCnAESBuffer) do
   begin
     Done := Source.Read(TempIn, SizeOf(TempIn));
     if Done < SizeOf(TempIn) then
-      raise EStreamError.Create(SReadError);
-    EncryptAES(Vector, ExpandedKey, TempOut);
+      raise EStreamError.Create(SCnErrorAESReadError);
+    EncryptAES192(Vector, ExpandedKey, TempOut);
     PCardinal(@TempIn[0])^ := PCardinal(@TempIn[0])^ xor PCardinal(@TempOut[0])^;
     PCardinal(@TempIn[4])^ := PCardinal(@TempIn[4])^ xor PCardinal(@TempOut[4])^;
     PCardinal(@TempIn[8])^ := PCardinal(@TempIn[8])^ xor PCardinal(@TempOut[8])^;
     PCardinal(@TempIn[12])^ := PCardinal(@TempIn[12])^ xor PCardinal(@TempOut[12])^;
     Done := Dest.Write(TempIn, SizeOf(TempIn));
     if Done < SizeOf(TempIn) then
-      raise EStreamError.Create(SWriteError);
+      raise EStreamError.Create(SCnErrorAESWriteError);
     Vector := TempOut;
     Dec(Count, SizeOf(TCnAESBuffer));
   end;
@@ -3186,28 +3957,28 @@ begin
   begin
     Done := Source.Read(TempIn, Count);
     if Done < Count then
-      raise EStreamError.Create(SReadError);
-    EncryptAES(Vector, ExpandedKey, TempOut);
+      raise EStreamError.Create(SCnErrorAESReadError);
+    EncryptAES192(Vector, ExpandedKey, TempOut);
     PCardinal(@TempIn[0])^ := PCardinal(@TempIn[0])^ xor PCardinal(@TempOut[0])^;
     PCardinal(@TempIn[4])^ := PCardinal(@TempIn[4])^ xor PCardinal(@TempOut[4])^;
     PCardinal(@TempIn[8])^ := PCardinal(@TempIn[8])^ xor PCardinal(@TempOut[8])^;
     PCardinal(@TempIn[12])^ := PCardinal(@TempIn[12])^ xor PCardinal(@TempOut[12])^;
     Done := Dest.Write(TempIn, Count);
     if Done < Count then
-      raise EStreamError.Create(SWriteError);
+      raise EStreamError.Create(SCnErrorAESWriteError);
   end;
 end;
 
-procedure EncryptAESStreamOFB(Source: TStream; Count: Cardinal;
+procedure EncryptAES256StreamOFB(Source: TStream; Count: Cardinal;
   const Key: TCnAESKey256; const InitVector: TCnAESBuffer; Dest: TStream);
 var
   ExpandedKey: TCnAESExpandedKey256;
 begin
-  ExpandAESKeyForDecryption(Key, ExpandedKey);
-  EncryptAESStreamOFB(Source, Count, ExpandedKey, InitVector, Dest);
+  ExpandAESKeyForEncryption256(Key, ExpandedKey);
+  EncryptAES256StreamOFBExpanded(Source, Count, ExpandedKey, InitVector, Dest);
 end;
 
-procedure EncryptAESStreamOFB(Source: TStream; Count: Cardinal;
+procedure EncryptAES256StreamOFBExpanded(Source: TStream; Count: Cardinal;
   const ExpandedKey: TCnAESExpandedKey256; const InitVector: TCnAESBuffer;
   Dest: TStream);
 var
@@ -3221,20 +3992,21 @@ begin
   end
   else Count := Min(Count, Source.Size - Source.Position);
   if Count = 0 then Exit;
+
   Vector := InitVector;
   while Count >= SizeOf(TCnAESBuffer) do
   begin
     Done := Source.Read(TempIn, SizeOf(TempIn));
     if Done < SizeOf(TempIn) then
-      raise EStreamError.Create(SReadError);
-    EncryptAES(Vector, ExpandedKey, TempOut);
+      raise EStreamError.Create(SCnErrorAESReadError);
+    EncryptAES256(Vector, ExpandedKey, TempOut);
     PCardinal(@TempIn[0])^ := PCardinal(@TempIn[0])^ xor PCardinal(@TempOut[0])^;
     PCardinal(@TempIn[4])^ := PCardinal(@TempIn[4])^ xor PCardinal(@TempOut[4])^;
     PCardinal(@TempIn[8])^ := PCardinal(@TempIn[8])^ xor PCardinal(@TempOut[8])^;
     PCardinal(@TempIn[12])^ := PCardinal(@TempIn[12])^ xor PCardinal(@TempOut[12])^;
     Done := Dest.Write(TempIn, SizeOf(TempIn));
     if Done < SizeOf(TempIn) then
-      raise EStreamError.Create(SWriteError);
+      raise EStreamError.Create(SCnErrorAESWriteError);
     Vector := TempOut;
     Dec(Count, SizeOf(TCnAESBuffer));
   end;
@@ -3242,30 +4014,74 @@ begin
   begin
     Done := Source.Read(TempIn, Count);
     if Done < Count then
-      raise EStreamError.Create(SReadError);
-    EncryptAES(Vector, ExpandedKey, TempOut);
+      raise EStreamError.Create(SCnErrorAESReadError);
+    EncryptAES256(Vector, ExpandedKey, TempOut);
     PCardinal(@TempIn[0])^ := PCardinal(@TempIn[0])^ xor PCardinal(@TempOut[0])^;
     PCardinal(@TempIn[4])^ := PCardinal(@TempIn[4])^ xor PCardinal(@TempOut[4])^;
     PCardinal(@TempIn[8])^ := PCardinal(@TempIn[8])^ xor PCardinal(@TempOut[8])^;
     PCardinal(@TempIn[12])^ := PCardinal(@TempIn[12])^ xor PCardinal(@TempOut[12])^;
     Done := Dest.Write(TempIn, Count);
     if Done < Count then
-      raise EStreamError.Create(SWriteError);
+      raise EStreamError.Create(SCnErrorAESWriteError);
   end;
 end;
 
 // Stream Decryption Routines (OFB mode)
 
+{$IFNDEF BCB5OR6}
+
+// 因 C++Builder 的 overload 混乱问题，以下六函数仅 Delphi 下可用
 procedure DecryptAESStreamOFB(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey128; const InitVector: TCnAESBuffer; Dest: TStream);
+begin
+  DecryptAES128StreamOFB(Source, Count, Key, InitVector, Dest);
+end;
+
+procedure DecryptAESStreamOFB(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey128; const InitVector: TCnAESBuffer;
+  Dest: TStream);
+begin
+  DecryptAES128StreamOFBExpanded(Source, Count, ExpandedKey, InitVector, Dest);
+end;
+
+procedure DecryptAESStreamOFB(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey192; const InitVector: TCnAESBuffer; Dest: TStream);
+begin
+  DecryptAES192StreamOFB(Source, Count, Key, InitVector, Dest);
+end;
+
+procedure DecryptAESStreamOFB(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey192; const InitVector: TCnAESBuffer;
+  Dest: TStream);
+begin
+  DecryptAES192StreamOFBExpanded(Source, Count, ExpandedKey, InitVector, Dest);
+end;
+
+procedure DecryptAESStreamOFB(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey256; const InitVector: TCnAESBuffer; Dest: TStream);
+begin
+  DecryptAES256StreamOFB(Source, Count, Key, InitVector, Dest);
+end;
+
+procedure DecryptAESStreamOFB(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey256; const InitVector: TCnAESBuffer;
+  Dest: TStream);
+begin
+  DecryptAES256StreamOFBExpanded(Source, Count, ExpandedKey, InitVector, Dest);
+end;
+
+{$ENDIF}
+
+procedure DecryptAES128StreamOFB(Source: TStream; Count: Cardinal;
   const Key: TCnAESKey128; const InitVector: TCnAESBuffer; Dest: TStream);
 var
   ExpandedKey: TCnAESExpandedKey128;
 begin
-  ExpandAESKeyForDecryption(Key, ExpandedKey);
-  DecryptAESStreamOFB(Source, Count, ExpandedKey, InitVector, Dest);
+  ExpandAESKeyForEncryption128(Key, ExpandedKey);
+  DecryptAES128StreamOFBExpanded(Source, Count, ExpandedKey, InitVector, Dest);
 end;
 
-procedure DecryptAESStreamOFB(Source: TStream; Count: Cardinal;
+procedure DecryptAES128StreamOFBExpanded(Source: TStream; Count: Cardinal;
   const ExpandedKey: TCnAESExpandedKey128; const InitVector: TCnAESBuffer;
   Dest: TStream);
 var
@@ -3287,15 +4103,15 @@ begin
   begin
     Done := Source.Read(TempIn, SizeOf(TempIn));       // 读出密文
     if Done < SizeOf(TempIn) then
-      raise EStreamError(SReadError);
-    EncryptAES(Vector, ExpandedKey, TempOut);         // Iv 先加密——注意是加密！不是解密！
+      raise EStreamError(SCnErrorAESReadError);
+    EncryptAES128(Vector, ExpandedKey, TempOut);       // Iv 先加密——注意是加密！不是解密！
     PCardinal(@TempIn[0])^ := PCardinal(@TempOut[0])^ xor PCardinal(@TempIn[0])^;   // 加密后的内容和密文异或得到明文
     PCardinal(@TempIn[4])^ := PCardinal(@TempOut[4])^ xor PCardinal(@TempIn[4])^;
     PCardinal(@TempIn[8])^ := PCardinal(@TempOut[8])^ xor PCardinal(@TempIn[8])^;
     PCardinal(@TempIn[12])^ := PCardinal(@TempOut[12])^ xor PCardinal(@TempIn[12])^;
     Done := Dest.Write(TempIn, SizeOf(TempIn));       // 明文写出去
     if Done < SizeOf(TempIn) then
-      raise EStreamError(SWriteError);
+      raise EStreamError(SCnErrorAESWriteError);
     Vector := TempOut;                               // 保留加密内容取代 Iv 作为下一次异或前的内容
     Dec(Count, SizeOf(TCnAESBuffer));
   end;
@@ -3303,28 +4119,28 @@ begin
   begin
     Done := Source.Read(TempIn, Count);
     if Done < Count then
-      raise EStreamError(SReadError);
-    EncryptAES(Vector, ExpandedKey, TempOut);
+      raise EStreamError(SCnErrorAESReadError);
+    EncryptAES128(Vector, ExpandedKey, TempOut);
     PCardinal(@TempIn[0])^ := PCardinal(@TempOut[0])^ xor PCardinal(@TempIn[0])^;   // 加密后的内容和密文异或得到明文
     PCardinal(@TempIn[4])^ := PCardinal(@TempOut[4])^ xor PCardinal(@TempIn[4])^;
     PCardinal(@TempIn[8])^ := PCardinal(@TempOut[8])^ xor PCardinal(@TempIn[8])^;
     PCardinal(@TempIn[12])^ := PCardinal(@TempOut[12])^ xor PCardinal(@TempIn[12])^;
     Done := Dest.Write(TempIn, Count);      // 明文写出去
     if Done < Count then
-      raise EStreamError(SWriteError);
+      raise EStreamError(SCnErrorAESWriteError);
   end;
 end;
 
-procedure DecryptAESStreamOFB(Source: TStream; Count: Cardinal;
+procedure DecryptAES192StreamOFB(Source: TStream; Count: Cardinal;
   const Key: TCnAESKey192; const InitVector: TCnAESBuffer; Dest: TStream);
 var
   ExpandedKey: TCnAESExpandedKey192;
 begin
-  ExpandAESKeyForDecryption(Key, ExpandedKey);
-  DecryptAESStreamOFB(Source, Count, ExpandedKey, InitVector, Dest);
+  ExpandAESKeyForEncryption192(Key, ExpandedKey);
+  DecryptAES192StreamOFBExpanded(Source, Count, ExpandedKey, InitVector, Dest);
 end;
 
-procedure DecryptAESStreamOFB(Source: TStream; Count: Cardinal;
+procedure DecryptAES192StreamOFBExpanded(Source: TStream; Count: Cardinal;
   const ExpandedKey: TCnAESExpandedKey192; const InitVector: TCnAESBuffer;
   Dest: TStream);
 var
@@ -3345,15 +4161,15 @@ begin
   begin
     Done := Source.Read(TempIn, SizeOf(TempIn));
     if Done < SizeOf(TempIn) then
-      raise EStreamError(SReadError);
-    EncryptAES(Vector, ExpandedKey, TempOut);
+      raise EStreamError(SCnErrorAESReadError);
+    EncryptAES192(Vector, ExpandedKey, TempOut);
     PCardinal(@TempIn[0])^ := PCardinal(@TempOut[0])^ xor PCardinal(@TempIn[0])^;
     PCardinal(@TempIn[4])^ := PCardinal(@TempOut[4])^ xor PCardinal(@TempIn[4])^;
     PCardinal(@TempIn[8])^ := PCardinal(@TempOut[8])^ xor PCardinal(@TempIn[8])^;
     PCardinal(@TempIn[12])^ := PCardinal(@TempOut[12])^ xor PCardinal(@TempIn[12])^;
     Done := Dest.Write(TempIn, SizeOf(TempIn));
     if Done < SizeOf(TempIn) then
-      raise EStreamError(SWriteError);
+      raise EStreamError(SCnErrorAESWriteError);
     Vector := TempOut;
     Dec(Count, SizeOf(TCnAESBuffer));
   end;
@@ -3361,28 +4177,28 @@ begin
   begin
     Done := Source.Read(TempIn, Count);
     if Done < Count then
-      raise EStreamError(SReadError);
-    EncryptAES(Vector, ExpandedKey, TempOut);
+      raise EStreamError(SCnErrorAESReadError);
+    EncryptAES192(Vector, ExpandedKey, TempOut);
     PCardinal(@TempIn[0])^ := PCardinal(@TempOut[0])^ xor PCardinal(@TempIn[0])^;
     PCardinal(@TempIn[4])^ := PCardinal(@TempOut[4])^ xor PCardinal(@TempIn[4])^;
     PCardinal(@TempIn[8])^ := PCardinal(@TempOut[8])^ xor PCardinal(@TempIn[8])^;
     PCardinal(@TempIn[12])^ := PCardinal(@TempOut[12])^ xor PCardinal(@TempIn[12])^;
     Done := Dest.Write(TempIn, Count);
     if Done < Count then
-      raise EStreamError(SWriteError);
+      raise EStreamError(SCnErrorAESWriteError);
   end;
 end;
 
-procedure DecryptAESStreamOFB(Source: TStream; Count: Cardinal;
+procedure DecryptAES256StreamOFB(Source: TStream; Count: Cardinal;
   const Key: TCnAESKey256; const InitVector: TCnAESBuffer; Dest: TStream);
 var
   ExpandedKey: TCnAESExpandedKey256;
 begin
-  ExpandAESKeyForDecryption(Key, ExpandedKey);
-  DecryptAESStreamOFB(Source, Count, ExpandedKey, InitVector, Dest);
+  ExpandAESKeyForEncryption256(Key, ExpandedKey);
+  DecryptAES256StreamOFBExpanded(Source, Count, ExpandedKey, InitVector, Dest);
 end;
 
-procedure DecryptAESStreamOFB(Source: TStream; Count: Cardinal;
+procedure DecryptAES256StreamOFBExpanded(Source: TStream; Count: Cardinal;
   const ExpandedKey: TCnAESExpandedKey256; const InitVector: TCnAESBuffer;
   Dest: TStream);
 var
@@ -3403,15 +4219,15 @@ begin
   begin
     Done := Source.Read(TempIn, SizeOf(TempIn));
     if Done < SizeOf(TempIn) then
-      raise EStreamError(SReadError);
-    EncryptAES(Vector, ExpandedKey, TempOut);
+      raise EStreamError(SCnErrorAESReadError);
+    EncryptAES256(Vector, ExpandedKey, TempOut);
     PCardinal(@TempIn[0])^ := PCardinal(@TempOut[0])^ xor PCardinal(@TempIn[0])^;
     PCardinal(@TempIn[4])^ := PCardinal(@TempOut[4])^ xor PCardinal(@TempIn[4])^;
     PCardinal(@TempIn[8])^ := PCardinal(@TempOut[8])^ xor PCardinal(@TempIn[8])^;
     PCardinal(@TempIn[12])^ := PCardinal(@TempOut[12])^ xor PCardinal(@TempIn[12])^;
     Done := Dest.Write(TempIn, SizeOf(TempIn));
     if Done < SizeOf(TempIn) then
-      raise EStreamError(SWriteError);
+      raise EStreamError(SCnErrorAESWriteError);
     Vector := TempOut;
     Dec(Count, SizeOf(TCnAESBuffer));
   end;
@@ -3419,16 +4235,381 @@ begin
   begin
     Done := Source.Read(TempIn, Count);
     if Done < Count then
-      raise EStreamError(SReadError);
-    EncryptAES(Vector, ExpandedKey, TempOut);
+      raise EStreamError(SCnErrorAESReadError);
+    EncryptAES256(Vector, ExpandedKey, TempOut);
     PCardinal(@TempIn[0])^ := PCardinal(@TempOut[0])^ xor PCardinal(@TempIn[0])^;
     PCardinal(@TempIn[4])^ := PCardinal(@TempOut[4])^ xor PCardinal(@TempIn[4])^;
     PCardinal(@TempIn[8])^ := PCardinal(@TempOut[8])^ xor PCardinal(@TempIn[8])^;
     PCardinal(@TempIn[12])^ := PCardinal(@TempOut[12])^ xor PCardinal(@TempIn[12])^;
     Done := Dest.Write(TempIn, Count);
     if Done < Count then
-      raise EStreamError(SWriteError);
+      raise EStreamError(SCnErrorAESWriteError);
   end;
+end;
+
+// Stream Encryption Routines (CTR mode)
+
+{$IFNDEF BCB5OR6}
+
+// 因 C++Builder 的 overload 混乱问题，以下六函数仅 Delphi 下可用
+procedure EncryptAESStreamCTR(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey128; const Nonce: TCnAESCTRNonce;
+  const InitVector: TCnAESCTRIv; Dest: TStream);
+begin
+  EncryptAES128StreamCTR(Source, Count, Key, Nonce, InitVector, Dest);
+end;
+
+procedure EncryptAESStreamCTR(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey128; const Nonce: TCnAESCTRNonce;
+  const InitVector: TCnAESCTRIv; Dest: TStream);
+begin
+  EncryptAES128StreamCTRExpanded(Source, Count, ExpandedKey, Nonce, InitVector, Dest);
+end;
+
+procedure EncryptAESStreamCTR(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey192; const Nonce: TCnAESCTRNonce;
+  const InitVector: TCnAESCTRIv; Dest: TStream);
+begin
+  EncryptAES192StreamCTR(Source, Count, Key, Nonce, InitVector, Dest);
+end;
+
+procedure EncryptAESStreamCTR(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey192; const Nonce: TCnAESCTRNonce;
+  const InitVector: TCnAESCTRIv; Dest: TStream);
+begin
+  EncryptAES192StreamCTRExpanded(Source, Count, ExpandedKey, Nonce, InitVector, Dest);
+end;
+
+procedure EncryptAESStreamCTR(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey256; const Nonce: TCnAESCTRNonce;
+  const InitVector: TCnAESCTRIv; Dest: TStream);
+begin
+  EncryptAES256StreamCTR(Source, Count, Key, Nonce, InitVector, Dest);
+end;
+
+procedure EncryptAESStreamCTR(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey256; const Nonce: TCnAESCTRNonce;
+  const InitVector: TCnAESCTRIv; Dest: TStream);
+begin
+  EncryptAES256StreamCTRExpanded(Source, Count, ExpandedKey, Nonce, InitVector, Dest);
+end;
+
+{$ENDIF}
+
+procedure EncryptAES128StreamCTR(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey128; const Nonce: TCnAESCTRNonce;
+  const InitVector: TCnAESCTRIv; Dest: TStream);
+var
+  ExpandedKey: TCnAESExpandedKey128;
+begin
+  ExpandAESKeyForEncryption128(Key, ExpandedKey);
+  EncryptAES128StreamCTRExpanded(Source, Count, ExpandedKey, Nonce, InitVector, Dest);
+end;
+
+procedure EncryptAES128StreamCTRExpanded(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey128; const Nonce: TCnAESCTRNonce;
+  const InitVector: TCnAESCTRIv; Dest: TStream);
+var
+  TempIn, TempOut, Vector: TCnAESBuffer;
+  Done, Cnt, T: Cardinal;
+begin
+  if Count = 0 then
+  begin
+    Source.Position := 0;
+    Count := Source.Size;
+  end
+  else Count := Min(Count, Source.Size - Source.Position);
+  if Count = 0 then Exit;
+
+  Cnt := 1;
+  while Count >= SizeOf(TCnAESBuffer) do
+  begin
+    Done := Source.Read(TempIn, SizeOf(TempIn));
+    if Done < SizeOf(TempIn) then
+      raise EStreamError.Create(SCnErrorAESReadError);
+
+    Move(Nonce[0], Vector[0], SizeOf(TCnAESCTRNonce));
+    Move(InitVector[0], Vector[SizeOf(TCnAESCTRNonce)], SizeOf(TCnAESCTRIv));
+    T := UInt32HostToNetwork(Cnt);
+    Move(T, Vector[SizeOf(TCnAESCTRNonce) + SizeOf(TCnAESCTRIv)], SizeOf(Cardinal));
+
+    EncryptAES128(Vector, ExpandedKey, TempOut);                                   // Key 先加密拼出来的 Iv
+    PCardinal(@TempIn[0])^ := PCardinal(@TempIn[0])^ xor PCardinal(@TempOut[0])^;  // 加密结果与明文异或
+    PCardinal(@TempIn[4])^ := PCardinal(@TempIn[4])^ xor PCardinal(@TempOut[4])^;
+    PCardinal(@TempIn[8])^ := PCardinal(@TempIn[8])^ xor PCardinal(@TempOut[8])^;
+    PCardinal(@TempIn[12])^ := PCardinal(@TempIn[12])^ xor PCardinal(@TempOut[12])^;
+    Done := Dest.Write(TempIn, SizeOf(TempIn));                                    // 异或的结果写进密文结果
+    if Done < SizeOf(TempIn) then
+      raise EStreamError.Create(SCnErrorAESWriteError);
+
+    Inc(Cnt);                                                                   // 计数器加一
+    Dec(Count, SizeOf(TCnAESBuffer));
+  end;
+
+  if Count > 0 then
+  begin
+    Done := Source.Read(TempIn, Count);
+    if Done < Count then
+      raise EStreamError.Create(SCnErrorAESReadError);
+
+    Move(Nonce[0], Vector[0], SizeOf(TCnAESCTRNonce));
+    Move(InitVector[0], Vector[SizeOf(TCnAESCTRNonce)], SizeOf(TCnAESCTRIv));
+    T := UInt32HostToNetwork(Cnt);
+    Move(T, Vector[SizeOf(TCnAESCTRNonce) + SizeOf(TCnAESCTRIv)], SizeOf(Cardinal));
+
+    EncryptAES128(Vector, ExpandedKey, TempOut);
+    PCardinal(@TempIn[0])^ := PCardinal(@TempIn[0])^ xor PCardinal(@TempOut[0])^;
+    PCardinal(@TempIn[4])^ := PCardinal(@TempIn[4])^ xor PCardinal(@TempOut[4])^;
+    PCardinal(@TempIn[8])^ := PCardinal(@TempIn[8])^ xor PCardinal(@TempOut[8])^;
+    PCardinal(@TempIn[12])^ := PCardinal(@TempIn[12])^ xor PCardinal(@TempOut[12])^;
+    Done := Dest.Write(TempIn, Count);  // 最后写入的只包括密文长度的部分，无需整个块
+    if Done < Count then
+      raise EStreamError.Create(SCnErrorAESWriteError);
+  end;
+end;
+
+procedure EncryptAES192StreamCTR(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey192; const Nonce: TCnAESCTRNonce;
+  const InitVector: TCnAESCTRIv; Dest: TStream);
+var
+  ExpandedKey: TCnAESExpandedKey192;
+begin
+  ExpandAESKeyForEncryption192(Key, ExpandedKey);
+  EncryptAES192StreamCTRExpanded(Source, Count, ExpandedKey, Nonce, InitVector, Dest);
+end;
+
+procedure EncryptAES192StreamCTRExpanded(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey192; const Nonce: TCnAESCTRNonce;
+  const InitVector: TCnAESCTRIv; Dest: TStream);
+var
+  TempIn, TempOut, Vector: TCnAESBuffer;
+  Done, Cnt, T: Cardinal;
+begin
+  if Count = 0 then
+  begin
+    Source.Position := 0;
+    Count := Source.Size;
+  end
+  else Count := Min(Count, Source.Size - Source.Position);
+  if Count = 0 then Exit;
+
+  Cnt := 1;
+  while Count >= SizeOf(TCnAESBuffer) do
+  begin
+    Done := Source.Read(TempIn, SizeOf(TempIn));
+    if Done < SizeOf(TempIn) then
+      raise EStreamError.Create(SCnErrorAESReadError);
+
+    Move(Nonce[0], Vector[0], SizeOf(TCnAESCTRNonce));
+    Move(InitVector[0], Vector[SizeOf(TCnAESCTRNonce)], SizeOf(TCnAESCTRIv));
+    T := UInt32HostToNetwork(Cnt);
+    Move(T, Vector[SizeOf(TCnAESCTRNonce) + SizeOf(TCnAESCTRIv)], SizeOf(Cardinal));
+
+    EncryptAES192(Vector, ExpandedKey, TempOut);                                   // Key 先加密拼出来的 Iv
+    PCardinal(@TempIn[0])^ := PCardinal(@TempIn[0])^ xor PCardinal(@TempOut[0])^;  // 加密结果与明文异或
+    PCardinal(@TempIn[4])^ := PCardinal(@TempIn[4])^ xor PCardinal(@TempOut[4])^;
+    PCardinal(@TempIn[8])^ := PCardinal(@TempIn[8])^ xor PCardinal(@TempOut[8])^;
+    PCardinal(@TempIn[12])^ := PCardinal(@TempIn[12])^ xor PCardinal(@TempOut[12])^;
+    Done := Dest.Write(TempIn, SizeOf(TempIn));                                    // 异或的结果写进密文结果
+    if Done < SizeOf(TempIn) then
+      raise EStreamError.Create(SCnErrorAESWriteError);
+
+    Inc(Cnt);                                                                   // 计数器加一
+    Dec(Count, SizeOf(TCnAESBuffer));
+  end;
+
+  if Count > 0 then
+  begin
+    Done := Source.Read(TempIn, Count);
+    if Done < Count then
+      raise EStreamError.Create(SCnErrorAESReadError);
+
+    Move(Nonce[0], Vector[0], SizeOf(TCnAESCTRNonce));
+    Move(InitVector[0], Vector[SizeOf(TCnAESCTRNonce)], SizeOf(TCnAESCTRIv));
+    T := UInt32HostToNetwork(Cnt);
+    Move(T, Vector[SizeOf(TCnAESCTRNonce) + SizeOf(TCnAESCTRIv)], SizeOf(Cardinal));
+
+    EncryptAES192(Vector, ExpandedKey, TempOut);
+    PCardinal(@TempIn[0])^ := PCardinal(@TempIn[0])^ xor PCardinal(@TempOut[0])^;
+    PCardinal(@TempIn[4])^ := PCardinal(@TempIn[4])^ xor PCardinal(@TempOut[4])^;
+    PCardinal(@TempIn[8])^ := PCardinal(@TempIn[8])^ xor PCardinal(@TempOut[8])^;
+    PCardinal(@TempIn[12])^ := PCardinal(@TempIn[12])^ xor PCardinal(@TempOut[12])^;
+    Done := Dest.Write(TempIn, Count);  // 最后写入的只包括密文长度的部分，无需整个块
+    if Done < Count then
+      raise EStreamError.Create(SCnErrorAESWriteError);
+  end;
+end;
+
+procedure EncryptAES256StreamCTR(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey256; const Nonce: TCnAESCTRNonce;
+  const InitVector: TCnAESCTRIv; Dest: TStream);
+var
+  ExpandedKey: TCnAESExpandedKey256;
+begin
+  ExpandAESKeyForEncryption256(Key, ExpandedKey);
+  EncryptAES256StreamCTRExpanded(Source, Count, ExpandedKey, Nonce, InitVector, Dest);
+end;
+
+procedure EncryptAES256StreamCTRExpanded(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey256; const Nonce: TCnAESCTRNonce;
+  const InitVector: TCnAESCTRIv; Dest: TStream);
+var
+  TempIn, TempOut, Vector: TCnAESBuffer;
+  Done, Cnt, T: Cardinal;
+begin
+  if Count = 0 then
+  begin
+    Source.Position := 0;
+    Count := Source.Size;
+  end
+  else Count := Min(Count, Source.Size - Source.Position);
+  if Count = 0 then Exit;
+
+  Cnt := 1;
+  while Count >= SizeOf(TCnAESBuffer) do
+  begin
+    Done := Source.Read(TempIn, SizeOf(TempIn));
+    if Done < SizeOf(TempIn) then
+      raise EStreamError.Create(SCnErrorAESReadError);
+
+    Move(Nonce[0], Vector[0], SizeOf(TCnAESCTRNonce));
+    Move(InitVector[0], Vector[SizeOf(TCnAESCTRNonce)], SizeOf(TCnAESCTRIv));
+    T := UInt32HostToNetwork(Cnt);
+    Move(T, Vector[SizeOf(TCnAESCTRNonce) + SizeOf(TCnAESCTRIv)], SizeOf(Cardinal));
+
+    EncryptAES256(Vector, ExpandedKey, TempOut);                                   // Key 先加密拼出来的 Iv
+    PCardinal(@TempIn[0])^ := PCardinal(@TempIn[0])^ xor PCardinal(@TempOut[0])^;  // 加密结果与明文异或
+    PCardinal(@TempIn[4])^ := PCardinal(@TempIn[4])^ xor PCardinal(@TempOut[4])^;
+    PCardinal(@TempIn[8])^ := PCardinal(@TempIn[8])^ xor PCardinal(@TempOut[8])^;
+    PCardinal(@TempIn[12])^ := PCardinal(@TempIn[12])^ xor PCardinal(@TempOut[12])^;
+    Done := Dest.Write(TempIn, SizeOf(TempIn));                                    // 异或的结果写进密文结果
+    if Done < SizeOf(TempIn) then
+      raise EStreamError.Create(SCnErrorAESWriteError);
+
+    Inc(Cnt);                                                                   // 计数器加一
+    Dec(Count, SizeOf(TCnAESBuffer));
+  end;
+
+  if Count > 0 then
+  begin
+    Done := Source.Read(TempIn, Count);
+    if Done < Count then
+      raise EStreamError.Create(SCnErrorAESReadError);
+
+    Move(Nonce[0], Vector[0], SizeOf(TCnAESCTRNonce));
+    Move(InitVector[0], Vector[SizeOf(TCnAESCTRNonce)], SizeOf(TCnAESCTRIv));
+    T := UInt32HostToNetwork(Cnt);
+    Move(T, Vector[SizeOf(TCnAESCTRNonce) + SizeOf(TCnAESCTRIv)], SizeOf(Cardinal));
+
+    EncryptAES256(Vector, ExpandedKey, TempOut);
+    PCardinal(@TempIn[0])^ := PCardinal(@TempIn[0])^ xor PCardinal(@TempOut[0])^;
+    PCardinal(@TempIn[4])^ := PCardinal(@TempIn[4])^ xor PCardinal(@TempOut[4])^;
+    PCardinal(@TempIn[8])^ := PCardinal(@TempIn[8])^ xor PCardinal(@TempOut[8])^;
+    PCardinal(@TempIn[12])^ := PCardinal(@TempIn[12])^ xor PCardinal(@TempOut[12])^;
+    Done := Dest.Write(TempIn, Count);  // 最后写入的只包括密文长度的部分，无需整个块
+    if Done < Count then
+      raise EStreamError.Create(SCnErrorAESWriteError);
+  end;
+end;
+
+// Stream Decryption Routines (CTR mode)
+
+{$IFNDEF BCB5OR6}
+
+// 因 C++Builder 的 overload 混乱问题，以下六函数仅 Delphi 下可用
+procedure DecryptAESStreamCTR(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey128; const Nonce: TCnAESCTRNonce;
+  const InitVector: TCnAESCTRIv; Dest: TStream);
+begin
+  DecryptAES128StreamCTR(Source, Count, Key, Nonce, InitVector, Dest);
+end;
+
+procedure DecryptAESStreamCTR(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey128; const Nonce: TCnAESCTRNonce;
+  const InitVector: TCnAESCTRIv; Dest: TStream);
+begin
+  DecryptAES128StreamCTRExpanded(Source, Count, ExpandedKey, Nonce, InitVector, Dest);
+end;
+
+procedure DecryptAESStreamCTR(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey192; const Nonce: TCnAESCTRNonce;
+  const InitVector: TCnAESCTRIv; Dest: TStream);
+begin
+  DecryptAES192StreamCTR(Source, Count, Key, Nonce, InitVector, Dest);
+end;
+
+procedure DecryptAESStreamCTR(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey192; const Nonce: TCnAESCTRNonce;
+  const InitVector: TCnAESCTRIv; Dest: TStream);
+begin
+  DecryptAES192StreamCTRExpanded(Source, Count, ExpandedKey, Nonce, InitVector, Dest);
+end;
+
+procedure DecryptAESStreamCTR(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey256; const Nonce: TCnAESCTRNonce;
+  const InitVector: TCnAESCTRIv; Dest: TStream);
+begin
+  DecryptAES256StreamCTR(Source, Count, Key, Nonce, InitVector, Dest);
+end;
+
+procedure DecryptAESStreamCTR(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey256; const Nonce: TCnAESCTRNonce;
+  const InitVector: TCnAESCTRIv; Dest: TStream);
+begin
+  DecryptAES256StreamCTRExpanded(Source, Count, ExpandedKey, Nonce, InitVector, Dest);
+end;
+
+{$ENDIF}
+
+procedure DecryptAES128StreamCTR(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey128; const Nonce: TCnAESCTRNonce;
+  const InitVector: TCnAESCTRIv; Dest: TStream);
+var
+  ExpandedKey: TCnAESExpandedKey128;
+begin
+  ExpandAESKeyForEncryption128(Key, ExpandedKey);
+  DecryptAES128StreamCTRExpanded(Source, Count, ExpandedKey, Nonce, InitVector, Dest);
+end;
+
+procedure DecryptAES128StreamCTRExpanded(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey128; const Nonce: TCnAESCTRNonce;
+  const InitVector: TCnAESCTRIv; Dest: TStream);
+begin
+  EncryptAES128StreamCTRExpanded(Source, Count, ExpandedKey, Nonce, InitVector, Dest);
+end;
+
+procedure DecryptAES192StreamCTR(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey192; const Nonce: TCnAESCTRNonce;
+  const InitVector: TCnAESCTRIv; Dest: TStream);
+var
+  ExpandedKey: TCnAESExpandedKey192;
+begin
+  ExpandAESKeyForEncryption192(Key, ExpandedKey);
+  DecryptAES192StreamCTRExpanded(Source, Count, ExpandedKey, Nonce, InitVector, Dest);
+end;
+
+procedure DecryptAES192StreamCTRExpanded(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey192; const Nonce: TCnAESCTRNonce;
+  const InitVector: TCnAESCTRIv; Dest: TStream);
+begin
+  EncryptAES192StreamCTRExpanded(Source, Count, ExpandedKey, Nonce, InitVector, Dest);
+end;
+
+procedure DecryptAES256StreamCTR(Source: TStream; Count: Cardinal;
+  const Key: TCnAESKey256; const Nonce: TCnAESCTRNonce;
+  const InitVector: TCnAESCTRIv; Dest: TStream);
+var
+  ExpandedKey: TCnAESExpandedKey256;
+begin
+  ExpandAESKeyForEncryption256(Key, ExpandedKey);
+  DecryptAES256StreamCTRExpanded(Source, Count, ExpandedKey, Nonce, InitVector, Dest);
+end;
+
+procedure DecryptAES256StreamCTRExpanded(Source: TStream; Count: Cardinal;
+  const ExpandedKey: TCnAESExpandedKey256; const Nonce: TCnAESCTRNonce;
+  const InitVector: TCnAESCTRIv; Dest: TStream);
+begin
+  EncryptAES256StreamCTRExpanded(Source, Count, ExpandedKey, Nonce, InitVector, Dest);
 end;
 
 // AES ECB 加密字符串并将其转换成十六进制
@@ -3455,21 +4636,22 @@ begin
       begin
         FillChar(AESKey128, SizeOf(AESKey128), 0);
         Move(PAnsiChar(Key)^, AESKey128, Min(SizeOf(AESKey128), Length(Key)));
-        EncryptAESStreamECB(SS, 0, AESKey128, DS);
+        EncryptAES128StreamECB(SS, 0, AESKey128, DS);
       end;
     kbt192:
       begin
         FillChar(AESKey192, SizeOf(AESKey192), 0);
         Move(PAnsiChar(Key)^, AESKey192, Min(SizeOf(AESKey192), Length(Key)));
-        EncryptAESStreamECB(SS, 0, AESKey192, DS);
+        EncryptAES192StreamECB(SS, 0, AESKey192, DS);
       end;
     kbt256:
       begin
         FillChar(AESKey256, SizeOf(AESKey256), 0);
         Move(PAnsiChar(Key)^, AESKey256, Min(SizeOf(AESKey256), Length(Key)));
-        EncryptAESStreamECB(SS, 0, AESKey256, DS);
+        EncryptAES256StreamECB(SS, 0, AESKey256, DS);
       end;
     end;
+
     Result := AnsiString(DataToHex(DS.Memory, DS.Size));
   finally
     SS.Free;
@@ -3478,7 +4660,7 @@ begin
 end;
 
 // AES ECB 解密十六进制字符串
-function AESDecryptEcbStrFromHex(Value: AnsiString; Key: AnsiString;
+function AESDecryptEcbStrFromHex(const HexStr: AnsiString; Key: AnsiString;
   KeyBit: TCnKeyBitType): AnsiString;
 var
   SS, DS: TMemoryStream;
@@ -3493,7 +4675,7 @@ begin
 
   try
     SS := TMemoryStream.Create;
-    Tmp := HexToBytes(string(Value));
+    Tmp := HexToBytes(string(HexStr));
     SS.Write(PAnsiChar(@Tmp[0])^, Length(Tmp));
     SS.Position := 0;
     DS := TMemoryStream.Create;
@@ -3503,21 +4685,22 @@ begin
       begin
         FillChar(AESKey128, SizeOf(AESKey128), 0);
         Move(PAnsiChar(Key)^, AESKey128, Min(SizeOf(AESKey128), Length(Key)));
-        DecryptAESStreamECB(SS, SS.Size - SS.Position, AESKey128, DS);
+        DecryptAES128StreamECB(SS, SS.Size - SS.Position, AESKey128, DS);
       end;
     kbt192:
       begin
         FillChar(AESKey192, SizeOf(AESKey192), 0);
         Move(PAnsiChar(Key)^, AESKey192, Min(SizeOf(AESKey192), Length(Key)));
-        DecryptAESStreamECB(SS, SS.Size - SS.Position, AESKey192, DS);
+        DecryptAES192StreamECB(SS, SS.Size - SS.Position, AESKey192, DS);
       end;
     kbt256:
       begin
         FillChar(AESKey256, SizeOf(AESKey256), 0);
         Move(PAnsiChar(Key)^, AESKey256, Min(SizeOf(AESKey256), Length(Key)));
-        DecryptAESStreamECB(SS, SS.Size - SS.Position, AESKey256, DS);
+        DecryptAES256StreamECB(SS, SS.Size - SS.Position, AESKey256, DS);
       end;
     end;
+
     SetLength(Result, DS.Size);
     Move(PAnsiChar(DS.Memory)^, Result[1], DS.Size);
   finally
@@ -3550,21 +4733,22 @@ begin
       begin
         FillChar(AESKey128, SizeOf(AESKey128), 0);
         Move(PAnsiChar(Key)^, AESKey128, Min(SizeOf(AESKey128), Length(Key)));
-        EncryptAESStreamCBC(SS, 0, AESKey128, Iv, DS);
+        EncryptAES128StreamCBC(SS, 0, AESKey128, Iv, DS);
       end;
     kbt192:
       begin
         FillChar(AESKey192, SizeOf(AESKey192), 0);
         Move(PAnsiChar(Key)^, AESKey192, Min(SizeOf(AESKey192), Length(Key)));
-        EncryptAESStreamCBC(SS, 0, AESKey192, Iv, DS);
+        EncryptAES192StreamCBC(SS, 0, AESKey192, Iv, DS);
       end;
     kbt256:
       begin
         FillChar(AESKey256, SizeOf(AESKey256), 0);
         Move(PAnsiChar(Key)^, AESKey256, Min(SizeOf(AESKey256), Length(Key)));
-        EncryptAESStreamCBC(SS, 0, AESKey256, Iv, DS);
+        EncryptAES256StreamCBC(SS, 0, AESKey256, Iv, DS);
       end;
     end;
+
     Result := AnsiString(DataToHex(DS.Memory, DS.Size));
   finally
     SS.Free;
@@ -3573,7 +4757,7 @@ begin
 end;
 
 // AES CBC 解密十六进制字符串
-function AESDecryptCbcStrFromHex(Value: AnsiString; Key: AnsiString;
+function AESDecryptCbcStrFromHex(const HexStr: AnsiString; Key: AnsiString;
   const Iv: TCnAESBuffer; KeyBit: TCnKeyBitType): AnsiString;
 var
   SS, DS: TMemoryStream;
@@ -3588,7 +4772,7 @@ begin
 
   try
     SS := TMemoryStream.Create;
-    Tmp := HexToBytes(string(Value));
+    Tmp := HexToBytes(string(HexStr));
     SS.Write(PAnsiChar(@Tmp[0])^, Length(Tmp));
     SS.Position := 0;
     DS := TMemoryStream.Create;
@@ -3598,21 +4782,22 @@ begin
       begin
         FillChar(AESKey128, SizeOf(AESKey128), 0);
         Move(PAnsiChar(Key)^, AESKey128, Min(SizeOf(AESKey128), Length(Key)));
-        DecryptAESStreamCBC(SS, SS.Size - SS.Position, AESKey128, Iv, DS);
+        DecryptAES128StreamCBC(SS, SS.Size - SS.Position, AESKey128, Iv, DS);
       end;
     kbt192:
       begin
         FillChar(AESKey192, SizeOf(AESKey192), 0);
         Move(PAnsiChar(Key)^, AESKey192, Min(SizeOf(AESKey192), Length(Key)));
-        DecryptAESStreamCBC(SS, SS.Size - SS.Position, AESKey192, Iv, DS);
+        DecryptAES192StreamCBC(SS, SS.Size - SS.Position, AESKey192, Iv, DS);
       end;
     kbt256:
       begin
         FillChar(AESKey256, SizeOf(AESKey256), 0);
         Move(PAnsiChar(Key)^, AESKey256, Min(SizeOf(AESKey256), Length(Key)));
-        DecryptAESStreamCBC(SS, SS.Size - SS.Position, AESKey256, Iv, DS);
+        DecryptAES256StreamCBC(SS, SS.Size - SS.Position, AESKey256, Iv, DS);
       end;
     end;
+
     SetLength(Result, DS.Size);
     Move(PAnsiChar(DS.Memory)^, Result[1], DS.Size);
   finally
@@ -3645,21 +4830,22 @@ begin
       begin
         FillChar(AESKey128, SizeOf(AESKey128), 0);
         Move(PAnsiChar(Key)^, AESKey128, Min(SizeOf(AESKey128), Length(Key)));
-        EncryptAESStreamCFB(SS, 0, AESKey128, Iv, DS);
+        EncryptAES128StreamCFB(SS, 0, AESKey128, Iv, DS);
       end;
     kbt192:
       begin
         FillChar(AESKey192, SizeOf(AESKey192), 0);
         Move(PAnsiChar(Key)^, AESKey192, Min(SizeOf(AESKey192), Length(Key)));
-        EncryptAESStreamCFB(SS, 0, AESKey192, Iv, DS);
+        EncryptAES192StreamCFB(SS, 0, AESKey192, Iv, DS);
       end;
     kbt256:
       begin
         FillChar(AESKey256, SizeOf(AESKey256), 0);
         Move(PAnsiChar(Key)^, AESKey256, Min(SizeOf(AESKey256), Length(Key)));
-        EncryptAESStreamCFB(SS, 0, AESKey256, Iv, DS);
+        EncryptAES256StreamCFB(SS, 0, AESKey256, Iv, DS);
       end;
     end;
+
     Result := AnsiString(DataToHex(DS.Memory, DS.Size));
   finally
     SS.Free;
@@ -3668,7 +4854,7 @@ begin
 end;
 
 // AES CFB 解密十六进制字符串
-function AESDecryptCfbStrFromHex(Value: AnsiString; Key: AnsiString;
+function AESDecryptCfbStrFromHex(const HexStr: AnsiString; Key: AnsiString;
   const Iv: TCnAESBuffer; KeyBit: TCnKeyBitType): AnsiString;
 var
   SS, DS: TMemoryStream;
@@ -3683,7 +4869,7 @@ begin
 
   try
     SS := TMemoryStream.Create;
-    Tmp := HexToBytes(string(Value));
+    Tmp := HexToBytes(string(HexStr));
     SS.Write(PAnsiChar(@Tmp[0])^, Length(Tmp));
     SS.Position := 0;
     DS := TMemoryStream.Create;
@@ -3693,21 +4879,22 @@ begin
       begin
         FillChar(AESKey128, SizeOf(AESKey128), 0);
         Move(PAnsiChar(Key)^, AESKey128, Min(SizeOf(AESKey128), Length(Key)));
-        DecryptAESStreamCFB(SS, SS.Size - SS.Position, AESKey128, Iv, DS);
+        DecryptAES128StreamCFB(SS, SS.Size - SS.Position, AESKey128, Iv, DS);
       end;
     kbt192:
       begin
         FillChar(AESKey192, SizeOf(AESKey192), 0);
         Move(PAnsiChar(Key)^, AESKey192, Min(SizeOf(AESKey192), Length(Key)));
-        DecryptAESStreamCFB(SS, SS.Size - SS.Position, AESKey192, Iv, DS);
+        DecryptAES192StreamCFB(SS, SS.Size - SS.Position, AESKey192, Iv, DS);
       end;
     kbt256:
       begin
         FillChar(AESKey256, SizeOf(AESKey256), 0);
         Move(PAnsiChar(Key)^, AESKey256, Min(SizeOf(AESKey256), Length(Key)));
-        DecryptAESStreamCFB(SS, SS.Size - SS.Position, AESKey256, Iv, DS);
+        DecryptAES256StreamCFB(SS, SS.Size - SS.Position, AESKey256, Iv, DS);
       end;
     end;
+
     SetLength(Result, DS.Size);
     Move(PAnsiChar(DS.Memory)^, Result[1], DS.Size);
   finally
@@ -3740,21 +4927,22 @@ begin
       begin
         FillChar(AESKey128, SizeOf(AESKey128), 0);
         Move(PAnsiChar(Key)^, AESKey128, Min(SizeOf(AESKey128), Length(Key)));
-        EncryptAESStreamOFB(SS, 0, AESKey128, Iv, DS);
+        EncryptAES128StreamOFB(SS, 0, AESKey128, Iv, DS);
       end;
     kbt192:
       begin
         FillChar(AESKey192, SizeOf(AESKey192), 0);
         Move(PAnsiChar(Key)^, AESKey192, Min(SizeOf(AESKey192), Length(Key)));
-        EncryptAESStreamOFB(SS, 0, AESKey192, Iv, DS);
+        EncryptAES192StreamOFB(SS, 0, AESKey192, Iv, DS);
       end;
     kbt256:
       begin
         FillChar(AESKey256, SizeOf(AESKey256), 0);
         Move(PAnsiChar(Key)^, AESKey256, Min(SizeOf(AESKey256), Length(Key)));
-        EncryptAESStreamOFB(SS, 0, AESKey256, Iv, DS);
+        EncryptAES256StreamOFB(SS, 0, AESKey256, Iv, DS);
       end;
     end;
+
     Result := AnsiString(DataToHex(DS.Memory, DS.Size));
   finally
     SS.Free;
@@ -3763,7 +4951,7 @@ begin
 end;
 
 // AES OFB 解密十六进制字符串
-function AESDecryptOfbStrFromHex(Value: AnsiString; Key: AnsiString;
+function AESDecryptOfbStrFromHex(const HexStr: AnsiString; Key: AnsiString;
   const Iv: TCnAESBuffer; KeyBit: TCnKeyBitType): AnsiString;
 var
   SS, DS: TMemoryStream;
@@ -3778,7 +4966,7 @@ begin
 
   try
     SS := TMemoryStream.Create;
-    Tmp := HexToBytes(string(Value));
+    Tmp := HexToBytes(string(HexStr));
     SS.Write(PAnsiChar(@Tmp[0])^, Length(Tmp));
     SS.Position := 0;
     DS := TMemoryStream.Create;
@@ -3788,21 +4976,119 @@ begin
       begin
         FillChar(AESKey128, SizeOf(AESKey128), 0);
         Move(PAnsiChar(Key)^, AESKey128, Min(SizeOf(AESKey128), Length(Key)));
-        DecryptAESStreamOFB(SS, SS.Size - SS.Position, AESKey128, Iv, DS);
+        DecryptAES128StreamOFB(SS, SS.Size - SS.Position, AESKey128, Iv, DS);
       end;
     kbt192:
       begin
         FillChar(AESKey192, SizeOf(AESKey192), 0);
         Move(PAnsiChar(Key)^, AESKey192, Min(SizeOf(AESKey192), Length(Key)));
-        DecryptAESStreamOFB(SS, SS.Size - SS.Position, AESKey192, Iv, DS);
+        DecryptAES192StreamOFB(SS, SS.Size - SS.Position, AESKey192, Iv, DS);
       end;
     kbt256:
       begin
         FillChar(AESKey256, SizeOf(AESKey256), 0);
         Move(PAnsiChar(Key)^, AESKey256, Min(SizeOf(AESKey256), Length(Key)));
-        DecryptAESStreamOFB(SS, SS.Size - SS.Position, AESKey256, Iv, DS);
+        DecryptAES256StreamOFB(SS, SS.Size - SS.Position, AESKey256, Iv, DS);
       end;
     end;
+
+    SetLength(Result, DS.Size);
+    Move(PAnsiChar(DS.Memory)^, Result[1], DS.Size);
+  finally
+    SS.Free;
+    DS.Free;
+  end;
+end;
+
+// AES CTR 模式加密字符串并将其转换成十六进制
+function AESEncryptCtrStrToHex(Value: AnsiString; Key: AnsiString;
+  const Nonce: TCnAESCTRNonce; const Iv: TCnAESCTRIv; KeyBit: TCnKeyBitType): AnsiString;
+var
+  SS, DS: TMemoryStream;
+  AESKey128: TCnAESKey128;
+  AESKey192: TCnAESKey192;
+  AESKey256: TCnAESKey256;
+begin
+  Result := '';
+  SS := nil;
+  DS := nil;
+
+  try
+    SS := TMemoryStream.Create;
+    SS.Write(PAnsiChar(@Value[1])^, Length(Value));
+    SS.Position := 0;
+    DS := TMemoryStream.Create;
+
+    case KeyBit of
+    kbt128:
+      begin
+        FillChar(AESKey128, SizeOf(AESKey128), 0);
+        Move(PAnsiChar(Key)^, AESKey128, Min(SizeOf(AESKey128), Length(Key)));
+        EncryptAES128StreamCTR(SS, 0, AESKey128, Nonce, Iv, DS);
+      end;
+    kbt192:
+      begin
+        FillChar(AESKey192, SizeOf(AESKey192), 0);
+        Move(PAnsiChar(Key)^, AESKey192, Min(SizeOf(AESKey192), Length(Key)));
+        EncryptAES192StreamCTR(SS, 0, AESKey192, Nonce, Iv, DS);
+      end;
+    kbt256:
+      begin
+        FillChar(AESKey256, SizeOf(AESKey256), 0);
+        Move(PAnsiChar(Key)^, AESKey256, Min(SizeOf(AESKey256), Length(Key)));
+        EncryptAES256StreamCTR(SS, 0, AESKey256, Nonce, Iv, DS);
+      end;
+    end;
+
+    Result := AnsiString(DataToHex(DS.Memory, DS.Size));
+  finally
+    SS.Free;
+    DS.Free;
+  end;
+end;
+
+// AES CTR 解密十六进制字符串
+function AESDecryptCtrStrFromHex(const HexStr: AnsiString; Key: AnsiString;
+  const Nonce: TCnAESCTRNonce; const Iv: TCnAESCTRIv; KeyBit: TCnKeyBitType): AnsiString;
+var
+  SS, DS: TMemoryStream;
+  AESKey128: TCnAESKey128;
+  AESKey192: TCnAESKey192;
+  AESKey256: TCnAESKey256;
+  Tmp: TBytes;
+begin
+  Result := '';
+  SS := nil;
+  DS := nil;
+
+  try
+    SS := TMemoryStream.Create;
+    Tmp := HexToBytes(string(HexStr));
+    SS.Write(PAnsiChar(@Tmp[0])^, Length(Tmp));
+    SS.Position := 0;
+    DS := TMemoryStream.Create;
+
+    case KeyBit of
+    kbt128:
+      begin
+        FillChar(AESKey128, SizeOf(AESKey128), 0);
+        Move(PAnsiChar(Key)^, AESKey128, Min(SizeOf(AESKey128), Length(Key)));
+        DecryptAES128StreamCTR(SS, SS.Size - SS.Position, AESKey128, Nonce, Iv, DS);
+      end;
+    kbt192:
+      begin
+        FillChar(AESKey192, SizeOf(AESKey192), 0);
+        Move(PAnsiChar(Key)^, AESKey192, Min(SizeOf(AESKey192), Length(Key)));
+        DecryptAES192StreamCTR(SS, SS.Size - SS.Position, AESKey192, Nonce, Iv, DS);
+      end;
+    kbt256:
+      begin
+        FillChar(AESKey256, SizeOf(AESKey256), 0);
+        Move(PAnsiChar(Key)^, AESKey256, Min(SizeOf(AESKey256), Length(Key)));
+        DecryptAES256StreamCTR(SS, SS.Size - SS.Position, AESKey256, Nonce, Iv, DS);
+      end;
+    end;
+
     SetLength(Result, DS.Size);
     Move(PAnsiChar(DS.Memory)^, Result[1], DS.Size);
   finally
@@ -3839,21 +5125,22 @@ begin
       begin
         FillChar(AESKey128, SizeOf(AESKey128), 0);
         Move(PAnsiChar(Key)^, AESKey128, Min(SizeOf(AESKey128), Length(Key)));
-        EncryptAESStreamECB(SS, 0, AESKey128, DS);
+        EncryptAES128StreamECB(SS, 0, AESKey128, DS);
       end;
     kbt192:
       begin
         FillChar(AESKey192, SizeOf(AESKey192), 0);
         Move(PAnsiChar(Key)^, AESKey192, Min(SizeOf(AESKey192), Length(Key)));
-        EncryptAESStreamECB(SS, 0, AESKey192, DS);
+        EncryptAES192StreamECB(SS, 0, AESKey192, DS);
       end;
     kbt256:
       begin
         FillChar(AESKey256, SizeOf(AESKey256), 0);
         Move(PAnsiChar(Key)^, AESKey256, Min(SizeOf(AESKey256), Length(Key)));
-        EncryptAESStreamECB(SS, 0, AESKey256, DS);
+        EncryptAES256StreamECB(SS, 0, AESKey256, DS);
       end;
     end;
+
     SetLength(Result, DS.Size);
     DS.Position := 0;
     DS.Read(Result[0], DS.Size);
@@ -3891,21 +5178,22 @@ begin
       begin
         FillChar(AESKey128, SizeOf(AESKey128), 0);
         Move(PAnsiChar(Key)^, AESKey128, Min(SizeOf(AESKey128), Length(Key)));
-        DecryptAESStreamECB(SS, SS.Size - SS.Position, AESKey128, DS);
+        DecryptAES128StreamECB(SS, SS.Size - SS.Position, AESKey128, DS);
       end;
     kbt192:
       begin
         FillChar(AESKey192, SizeOf(AESKey192), 0);
         Move(PAnsiChar(Key)^, AESKey192, Min(SizeOf(AESKey192), Length(Key)));
-        DecryptAESStreamECB(SS, SS.Size - SS.Position, AESKey192, DS);
+        DecryptAES192StreamECB(SS, SS.Size - SS.Position, AESKey192, DS);
       end;
     kbt256:
       begin
         FillChar(AESKey256, SizeOf(AESKey256), 0);
         Move(PAnsiChar(Key)^, AESKey256, Min(SizeOf(AESKey256), Length(Key)));
-        DecryptAESStreamECB(SS, SS.Size - SS.Position, AESKey256, DS);
+        DecryptAES256StreamECB(SS, SS.Size - SS.Position, AESKey256, DS);
       end;
     end;
+
     SetLength(Result, DS.Size);
     DS.Position := 0;
     DS.Read(Result[0], DS.Size);
@@ -3947,21 +5235,22 @@ begin
       begin
         FillChar(AESKey128, SizeOf(AESKey128), 0);
         Move(PAnsiChar(Key)^, AESKey128, Min(SizeOf(AESKey128), Length(Key)));
-        EncryptAESStreamCBC(SS, 0, AESKey128, AESIv, DS);
+        EncryptAES128StreamCBC(SS, 0, AESKey128, AESIv, DS);
       end;
     kbt192:
       begin
         FillChar(AESKey192, SizeOf(AESKey192), 0);
         Move(PAnsiChar(Key)^, AESKey192, Min(SizeOf(AESKey192), Length(Key)));
-        EncryptAESStreamCBC(SS, 0, AESKey192, AESIv, DS);
+        EncryptAES192StreamCBC(SS, 0, AESKey192, AESIv, DS);
       end;
     kbt256:
       begin
-        FillChar(AESKey256, SizeOf(AESKey256), 0 );
+        FillChar(AESKey256, SizeOf(AESKey256), 0);
         Move(PAnsiChar(Key)^, AESKey256, Min(SizeOf(AESKey256), Length(Key)));
-        EncryptAESStreamCBC(SS, 0, AESKey256, AESIv, DS);
+        EncryptAES256StreamCBC(SS, 0, AESKey256, AESIv, DS);
       end;
     end;
+
     SetLength(Result, DS.Size);
     DS.Position := 0;
     DS.Read(Result[0], DS.Size);
@@ -4003,21 +5292,22 @@ begin
       begin
         FillChar(AESKey128, SizeOf(AESKey128), 0);
         Move(PAnsiChar(Key)^, AESKey128, Min(SizeOf(AESKey128), Length(Key)));
-        DecryptAESStreamCBC(SS, SS.Size - SS.Position, AESKey128, AESIv, DS);
+        DecryptAES128StreamCBC(SS, SS.Size - SS.Position, AESKey128, AESIv, DS);
       end;
     kbt192:
       begin
         FillChar(AESKey192, SizeOf(AESKey192), 0);
         Move(PAnsiChar(Key)^, AESKey192, Min(SizeOf(AESKey192), Length(Key)));
-        DecryptAESStreamCBC(SS, SS.Size - SS.Position, AESKey192, AESIv, DS);
+        DecryptAES192StreamCBC(SS, SS.Size - SS.Position, AESKey192, AESIv, DS);
       end;
     kbt256:
       begin
         FillChar(AESKey256, SizeOf(AESKey256), 0);
         Move(PAnsiChar(Key)^, AESKey256, Min(SizeOf(AESKey256), Length(Key)));
-        DecryptAESStreamCBC(SS, SS.Size - SS.Position, AESKey256, AESIv, DS);
+        DecryptAES256StreamCBC(SS, SS.Size - SS.Position, AESKey256, AESIv, DS);
       end;
     end;
+
     SetLength(Result, DS.Size);
     DS.Position := 0;
     DS.Read(Result[0], DS.Size);
@@ -4059,21 +5349,22 @@ begin
       begin
         FillChar(AESKey128, SizeOf(AESKey128), 0);
         Move(PAnsiChar(Key)^, AESKey128, Min(SizeOf(AESKey128), Length(Key)));
-        EncryptAESStreamCFB(SS, 0, AESKey128, AESIv, DS);
+        EncryptAES128StreamCFB(SS, 0, AESKey128, AESIv, DS);
       end;
     kbt192:
       begin
         FillChar(AESKey192, SizeOf(AESKey192), 0);
         Move(PAnsiChar(Key)^, AESKey192, Min(SizeOf(AESKey192), Length(Key)));
-        EncryptAESStreamCFB(SS, 0, AESKey192, AESIv, DS);
+        EncryptAES192StreamCFB(SS, 0, AESKey192, AESIv, DS);
       end;
     kbt256:
       begin
-        FillChar(AESKey256, SizeOf(AESKey256), 0 );
+        FillChar(AESKey256, SizeOf(AESKey256), 0);
         Move(PAnsiChar(Key)^, AESKey256, Min(SizeOf(AESKey256), Length(Key)));
-        EncryptAESStreamCFB(SS, 0, AESKey256, AESIv, DS);
+        EncryptAES256StreamCFB(SS, 0, AESKey256, AESIv, DS);
       end;
     end;
+
     SetLength(Result, DS.Size);
     DS.Position := 0;
     DS.Read(Result[0], DS.Size);
@@ -4115,21 +5406,22 @@ begin
       begin
         FillChar(AESKey128, SizeOf(AESKey128), 0);
         Move(PAnsiChar(Key)^, AESKey128, Min(SizeOf(AESKey128), Length(Key)));
-        DecryptAESStreamCFB(SS, SS.Size - SS.Position, AESKey128, AESIv, DS);
+        DecryptAES128StreamCFB(SS, SS.Size - SS.Position, AESKey128, AESIv, DS);
       end;
     kbt192:
       begin
         FillChar(AESKey192, SizeOf(AESKey192), 0);
         Move(PAnsiChar(Key)^, AESKey192, Min(SizeOf(AESKey192), Length(Key)));
-        DecryptAESStreamCFB(SS, SS.Size - SS.Position, AESKey192, AESIv, DS);
+        DecryptAES192StreamCFB(SS, SS.Size - SS.Position, AESKey192, AESIv, DS);
       end;
     kbt256:
       begin
         FillChar(AESKey256, SizeOf(AESKey256), 0);
         Move(PAnsiChar(Key)^, AESKey256, Min(SizeOf(AESKey256), Length(Key)));
-        DecryptAESStreamCFB(SS, SS.Size - SS.Position, AESKey256, AESIv, DS);
+        DecryptAES256StreamCFB(SS, SS.Size - SS.Position, AESKey256, AESIv, DS);
       end;
     end;
+
     SetLength(Result, DS.Size);
     DS.Position := 0;
     DS.Read(Result[0], DS.Size);
@@ -4171,21 +5463,22 @@ begin
       begin
         FillChar(AESKey128, SizeOf(AESKey128), 0);
         Move(PAnsiChar(Key)^, AESKey128, Min(SizeOf(AESKey128), Length(Key)));
-        EncryptAESStreamOFB(SS, 0, AESKey128, AESIv, DS);
+        EncryptAES128StreamOFB(SS, 0, AESKey128, AESIv, DS);
       end;
     kbt192:
       begin
         FillChar(AESKey192, SizeOf(AESKey192), 0);
         Move(PAnsiChar(Key)^, AESKey192, Min(SizeOf(AESKey192), Length(Key)));
-        EncryptAESStreamOFB(SS, 0, AESKey192, AESIv, DS);
+        EncryptAES192StreamOFB(SS, 0, AESKey192, AESIv, DS);
       end;
     kbt256:
       begin
-        FillChar(AESKey256, SizeOf(AESKey256), 0 );
+        FillChar(AESKey256, SizeOf(AESKey256), 0);
         Move(PAnsiChar(Key)^, AESKey256, Min(SizeOf(AESKey256), Length(Key)));
-        EncryptAESStreamOFB(SS, 0, AESKey256, AESIv, DS);
+        EncryptAES256StreamOFB(SS, 0, AESKey256, AESIv, DS);
       end;
     end;
+
     SetLength(Result, DS.Size);
     DS.Position := 0;
     DS.Read(Result[0], DS.Size);
@@ -4227,21 +5520,144 @@ begin
       begin
         FillChar(AESKey128, SizeOf(AESKey128), 0);
         Move(PAnsiChar(Key)^, AESKey128, Min(SizeOf(AESKey128), Length(Key)));
-        DecryptAESStreamOFB(SS, SS.Size - SS.Position, AESKey128, AESIv, DS);
+        DecryptAES128StreamOFB(SS, SS.Size - SS.Position, AESKey128, AESIv, DS);
       end;
     kbt192:
       begin
         FillChar(AESKey192, SizeOf(AESKey192), 0);
         Move(PAnsiChar(Key)^, AESKey192, Min(SizeOf(AESKey192), Length(Key)));
-        DecryptAESStreamOFB(SS, SS.Size - SS.Position, AESKey192, AESIv, DS);
+        DecryptAES192StreamOFB(SS, SS.Size - SS.Position, AESKey192, AESIv, DS);
       end;
     kbt256:
       begin
         FillChar(AESKey256, SizeOf(AESKey256), 0);
         Move(PAnsiChar(Key)^, AESKey256, Min(SizeOf(AESKey256), Length(Key)));
-        DecryptAESStreamOFB(SS, SS.Size - SS.Position, AESKey256, AESIv, DS);
+        DecryptAES256StreamOFB(SS, SS.Size - SS.Position, AESKey256, AESIv, DS);
       end;
     end;
+
+    SetLength(Result, DS.Size);
+    DS.Position := 0;
+    DS.Read(Result[0], DS.Size);
+  finally
+    SS.Free;
+    DS.Free;
+  end;
+end;
+
+// AES CTR 模式加密字节数组
+function AESEncryptCtrBytes(Value, Key, Nonce, Iv: TBytes; KeyBit: TCnKeyBitType): TBytes;
+var
+  SS, DS: TMemoryStream;
+  AESKey128: TCnAESKey128;
+  AESKey192: TCnAESKey192;
+  AESKey256: TCnAESKey256;
+  AESIv: TCnAESCTRIv;
+  AESNonce: TCnAESCTRNonce;
+begin
+  if Length(Value) <= 0 then
+  begin
+    Result := nil;
+    Exit;
+  end;
+
+  SS := nil;
+  DS := nil;
+
+  try
+    SS := TMemoryStream.Create;
+    SS.Write(PAnsiChar(@Value[0])^, Length(Value));
+    SS.Position := 0;
+
+    FillChar(AESIv, SizeOF(AESIv), 0);
+    Move(PAnsiChar(Iv)^, AESIv, Min(SizeOf(AESIv), Length(Iv)));
+
+    FillChar(AESNonce, SizeOF(AESNonce), 0);
+    Move(PAnsiChar(Nonce)^, AESNonce, Min(SizeOf(AESNonce), Length(Nonce)));
+    DS := TMemoryStream.Create;
+
+    case KeyBit of
+    kbt128:
+      begin
+        FillChar(AESKey128, SizeOf(AESKey128), 0);
+        Move(PAnsiChar(Key)^, AESKey128, Min(SizeOf(AESKey128), Length(Key)));
+        EncryptAES128StreamCTR(SS, 0, AESKey128, AESNonce, AESIv, DS);
+      end;
+    kbt192:
+      begin
+        FillChar(AESKey192, SizeOf(AESKey192), 0);
+        Move(PAnsiChar(Key)^, AESKey192, Min(SizeOf(AESKey192), Length(Key)));
+        EncryptAES192StreamCTR(SS, 0, AESKey192, AESNonce, AESIv, DS);
+      end;
+    kbt256:
+      begin
+        FillChar(AESKey256, SizeOf(AESKey256), 0);
+        Move(PAnsiChar(Key)^, AESKey256, Min(SizeOf(AESKey256), Length(Key)));
+        EncryptAES256StreamCTR(SS, 0, AESKey256, AESNonce, AESIv, DS);
+      end;
+    end;
+
+    SetLength(Result, DS.Size);
+    DS.Position := 0;
+    DS.Read(Result[0], DS.Size);
+  finally
+    SS.Free;
+    DS.Free;
+  end;
+end;
+
+// AES CTR 模式解密字节数组
+function AESDecryptCtrBytes(Value, Key, Nonce, Iv: TBytes; KeyBit: TCnKeyBitType): TBytes;
+var
+  SS, DS: TMemoryStream;
+  AESKey128: TCnAESKey128;
+  AESKey192: TCnAESKey192;
+  AESKey256: TCnAESKey256;
+  AESIv: TCnAESCTRIv;
+  AESNonce: TCnAESCTRNonce;
+begin
+  if Length(Value) <= 0 then
+  begin
+    Result := nil;
+    Exit;
+  end;
+
+  SS := nil;
+  DS := nil;
+
+  try
+    SS := TMemoryStream.Create;
+    SS.Write(PAnsiChar(@Value[0])^, Length(Value));
+    SS.Position := 0;
+
+    FillChar(AESIv, SizeOF(AESIv), 0);
+    Move(PAnsiChar(Iv)^, AESIv, Min(SizeOf(AESIv), Length(Iv)));
+
+    FillChar(AESNonce, SizeOF(AESNonce), 0);
+    Move(PAnsiChar(Nonce)^, AESNonce, Min(SizeOf(AESNonce), Length(Nonce)));
+    DS := TMemoryStream.Create;
+
+    case KeyBit of
+    kbt128:
+      begin
+        FillChar(AESKey128, SizeOf(AESKey128), 0);
+        Move(PAnsiChar(Key)^, AESKey128, Min(SizeOf(AESKey128), Length(Key)));
+        DecryptAES128StreamCTR(SS, SS.Size - SS.Position, AESKey128, AESNonce, AESIv, DS);
+      end;
+    kbt192:
+      begin
+        FillChar(AESKey192, SizeOf(AESKey192), 0);
+        Move(PAnsiChar(Key)^, AESKey192, Min(SizeOf(AESKey192), Length(Key)));
+        DecryptAES192StreamCTR(SS, SS.Size - SS.Position, AESKey192, AESNonce, AESIv, DS);
+      end;
+    kbt256:
+      begin
+        FillChar(AESKey256, SizeOf(AESKey256), 0);
+        Move(PAnsiChar(Key)^, AESKey256, Min(SizeOf(AESKey256), Length(Key)));
+        DecryptAES256StreamCTR(SS, SS.Size - SS.Position, AESKey256, AESNonce, AESIv, DS);
+      end;
+    end;
+
     SetLength(Result, DS.Size);
     DS.Position := 0;
     DS.Read(Result[0], DS.Size);
@@ -4258,9 +5674,10 @@ begin
 end;
 
 // AES ECB 解密十六进制字符串并返回字节数组
-function AESDecryptEcbBytesFromHex(Value: AnsiString; Key: TBytes; KeyBit: TCnKeyBitType): TBytes;
+function AESDecryptEcbBytesFromHex(const HexStr: AnsiString; Key: TBytes;
+  KeyBit: TCnKeyBitType): TBytes;
 begin
-  Result := AESDecryptEcbBytes(HexToBytes(string(Value)), Key, KeyBit);
+  Result := AESDecryptEcbBytes(HexToBytes(string(HexStr)), Key, KeyBit);
 end;
 
 // AES CBC 模式加密字节数组并将其转换成十六进制
@@ -4270,9 +5687,10 @@ begin
 end;
 
 // AES CBC 解密十六进制字符串并返回字节数组
-function AESDecryptCbcBytesFromHex(Value: AnsiString; Key, Iv: TBytes; KeyBit: TCnKeyBitType): TBytes;
+function AESDecryptCbcBytesFromHex(const HexStr: AnsiString; Key, Iv: TBytes;
+  KeyBit: TCnKeyBitType): TBytes;
 begin
-  Result := AESDecryptCbcBytes(HexToBytes(string(Value)), Key, Iv, KeyBit);
+  Result := AESDecryptCbcBytes(HexToBytes(string(HexStr)), Key, Iv, KeyBit);
 end;
 
 // AES CFB 模式加密字节数组并将其转换成十六进制
@@ -4282,9 +5700,10 @@ begin
 end;
 
 // AES CFB 解密十六进制字符串并返回字节数组
-function AESDecryptCfbBytesFromHex(Value: AnsiString; Key, Iv: TBytes; KeyBit: TCnKeyBitType): TBytes;
+function AESDecryptCfbBytesFromHex(const HexStr: AnsiString; Key, Iv: TBytes;
+  KeyBit: TCnKeyBitType): TBytes;
 begin
-  Result := AESDecryptCfbBytes(HexToBytes(string(Value)), Key, Iv, KeyBit);
+  Result := AESDecryptCfbBytes(HexToBytes(string(HexStr)), Key, Iv, KeyBit);
 end;
 
 // AES OFB 模式加密字节数组并将其转换成十六进制
@@ -4294,9 +5713,23 @@ begin
 end;
 
 // AES OFB 解密十六进制字符串并返回字节数组
-function AESDecryptOfbBytesFromHex(Value: AnsiString; Key, Iv: TBytes; KeyBit: TCnKeyBitType): TBytes;
+function AESDecryptOfbBytesFromHex(const HexStr: AnsiString; Key, Iv: TBytes;
+  KeyBit: TCnKeyBitType): TBytes;
 begin
-  Result := AESDecryptOfbBytes(HexToBytes(string(Value)), Key, Iv, KeyBit);
+  Result := AESDecryptOfbBytes(HexToBytes(string(HexStr)), Key, Iv, KeyBit);
+end;
+
+// AES CTR 模式加密字节数组并将其转换成十六进制
+function AESEncryptCtrBytesToHex(Value, Key, Nonce, Iv: TBytes; KeyBit: TCnKeyBitType): AnsiString;
+begin
+  Result := AnsiString(BytesToHex(AESEncryptCtrBytes(Value, Key, Nonce, Iv, KeyBit)));
+end;
+
+// AES CTR 解密十六进制字符串并返回字节数组
+function AESDecryptCtrBytesFromHex(const HexStr: AnsiString; Key, Nonce, Iv: TBytes;
+  KeyBit: TCnKeyBitType): TBytes;
+begin
+  Result := AESDecryptCtrBytes(HexToBytes(string(HexStr)), Key, Nonce, Iv, KeyBit);
 end;
 
 end.

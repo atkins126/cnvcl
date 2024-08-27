@@ -1,13 +1,13 @@
 ﻿**********************************************************************
                      CnPack For Delphi/C++Builder
                 A Free, Open Source Project from China
-                 (C)Copyright 2001-2023 CnPack Team
+                 (C)Copyright 2001-2024 CnPack Team
 **********************************************************************
 
                     CnPack Component Package (Alpha)
-                           Version 2023.04.05
+                           Version 2024.04.04
                         =======================
-                          CnPack Team 2023.04
+                          CnPack Team 2024.04
 
 
 =====================================================
@@ -21,7 +21,7 @@ License, and also, is protected by it.
 
     Welcome to CnPack website to get latest information.
 
-    http://www.cnpack.org
+    https://www.cnpack.org
 
 =====================================================
 2. Structure
@@ -31,7 +31,7 @@ License, and also, is protected by it.
 because it's not tested integrallty yet. If you meet any problem during
 development, please contact us:
 
-    http://www.cnpack.org
+    https://www.cnpack.org
     mailto:master@cnpack.org
 
     There are several directories in CnPack source codes:
@@ -45,8 +45,8 @@ development, please contact us:
 ======================================================================
 
     Now Delphi 5/6/7/2005/2006/2007/2009/2010/XE/XE2/XE3/XE4/XE5/XE6/XE7/XE8/
-10 Seattle/10.1 Berlin/10.2 Tokyo/10.3 Rio/10.4 Sydney/11 Alexandria and C++Builder 5/6 
-are supported by CnPack Component Package.
+10 Seattle/10.1 Berlin/10.2 Tokyo/10.3 Rio/10.4 Sydney/11 Alexandria/12 Athens
+and C++Builder 5/6 are supported by CnPack Component Package.
     You can open corresponding package files in IDE and press "compile" 
 or "install" buttons to compile and install it. The package files with "dcl"
 prefix are for design time, others for run time.

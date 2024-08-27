@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2023 CnPack 开发组                       }
+{                   (C)Copyright 2001-2024 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -13,7 +13,7 @@
 {            您应该已经和开发包一起收到一份 CnPack 发布协议的副本。如果        }
 {        还没有，可访问我们的网站：                                            }
 {                                                                              }
-{            网站地址：http://www.cnpack.org                                   }
+{            网站地址：https://www.cnpack.org                                  }
 {            电子邮件：master@cnpack.org                                       }
 {                                                                              }
 {******************************************************************************}
@@ -23,7 +23,7 @@ unit CnRTL;
 ================================================================================
 * 软件名称：CnDebugger 相关运行库
 * 单元名称：CnDebug 相关的运行期工具单元
-* 单元作者：刘啸（liuxiao@cnpack.org）
+* 单元作者：CnPack 开发组 (master@cnpack.org)
 * 备    注：该单元实现了部分 CnDebugger 所需的 Module/Stack 相关内容
 *           部分内容引用了 JCL
 * 开发平台：PWin7 + Delphi 5
@@ -114,6 +114,7 @@ type
     FCallerAddr: Pointer;
   public
     property CallerAddr: Pointer read FCallerAddr write FCallerAddr;
+    {* 运行期的虚拟地址}
   end;
 
   TCnStackInfoList = class(TObjectList)

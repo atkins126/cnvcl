@@ -13,7 +13,7 @@
 {            您应该已经和开发包一起收到一份 CnPack 发布协议的副本。如果        }
 {        还没有，可访问我们的网站：                                            }
 {                                                                              }
-{            网站地址：http://www.cnpack.org                                   }
+{            网站地址：https://www.cnpack.org                                  }
 {            电子邮件：master@cnpack.org                                       }
 {                                                                              }
 {******************************************************************************}
@@ -51,11 +51,156 @@ uses
   System.Net.Socket, Posix.NetinetIn, Posix.NetDB, Posix.ArpaInet, Posix.SysSocket,
   Posix.NetIf, Posix.StrOpts, Posix.Errno, {$ENDIF}
   SysUtils, Classes, Controls, StdCtrls,
-  CnClasses, CnConsts, CnNetConsts, CnNative, CnSocket;
+  CnInt128, CnClasses, CnConsts, CnNetConsts, CnNative, CnSocket;
+
+type
+  ECnIPException = class(Exception);
+
+  TCnIPv4Notes = array[1..4] of Byte;
+  {* IP 地址的各子节点，如 192.168.20.102，其中 Note[1]=192 ... Note[4]=102}
+
+  TCnIPv6Notes = array[1..8] of Word;
+  {* IPv6 地址的各子节点，八个双字节}
+
+  TCnIPv4NetType = (iptNone, iptANet, iptBNet, iptCNet, iptDNet, iptENet,
+    iptBroadCast, iptKeepAddr);
+  {* IP 地址分类：不是 IP 地址、A 类地址、B 类地址、C 类地址、D 类地址、E 类地址、
+    广播地址、保留地址（如 127 等）}
+
+  TCnIPInfo = packed record
+    IPAddress: Cardinal;                 // IPv4 地址，此处用整形存储
+    SubnetMask: Cardinal;                // 子网掩码，此处用整形存储
+    BroadCast: Cardinal;                 // 广播地址，此处用整形存储
+    HostName: array[0..255] of AnsiChar; // 主机名
+    NetType: TCnIPv4NetType;             // IPv4 地址的网络类型
+    Notes: TCnIPv4Notes;                 // IPv4 地址的各子节点
+    UpState: Boolean;                    // 启用状态
+    Loopback: Boolean;                   // 是否环回地址
+    SupportBroadcast: Boolean;           // 是否支持广播
+  end;
+  TCnIPGroup = array of TCnIPInfo;       // IPv4 地址组
+
+  TCnIPv6Info = packed record
+    IPv6Address: TCnUInt128;             // IPv6 地址，此处用 UInt128 存储
+    SubnetMask: TCnUInt128;              // 子网掩码，此处用 UInt128 存储
+    BroadCast: TCnUInt128;               // 广播地址，此处用 UInt128 存储
+    HostName: array[0..255] of AnsiChar; // 主机名
+    NetType: TCnIPv4NetType;             // IPv6 地址的网络类型
+    Notes: TCnIPv6Notes;                 // IPv6 地址的各子节点
+    UpState: Boolean;                    // 启用状态
+    Loopback: Boolean;                   // 是否环回地址
+    SupportBroadcast: Boolean;           // 是否支持广播
+  end;
+  TCnIPv6Group = array of TCnIPv6Info;   // IPv6 地址组
+
+  { TCnIp }
+
+{$IFDEF SUPPORT_32_AND_64}
+  [ComponentPlatformsAttribute(pidWin32 or pidWin64)]
+{$ENDIF}
+  TCnIp = class(TCnComponent)
+  private
+    FIP: TCnIPInfo;
+    FIPv6: TCnIPv6Info;
+    FLocalIPs: TCnIPGroup;
+    FLocalIPv6s: TCnIPv6Group;
+    FNotes: TCnIPv4Notes;
+    FNotesV6: TCnIPv6Notes;
+{$IFDEF MSWINDOWS}
+    FWSAData: TWSAData;
+{$ENDIF}
+    function GetIPAddress: string;
+    procedure SetIPAddress(const Value: string);
+    function GetBroadCastIP: string;
+    function GetSubnetMask: string;
+    procedure SetSubnetMask(const Value: string);
+    function GetHosts: Cardinal;
+    class function GetIPNotes(const aIP: string; var aResult: TCnIPv4Notes): Boolean;
+    {* 分解 IP 地址各结点，IP 错误时将抛出错误信息}
+    class function GetIPv6Notes(const aIPv6: string; var aResult: TCnIPv6Notes): Boolean;
+    {* 分解 IPv6 地址各结点，IPv6 错误时将抛出错误信息}
+    function GetLocalIPCount: Integer;
+    function GetComputerName: string;
+    function GetMacAddress: string;
+
+    function GetIPv6Address: string;
+    procedure SetIPv6Address(const Value: string);
+    function GetLocalIPv6Count: Integer;
+  protected
+    procedure GetComponentInfo(var AName, Author, Email, Comment: string);
+      override;
+    class function EnumLocalIP(var aLocalIP: TCnIPGroup): Integer;
+    {* 枚举本机所有 IP 及其子网掩码等，返回值为 IP 地址数}
+    class function EnumLocalIPv6(var aLocalIPv6: TCnIPv6Group): Integer;
+    {* 枚举本机所有 IPv6 及其子网掩码等，返回值为 IPv6 地址数}
+  public
+    constructor Create(AOwner: TComponent); override;
+    destructor Destroy; override;
+
+    property LocalIPGroup: TCnIPGroup read FLocalIPs;
+    {* 本机 IP 地址相关信息，包含本机实际 IP 及 127.0.0.1}
+    property LocalIPCount: Integer read GetLocalIPCount;
+    {* 本机 IP 地址数，已经排除 127.0.0.1}
+
+    property LocalIPv6Group: TCnIPv6Group read FLocalIPv6s;
+    {* 本机 IPv6 地址相关信息，包含本机实际 IPv6}
+    property LocalIPv6Count: Integer read GetLocalIPv6Count;
+    {* 本机 IPv6 地址数}
+
+    class function IPTypeCheck(const aIP: string): TCnIPv4NetType;
+    {* 检查 IP 地址类型以及是否合法}
+    class function IPToInt(const aIP: string): Cardinal;
+    {* 转换 IP 地址为整数}
+    class function IntToIP(const aIP: Cardinal): string;
+    {* 转换整数为 IP 地址}
+
+    class function IPv6ToInt128(const aIPv6: string): TCnUInt128;
+    {* 转换 IP 地址为整数}
+    class function Int128ToIPv6(var aIPv6: TCnUInt128): string;
+    {* 转换整数为 IPv6 地址}
+
+    function NextIP(const aIP: string): string;
+    {* 取下一个 IP 地址}
+    function PrevIP(const aIP: string): string;
+    {* 取前一个 IP 地址}
+    function GetIpNum(const aStartIP, aEndIP: string): Integer;
+    {* 计算两个 IP 地址之间的 IP 数}
+    property Hosts: Cardinal read GetHosts;
+    {* 返回指定的 IP 地址和子网掩码时主机数}
+    class function GetIPByName(var aIp: string; const aName: string = ''): Boolean;
+    {* 通过主机名称得到 IP，aName='' 表示取本机名称}
+    class function GetNameByIP(var aName: string; const aIP: string = ''): Boolean;
+    {* 通过 IP 得到主机名称，aIpAddr='' 表示取本机 IP}
+
+  published
+    property IPAddress: string read GetIPAddress write SetIPAddress stored False;
+    {* IP 地址字符串形式，默认为本机 IP 地址}
+    property SubnetMask: string read GetSubnetMask write SetSubnetMask stored False;
+    {* IP 地址的子网掩码}
+
+    property IPv6Address: string read GetIPv6Address write SetIPv6Address stored False;
+    {* IPv6 地址字符串形式，默认为本机 IPv6 地址}
+    property ComputerName: string read GetComputerName stored False;
+    {* 本机名称}
+    property MacAddress: string read GetMacAddress stored False;
+    {* 本机 Mac 地址}
+    property BroadCastIP: string read GetBroadCastIP stored False;
+    {* 广播地址}
+  end;
+
+implementation
+
+{$R-}
+
+{$IFDEF MSWINDOWS}
 
 const
+  WS2_32DLL = 'WS2_32.DLL';
+
   MAXIPNOTE = 255;
+  MAXIPV6NOTE = 65535;
   IPJOIN = '.';
+  IPV6JOIN = ':';
   IPADDRFORMAT = '%0:D.%1:D.%2:D.%3:D';
 
   SIO_GET_INTERFACE_LIST = $4004747F;
@@ -71,28 +216,15 @@ const
   IPNOTE4 = $000000FF;
 
 type
-  TIPNotes = array[1..4] of Byte;
-  {* IP 地址的各子节点,如 192.168.20.102，其中 Note[1]=192 ... Note[4]=102}
+  { 从 Winsock 2.0 导入函数 WSAIOCtl -- 在 Win98/ME/2K/Xp and 95 OSR2, NT srv pack #3下才有 Winsock 2 }
+  TWSAIoctl = function (s: TSocket; cmd: DWORD; lpInBuffer: PByte; dwInBufferLen:
+                        DWORD; lpOutBuffer: PByte; dwOutBufferLen: DWORD;
+                        lpdwOutBytesReturned: LPDWORD; lpOverLapped: POINTER;
+                        lpOverLappedRoutine: POINTER): Integer; stdcall;
 
-  TIP_NetType = (iptNone, iptANet, iptBNet, iptCNet, iptDNet, iptENet,
-    iptBroadCast, iptKeepAddr);
-  {* IP 地址分类：不是IP地址、A 类地址、B 类地址、C 类地址、D 类地址、E 类地址、
-    广播地址、保留地址（如 127 等）}
-
-  TIP_Info = packed record
-    IPAddress: Cardinal;                 // IP地址，此处用整形存储
-    SubnetMask: Cardinal;                // 子网掩码，此处用整形存储
-    BroadCast: Cardinal;                 // 广播地址，此处用整形存储
-    HostName: array[0..255] of AnsiChar; // 主机名
-    NetType: TIP_NetType;                // IP 地址的网络类型
-    Notes: TIPNotes;                     // IP 地址的各子节点
-    UpState: Boolean;                    // 启用状态
-    Loopback: Boolean;                   // 是否环回地址
-    SupportBroadcast: Boolean;           // 是否支持广播
-  end;
-  TIPGroup = array of TIP_Info;          // IP地址组
-
-{$IFDEF MSWINDOWS}
+  // 从 iphlpapi.dll 中导入函数
+//  TGetAdaptersAddresses = function (Family: ULONG; Flags: DWORD; Reserved: Pointer;
+//    pAdapterAddresses: PIP_ADAPTER_ADDRESSES; pOutBufLen: PULONG): DWORD; stdcall;
 
   sockaddr_gen = packed record
     AddressIn: sockaddr_in;
@@ -106,91 +238,9 @@ type
     iiNetmask: sockaddr_gen; // Network mask
   end;
 
-{$ENDIF}
-
-  { TCnIp }
-
-  TCnIp = class(TCnComponent)
-  private
-    FIP: TIP_Info;
-    FLocalIPs: TIPGroup;
-    FNotes: TIPNotes;
-{$IFDEF MSWINDOWS}
-    FWSAData: TWSAData;
-{$ENDIF}
-    function GetIPAddress: string;
-    procedure SetIPAddress(const Value: string);
-    function GetBroadCastIP: string;
-    function GetSubnetMask: string;
-    procedure SetSubnetMask(const Value: string);
-    function GetHosts: Cardinal;
-    class function GetIPNotes(const aIP: string; var aResult: TIPNotes): Boolean;
-    {* 分解 IP 地址各结点，IP 错误时将抛出错误信息}
-    function GetLocalIPCount: Integer;
-    function GetComputerName: string;
-    function GetMacAddress: string;
-  protected
-    procedure GetComponentInfo(var AName, Author, Email, Comment: string);
-      override;
-    class function EnumLocalIP(var aLocalIP: TIPGroup): Integer;
-    {* 枚举本机所有 IP 及其子网掩码等，返回值为 IP 地址数}
-  public
-    constructor Create(AOwner: TComponent); override;
-    destructor Destroy; override;
-
-    property LocalIPGroup: TIPGroup read FLocalIPs;
-    {* 本机 IP 地址相关信息，包含本机实际 IP 及 127.0.0.1}
-    property LocalIPCount: Integer read GetLocalIPCount;
-    {* 本机 IP 地址数，已经排除 127.0.0.1}
-    class function IPTypeCheck(const aIP: string): TIP_NetType;
-    {* 检查 IP 地址类型以及是否合法}
-    class function IPToInt(const aIP: string): Cardinal;
-    {* 转换 IP 地址为整数}
-    class function IntToIP(const aIP: Cardinal): string;
-    {* 转换整数为 IP 地址}
-    function NextIP(const aIP: string): string;
-    {* 取下一个 IP 地址}
-    function PrevIP(const aIP: string): string;
-    {* 取前一个 IP 地址}
-    function GetIpNum(const aStartIP, aEndIP: string): Integer;
-    {* 计算两个 IP 地址之间的 IP 数}
-    property Hosts: Cardinal read GetHosts;
-    {* 返回指定的 IP 地址和子网掩码时主机数}
-    class function GetIPByName(var aIp: string; const aName: string = ''): Boolean;
-    {* 通过主机名称得到 IP，aName='' 表示取本机名称}
-    class function GetNameByIP(var aName: string; const aIP: string = ''): Boolean;
-    {* 通过 IP 得到主机名称，aIpAddr='' 表示取本机 IP}
-  published
-    property IPAddress: string read GetIPAddress write SetIPAddress;
-    {* IP 地址字符串形式，默认为本机 IP 地址}
-    property SubnetMask: string read GetSubnetMask write SetSubnetMask;
-    {* IP 地址的子网掩码}
-    property ComputerName: string read GetComputerName;
-    {* 本机名称}
-    property MacAddress: string read GetMacAddress;
-    {* 本机 Mac 地址}
-    property BroadCastIP: string read GetBroadCastIP;
-    {* 广播地址}
-  end;
-
-implementation
-
-{$R-}
-
-{$IFDEF MSWINDOWS}
-
-const
-  WS2_32DLL = 'WS2_32.DLL';
-
-type
-  { 从 Winsock 2.0 导入函数 WSAIOCtl -- 在 Win98/ME/2K/Xp and 95 OSR2, NT srv pack #3下才有 Winsock 2 }
-  TWSAIoctl = function (s: TSocket; cmd: DWORD; lpInBuffer: PByte; dwInBufferLen:
-                        DWORD; lpOutBuffer: PByte; dwOutBufferLen: DWORD;
-                        lpdwOutBytesReturned: LPDWORD; lpOverLapped: POINTER;
-                        lpOverLappedRoutine: POINTER): Integer; stdcall;
-
 var
   WSAIoctl: TWSAIoctl = nil;
+//  GetAdaptersAddresses: TGetAdaptersAddresses = nil;
   WS2_32DllHandle: THandle = 0;
 
 procedure InitWSAIoctl;
@@ -226,14 +276,51 @@ type
 
 {$ENDIF}
 
+// 将字符串按冒号拆分，确保连续冒号时存在空字符串，但单个冒号在最前、最后的情形又要忽略前后的空字符串
+function SplitStringByColon(const S: string; Res: TStringList): Integer;
+var
+  I: Integer;
+  StartPos: Integer;
+  Temp: string;
+begin
+  Res.Clear;
+  StartPos := 1;
+  while StartPos <= Length(S) do
+  begin
+    // 查找下一个冒号的位置
+    I := StartPos;
+    while (I <= Length(S)) and (S[I] <> ':') do
+      Inc(I);
+
+    // 如果找到了冒号，检查冒号前的字符串是否为空
+    if I = StartPos then
+    begin
+      // 如果是连续的冒号，则添加空字符串
+      Res.Add('');
+    end
+    else
+    begin
+      // 添加冒号前的字符串到结果中
+      Temp := Copy(S, StartPos, I - StartPos);
+      Res.Add(Temp);
+    end;
+
+    // 准备下一次搜索，跳过当前的冒号
+    StartPos := I + 1;
+  end;
+  Result := Res.Count;
+end;
+
 { TCnIp }
 
 constructor TCnIp.Create(AOwner: TComponent);
 var
-  IPs, I: Integer;
+  IPs, IPv6s, I: Integer;
 begin
   inherited Create(AOwner);
   IPs := EnumLocalIP(FLocalIPs);
+  IPv6s := EnumLocalIPv6(FLocalIPv6s);
+
   if IPs = 1 then // Only ONE IP address
   begin
     FIP.IPAddress := FLocalIPs[0].IPAddress;
@@ -253,6 +340,29 @@ begin
       begin
         FIP.IPAddress := FLocalIPs[0].IPAddress;
         FIP.SubnetMask := FLocalIPs[0].SubnetMask;
+      end;
+    end;
+  end;
+
+  if IPv6s = 1 then // Only ONE IP address
+  begin
+    FIPv6.IPv6Address := FLocalIPv6s[0].IPv6Address;
+    FIPv6.SubnetMask := FLocalIPv6s[0].SubnetMask;
+  end
+  else if IPv6s > 1 then // IF more than one, do not use 127.0.0.1 as default
+  begin
+    for I := 0 to IPv6s - 1 do
+    begin
+      if Int128ToIPv6(FLocalIPv6s[I].IPv6Address) <> '127.0.0.1' then
+      begin
+        FIPv6.IPv6Address := FLocalIPv6s[I].IPv6Address;
+        FIPv6.SubnetMask := FLocalIPv6s[I].SubnetMask;
+        Break;
+      end;
+      if UInt128IsZero(FIPv6.IPv6Address) then
+      begin
+        FIPv6.IPv6Address := FLocalIPv6s[0].IPv6Address;
+        FIPv6.SubnetMask := FLocalIPv6s[0].SubnetMask;
       end;
     end;
   end;
@@ -288,34 +398,47 @@ begin
   Result := IPToInt(aEndIP) - IPToInt(aStartIP);
 end;
 
-class function TCnIp.GetIPNotes(const aIP: string; var aResult: TIPNotes): Boolean;
+function CheckIpNote(aNote: string): Byte;
 var
-  iPos, iNote: Integer;
-  sIP: string;
+  iNote: Integer;
+begin
+  iNote := StrToInt(aNote);
+  if (iNote < 0) or (iNote > MAXIPNOTE) then
+    raise ECnIPException.Create(aNote + SCnErrorAddrRang);
+  Result := iNote;
+end;
 
-  function CheckIpNote(aNote: string): Byte;
-  begin
-    iNote := StrToInt(aNote);
-    if (iNote < 0) or (iNote > MAXIPNOTE) then
-      raise Exception.Create(aNote + SCnErrorAddrRang);
-    Result := iNote;
-  end;
+function CheckIpv6Note(aNote: string): Word;
+var
+  iNote: Integer;
+begin
+  iNote := HexToInt(aNote);
+
+  if (iNote < 0) or (iNote > MAXIPV6NOTE) then
+    raise ECnIPException.Create(aNote + SCnErrorAddrRang);
+  Result := iNote;
+end;
+
+class function TCnIp.GetIPNotes(const aIP: string; var aResult: TCnIPv4Notes): Boolean;
+var
+  iPos: Integer;
+  sIP: string;
 begin
   iPos := Pos(IPJOIN, aIP);
   aResult[1] := CheckIpNote(Copy(aIP, 1, iPos - 1));
-  sIP := Copy(aIP, iPos + 1, 20);
+  sIP := Copy(aIP, iPos + 1, MaxInt);
   iPos := Pos(IPJOIN, sIP);
   aResult[2] := CheckIpNote(Copy(sIP, 1, iPos - 1));
-  sIP := Copy(sIP, iPos + 1, 20);
+  sIP := Copy(sIP, iPos + 1, MaxInt);
   iPos := Pos(IPJOIN, sIP);
   aResult[3] := CheckIpNote(Copy(sIP, 1, iPos - 1));
-  aResult[4] := CheckIpNote(Copy(sIP, iPos + 1, 20));
+  aResult[4] := CheckIpNote(Copy(sIP, iPos + 1, MaxInt));
   Result := aResult[1] > 0;
 end;
 
 class function TCnIp.IntToIP(const aIP: Cardinal): string;
 var
-  Notes: TIPNotes;
+  Notes: TCnIPv4Notes;
 begin
   Notes[1] := aIP and IPNOTE1 shr 24;
   Notes[2] := aIP and IPNOTE2 shr 16;
@@ -326,7 +449,7 @@ end;
 
 class function TCnIp.IPToInt(const aIP: string): Cardinal;
 var
-  Notes: TIPNotes;
+  Notes: TCnIPv4Notes;
 begin
   Result := 0;
   if IPTypeCheck(aIP) = iptNone then
@@ -341,9 +464,9 @@ begin
   end;
 end;
 
-class function TCnIp.IPTypeCheck(const aIP: string): TIP_NetType;
+class function TCnIp.IPTypeCheck(const aIP: string): TCnIPv4NetType;
 var
-  Notes: TIPNotes;
+  Notes: TCnIPv4Notes;
 begin
   Result := iptNone;
   if GetIPNotes(aIP, Notes) then
@@ -378,7 +501,7 @@ end;
 
 function TCnIp.GetBroadCastIP: string;
 var
-  IpNote, MaskNote: TIPNotes;
+  IpNote, MaskNote: TCnIPv4Notes;
 begin
   Result := '255.255.255.255';
   if GetIPNotes(SubnetMask, MaskNote) and GetIPNotes(IPAddress, IpNote) then
@@ -666,7 +789,7 @@ end;
 4. 将信息填充到 IP 数组中
 5. 结束关闭 Socket
 --------------------------------------------------------------------}
-class function TCnIp.EnumLocalIP(var aLocalIP: TIPGroup): Integer;
+class function TCnIp.EnumLocalIP(var aLocalIP: TCnIPGroup): Integer;
 var
   iIP: Integer;
   pAddrInet: sockaddr_in;
@@ -685,13 +808,13 @@ begin
 {$IFDEF MSWINDOWS}
   WSAStartup($101, aWSAData);
   try
-    skLocal := Socket(AF_INET, SOCK_STREAM, 0); // Open a socket
+    skLocal := Socket(23, SOCK_STREAM, 0); // Open a socket
     if (skLocal = INVALID_SOCKET) then
       Exit;
 
     try // Call WSAIoCtl
       PtrA := @BytesReturned;
-      if (WSAIoCtl(skLocal, SIO_GET_INTERFACE_LIST, nil, 0, @Buffer, 1024, PtrA,
+      if (WSAIoctl(skLocal, SIO_GET_INTERFACE_LIST, nil, 0, @Buffer, 1024, PtrA,
         nil, nil) <> SOCKET_ERROR) then
       begin // If ok, find out how
         Result := BytesReturned div SizeOf(TINTERFACE_INFO);
@@ -758,6 +881,87 @@ begin
 end;
 
 {$IFDEF MSWINDOWS}
+
+class function TCnIp.EnumLocalIPv6(var aLocalIPv6: TCnIPv6Group): Integer;
+begin
+  Result := 0;
+  SetLength(aLocalIPv6, 0);
+  // TODO: 还没整好
+end;
+
+function TCnIp.GetIPv6Address: string;
+begin
+  Result := Int128ToIPv6(FIPv6.IPv6Address);
+end;
+
+function TCnIp.GetLocalIPv6Count: Integer;
+begin
+  Result := Length(FLocalIPv6s) - 1;
+end;
+
+class function TCnIp.Int128ToIPv6(var aIPv6: TCnUInt128): string;
+var
+  R: TCnIPv6Notes;
+begin
+  Move(aIPv6, R[1], SizeOf(TCnUInt128));
+  Result := Format('%4.4x:%4.4x:%4.4x:%4.4x:%4.4x:%4.4x:%4.4x:%4.4x',
+    [R[1], R[2], R[3], R[4], R[5], R[6], R[7], R[8]]);
+end;
+
+class function TCnIp.IPv6ToInt128(const aIPv6: string): TCnUInt128;
+var
+  R: TCnIPv6Notes;
+begin
+  if GetIPv6Notes(aIPv6, R) then
+    Move(R[1], Result, SizeOf(TCnUInt128))
+  else
+    raise ECnIPException.Create(aIPv6 + SCnErrorAddress);
+end;
+
+procedure TCnIp.SetIPv6Address(const Value: string);
+begin
+  FIPv6.IPv6Address := IPv6ToInt128(Value);
+end;
+
+// 四测试用例：八个冒号分隔的，连续冒号的，后面各加 /64 的
+class function TCnIp.GetIPv6Notes(const aIPv6: string;
+  var aResult: TCnIPv6Notes): Boolean;
+var
+  SL: TStringList;
+  I, ZC, E: Integer;
+begin
+  SL := TStringList.Create;
+  try
+    I := Pos('/', aIPv6);
+    if I > 1 then // 子网长度如果存在则去除
+      SplitStringByColon(Copy(aIPv6, 1, I - 1), SL)
+    else
+      SplitStringByColon(aIPv6, SL);
+
+    // 处理 :: 表示连续的 0，确保展开为 8 个
+    E := SL.IndexOf('');
+    if E > -1 then
+    begin
+      ZC := 8 - SL.Count;
+      if ZC > 0 then
+      begin
+        SL.Delete(E);
+        for I := 0 to ZC do
+          SL.Insert(E, '0000');
+      end;
+    end;
+
+    Result := SL.Count = 8;
+    if Result then
+    begin
+      // 每一个转换成 16 进制
+      for I := 0 to SL.Count - 1 do
+        aResult[I + 1] := CheckIpv6Note(SL[I]);
+    end;
+  finally
+    SL.Free;
+  end;
+end;
 
 initialization
   InitWSAIoctl;

@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2023 CnPack 开发组                       }
+{                   (C)Copyright 2001-2024 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -13,7 +13,7 @@
 {            您应该已经和开发包一起收到一份 CnPack 发布协议的副本。如果        }
 {        还没有，可访问我们的网站：                                            }
 {                                                                              }
-{            网站地址：http://www.cnpack.org                                   }
+{            网站地址：https://www.cnpack.org                                  }
 {            电子邮件：master@cnpack.org                                       }
 {                                                                              }
 {******************************************************************************}
@@ -39,7 +39,7 @@ unit CnCalendar;
 ================================================================================
 * 软件名称：开发包基础库
 * 单元名称：历法计算函数
-* 单元作者：刘啸 (liuxiao@cnpack.org)
+* 单元作者：CnPack 开发组 (master@cnpack.org)
 *           zjy (zjy@cnpack.org)
 *           罗建仁
 * 备    注：星期、年月日时干支、年生肖、节气日期、星座、阴阳五行、十二建（神）、
@@ -264,28 +264,28 @@ const
    吉神包括喜神、财神、贵神，贵神还包括阴贵、阳贵，默认指阳贵}
 
 type
-  EDateException = class(Exception);
+  ECnDateException = class(Exception);
 
-  ETimeException = class(Exception);
+  ECnTimeException = class(Exception);
 
-  TCalendarType = (ctinvalid, ctJulian, ctGregorian);
+  TCnCalendarType = (ctinvalid, ctJulian, ctGregorian);
   {* 日历类型，    非法，     儒略，    格利高里}
 
-  TLunarMonthType = (lmtSmall, lmtBig);
+  TCnLunarMonthType = (lmtSmall, lmtBig);
   {* 农历月类型      小月，    大月}
 
-  TEclipseType = (etNone, etSolar, etMoonFull, etMoonHalf);
+  TCnEclipseType = (etNone, etSolar, etMoonFull, etMoonHalf);
   {* 日月食类型， 无，    日食，   月全食，    月偏食 }
 
-  TMoonPhase = (mpNone, mpShuo, mpWang);
+  TCnMoonPhase = (mpNone, mpShuo, mpWang);
   {* 月相，     无，    朔，    望}
 
-  TSunRiseSetType = (stNormal, stAllwaysUp, stAllwaysDown, stError);
+  TCnSunRiseSetType = (stNormal, stAllwaysUp, stAllwaysDown, stError);
   {* 日出日落类型，  普通，    日不落，     日不出，       数据错误 }
 
 function GetSunRiseSetTime(ADate: TDateTime; Longitude, Latitude: Extended;
   ZoneTime: Integer; var RiseTime, TransitTime, SetTime: TDateTime):
-  TSunRiseSetType;
+  TCnSunRiseSetType;
 {* 计算日出日落时间
    ADate        - 日期
    Longitude    - 经度
@@ -439,7 +439,7 @@ function GetGanZhiFromDay(AYear, AMonth, ADay, AHour: Integer): Integer; overloa
 {* 获得某公历日的天干地支，0-59 对应 甲子到癸亥，小时参数用于判断 23 小时后是次日}
 
 function GetGanZhiFromDay(AllDays: Integer): Integer; overload;
-{* 获得某公历日的天干地支，0-59 对应 甲子到癸亥}
+{* 获得某公历日的天干地支，0-59 对应 甲子到癸亥，参数为距离公元元年 1 月 0 日的绝对天数}
 
 function GetGanZhiFromMonth(AYear, AMonth, ADay: Integer): Integer; overload;
 {* 获得某公历月的天干地支，需要日是因为月以节气分界，不考虑时。0-59 对应 甲子到癸亥}
@@ -1119,7 +1119,7 @@ end;
 
 function DoSunCalc(AMjd: Extended; Glong, Glat: Extended;
   Tz: Integer; var RiseTime, TransitTime, SetTime: TDateTime):
-  TSunRiseSetType;
+  TCnSunRiseSetType;
 var
   sinho, sglat, cglat: Extended;
   yz, yp, ym, nz, z1, z2, xe, ye: Extended;
@@ -1211,7 +1211,7 @@ end;
 // 计算日出日落时间
 function GetSunRiseSetTime(ADate: TDateTime; Longitude, Latitude: Extended;
   ZoneTime: Integer; var RiseTime, TransitTime, SetTime: TDateTime):
-  TSunRiseSetType;
+  TCnSunRiseSetType;
 var
   Year, Month, Day: Word;
   Mg: Extended;
@@ -1586,7 +1586,7 @@ begin
 end;
 
 // 根据公历日期判断当时历法
-function GetCalendarType(AYear, AMonth, ADay: Integer): TCalendarType;
+function GetCalendarType(AYear, AMonth, ADay: Integer): TCnCalendarType;
 begin
   if AYear > 1582 then
     Result := ctGregorian
@@ -1693,7 +1693,7 @@ end;
 procedure ValidDate(AYear, AMonth, ADay: Integer);
 begin
   if not GetDateIsValid(AYear, AMonth, ADay) then
-    raise EDateException.CreateFmt('Date is Invalid: %d-%d-%d.', [AYear, AMonth, ADay]);
+    raise ECnDateException.CreateFmt('Date is Invalid: %d-%d-%d.', [AYear, AMonth, ADay]);
 end;
 
 // 返回农历日期是否合法
@@ -1722,7 +1722,7 @@ end;
 procedure ValidLunarDate(ALunarYear, ALunarMonth, ALunarDay: Integer; IsLeapMonth: Boolean);
 begin
   if not GetLunarDateIsValid(ALunarYear, ALunarMonth, ALunarDay, IsLeapMonth) then
-    raise EDateException.CreateFmt('Lunar Date is Invalid: %d-%d-%d, MonthLeap %d.',
+    raise ECnDateException.CreateFmt('Lunar Date is Invalid: %d-%d-%d, MonthLeap %d.',
       [ALunarYear, ALunarMonth, ALunarDay, Integer(IsLeapMonth)]);
 end;
 
@@ -1736,7 +1736,7 @@ end;
 procedure ValidTime(AHour, AMinitue, ASecond: Integer);
 begin
   if not GetTimeIsValid(AHour, AMinitue, ASecond) then
-    raise ETimeException.CreateFmt('Time is Invalid: %d:%d:%d.', [AHour, AMinitue, ASecond]);
+    raise ECnTimeException.CreateFmt('Time is Invalid: %d:%d:%d.', [AHour, AMinitue, ASecond]);
 end;
 
 // 比较两个公历日期，1 >=< 2 分别返回 1、0、-1
@@ -1924,7 +1924,7 @@ end;
 // 注意此处的 Gregorian 历不包括删去的 10 天，因此等效标准日是连续的
 function GetEquStandardDays(AYear, AMonth, ADay: Integer): Integer;
 var
-  AType: TCalendarType;
+  AType: TCnCalendarType;
 begin
   Result := 0;
   AType := GetCalendarType(AYear, AMonth, ADay);
@@ -3147,8 +3147,8 @@ begin
 end;
 
 // 获得某公历年月日的农历日数和该日月相以及日月食类型和时刻
-function GetLunarMoon(AYear, AMonth, ADay: Integer; out EclipseType: TEclipseType;
-  out MoonPhase: TMoonPhase; out theTime: Double): Real;
+function GetLunarMoon(AYear, AMonth, ADay: Integer; out EclipseType: TCnEclipseType;
+  out MoonPhase: TCnMoonPhase; out theTime: Double): Real;
 var
   K, K1: Real;
   T, Rpi, Zone, F0, Fc, J0, Aa0, Ab0, Ac0, ShuoTime, WangTime: Real;
@@ -3254,7 +3254,7 @@ begin
   
   // 2025.4.27 ~ 5.26 少一天
   if (AYear = 2025)
-    and (((AMonth = 4) and (ADay >= 7)) or ((AMonth = 5) and (ADay <= 26))) then
+    and (((AMonth = 4) and (ADay >= 27)) or ((AMonth = 5) and (ADay <= 26))) then
   begin
     Inc(LunDay);
     if LunDay > 30 then
@@ -3292,8 +3292,8 @@ end;
 function GetLunarMonth(AYear, AMonth, ADay: Integer): Real;
 var
   LunDay: Real;
-  aEclipsType: TEclipseType;
-  aMoonPhase: TMoonPhase;
+  aEclipsType: TCnEclipseType;
+  aMoonPhase: TCnMoonPhase;
   aTime: Double;
   LeapMons, NMonth: Integer;
 
@@ -3359,8 +3359,8 @@ end;
 function GetLunarFromDay(AYear, AMonth, ADay: Integer;
   out LunarYear, LunarMonth, LunarDay: Integer; out IsLeapMonth: Boolean): Boolean;
 var
-  aEclipsType: TEclipseType;
-  aMoonPhase: TMoonPhase;
+  aEclipsType: TCnEclipseType;
+  aMoonPhase: TCnMoonPhase;
   aTime: Double;
 begin
   Result := False;
@@ -3385,8 +3385,8 @@ end;
 function GetLunarMonthDayFromDay(AYear, AMonth, ADay: Integer;
   out LunarMonth, LunarDay: Integer; out IsLeapMonth: Boolean): Boolean;
 var
-  aEclipsType: TEclipseType;
-  aMoonPhase: TMoonPhase;
+  aEclipsType: TCnEclipseType;
+  aMoonPhase: TCnMoonPhase;
   aTime: Double;
 begin
   Result := False;

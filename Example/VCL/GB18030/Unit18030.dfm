@@ -1,7 +1,7 @@
 object FormGB18030: TFormGB18030
   Left = 147
-  Top = 91
-  Width = 1053
+  Top = 93
+  Width = 1162
   Height = 633
   Caption = 'Unicode and GB18030'
   Color = clBtnFace
@@ -83,7 +83,7 @@ object FormGB18030: TFormGB18030
       Top = 112
       Width = 169
       Height = 113
-      Caption = 'Generate GB18030 Utf16  Table'
+      Caption = 'Generate GB18030 Utf16 Table'
       TabOrder = 2
       OnClick = btnGenGB18030PageClick
     end
@@ -138,7 +138,7 @@ object FormGB18030: TFormGB18030
   object grpMisc: TGroupBox
     Left = 240
     Top = 16
-    Width = 737
+    Width = 897
     Height = 265
     Caption = 'Misc'
     TabOrder = 1
@@ -435,6 +435,59 @@ object FormGB18030: TFormGB18030
       Caption = 'Generate GB18030 Utf16 4 Inc'
       TabOrder = 2
       OnClick = btnGenGB18030PagePartly2Click
+    end
+  end
+  object grpPuaNTS: TGroupBox
+    Left = 944
+    Top = 312
+    Width = 201
+    Height = 249
+    Caption = 'NITS && PUA'
+    TabOrder = 6
+    object btnGenGB18030PuaUtf16: TButton
+      Left = 16
+      Top = 24
+      Width = 169
+      Height = 25
+      Caption = 'Generate GB18030 PUA Utf16'
+      TabOrder = 0
+      OnClick = btnGenGB18030PuaUtf16Click
+    end
+    object btnGenGB18030Utf16Pua: TButton
+      Left = 16
+      Top = 56
+      Width = 169
+      Height = 25
+      Caption = 'Generate GB18030 Utf16 PUA'
+      TabOrder = 1
+      OnClick = btnGenGB18030Utf16PuaClick
+    end
+    object btnGenGB18030UnicodeMapBMP: TButton
+      Left = 16
+      Top = 112
+      Width = 169
+      Height = 25
+      Caption = 'Generate GB18030 Unicode BMP '
+      TabOrder = 2
+      OnClick = btnGenGB18030UnicodeMapBMPClick
+    end
+    object btnGenGB18030UnicodeMapSMP: TButton
+      Left = 16
+      Top = 144
+      Width = 169
+      Height = 25
+      Caption = 'Generate GB18030 Unicode SMP '
+      TabOrder = 3
+      OnClick = btnGenGB18030UnicodeMapSMPClick
+    end
+    object btnGenUnicodePuaList: TButton
+      Left = 16
+      Top = 208
+      Width = 169
+      Height = 25
+      Caption = 'Generate Unicode PUAs'
+      TabOrder = 4
+      OnClick = btnGenUnicodePuaListClick
     end
   end
   object dlgSave1: TSaveDialog

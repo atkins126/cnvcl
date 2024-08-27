@@ -336,6 +336,49 @@ type
     lblFNVType: TLabel;
     rbFNV1: TRadioButton;
     rbFNV1a: TRadioButton;
+    btnHChaCha20SubKey: TButton;
+    btnXChaCha20Enc: TButton;
+    btnChaCha20Poly1305Aead: TButton;
+    btnXChaCha20Poly1305Aead: TButton;
+    tsSHAKE: TTabSheet;
+    grpSHAKE: TGroupBox;
+    lblSHAKE: TLabel;
+    edtSHAKE: TEdit;
+    btnSHAKE: TButton;
+    btnSHAKEFile: TButton;
+    btnUSHAKE: TButton;
+    rbSHAKE128: TRadioButton;
+    rbSHAKE256: TRadioButton;
+    lblDigLen: TLabel;
+    edtSHAKELength: TEdit;
+    udSHAKE: TUpDown;
+    mmoSHAKE: TMemo;
+    btnSM4Utf8Enc: TButton;
+    btnSM4Utf8Dec: TButton;
+    chkSM3Utf8: TCheckBox;
+    chkMD5Utf8: TCheckBox;
+    chkSHA1Utf8: TCheckBox;
+    chkSHA224Utf8: TCheckBox;
+    chkSHA256Utf8: TCheckBox;
+    chkSHA384Utf8: TCheckBox;
+    chkSHA512Utf8: TCheckBox;
+    chkSHA3_224Utf8: TCheckBox;
+    chkSHA3_256Utf8: TCheckBox;
+    chkSHA3_384Utf8: TCheckBox;
+    chkSHA3_512Utf8: TCheckBox;
+    chkSHAKEUtf8: TCheckBox;
+    tsRC4: TTabSheet;
+    grpRC4: TGroupBox;
+    edtRC4From: TEdit;
+    lblRC4From: TLabel;
+    lblRC4Key: TLabel;
+    edtRC4Key: TEdit;
+    btnRC4Crypt: TButton;
+    lblRC4Code: TLabel;
+    edtRC4Code: TEdit;
+    btnRC4Decrypt: TButton;
+    lblRC4Origin: TLabel;
+    edtRC4Origin: TEdit;
     procedure btnMd5Click(Sender: TObject);
     procedure btnDesCryptClick(Sender: TObject);
     procedure btnDesDecryptClick(Sender: TObject);
@@ -436,6 +479,17 @@ type
     procedure btnAES256GCMDeTestClick(Sender: TObject);
     procedure btnAESGCMNoPaddingJavaClick(Sender: TObject);
     procedure btnFNVClick(Sender: TObject);
+    procedure btnHChaCha20SubKeyClick(Sender: TObject);
+    procedure btnXChaCha20EncClick(Sender: TObject);
+    procedure btnChaCha20Poly1305AeadClick(Sender: TObject);
+    procedure btnXChaCha20Poly1305AeadClick(Sender: TObject);
+    procedure btnSHAKEClick(Sender: TObject);
+    procedure btnUSHAKEClick(Sender: TObject);
+    procedure btnSHAKEFileClick(Sender: TObject);
+    procedure btnSM4Utf8EncClick(Sender: TObject);
+    procedure btnSM4Utf8DecClick(Sender: TObject);
+    procedure btnRC4CryptClick(Sender: TObject);
+    procedure btnRC4DecryptClick(Sender: TObject);
   private
     procedure InitTeaKeyData;
     function ToHex(Buffer: PAnsiChar; Length: Integer): AnsiString;
@@ -451,7 +505,8 @@ implementation
 
 uses
   CnMD5, CnDES, CnBase64, CnCRC32, CnSHA1, CnSM3, CnSM4, CnAES, CnSHA2, CnZUC,
-  CnSHA3, CnTEA, CnPoly1305, CnChaCha20, CnAEAD, CnFNV, CnPemUtils, CnNative, CnCommon;
+  CnSHA3, CnTEA, CnPoly1305, CnChaCha20, CnAEAD, CnFNV, CnRC4,
+  CnPemUtils, CnNative, CnCommon;
 
 {$R *.DFM}
 
@@ -546,9 +601,15 @@ end;
 procedure TFormCrypt.btnMd5Click(Sender: TObject);
 begin
 {$IFDEF UNICODE}
-  pnlMd5.Caption := MD5Print(MD5StringA(AnsiString(edtMD5.Text)));
+  if chkSM3Utf8.Checked then
+    pnlMd5.Caption := MD5Print(MD5Bytes(TEncoding.UTF8.GetBytes(edtMD5.Text)))
+  else
+    pnlMd5.Caption := MD5Print(MD5StringA(AnsiString(edtMD5.Text)));
 {$ELSE}
-  pnlMd5.Caption := MD5Print(MD5String(edtMD5.Text));
+  if chkSM3Utf8.Checked then
+    pnlMd5.Caption := MD5Print(MD5String(CnAnsiToUtf8(edtMD5.Text)))
+  else
+    pnlMd5.Caption := MD5Print(MD5String(edtMD5.Text));
 {$ENDIF}
 end;
 
@@ -724,10 +785,9 @@ begin
 
   if chkBase64ShowHex.Checked then
   begin
-    if Res <> nil then
-      CnShowHexData(@Res[0], Length(Res));
-
-    if S <> '' then
+    if chkBase64UseTBytes.Checked and (Res <> nil) then
+      CnShowHexData(@Res[0], Length(Res))
+    else if S <> '' then
       CnShowHexData(@S[1], Length(S));
   end;
 end;
@@ -806,9 +866,15 @@ end;
 procedure TFormCrypt.btnSha1Click(Sender: TObject);
 begin
 {$IFDEF UNICODE}
-  pnlSha1.Caption := SHA1Print(SHA1StringA(AnsiString(edtSha1.Text)));
+  if chkSHA1Utf8.Checked then
+    pnlSha1.Caption := SHA1Print(SHA1Bytes(TEncoding.UTF8.GetBytes(edtSha1.Text)))
+  else
+    pnlSha1.Caption := SHA1Print(SHA1StringA(AnsiString(edtSha1.Text)));
 {$ELSE}
-  pnlSha1.Caption := SHA1Print(SHA1String(edtSha1.Text));
+  if chkSHA1Utf8.Checked then
+    pnlSha1.Caption := SHA1Print(SHA1String(CnAnsiToUtf8(edtSha1.Text)))
+  else
+    pnlSha1.Caption := SHA1Print(SHA1String(edtSha1.Text));
 {$ENDIF}
 end;
 
@@ -823,9 +889,15 @@ var
   S: string;
 begin
 {$IFDEF UNICODE}
-  S := SM3Print(SM3StringA(AnsiString(edtSm3.Text)));
+  if chkSM3Utf8.Checked then
+    S := SM3Print(SM3Bytes(TEncoding.UTF8.GetBytes(edtSM3.Text)))
+  else
+    S := SM3Print(SM3StringA(AnsiString(edtSm3.Text)));
 {$ELSE}
-  S := SM3Print(SM3String(edtSm3.Text));
+  if chkSM3Utf8.Checked then
+    S := SM3Print(SM3String(CnAnsiToUtf8(edtSM3.Text)))
+  else
+    S := SM3Print(SM3String(edtSm3.Text));
 {$ENDIF}
   Insert(#13#10, S, 33);
   lblSm3Result.Caption := S;
@@ -1362,9 +1434,15 @@ end;
 procedure TFormCrypt.btnSHA256Click(Sender: TObject);
 begin
 {$IFDEF UNICODE}
-  pnlSha256.Caption := SHA256Print(SHA256StringA(AnsiString(edtSha256.Text)));
+  if chkSHA256Utf8.Checked then
+    pnlSha256.Caption := SHA256Print(SHA256Bytes(TEncoding.UTF8.GetBytes(edtSha256.Text)))
+  else
+    pnlSha256.Caption := SHA256Print(SHA256StringA(AnsiString(edtSha256.Text)));
 {$ELSE}
-  pnlSha256.Caption := SHA256Print(SHA256String(edtSha256.Text));
+  if chkSHA256Utf8.Checked then
+    pnlSha256.Caption := SHA256Print(SHA256String(CnAnsiToUtf8(edtSha256.Text)))
+  else
+    pnlSha256.Caption := SHA256Print(SHA256String(edtSha256.Text));
 {$ENDIF}
 end;
 
@@ -1377,9 +1455,15 @@ end;
 procedure TFormCrypt.btnSHA224Click(Sender: TObject);
 begin
 {$IFDEF UNICODE}
-  pnlSha224.Caption := SHA224Print(SHA224StringA(AnsiString(edtSha224.Text)));
+  if chkSHA224Utf8.Checked then
+    pnlSha224.Caption := SHA224Print(SHA224Bytes(TEncoding.UTF8.GetBytes(edtSha224.Text)))
+  else
+    pnlSha224.Caption := SHA224Print(SHA224StringA(AnsiString(edtSha224.Text)));
 {$ELSE}
-  pnlSha224.Caption := SHA224Print(SHA224String(edtSha224.Text));
+  if chkSHA224Utf8.Checked then
+    pnlSha224.Caption := SHA224Print(SHA224String(CnAnsiToUtf8(edtSha224.Text)))
+  else
+    pnlSha224.Caption := SHA224Print(SHA224String(edtSha224.Text));
 {$ENDIF}
 end;
 
@@ -1394,9 +1478,15 @@ var
   S: string;
 begin
 {$IFDEF UNICODE}
-  S := SHA512Print(SHA512StringA(AnsiString(edtSha512.Text)));
+  if chkSHA512Utf8.Checked then
+    S := SHA512Print(SHA512Bytes(TEncoding.UTF8.GetBytes(edtSha512.Text)))
+  else
+    S := SHA512Print(SHA512StringA(AnsiString(edtSha512.Text)));
 {$ELSE}
-  S := SHA512Print(SHA512String(edtSha512.Text));
+  if chkSHA512Utf8.Checked then
+    S := SHA512Print(SHA512String(CnAnsiToUtf8(edtSha512.Text)))
+  else
+    S := SHA512Print(SHA512String(edtSha512.Text));
 {$ENDIF}
   Insert(#13#10, S, 65);
   lblSHA512Result.Caption := S;
@@ -1419,9 +1509,15 @@ var
   S: string;
 begin
 {$IFDEF UNICODE}
-  S := SHA384Print(SHA384StringA(AnsiString(edtSha384.Text)));
+  if chkSHA384Utf8.Checked then
+    S := SHA384Print(SHA384Bytes(TEncoding.UTF8.GetBytes(edtSha384.Text)))
+  else
+    S := SHA384Print(SHA384StringA(AnsiString(edtSha384.Text)));
 {$ELSE}
-  S := SHA384Print(SHA384String(edtSha384.Text));
+  if chkSHA384Utf8.Checked then
+    S := SHA384Print(SHA384String(CnAnsiToUtf8(edtSha384.Text)))
+  else
+    S := SHA384Print(SHA384String(edtSha384.Text));
 {$ENDIF}
   Insert(#13#10, S, 49);
   lblSHA384Result.Caption := S;
@@ -1625,7 +1721,11 @@ var
   S, Key: AnsiString;
 begin
   Key := AnsiString(edtSHA256HmacKey.Text);
-  S := AnsiString(edtSHA256.Text);
+  if chkSHA256Utf8.Checked then
+    S := CnAnsiToUtf8(edtSHA256.Text)
+  else
+    S := AnsiString(edtSHA256.Text);
+
   SHA256Hmac(@Key[1], Length(Key), @S[1], Length(S), Output);
   pnlSHA256.Caption := SHA256Print(Output);
 end;
@@ -1636,7 +1736,11 @@ var
   S, Key: AnsiString;
 begin
   Key := AnsiString(edtSHA224HmacKey.Text);
-  S := AnsiString(edtSHA224.Text);
+  if chkSHA224Utf8.Checked then
+    S := CnAnsiToUtf8(edtSHA224.Text)
+  else
+    S := AnsiString(edtSHA224.Text);
+
   SHA224Hmac(@Key[1], Length(Key), @S[1], Length(S), Output);
   pnlSHA224.Caption := SHA224Print(Output);
 end;
@@ -1647,7 +1751,11 @@ var
   S, Key: AnsiString;
 begin
   Key := AnsiString(edtSHA384HmacKey.Text);
-  S := AnsiString(edtSHA384.Text);
+  if chkSHA384Utf8.Checked then
+    S := CnAnsiToUtf8(edtSHA384.Text)
+  else
+    S := AnsiString(edtSHA384.Text);
+
   SHA384Hmac(@Key[1], Length(Key), @S[1], Length(S), Output);
   S := SHA384Print(Output);
   Insert(#13#10, S, 49);
@@ -1660,7 +1768,11 @@ var
   S, Key: AnsiString;
 begin
   Key := AnsiString(edtSHA512HmacKey.Text);
-  S := AnsiString(edtSHA512.Text);
+  if chkSHA512Utf8.Checked then
+    S := CnAnsiToUtf8(edtSHA512.Text)
+  else
+    S := AnsiString(edtSHA512.Text);
+
   SHA512Hmac(@Key[1], Length(Key), @S[1], Length(S), Output);
   S := SHA512Print(Output);
   Insert(#13#10, S, 65);
@@ -1673,7 +1785,11 @@ var
   S, Key: AnsiString;
 begin
   Key := AnsiString(edtSHA1HmacKey.Text);
-  S := AnsiString(edtSHA1.Text);
+  if chkSHA1Utf8.Checked then
+    S := CnAnsiToUtf8(edtSHA1.Text)
+  else
+    S := AnsiString(edtSHA1.Text);
+
   SHA1Hmac(@Key[1], Length(Key), @S[1], Length(S), Output);
   pnlSHA1.Caption := SHA1Print(Output);
 end;
@@ -1684,6 +1800,11 @@ var
   S, Key: AnsiString;
 begin
   Key := AnsiString(edtMD5HmacKey.Text);
+  if chkMD5Utf8.Checked then
+    S := CnAnsiToUtf8(edtMD5.Text)
+  else
+    S := AnsiString(edtMD5.Text);
+
   S := AnsiString(edtMD5.Text);
   MD5Hmac(@Key[1], Length(Key), @S[1], Length(S), Output);
   pnlMD5.Caption := MD5Print(Output);
@@ -1695,9 +1816,15 @@ var
   S, Key: AnsiString;
 begin
   Key := AnsiString(edtSM3HmacKey.Text);
-  S := AnsiString(edtSM3.Text);
+  if chkSM3Utf8.Checked then
+    S := CnAnsiToUtf8(edtSM3.Text)
+  else
+    S := AnsiString(edtSM3.Text);
+
   SM3Hmac(@Key[1], Length(Key), @S[1], Length(S), Output);
-  lblSm3Result.Caption := SM3Print(Output);
+  S := SM3Print(Output);
+  Insert(#13#10, S, 33);
+  lblSm3Result.Caption := S;
 end;
 
 procedure TFormCrypt.btnCRC32HmacClick(Sender: TObject);
@@ -1731,9 +1858,15 @@ end;
 procedure TFormCrypt.btnSHA3_224Click(Sender: TObject);
 begin
 {$IFDEF UNICODE}
-  pnlSHA3_224.Caption := SHA3_224Print(SHA3_224StringA(AnsiString(edtSha3_224.Text)));
+  if chkSHA3_224Utf8.Checked then
+    pnlSHA3_224.Caption := SHA3_224Print(SHA3_224Bytes(TEncoding.UTF8.GetBytes(edtSha3_224.Text)))
+  else
+    pnlSHA3_224.Caption := SHA3_224Print(SHA3_224StringA(AnsiString(edtSha3_224.Text)));
 {$ELSE}
-  pnlSHA3_224.Caption := SHA3_224Print(SHA3_224String(edtSha3_224.Text));
+  if chkSHA3_224Utf8.Checked then
+    pnlSHA3_224.Caption := SHA3_224Print(SHA3_224String(CnAnsiToUtf8(edtSha3_224.Text)))
+  else
+    pnlSHA3_224.Caption := SHA3_224Print(SHA3_224String(edtSha3_224.Text));
 {$ENDIF}
 end;
 
@@ -1749,7 +1882,11 @@ var
   S, Key: AnsiString;
 begin
   Key := AnsiString(edtSHA3_224HmacKey.Text);
-  S := AnsiString(edtSHA3_224.Text);
+  if chkSHA3_224Utf8.Checked then
+    S := CnAnsiToUtf8(edtSHA3_224.Text)
+  else
+    S := AnsiString(edtSHA3_224.Text);
+
   SHA3_224Hmac(@Key[1], Length(Key), @S[1], Length(S), Output);
   pnlSHA3_224.Caption := SHA3_224Print(Output);
 end;
@@ -1757,9 +1894,15 @@ end;
 procedure TFormCrypt.btnSHA3_256Click(Sender: TObject);
 begin
 {$IFDEF UNICODE}
-  pnlSHA3_256.Caption := SHA3_256Print(SHA3_256StringA(AnsiString(edtSha3_256.Text)));
+  if chkSHA3_256Utf8.Checked then
+    pnlSHA3_256.Caption := SHA3_256Print(SHA3_256Bytes(TEncoding.UTF8.GetBytes(edtSha3_256.Text)))
+  else
+    pnlSHA3_256.Caption := SHA3_256Print(SHA3_256StringA(AnsiString(edtSha3_256.Text)));
 {$ELSE}
-  pnlSHA3_256.Caption := SHA3_256Print(SHA3_256String(edtSha3_256.Text));
+  if chkSHA3_256Utf8.Checked then
+    pnlSHA3_256.Caption := SHA3_256Print(SHA3_256String(CnAnsiToUtf8(edtSha3_256.Text)))
+  else
+    pnlSHA3_256.Caption := SHA3_256Print(SHA3_256String(edtSha3_256.Text));
 {$ENDIF}
 end;
 
@@ -1769,7 +1912,11 @@ var
   S, Key: AnsiString;
 begin
   Key := AnsiString(edtSHA3_256HmacKey.Text);
-  S := AnsiString(edtSHA3_256.Text);
+  if chkSHA3_256Utf8.Checked then
+    S := CnAnsiToUtf8(edtSHA3_256.Text)
+  else
+    S := AnsiString(edtSHA3_256.Text);
+
   SHA3_256Hmac(@Key[1], Length(Key), @S[1], Length(S), Output);
   pnlSHA3_256.Caption := SHA3_256Print(Output);
 end;
@@ -1779,9 +1926,15 @@ var
   S: string;
 begin
 {$IFDEF UNICODE}
-  S := SHA3_384Print(SHA3_384StringA(AnsiString(edtSha3_384.Text)));
+  if chkSHA3_384Utf8.Checked then
+    S := SHA3_384Print(SHA3_384Bytes(TEncoding.UTF8.GetBytes(edtSha3_384.Text)))
+  else
+    S := SHA3_384Print(SHA3_384StringA(AnsiString(edtSha3_384.Text)));
 {$ELSE}
-  S := SHA3_384Print(SHA3_384String(edtSha3_384.Text));
+  if chkSHA3_384Utf8.Checked then
+    S := SHA3_384Print(SHA3_384String(CnAnsiToUtf8(edtSha3_384.Text)))
+  else
+    S := SHA3_384Print(SHA3_384String(edtSha3_384.Text));
 {$ENDIF}
   Insert(#13#10, S, 49);
   lblSHA3_384Result.Caption := S;
@@ -1805,7 +1958,11 @@ var
   S, Key: AnsiString;
 begin
   Key := AnsiString(edtSHA3_384HmacKey.Text);
-  S := AnsiString(edtSHA3_384.Text);
+  if chkSHA3_384Utf8.Checked then
+    S := CnAnsiToUtf8(edtSHA3_384.Text)
+  else
+    S := AnsiString(edtSHA3_384.Text);
+
   SHA3_384Hmac(@Key[1], Length(Key), @S[1], Length(S), Output);
   S := SHA3_384Print(Output);
   Insert(#13#10, S, 49);
@@ -1817,9 +1974,15 @@ var
   S: string;
 begin
 {$IFDEF UNICODE}
-  S := SHA3_512Print(SHA3_512StringA(AnsiString(edtSha3_512.Text)));
+  if chkSHA3_512Utf8.Checked then
+    S := SHA3_512Print(SHA3_512Bytes(TEncoding.UTF8.GetBytes(edtSha3_512.Text)))
+  else
+    S := SHA3_512Print(SHA3_512StringA(AnsiString(edtSha3_512.Text)));
 {$ELSE}
-  S := SHA3_512Print(SHA3_512String(edtSha3_512.Text));
+  if chkSHA3_512Utf8.Checked then
+    S := SHA3_512Print(SHA3_512String(CnAnsiToUtf8(edtSha3_512.Text)))
+  else
+    S := SHA3_512Print(SHA3_512String(edtSha3_512.Text));
 {$ENDIF}
   Insert(#13#10, S, 65);
   lblSHA3_512Result.Caption := S;
@@ -1843,7 +2006,11 @@ var
   S, Key: AnsiString;
 begin
   Key := AnsiString(edtSHA3_512HmacKey.Text);
-  S := AnsiString(edtSHA3_512.Text);
+  if chkSHA3_512Utf8.Checked then
+    S := CnAnsiToUtf8(edtSHA3_512.Text)
+  else
+    S := AnsiString(edtSHA3_512.Text);
+
   SHA3_512Hmac(@Key[1], Length(Key), @S[1], Length(S), Output);
   S := SHA3_512Print(Output);
   Insert(#13#10, S, 65);
@@ -2651,6 +2818,235 @@ begin
     cft512: pnlFNV.Caption := DataToHex(@R512[0], SizeOf(R512));
     cft1024: pnlFNV.Caption := DataToHex(@R1024[0], SizeOf(R1024));
   end;
+end;
+
+procedure TFormCrypt.btnHChaCha20SubKeyClick(Sender: TObject);
+var
+  SKey, SNonce: AnsiString;
+  Key: TCnChaChaKey;
+  Nonce: TCnHChaChaNonce;
+  SubKey: TCnHChaChaSubKey;
+begin
+  SKey := '000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f';
+  SNonce := '000000090000004a0000000031415927';
+
+  HexToData(SKey, @Key[0]);
+  HexToData(SNonce, @Nonce[0]);
+
+  HChaCha20SubKey(Key, Nonce, SubKey);
+end;
+
+procedure TFormCrypt.btnXChaCha20EncClick(Sender: TObject);
+var
+  SKey, SNonce, Plain: AnsiString;
+  Key: TCnChaChaKey;
+  Nonce: TCnXChaChaNonce;
+  PT, Res: TBytes;
+begin
+  SKey := '808182838485868788898A8B8C8D8E8F909192939495969798999A9B9C9D9E9F';
+  SNonce := '404142434445464748494A4B4C4D4E4F5051525354555658';
+  Plain :=
+    '5468652064686F6C65202870726F6E6F756E6365642022646F6C652229206973' +
+    '20616C736F206B6E6F776E2061732074686520417369617469632077696C6420' +
+    '646F672C2072656420646F672C20616E642077686973746C696E6720646F672E' +
+    '2049742069732061626F7574207468652073697A65206F662061204765726D61' +
+    '6E20736865706865726420627574206C6F6F6B73206D6F7265206C696B652061' +
+    '206C6F6E672D6C656767656420666F782E205468697320686967686C7920656C' +
+    '757369766520616E6420736B696C6C6564206A756D70657220697320636C6173' +
+    '736966696564207769746820776F6C7665732C20636F796F7465732C206A6163' +
+    '6B616C732C20616E6420666F78657320696E20746865207461786F6E6F6D6963' +
+    '2066616D696C792043616E696461652E';
+
+  HexToData(SKey, @Key[0]);
+  HexToData(SNonce, @Nonce[0]);
+  PT := HexToBytes(Plain);
+
+  Res := XChaCha20EncryptBytes(Key, Nonce, PT);
+
+  if DataToHex(@Res[0], Length(Res)) =
+    '7D0A2E6B7F7C65A236542630294E063B7AB9B555A5D5149AA21E4AE1E4FBCE87' +
+    'ECC8E08A8B5E350ABE622B2FFA617B202CFAD72032A3037E76FFDCDC4376EE05' +
+    '3A190D7E46CA1DE04144850381B9CB29F051915386B8A710B8AC4D027B8B050F' +
+    '7CBA5854E028D564E453B8A968824173FC16488B8970CAC828F11AE53CABD201' +
+    '12F87107DF24EE6183D2274FE4C8B1485534EF2C5FBC1EC24BFC3663EFAA08BC' +
+    '047D29D25043532DB8391A8A3D776BF4372A6955827CCB0CDD4AF403A7CE4C63' +
+    'D595C75A43E045F0CCE1F29C8B93BD65AFC5974922F214A40B7C402CDB91AE73' +
+    'C0B63615CDAD0480680F16515A7ACE9D39236464328A37743FFC28F4DDB324F4' +
+    'D0F5BBDC270C65B1749A6EFFF1FBAA09536175CCD29FB9E6057B307320D31683' +
+    '8A9C71F70B5B5907A66F7EA49AADC409' then
+  ShowMessage('OK');
+end;
+
+procedure TFormCrypt.btnChaCha20Poly1305AeadClick(Sender: TObject);
+var
+  Plain, Key, AAD, Nonce, EnData, DeData: TBytes;
+  Tag: TCnPoly1305Digest;
+begin
+  Plain := AnsiToBytes('Ladies and Gentlemen of the class of ''99: If I could offer you only one tip for the future, sunscreen would be it.');
+  AAD := HexToBytes('50515253C0C1C2C3C4C5C6C7');
+  Key := HexToBytes('808182838485868788898A8B8C8D8E8F909192939495969798999A9B9C9D9E9F');
+  Nonce := HexToBytes('070000004041424344454647');
+
+  EnData := ChaCha20Poly1305EncryptBytes(Key, Nonce, Plain, AAD, Tag);
+
+  DeData := ChaCha20Poly1305DecryptBytes(Key, Nonce, EnData, AAD, Tag);
+
+  if CompareBytes(DeData, Plain) then
+    ShowMessage('OK');
+end;
+
+procedure TFormCrypt.btnXChaCha20Poly1305AeadClick(Sender: TObject);
+var
+  Plain, Key, AAD, Nonce, EnData, DeData: TBytes;
+  Tag: TCnPoly1305Digest;
+begin
+  Plain := HexToBytes(
+    '4C616469657320616E642047656E746C656D656E206F662074686520636C6173' +
+    '73206F66202739393A204966204920636F756C64206F6666657220796F75206F' +
+    '6E6C79206F6E652074697020666F7220746865206675747572652C2073756E73' +
+    '637265656E20776F756C642062652069742E');
+
+  AAD := HexToBytes('50515253C0C1C2C3C4C5C6C7');
+  Key := HexToBytes('808182838485868788898A8B8C8D8E8F909192939495969798999A9B9C9D9E9F');
+  Nonce := HexToBytes('404142434445464748494a4b4c4d4e4f5051525354555657');
+
+  EnData := XChaCha20Poly1305EncryptBytes(Key, Nonce, Plain, AAD, Tag);
+
+  DeData := XChaCha20Poly1305DecryptBytes(Key, Nonce, EnData, AAD, Tag);
+
+  if CompareBytes(DeData, Plain) then
+    ShowMessage('OK');
+end;
+
+procedure TFormCrypt.btnSHAKEClick(Sender: TObject);
+var
+  S: AnsiString;
+begin
+  S := edtSHAKE.Text;
+  if rbSHAKE128.Checked then
+  begin
+    if chkSHAKEUtf8.Checked then
+      mmoSHAKE.Lines.Text := BytesToHex(SHAKE128String(CnAnsiToUtf8(S), udSHAKE.Position))
+    else
+      mmoSHAKE.Lines.Text := BytesToHex(SHAKE128String(S, udSHAKE.Position));
+  end
+  else
+  begin
+    if chkSHAKEUtf8.Checked then
+      mmoSHAKE.Lines.Text := BytesToHex(SHAKE256String(CnAnsiToUtf8(S), udSHAKE.Position))
+    else
+      mmoSHAKE.Lines.Text := BytesToHex(SHAKE256String(S, udSHAKE.Position));
+  end;
+end;
+
+procedure TFormCrypt.btnUSHAKEClick(Sender: TObject);
+begin
+  if rbSHAKE128.Checked then
+    mmoSHAKE.Lines.Text := BytesToHex(SHAKE128UnicodeString(edtSHAKE.Text, udSHAKE.Position))
+  else
+    mmoSHAKE.Lines.Text := BytesToHex(SHAKE256UnicodeString(edtSHAKE.Text, udSHAKE.Position));
+end;
+
+procedure TFormCrypt.btnSHAKEFileClick(Sender: TObject);
+begin
+  if OpenDialog1.Execute then
+  begin
+    if rbSHAKE128.Checked then
+      mmoSHAKE.Lines.Text := BytesToHex(SHAKE128File(OpenDialog1.FileName, udSHAKE.Position))
+    else
+      mmoSHAKE.Lines.Text := BytesToHex(SHAKE256File(OpenDialog1.FileName, udSHAKE.Position));
+  end;
+end;
+
+procedure TFormCrypt.btnSM4Utf8EncClick(Sender: TObject);
+var
+  S: AnsiString;
+  Key, Data, Iv, Res: TBytes;
+begin
+  // 整好 UTF8 内容
+  S := CnAnsiToUtf8(edtSm4.Text);
+  Key := MyStringToBytes(edtSm4Key.Text);
+  Data := AnsiToBytes(S);
+
+  // 这几种模式要准备好初始化向量
+  if rbSm4Cbc.Checked or rbSm4Cfb.Checked or rbSm4Ofb.Checked or rbSm4Ctr.Checked then
+  begin
+    Iv := HexToBytes(edtSM4Iv.Text);
+    if Length(Iv) <> CN_SM4_BLOCKSIZE then
+    begin
+      ShowMessage('Invalid SM4 Iv, Use Our Default Iv.');
+      SetLength(Iv, CN_SM4_BLOCKSIZE);
+      Move(Sm4Iv[0], Iv[0], CN_SM4_BLOCKSIZE);
+    end;
+  end;
+
+  // 这几种模式要处理对齐
+  if rbSm4Ecb.Checked or rbSm4Cbc.Checked then
+    if cbbSm4Padding.ItemIndex = 1 then
+      BytesAddPKCS7Padding(Data, CN_SM4_BLOCKSIZE);
+
+  // 然后加密
+  if rbSm4Ecb.Checked then
+    Res := SM4EncryptEcbBytes(Key, Data)
+  else if rbSm4Cbc.Checked then
+    Res := SM4EncryptCbcBytes(Key, Iv, Data)
+  else if rbSm4Cfb.Checked then
+    Res := SM4EncryptCfbBytes(Key, Iv, Data)
+  else if rbSm4Ofb.Checked then
+    Res := SM4EncryptOfbBytes(Key, Iv, Data)
+  else if rbSm4Ctr.Checked then
+    Res := SM4EncryptCtrBytes(Key, Iv, Data);
+
+  edtSm4Code.Text := BytesToHex(Res);
+end;
+
+procedure TFormCrypt.btnSM4Utf8DecClick(Sender: TObject);
+var
+  Key, Data, Iv, Res: TBytes;
+begin
+  Key := MyStringToBytes(edtSm4Key.Text);
+  Data := HexToBytes(edtSm4Code.Text);
+
+  // 这几种模式要准备好初始化向量
+  if rbSm4Cbc.Checked or rbSm4Cfb.Checked or rbSm4Ofb.Checked or rbSm4Ctr.Checked then
+  begin
+    Iv := HexToBytes(edtSM4Iv.Text);
+    if Length(Iv) <> CN_SM4_BLOCKSIZE then
+    begin
+      ShowMessage('Invalid SM4 Iv, Use Our Default Iv.');
+      SetLength(Iv, CN_SM4_BLOCKSIZE);
+      Move(Sm4Iv[0], Iv[0], CN_SM4_BLOCKSIZE);
+    end;
+  end;
+
+  // 然后解密
+  if rbSm4Ecb.Checked then
+    Res := SM4DecryptEcbBytes(Key, Data)
+  else if rbSm4Cbc.Checked then
+    Res := SM4DecryptCbcBytes(Key, Iv, Data)
+  else if rbSm4Cfb.Checked then
+    Res := SM4DecryptCfbBytes(Key, Iv, Data)
+  else if rbSm4Ofb.Checked then
+    Res := SM4DecryptOfbBytes(Key, Iv, Data)
+  else if rbSm4Ctr.Checked then
+    Res := SM4DecryptCtrBytes(Key, Iv, Data);
+
+  // 这几种模式要处理对齐
+  if rbSm4Ecb.Checked or rbSm4Cbc.Checked then
+    if cbbSm4Padding.ItemIndex = 1 then
+      BytesRemovePKCS7Padding(Res);
+
+  edtSm4Dec.Text := CnUtf8ToAnsi(BytesToAnsi(Res));
+end;
+
+procedure TFormCrypt.btnRC4CryptClick(Sender: TObject);
+begin
+  edtRC4Code.Text := RC4EncryptStrToHex(edtRC4From.Text, edtRC4Key.Text);
+end;
+
+procedure TFormCrypt.btnRC4DecryptClick(Sender: TObject);
+begin
+  edtRC4Origin.Text := RC4DecryptStrFromHex(edtRC4Code.Text, edtRC4Key.Text);
 end;
 
 end.

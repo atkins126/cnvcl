@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2023 CnPack 开发组                       }
+{                   (C)Copyright 2001-2024 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -13,7 +13,7 @@
 {            您应该已经和开发包一起收到一份 CnPack 发布协议的副本。如果        }
 {        还没有，可访问我们的网站：                                            }
 {                                                                              }
-{            网站地址：http://www.cnpack.org                                   }
+{            网站地址：https://www.cnpack.org                                  }
 {            电子邮件：master@cnpack.org                                       }
 {                                                                              }
 {******************************************************************************}
@@ -22,9 +22,12 @@ unit CnDES;
 {* |<PRE>
 ================================================================================
 * 软件名称：开发包基础库
-* 单元名称：DES 算法单元
-* 单元作者：匿名/佚名
-* 备    注：由匿名作者搜集整理而来
+* 单元名称：DES 对称加解密算法实现单元
+* 单元作者：CnPack 开发组 (master@cnpack.org)
+*           由匿名/佚名代码移植而来并补充部分功能。
+* 备    注：本单元实现了 DES/3DES 对称加解密算法，分块大小 8 字节，块运算实现了
+*           ECB/CBC 模式，不支持其他块运算模式。
+*
 * 开发平台：PWin2000Pro + Delphi 5.0
 * 兼容测试：PWin9X/2000/XP + Delphi 5/6
 * 本 地 化：该单元中的字符串均符合本地化处理方式
@@ -59,24 +62,27 @@ const
 
 type
   TCnDESKey = array[0..CN_DES_KEYSIZE - 1] of Byte;
-  {* DES 的加密 Key}
+  {* DES 的加密 Key，8 字节}
 
   TCnDESBuffer = array[0..CN_DES_BLOCKSIZE - 1] of Byte;
-  {* DES 的加密块}
+  {* DES 的加密块，8 字节}
 
   TCnDESIv  = array[0..CN_DES_BLOCKSIZE - 1] of Byte;
-  {* DES 的 CBC 的初始化向量}
+  {* DES 的 CBC 的初始化向量，8 字节}
 
   TCn3DESKey = array[0..CN_TRIPLE_DES_KEYSIZE - 1] of Byte;
-  {* 3DES 的密码}
+  {* 3DES 的密码长度，是 DES 的三倍，24 字节}
 
   TCn3DESBuffer = TCnDESBuffer;
-  {* 3DES 的加密块，等于 DES 的加密块}
+  {* 3DES 的加密块，等于 DES 的加密块，8 字节}
 
   TCn3DESIv = TCnDESIv;
-  {* 3DES 的 CBC 的初始化向量，等于 DES 的 CBC 的初始化向量}
+  {* 3DES 的 CBC 的初始化向量，等于 DES 的 CBC 的初始化向量，8 字节}
 
 // ================================= DES =======================================
+
+function DESGetOutputLengthFromInputLength(InputByteLength: Integer): Integer;
+{* 根据输入明文字节长度计算其块对齐的输出长度。如果非块整数倍则向上增长至块整数倍}
 
 procedure DESEncryptECBStr(Key: AnsiString; const Input: AnsiString; Output: PAnsiChar);
 {* DES-ECB 封装好的针对 AnsiString 的加解密方法
@@ -99,7 +105,7 @@ procedure DESEncryptCBCStr(Key: AnsiString; Iv: PAnsiChar;
 {* DES-CBC 封装好的针对 AnsiString 的加解密方法
  |<PRE>
   Key      8 字节密码，太长则截断，不足则补 #0
-  Iv       8 字节初始化向量，运算过程中会改变，因此调用者需要保存原始数据
+  Iv       8 字节初始化向量
   Input    input string
   Output   output 输出区，其长度必须大于或等于 (((Length(Input) - 1) div 8) + 1) * 8
  |</PRE>}
@@ -109,7 +115,7 @@ procedure DESDecryptCBCStr(Key: AnsiString; Iv: PAnsiChar;
 {* DES-CBC 封装好的针对 AnsiString 的加解密方法
  |<PRE>
   Key      8 字节密码，太长则截断，不足则补 #0
-  Iv       8 字节初始化向量，运算过程中会改变，因此调用者需要保存原始数据
+  Iv       8 字节初始化向量
   Input    input string
   Output   output 输出区，其长度必须大于或等于 (((Length(Input) - 1) div 8) + 1) * 8
  |</PRE>}
@@ -117,19 +123,19 @@ procedure DESDecryptCBCStr(Key: AnsiString; Iv: PAnsiChar;
 function DESEncryptStrToHex(const Str, Key: AnsiString): AnsiString; {$IFDEF SUPPORT_DEPRECATED} deprecated; {$ENDIF}
 {* 传入明文与加密 Key，DES 加密返回转换成十六进制的密文，ECB 模式，明文末尾可能补 0。等同于 DESEncryptECBStrToHex}
 
-function DESDecryptStrFromHex(const StrHex, Key: AnsiString): AnsiString;{$IFDEF SUPPORT_DEPRECATED} deprecated; {$ENDIF}
+function DESDecryptStrFromHex(const HexStr, Key: AnsiString): AnsiString;{$IFDEF SUPPORT_DEPRECATED} deprecated; {$ENDIF}
 {* 传入十六进制的密文与加密 Key，DES ECB 解密返回明文。等同于 DESDecryptECBStrFromHex}
 
 function DESEncryptECBStrToHex(const Str, Key: AnsiString): AnsiString;
 {* 传入明文与加密 Key，DES 加密返回转换成十六进制的密文，ECB 模式，明文末尾可能补 0}
 
-function DESDecryptECBStrFromHex(const StrHex, Key: AnsiString): AnsiString;
+function DESDecryptECBStrFromHex(const HexStr, Key: AnsiString): AnsiString;
 {* 传入十六进制的密文与加密 Key，DES ECB 解密返回明文}
 
 function DESEncryptCBCStrToHex(const Str, Key, Iv: AnsiString): AnsiString;
 {* 传入明文与加密 Key 与 Iv，DES 加密返回转换成十六进制的密文，CBC 模式，明文末尾可能补 0}
 
-function DESDecryptCBCStrFromHex(const StrHex, Key, Iv: AnsiString): AnsiString;
+function DESDecryptCBCStrFromHex(const HexStr, Key, Iv: AnsiString): AnsiString;
 {* 传入十六进制的密文与加密 Key 与 Iv，DES CBC 解密返回明文}
 
 function DESEncryptECBBytes(Key: TBytes; Input: TBytes): TBytes;
@@ -184,6 +190,9 @@ procedure DESDecryptStreamCBC(Source: TStream; Count: Cardinal;
 
 // =========================== 3-DES (Triple DES) ==============================
 
+function TripleDESGetOutputLengthFromInputLength(InputByteLength: Integer): Integer;
+{* 根据输入明文字节长度计算其块对齐的输出长度。如果非块整数倍则向上增长至块整数倍}
+
 procedure TripleDESEncryptECBStr(Key: AnsiString; const Input: AnsiString; Output: PAnsiChar);
 {* 3DES-ECB 封装好的针对 AnsiString 的加解密方法
  |<PRE>
@@ -223,19 +232,19 @@ procedure TripleDESDecryptCBCStr(Key: AnsiString; Iv: PAnsiChar;
 function TripleDESEncryptStrToHex(const Str, Key: AnsiString): AnsiString; {$IFDEF SUPPORT_DEPRECATED} deprecated; {$ENDIF}
 {* 传入明文与加密 Key，3DES 加密返回转换成十六进制的密文，ECB 模式，明文末尾可能补 0。等同于 TripleDESEncryptECBStrToHex}
 
-function TripleDESDecryptStrFromHex(const StrHex, Key: AnsiString): AnsiString; {$IFDEF SUPPORT_DEPRECATED} deprecated; {$ENDIF}
+function TripleDESDecryptStrFromHex(const HexStr, Key: AnsiString): AnsiString; {$IFDEF SUPPORT_DEPRECATED} deprecated; {$ENDIF}
 {* 传入十六进制的密文与加密 Key，3DES ECB 解密返回明文。等同于 TripleDESDecryptECBStrFromHex}
 
 function TripleDESEncryptECBStrToHex(const Str, Key: AnsiString): AnsiString;
 {* 传入明文与加密 Key，3DES 加密返回转换成十六进制的密文，ECB 模式，明文末尾可能补 0}
 
-function TripleDESDecryptECBStrFromHex(const StrHex, Key: AnsiString): AnsiString;
+function TripleDESDecryptECBStrFromHex(const HexStr, Key: AnsiString): AnsiString;
 {* 传入十六进制的密文与加密 Key，3DES ECB 解密返回明文}
 
 function TripleDESEncryptCBCStrToHex(const Str, Key, Iv: AnsiString): AnsiString;
 {* 传入明文与加密 Key 与 Iv，3DES 加密返回转换成十六进制的密文，CBC 模式，明文末尾可能补 0}
 
-function TripleDESDecryptCBCStrFromHex(const StrHex, Key, Iv: AnsiString): AnsiString;
+function TripleDESDecryptCBCStrFromHex(const HexStr, Key, Iv: AnsiString): AnsiString;
 {* 传入十六进制的密文与加密 Key 与 Iv，3DES CBC 解密返回明文}
 
 function TripleDESEncryptECBBytes(Key: TBytes; Input: TBytes): TBytes;
@@ -291,9 +300,9 @@ procedure TripleDESDecryptStreamCBC(Source: TStream; Count: Cardinal;
 implementation
 
 resourcestring
-  SInvalidInBufSize = 'Invalid Buffer Size for Decryption';
-  SReadError = 'Stream Read Error';
-  SWriteError = 'Stream Write Error';
+  SCnErrorDESInvalidInBufSize = 'Invalid Buffer Size for Decryption';
+  SCnErrorDESReadError = 'Stream Read Error';
+  SCnErrorDESWriteError = 'Stream Write Error';
 
 type
   TKeyByte = array[0..5] of Byte;
@@ -391,7 +400,7 @@ const
     43, 48, 38, 55, 33, 52,
     45, 41, 49, 35, 28, 31);
 
-function Min(A, B: Integer): Integer;
+function Min(A, B: Integer): Integer; {$IFDEF SUPPORT_INLINE} inline; {$ENDIF}
 begin
   if A < B then
     Result := A
@@ -423,7 +432,7 @@ begin
   for I := 0 to 7 do InData[I] := NewData[I];
 end;
 
-procedure Expand(InData: array of Byte; var OutData: array of Byte);
+procedure Expand(const InData: array of Byte; var OutData: array of Byte);
 var
   I: Integer;
 begin
@@ -454,7 +463,7 @@ begin
   Result := (sBox[S][c] and $0F);
 end;
 
-procedure PermutationChoose1(InData: array of Byte; var OutData: array of Byte);
+procedure PermutationChoose1(const InData: array of Byte; var OutData: array of Byte);
 var
   I: Integer;
 begin
@@ -464,7 +473,7 @@ begin
       OutData[I shr 3] := OutData[I shr 3] or (1 shl (7 - (I and $07)));
 end;
 
-procedure PermutationChoose2(InData: array of Byte; var OutData: array of Byte);
+procedure PermutationChoose2(const InData: array of Byte; var OutData: array of Byte);
 var
   I: Integer;
 begin
@@ -488,7 +497,7 @@ begin
   end;
 end;
 
-procedure MakeKey(InKey: array of Byte; var OutKey: array of TKeyByte);
+procedure MakeKey(const InKey: array of Byte; var OutKey: array of TKeyByte);
 const
   bitDisplace: array[0..15] of Byte =
     (1, 1, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 1);
@@ -523,7 +532,7 @@ begin
   end;
 end;
 
-procedure Encry(InData, ASubKey: array of Byte; var OutData: array of Byte);
+procedure Encry(const InData, ASubKey: array of Byte; var OutData: array of Byte);
 var
   OutBuf: array[0..5] of Byte;
   Buf: array[0..7] of Byte;
@@ -546,7 +555,7 @@ begin
 end;
 
 // InData 和 OutData 要求都是 8 字节数组
-procedure DesData(DesMode: TDesMode; SubKey: TSubKey; InData: array of Byte;
+procedure DesData(DesMode: TDesMode; SubKey: TSubKey; const InData: array of Byte;
   var OutData: array of Byte);
 var
   I, J: Integer;
@@ -625,6 +634,11 @@ begin
     for I := Len to NL - 1 do
       Input[I] := 0;
   end;
+end;
+
+function DESGetOutputLengthFromInputLength(InputByteLength: Integer): Integer;
+begin
+  Result := (((InputByteLength - 1) div CN_DES_BLOCKSIZE) + 1) * CN_DES_BLOCKSIZE;
 end;
 
 procedure DESEncryptECBStr(Key: AnsiString; const Input: AnsiString; Output: PAnsiChar);
@@ -775,9 +789,9 @@ begin
   Result := DESEncryptECBStrToHex(Str, Key);
 end;
 
-function DESDecryptStrFromHex(const StrHex, Key: AnsiString): AnsiString;
+function DESDecryptStrFromHex(const HexStr, Key: AnsiString): AnsiString;
 begin
-  Result := DESDecryptECBStrFromHex(StrHex, Key);
+  Result := DESDecryptECBStrFromHex(HexStr, Key);
 end;
 
 function DESEncryptECBStrToHex(const Str, Key: AnsiString): AnsiString;
@@ -793,11 +807,11 @@ begin
   Result := AnsiStrToHex(TempResult);
 end;
 
-function DESDecryptECBStrFromHex(const StrHex, Key: AnsiString): AnsiString;
+function DESDecryptECBStrFromHex(const HexStr, Key: AnsiString): AnsiString;
 var
   Str: AnsiString;
 begin
-  Str := HexToAnsiStr(StrHex);
+  Str := HexToAnsiStr(HexStr);
   SetResultLengthUsingInput(Str, Result);
   DESDecryptECBStr(Key, Str, @(Result[1]));
 end;
@@ -815,11 +829,11 @@ begin
   Result := AnsiStrToHex(TempResult);
 end;
 
-function DESDecryptCBCStrFromHex(const StrHex, Key, Iv: AnsiString): AnsiString;
+function DESDecryptCBCStrFromHex(const HexStr, Key, Iv: AnsiString): AnsiString;
 var
   Str: AnsiString;
 begin
-  Str := HexToAnsiStr(StrHex);
+  Str := HexToAnsiStr(HexStr);
   SetResultLengthUsingInput(Str, Result);
   DESDecryptCBCStr(Key, PAnsiChar(Iv), Str, @(Result[1]));
 end;
@@ -983,13 +997,13 @@ begin
   begin
     Done := Source.Read(TempIn, SizeOf(TempIn));
     if Done < SizeOf(TempIn) then
-      raise EStreamError.Create(SReadError);
+      raise EStreamError.Create(SCnErrorDESReadError);
 
     DesData(dmEncry, SubKey, TempIn, TempOut);
 
     Done := Dest.Write(TempOut, SizeOf(TempOut));
     if Done < SizeOf(TempOut) then
-      raise EStreamError.Create(SWriteError);
+      raise EStreamError.Create(SCnErrorDESWriteError);
 
     Dec(Count, SizeOf(TCnDESBuffer));
   end;
@@ -998,14 +1012,14 @@ begin
   begin
     Done := Source.Read(TempIn, Count);
     if Done < Count then
-      raise EStreamError.Create(SReadError);
+      raise EStreamError.Create(SCnErrorDESReadError);
     FillChar(TempIn[Count], SizeOf(TempIn) - Count, 0);
 
     DesData(dmEncry, SubKey, TempIn, TempOut);
 
     Done := Dest.Write(TempOut, SizeOf(TempOut));
     if Done < SizeOf(TempOut) then
-      raise EStreamError.Create(SWriteError);
+      raise EStreamError.Create(SCnErrorDESWriteError);
   end;
 end;
 
@@ -1027,20 +1041,20 @@ begin
   if Count = 0 then
     Exit;
   if (Count mod SizeOf(TCnDESBuffer)) > 0 then
-    raise Exception.Create(SInvalidInBufSize);
+    raise Exception.Create(SCnErrorDESInvalidInBufSize);
 
   MakeKey(Key, SubKey);
   while Count >= SizeOf(TCnDESBuffer) do
   begin
     Done := Source.Read(TempIn, SizeOf(TempIn));
     if Done < SizeOf(TempIn) then
-      raise EStreamError.Create(SReadError);
+      raise EStreamError.Create(SCnErrorDESReadError);
 
     DesData(dmDecry, SubKey, TempIn, TempOut);
 
     Done := Dest.Write(TempOut, SizeOf(TempOut));
     if Done < SizeOf(TempOut) then
-      raise EStreamError.Create(SWriteError);
+      raise EStreamError.Create(SCnErrorDESWriteError);
 
     Dec(Count, SizeOf(TCnDESBuffer));
   end;
@@ -1072,7 +1086,7 @@ begin
   begin
     Done := Source.Read(TempIn, SizeOf(TempIn));
     if Done < SizeOf(TempIn) then
-      raise EStreamError.Create(SReadError);
+      raise EStreamError.Create(SCnErrorDESReadError);
 
     PCardinal(@TempIn[0])^ := PCardinal(@TempIn[0])^ xor PCardinal(@Vector[0])^;
     PCardinal(@TempIn[4])^ := PCardinal(@TempIn[4])^ xor PCardinal(@Vector[4])^;
@@ -1081,7 +1095,7 @@ begin
 
     Done := Dest.Write(TempOut, SizeOf(TempOut));
     if Done < SizeOf(TempOut) then
-      raise EStreamError.Create(SWriteError);
+      raise EStreamError.Create(SCnErrorDESWriteError);
 
     Move(TempOut[0], Vector[0], SizeOf(TCnDESIv));
     Dec(Count, SizeOf(TCnDESBuffer));
@@ -1091,7 +1105,7 @@ begin
   begin
     Done := Source.Read(TempIn, Count);
     if Done < Count then
-      raise EStreamError.Create(SReadError);
+      raise EStreamError.Create(SCnErrorDESReadError);
     FillChar(TempIn[Count], SizeOf(TempIn) - Count, 0);
 
     PCardinal(@TempIn[0])^ := PCardinal(@TempIn[0])^ xor PCardinal(@Vector[0])^;
@@ -1101,7 +1115,7 @@ begin
 
     Done := Dest.Write(TempOut, SizeOf(TempOut));
     if Done < SizeOf(TempOut) then
-      raise EStreamError.Create(SWriteError);
+      raise EStreamError.Create(SCnErrorDESWriteError);
   end;
 end;
 
@@ -1124,7 +1138,7 @@ begin
   if Count = 0 then
     Exit;
   if (Count mod SizeOf(TCnDESBuffer)) > 0 then
-    raise Exception.Create(SInvalidInBufSize);
+    raise Exception.Create(SCnErrorDESInvalidInBufSize);
 
   Vector1 := InitVector;
   MakeKey(Key, SubKey);
@@ -1133,7 +1147,7 @@ begin
   begin
     Done := Source.Read(TempIn, SizeOf(TempIn));
     if Done < SizeOf(TempIn) then
-      raise EStreamError(SReadError);
+      raise EStreamError(SCnErrorDESReadError);
 
     Move(TempIn[0], Vector2[0], SizeOf(TCnDESIv));
     DesData(dmDecry, SubKey, TempIn, TempOut);
@@ -1143,7 +1157,7 @@ begin
 
     Done := Dest.Write(TempOut, SizeOf(TempOut));
     if Done < SizeOf(TempOut) then
-      raise EStreamError(SWriteError);
+      raise EStreamError(SCnErrorDESWriteError);
 
     Vector1 := Vector2;
     Dec(Count, SizeOf(TCnDESBuffer));
@@ -1196,6 +1210,11 @@ begin
     K2[I] := Ord(Keys[I + CN_DES_KEYSIZE]);
     K3[I] := Ord(Keys[I + CN_DES_KEYSIZE * 2]);
   end;
+end;
+
+function TripleDESGetOutputLengthFromInputLength(InputByteLength: Integer): Integer;
+begin
+  Result := (((InputByteLength - 1) div CN_TRIPLE_DES_BLOCKSIZE) + 1) * CN_TRIPLE_DES_BLOCKSIZE;
 end;
 
 procedure TripleDESEncryptECBStr(Key: AnsiString; const Input: AnsiString; Output: PAnsiChar);
@@ -1350,9 +1369,9 @@ begin
   Result := TripleDESEncryptECBStrToHex(Str, Key);
 end;
 
-function TripleDESDecryptStrFromHex(const StrHex, Key: AnsiString): AnsiString;
+function TripleDESDecryptStrFromHex(const HexStr, Key: AnsiString): AnsiString;
 begin
-  Result := TripleDESDecryptECBStrFromHex(StrHex, Key);
+  Result := TripleDESDecryptECBStrFromHex(HexStr, Key);
 end;
 
 function TripleDESEncryptECBStrToHex(const Str, Key: AnsiString): AnsiString;
@@ -1373,11 +1392,11 @@ begin
   end;
 end;
 
-function TripleDESDecryptECBStrFromHex(const StrHex, Key: AnsiString): AnsiString;
+function TripleDESDecryptECBStrFromHex(const HexStr, Key: AnsiString): AnsiString;
 var
   Str: AnsiString;
 begin
-  Str := HexToAnsiStr(StrHex);
+  Str := HexToAnsiStr(HexStr);
   SetResultLengthUsingInput(Str, Result);
   TripleDESDecryptECBStr(Key, Str, @(Result[1]));
 end;
@@ -1400,11 +1419,11 @@ begin
   end;
 end;
 
-function TripleDESDecryptCBCStrFromHex(const StrHex, Key, Iv: AnsiString): AnsiString;
+function TripleDESDecryptCBCStrFromHex(const HexStr, Key, Iv: AnsiString): AnsiString;
 var
   Str: AnsiString;
 begin
-  Str := HexToAnsiStr(StrHex);
+  Str := HexToAnsiStr(HexStr);
   SetResultLengthUsingInput(Str, Result);
   TripleDESDecryptCBCStr(Key, PAnsiChar(Iv), Str, @(Result[1]));
 end;
@@ -1587,7 +1606,7 @@ begin
   begin
     Done := Source.Read(TempIn, SizeOf(TempIn));
     if Done < SizeOf(TempIn) then
-      raise EStreamError.Create(SReadError);
+      raise EStreamError.Create(SCnErrorDESReadError);
 
     DesData(dmEncry, SubKey1, TempIn, TempOut);
     DesData(dmDecry, SubKey2, TempOut, TempIn);
@@ -1595,7 +1614,7 @@ begin
 
     Done := Dest.Write(TempOut, SizeOf(TempOut));
     if Done < SizeOf(TempOut) then
-      raise EStreamError.Create(SWriteError);
+      raise EStreamError.Create(SCnErrorDESWriteError);
 
     Dec(Count, SizeOf(TCnDESBuffer));
   end;
@@ -1604,7 +1623,7 @@ begin
   begin
     Done := Source.Read(TempIn, Count);
     if Done < Count then
-      raise EStreamError.Create(SReadError);
+      raise EStreamError.Create(SCnErrorDESReadError);
     FillChar(TempIn[Count], SizeOf(TempIn) - Count, 0);
 
     DesData(dmEncry, SubKey1, TempIn, TempOut);
@@ -1613,7 +1632,7 @@ begin
 
     Done := Dest.Write(TempOut, SizeOf(TempOut));
     if Done < SizeOf(TempOut) then
-      raise EStreamError.Create(SWriteError);
+      raise EStreamError.Create(SCnErrorDESWriteError);
   end;
 end;
 
@@ -1636,7 +1655,7 @@ begin
   if Count = 0 then
     Exit;
   if (Count mod SizeOf(TCnDESBuffer)) > 0 then
-    raise Exception.Create(SInvalidInBufSize);
+    raise Exception.Create(SCnErrorDESInvalidInBufSize);
 
   Make3DESKeys(Key, K1, K2, K3);
   MakeKey(K1, SubKey1);
@@ -1647,7 +1666,7 @@ begin
   begin
     Done := Source.Read(TempIn, SizeOf(TempIn));
     if Done < SizeOf(TempIn) then
-      raise EStreamError.Create(SReadError);
+      raise EStreamError.Create(SCnErrorDESReadError);
 
     DesData(dmDecry, SubKey3, TempIn, TempOut);
     DesData(dmEncry, SubKey2, TempOut, TempIn);
@@ -1655,7 +1674,7 @@ begin
 
     Done := Dest.Write(TempOut, SizeOf(TempOut));
     if Done < SizeOf(TempOut) then
-      raise EStreamError.Create(SWriteError);
+      raise EStreamError.Create(SCnErrorDESWriteError);
 
     Dec(Count, SizeOf(TCnDESBuffer));
   end;
@@ -1691,7 +1710,7 @@ begin
   begin
     Done := Source.Read(TempIn, SizeOf(TempIn));
     if Done < SizeOf(TempIn) then
-      raise EStreamError.Create(SReadError);
+      raise EStreamError.Create(SCnErrorDESReadError);
 
     PCardinal(@TempIn[0])^ := PCardinal(@TempIn[0])^ xor PCardinal(@Vector[0])^;
     PCardinal(@TempIn[4])^ := PCardinal(@TempIn[4])^ xor PCardinal(@Vector[4])^;
@@ -1702,7 +1721,7 @@ begin
 
     Done := Dest.Write(TempOut, SizeOf(TempOut));
     if Done < SizeOf(TempOut) then
-      raise EStreamError.Create(SWriteError);
+      raise EStreamError.Create(SCnErrorDESWriteError);
 
     Move(TempOut[0], Vector[0], SizeOf(TCnDESIv));
     Dec(Count, SizeOf(TCnDESBuffer));
@@ -1712,7 +1731,7 @@ begin
   begin
     Done := Source.Read(TempIn, Count);
     if Done < Count then
-      raise EStreamError.Create(SReadError);
+      raise EStreamError.Create(SCnErrorDESReadError);
     FillChar(TempIn[Count], SizeOf(TempIn) - Count, 0);
 
     PCardinal(@TempIn[0])^ := PCardinal(@TempIn[0])^ xor PCardinal(@Vector[0])^;
@@ -1724,7 +1743,7 @@ begin
 
     Done := Dest.Write(TempOut, SizeOf(TempOut));
     if Done < SizeOf(TempOut) then
-      raise EStreamError.Create(SWriteError);
+      raise EStreamError.Create(SCnErrorDESWriteError);
   end;
 end;
 
@@ -1748,7 +1767,7 @@ begin
   if Count = 0 then
     Exit;
   if (Count mod SizeOf(TCnDESBuffer)) > 0 then
-    raise Exception.Create(SInvalidInBufSize);
+    raise Exception.Create(SCnErrorDESInvalidInBufSize);
 
   Vector1 := InitVector;
   Make3DESKeys(Key, K1, K2, K3);
@@ -1760,7 +1779,7 @@ begin
   begin
     Done := Source.Read(TempIn, SizeOf(TempIn));
     if Done < SizeOf(TempIn) then
-      raise EStreamError(SReadError);
+      raise EStreamError(SCnErrorDESReadError);
 
     Move(TempIn[0], Vector2[0], SizeOf(TCnDESIv));
 
@@ -1773,7 +1792,7 @@ begin
 
     Done := Dest.Write(TempOut, SizeOf(TempOut));
     if Done < SizeOf(TempOut) then
-      raise EStreamError(SWriteError);
+      raise EStreamError(SCnErrorDESWriteError);
 
     Vector1 := Vector2;
     Dec(Count, SizeOf(TCnDESBuffer));

@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2023 CnPack 开发组                       }
+{                   (C)Copyright 2001-2024 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -13,7 +13,7 @@
 {            您应该已经和开发包一起收到一份 CnPack 发布协议的副本。如果        }
 {        还没有，可访问我们的网站：                                            }
 {                                                                              }
-{            网站地址：http://www.cnpack.org                                   }
+{            网站地址：https://www.cnpack.org                                  }
 {            电子邮件：master@cnpack.org                                       }
 {                                                                              }
 {******************************************************************************}
@@ -23,7 +23,7 @@ unit CnMemo;
 ================================================================================
 * 软件名称：界面控件包
 * 单元名称：有行号显示功能的 Memo
-* 单元作者：刘啸 (liuxiao@cnpack.org)
+* 单元作者：CnPack 开发组 (master@cnpack.org)
 * 备    注：该单元当前仅为内部参考测试用
 * 开发平台：PWin7 + Delphi 5.0
 * 兼容测试：PWinXP/7 + Delphi 5/6
@@ -39,7 +39,7 @@ interface
 
 uses
   SysUtils, Windows, Classes, Messages, Controls, Graphics, StdCtrls, ExtCtrls,
-  Dialogs, SysConst, Forms, Clipbrd, CnNative, CnTextControl, CnCommon;
+  Dialogs, SysConst, Forms, Clipbrd, CnNative, CnTextControl, CnCommon, CnWideStrings;
 
 type
 {$IFDEF UNICODE}
@@ -735,7 +735,7 @@ begin
         GetTextExtentPoint32(Canvas.Handle, PChar(S), I, Size);
 {$ELSE}
         // I 指向宽字符串的下标索引，非 Unicode 环境下要转成 Ansi 模式再量宽度
-        T := CalcAnsiLengthFromWideStringOffset(PWideChar(SW), I);
+        T := CalcAnsiDisplayLengthFromWideStringOffset(PWideChar(SW), I);
         GetTextExtentPoint32(Canvas.Handle, PChar(S), T, Size);
 {$ENDIF}
         X := Size.cx;
@@ -842,7 +842,7 @@ begin
         GetTextExtentPoint32(Canvas.Handle, PChar(S), I, Size);
 {$ELSE}
         // I 指向宽字符串的下标索引，非 Unicode 环境下要转成 Ansi 模式再量宽度
-        T := CalcAnsiLengthFromWideStringOffset(PWideChar(SW), I);
+        T := CalcAnsiDisplayLengthFromWideStringOffset(PWideChar(SW), I);
         GetTextExtentPoint32(Canvas.Handle, PChar(S), T, Size);
 {$ENDIF}
         X := Size.cx;
@@ -971,7 +971,7 @@ begin
           SSC := NewValue;
 {$ELSE}
           WS := WideString(S);
-          SSC := CalcAnsiLengthFromWideStringOffset(PWideChar(WS), NewValue - 1) + 1;
+          SSC := CalcAnsiDisplayLengthFromWideStringOffset(PWideChar(WS), NewValue - 1) + 1;
 {$ENDIF}
         end;
 
@@ -1006,7 +1006,7 @@ begin
           SEC := NewValue;
 {$ELSE}
           WS := WideString(S);
-          SEC := CalcAnsiLengthFromWideStringOffset(PWideChar(WS), NewValue - 1) + 1;
+          SEC := CalcAnsiDisplayLengthFromWideStringOffset(PWideChar(WS), NewValue - 1) + 1;
 {$ENDIF}
         end;
 
@@ -1056,7 +1056,7 @@ begin
 {$IFDEF UNICODE}
           SSC := NewValue;
 {$ELSE}
-          SSC := CalcAnsiLengthFromWideStringOffset(PWideChar(WS), NewValue - 1) + 1;
+          SSC := CalcAnsiDisplayLengthFromWideStringOffset(PWideChar(WS), NewValue - 1) + 1;
 {$ENDIF}
         end;
 
@@ -1065,7 +1065,7 @@ begin
 {$IFDEF UNICODE}
           SEC := NewValue;
 {$ELSE}
-          SEC := CalcAnsiLengthFromWideStringOffset(PWideChar(WS), NewValue - 1) + 1;
+          SEC := CalcAnsiDisplayLengthFromWideStringOffset(PWideChar(WS), NewValue - 1) + 1;
 {$ENDIF}
         end;
 
@@ -1216,7 +1216,7 @@ begin
 {$IFDEF UNICODE}
           SSC := NewValue;
 {$ELSE}
-          SSC := CalcAnsiLengthFromWideStringOffset(PWideChar(WS), NewValue - 1) + 1;
+          SSC := CalcAnsiDisplayLengthFromWideStringOffset(PWideChar(WS), NewValue - 1) + 1;
 {$ENDIF}
         end;
 
@@ -1225,7 +1225,7 @@ begin
 {$IFDEF UNICODE}
           SEC := NewValue;
 {$ELSE}
-          SEC := CalcAnsiLengthFromWideStringOffset(PWideChar(WS), NewValue - 1) + 1;
+          SEC := CalcAnsiDisplayLengthFromWideStringOffset(PWideChar(WS), NewValue - 1) + 1;
 {$ENDIF}
         end;
 
@@ -1255,7 +1255,7 @@ begin
             SSC := NewValue;
 {$ELSE}
             WS := WideString(S);
-            SSC := CalcAnsiLengthFromWideStringOffset(PWideChar(WS), NewValue - 1) + 1;
+            SSC := CalcAnsiDisplayLengthFromWideStringOffset(PWideChar(WS), NewValue - 1) + 1;
 {$ENDIF}
             Result := Copy(S, SSC, MaxInt);
           end;
@@ -1269,7 +1269,7 @@ begin
             SEC := NewValue;
 {$ELSE}
             WS := WideString(S);
-            SEC := CalcAnsiLengthFromWideStringOffset(PWideChar(WS), NewValue - 1) + 1;
+            SEC := CalcAnsiDisplayLengthFromWideStringOffset(PWideChar(WS), NewValue - 1) + 1;
 {$ENDIF}
             Result := Result + CRLF + Copy(S, 1, SEC - 1);
           end
@@ -1375,7 +1375,7 @@ begin
 {$IFDEF UNICODE}
           SSC := NewValue;
 {$ELSE}
-          SSC := CalcAnsiLengthFromWideStringOffset(PWideChar(WS), NewValue - 1) + 1;
+          SSC := CalcAnsiDisplayLengthFromWideStringOffset(PWideChar(WS), NewValue - 1) + 1;
 {$ENDIF}
         end;
 
@@ -1384,7 +1384,7 @@ begin
 {$IFDEF UNICODE}
           SEC := NewValue;
 {$ELSE}
-          SEC := CalcAnsiLengthFromWideStringOffset(PWideChar(WS), NewValue - 1) + 1;
+          SEC := CalcAnsiDisplayLengthFromWideStringOffset(PWideChar(WS), NewValue - 1) + 1;
 {$ENDIF}
         end;
 
@@ -1414,7 +1414,7 @@ begin
             SSC := NewValue;
 {$ELSE}
             WS := WideString(S);
-            SSC := CalcAnsiLengthFromWideStringOffset(PWideChar(WS), NewValue - 1) + 1;
+            SSC := CalcAnsiDisplayLengthFromWideStringOffset(PWideChar(WS), NewValue - 1) + 1;
 {$ENDIF}
             Delete(S, SSC, MaxInt);
           end
@@ -1439,7 +1439,7 @@ begin
             SEC := NewValue;
 {$ELSE}
             WS := WideString(S);
-            SEC := CalcAnsiLengthFromWideStringOffset(PWideChar(WS), NewValue - 1) + 1;
+            SEC := CalcAnsiDisplayLengthFromWideStringOffset(PWideChar(WS), NewValue - 1) + 1;
 {$ENDIF}
             Delete(S, 1, SEC - 1);
 
@@ -1541,7 +1541,7 @@ begin
         ACol := NewValue;
 {$ELSE}
         WS := WideString(S);
-        ACol := CalcAnsiLengthFromWideStringOffset(PWideChar(WS), NewValue - 1) + 1;
+        ACol := CalcAnsiDisplayLengthFromWideStringOffset(PWideChar(WS), NewValue - 1) + 1;
 {$ENDIF}
         FStrings[ARow - 1] := Copy(S, 1, ACol - 1) + SL[0] + Copy(S, ACol, MaxInt);
       end
@@ -1580,7 +1580,7 @@ begin
             ACol := NewValue;
 {$ELSE}
             WS := WideString(S);
-            ACol := CalcAnsiLengthFromWideStringOffset(PWideChar(WS), NewValue - 1) + 1;
+            ACol := CalcAnsiDisplayLengthFromWideStringOffset(PWideChar(WS), NewValue - 1) + 1;
 {$ENDIF}
             FStrings[ARow - 1] := Copy(S, 1, ACol - 1) + SL[0];
             LastS := Copy(S, ACol, MaxInt);

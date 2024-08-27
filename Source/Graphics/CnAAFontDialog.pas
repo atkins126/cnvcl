@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2023 CnPack 开发组                       }
+{                   (C)Copyright 2001-2024 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -13,7 +13,7 @@
 {            您应该已经和开发包一起收到一份 CnPack 发布协议的副本。如果        }
 {        还没有，可访问我们的网站：                                            }
 {                                                                              }
-{            网站地址：http://www.cnpack.org                                   }
+{            网站地址：https://www.cnpack.org                                  }
 {            电子邮件：master@cnpack.org                                       }
 {                                                                              }
 {******************************************************************************}
@@ -108,7 +108,6 @@ type
     procedure btnClearPicClick(Sender: TObject);
     procedure FormCreate(Sender: TObject);
   private
-    { Private declarations }
     FUpdating: Boolean;
     AALabel: TCnAALabel;
     procedure SetEffect(const Value: TCnAAEffect);
@@ -119,13 +118,15 @@ type
     procedure GetEffectFromControls;
     procedure UpdateEffect;
   public
-    { Public declarations }
     property Effect: TCnAAEffect read GetEffect write SetEffect;
     property TestFont: TFont read GetTestFont write SetTestFont;
   end;
 
 { TCnAAFontDialog }
 
+{$IFDEF SUPPORT_32_AND_64}
+  [ComponentPlatformsAttribute(pidWin32 or pidWin64)]
+{$ENDIF}
   TCnAAFontDialog = class(TComponent)
   {* 平滑特效字体对话框组件，使用方法同普通对话框}
   private

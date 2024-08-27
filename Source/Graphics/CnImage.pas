@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2023 CnPack 开发组                       }
+{                   (C)Copyright 2001-2024 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -13,7 +13,7 @@
 {            您应该已经和开发包一起收到一份 CnPack 发布协议的副本。如果        }
 {        还没有，可访问我们的网站：                                            }
 {                                                                              }
-{            网站地址：http://www.cnpack.org                                   }
+{            网站地址：https://www.cnpack.org                                  }
 {            电子邮件：master@cnpack.org                                       }
 {                                                                              }
 {******************************************************************************}
@@ -98,9 +98,8 @@ type
 { TCnImage }
 
   TCnImage = class(TCnGraphicControl)
-  {* 用于测试CnPack图像类基础库的控件，功能类似于TImage}
+  {* 用于测试 CnPack 图像类基础库的控件，功能类似于 TImage}
   private
-    { Private declarations }
     FDrawStyle: TCnDrawMode;
     FBitmap: TCnBitmap;
     function GetSmoothFilter: Boolean;
@@ -110,18 +109,15 @@ type
     function GetFont: TCnFont;
     procedure SetFont(const Value: TCnFont);
   protected
-    { Protected declarations }
     procedure Paint; override;
     procedure SetTransparent(const Value: Boolean); override;
     function CanAutoSize(var NewWidth, NewHeight: Integer): Boolean; override;
     procedure OnChildChange(Sender: TObject); override;
   public
-    { Public declarations }
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
     property Face;
   published
-    { Published declarations }
     property Align;
     property Anchors;
     property AutoSize;

@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2023 CnPack 开发组                       }
+{                   (C)Copyright 2001-2024 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -13,7 +13,7 @@
 {            您应该已经和开发包一起收到一份 CnPack 发布协议的副本。如果        }
 {        还没有，可访问我们的网站：                                            }
 {                                                                              }
-{            网站地址：http://www.cnpack.org                                   }
+{            网站地址：https://www.cnpack.org                                  }
 {            电子邮件：master@cnpack.org                                       }
 {                                                                              }
 {******************************************************************************}
@@ -23,7 +23,7 @@ unit CnMath;
 ================================================================================
 * 软件名称：开发包基础库
 * 单元名称：数学计算的算法单元
-* 单元作者：刘啸
+* 单元作者：CnPack 开发组
 * 备    注：旨在脱离 Math 库，先不太管运行效率
 * 开发平台：Win 7 + Delphi 5.0
 * 兼容测试：暂未进行
@@ -42,12 +42,16 @@ uses
 
 const
   CN_PI = 3.1415926535897932384626;
+  CN_FLOAT_DEFAULT_DIGIT = 10;
 
 function CnAbs(F: Extended): Extended; {$IFDEF SUPPORT_INLINE} inline; {$ENDIF}
 {* 计算绝对值}
 
 function CnFloor(F: Extended): Integer; {$IFDEF SUPPORT_INLINE} inline; {$ENDIF}
-{* 向下取整}
+{* 向数轴负方向取整}
+
+function CnCeil(F: Extended): Integer; {$IFDEF SUPPORT_INLINE} inline; {$ENDIF}
+{* 向数轴正方向取整}
 
 {
   计算连分数：
@@ -105,10 +109,22 @@ function FloatEqual(A, B: Extended): Boolean; {$IFDEF SUPPORT_INLINE} inline; {$
 function NormalizeAngle(Angle: Extended): Extended;
 {* 将角度变至 [0, 2π) 范围内}
 
+function FloatToHex(Value: Extended; MaxDigit: Integer = CN_FLOAT_DEFAULT_DIGIT): string;
+{* 浮点数转换为十六进制字符串，包括整数部分与小数部分，MaxDigit 指明除不尽时最多保留小数点后多少位}
+
+function HexToFloat(const Hex: string): Extended;
+{* 十六进制字符串转换成浮点数，支持带小数点的小数}
+
+function CnIntAbs(N: Integer): Integer;
+{* 取得整型的绝对值}
+
+function CnInt64Abs(N: Int64): Int64;
+{* 取得 Int64 的绝对值}
+
 implementation
 
 uses
-  CnBigDecimal;
+  CnBigDecimal, CnNative;
 
 const
   SCN_FLOAT_GAP = 0.000001;         // 普通浮点判断
@@ -117,8 +133,8 @@ const
   SCN_LOGN_TO_LOG10 = 0.43429448190325182765112891891661;
 
 resourcestring
-  SCN_SQRT_RANGE_ERROR = 'Sqrt Range Error.';
-  SCN_LOG_RANGE_ERROR = 'Log Range Error.';
+  SCnErrorMathSqrtRange = 'Sqrt Range Error.';
+  SCnErrorMathLogRange = 'Log Range Error.';
 
 function CnAbs(F: Extended): Extended;
 begin
@@ -135,6 +151,13 @@ begin
     Dec(Result);
 end;
 
+function CnCeil(F: Extended): Integer;
+begin
+  Result := Trunc(F);
+  if Frac(F) > 0 then
+    Inc(Result);
+end;
+
 {$HINTS OFF}
 
 function Int64Sqrt(N: Int64): Extended;
@@ -142,7 +165,7 @@ var
   X0: Extended;
 begin
   if N < 0 then
-    raise ERangeError.Create(SCN_SQRT_RANGE_ERROR);
+    raise ERangeError.Create(SCnErrorMathSqrtRange);
 
   Result := 0;
   if (N = 0) or (N = 1) then
@@ -167,7 +190,7 @@ var
   X0: Extended;
 begin
   if F < 0 then
-    raise ERangeError.Create(SCN_SQRT_RANGE_ERROR);
+    raise ERangeError.Create(SCnErrorMathSqrtRange);
 
   Result := 0;
   if (F = 0) or (F = 1) then
@@ -196,7 +219,7 @@ var
   Z, D: Extended;
 begin
   if N <= 0 then
-    raise ERangeError.Create(SCN_LOG_RANGE_ERROR);
+    raise ERangeError.Create(SCnErrorMathLogRange);
 
   Result := 0;
   if N = 1 then
@@ -230,7 +253,7 @@ var
   Z, D: Extended;
 begin
   if F <= 0 then
-    raise ERangeError.Create(SCN_LOG_RANGE_ERROR);
+    raise ERangeError.Create(SCnErrorMathLogRange);
 
   Result := 0;
   if F = 1 then
@@ -473,6 +496,151 @@ begin
   Result := Result - 2 * CN_PI * CnFloor(Result / (2 * CN_PI));
   if Result < 0 then
     Result := Result + 2 * CN_PI;
+end;
+
+function FloatToHex(Value: Extended; MaxDigit: Integer): string;
+var
+  A, B: Extended;
+  S: string;
+  Neg: Boolean;
+  R, C: Integer;
+begin
+  A := Int(Value);
+  B := Frac(Value);
+
+  Neg := A < 0;
+  if Neg then
+  begin
+    A := -A;
+    B := -B;
+  end;
+
+  Result := '';
+  while not FloatAlmostZero(A) do
+  begin
+    // 求 A 除以 16 的余数
+    R := Trunc(A - Int(A / 16.0) * 16);
+
+    // 将余数转换为十六进制字符并添加到字符串
+    Result := IntToHex(R, 1) + Result;
+
+    // 整数部分除以 16
+    A := Int(A / 16);
+  end;
+
+  C := 0;
+  S := '.';
+  while (CnAbs(B) >= SCN_EXTEND_GAP) and (C <= MaxDigit) do
+  begin
+    B := B * 16;               // 乘以 16 取整数部分
+    R := Trunc(B);
+    S := S + IntToHex(R, 1);
+
+    B := B - R;
+    Inc(C);
+  end;
+
+  if Result = '' then
+    Result := '0'
+  else if Neg then
+    Result := '-' + Result;
+
+  if S <> '.' then
+    Result := Result + S;
+end;
+
+function HexToFloat(const Hex: string): Extended;
+var
+  I: Integer;
+  S: string;
+  Neg: Boolean;
+
+  function HexIntegerToFloat(Hex: PChar; CharLen: Integer): Extended;
+  var
+    I: Integer;
+    C: Char;
+  begin
+    Result := 0;
+    for I := 0 to CharLen - 1 do
+    begin
+      C := Hex[I];
+      if (C >= '0') and (C <= '9') then
+        Result := Result * 16 + Ord(C) - Ord('0')
+      else if (C >= 'A') and (C <= 'F') then
+        Result := Result * 16 + Ord(C) - Ord('A') + 10
+      else if (C >= 'a') and (C <= 'f') then
+        Result := Result * 16 + Ord(C) - Ord('a') + 10
+      else
+        raise Exception.CreateFmt('Error: not a Hex PChar: %c', [C]);
+    end;
+  end;
+
+  function HexDecimalToFloat(Hex: PChar; CharLen: Integer): Extended;
+  var
+    I: Integer;
+    C: Char;
+    R: Extended;
+  begin
+    Result := 0;
+    R := 1;
+    for I := 0 to CharLen - 1 do
+    begin
+      C := Hex[I];
+      R := R / 16;
+      if (C >= '0') and (C <= '9') then
+        Result := Result + (Ord(C) - Ord('0')) * R
+      else if (C >= 'A') and (C <= 'F') then
+        Result := Result + (Ord(C) - Ord('A') + 10) * R
+      else if (C >= 'a') and (C <= 'f') then
+        Result := Result + (Ord(C) - Ord('a') + 10) * R
+      else
+        raise Exception.CreateFmt('Error: not a Hex PChar: %c', [C]);
+    end;
+  end;
+
+begin
+  I := Pos('.', Hex);
+  if I > 0 then
+    S := Copy(Hex, 1, I - 1)
+  else
+    S := Hex;
+
+  Neg := False;
+  if (Length(S) > 0) and (S[1] = '-') then
+  begin
+    Delete(S, 1, 1);
+    Neg := True;
+  end;
+
+  // 整数部分转换成值
+  Result := HexIntegerToFloat(PChar(S), Length(S));
+
+  if I > 0 then
+  begin
+    S := Copy(Hex, I + 1, MaxInt);
+
+    // 把小数部分转换成值
+    Result := Result + HexDecimalToFloat(PChar(S), Length(S));
+  end;
+
+  if Neg then
+    Result := -Result;
+end;
+
+function CnIntAbs(N: Integer): Integer;
+begin
+  if N < 0 then
+    Result := -N
+  else
+    Result := N;
+end;
+
+function CnInt64Abs(N: Int64): Int64;
+begin
+  if N < 0 then
+    Result := -N
+  else
+    Result := N;
 end;
 
 end.

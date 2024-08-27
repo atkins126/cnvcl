@@ -57,6 +57,12 @@ type
     btnCompareUnicodeString: TButton;
     btnCompareUnicodeString2: TButton;
     btnPinYinTest: TButton;
+    grpPuaNTS: TGroupBox;
+    btnGenGB18030PuaUtf16: TButton;
+    btnGenGB18030Utf16Pua: TButton;
+    btnGenGB18030UnicodeMapBMP: TButton;
+    btnGenGB18030UnicodeMapSMP: TButton;
+    btnGenUnicodePuaList: TButton;
     procedure btnCodePointFromUtf161Click(Sender: TObject);
     procedure btnCodePointFromUtf162Click(Sender: TObject);
     procedure btnUtf16CharLengthClick(Sender: TObject);
@@ -95,6 +101,11 @@ type
     procedure btnCompareUnicodeStringClick(Sender: TObject);
     procedure btnCompareUnicodeString2Click(Sender: TObject);
     procedure btnPinYinTestClick(Sender: TObject);
+    procedure btnGenGB18030PuaUtf16Click(Sender: TObject);
+    procedure btnGenGB18030Utf16PuaClick(Sender: TObject);
+    procedure btnGenGB18030UnicodeMapBMPClick(Sender: TObject);
+    procedure btnGenGB18030UnicodeMapSMPClick(Sender: TObject);
+    procedure btnGenUnicodePuaListClick(Sender: TObject);
   private
     // 以 Windows API 的方式批量生成 256 个 Unicode 字符
     procedure GenUtf16Page(Page: Byte; Content: TCnWideStringList);
@@ -109,23 +120,30 @@ type
     // 取到下一个四字节值的 GB18030 字符编码值
     procedure Step4GB18030CodePoint(var CP: TCnCodePoint);
 
-    // 以 Windows API 的方式代码生成 GB1830 到 Unicode 的批量映射区间，供比对结果
+    // 以 Windows API 的方式代码生成 GB18030 到 Unicode 的批量映射区间，供比对结果
     function Gen2GB18030ToUtf16Page(FromH, FromL, ToH, ToL: Byte; Content: TCnWideStringList): Integer;
     function Gen4GB18030ToUtf16Page(From4, To4: TCnCodePoint; Content: TCnWideStringList): Integer;
 
-    // 以 Windows API 的方式代码生成 GB1830 到 Unicode 的映射数组内容，供 CnPack 编程使用
+    // 以 Windows API 的方式代码生成 GB18030 到 Unicode 的映射数组内容，供 CnPack 编程使用
     function Gen2GB18030ToUtf16Array(FromH, FromL, ToH, ToL: Byte; CGB, CU: TCnWideStringList): Integer;
     function Gen4GB18030ToUtf16Array(From4, To4: TCnCodePoint; CGB, CU: TCnWideStringList): Integer;
 
-    // 以 CnPack 的代码生成 GB1830 到 Unicode 的批量映射区间，供和上面 Windows API 的方式比对结果
+    // 以 CnPack 的代码生成 GB18030 到 Unicode 的批量映射区间，供和上面 Windows API 的方式比对结果
     function GenCn2GB18030ToUtf16Page(FromH, FromL, ToH, ToL: Byte; Content: TCnAnsiStringList): Integer;
     function GenCn4GB18030ToUtf16Page(From4, To4: TCnCodePoint; Content: TCnAnsiStringList): Integer;
 
-    // 以 Windows API 的方式代码生成 Unicode 到 GB1830 的批量映射区间
+    // 以 CnPack 的代码生成 GB18030 到 Unicode 的批量映射区间，并加上字符本身
+    function GenCn2GB18030ToUtf16PageChar(FromH, FromL, ToH, ToL: Byte; Content: TCnWideStringList): Integer;
+    function GenCn4GB18030ToUtf16PageChar(From4, To4: TCnCodePoint; Content: TCnWideStringList): Integer;
+
+    // 以 Windows API 的方式代码生成 Unicode 到 GB18030 的批量映射区间
     function GenUnicodeToGB18030Page(FromU, ToU: TCnCodePoint; Content: TCnWideStringList): Integer;
 
     // 以 CnPack 的代码生成指定范围内的 Utf16 字符到 GB18030 字符的映射
     procedure GenCn2Utf16ToGB18030Page(FromH, FromL, ToH, ToL: Byte; Content: TCnAnsiStringList; H2: Word = 0);
+
+    // 以 CnPack 的代码生成指定范围内的 Utf16 字符到 GB18030 字符的映射，并加上字符本身
+    procedure GenCn2Utf16ToGB18030PageChars(FromH, FromL, ToH, ToL: Byte; Content: TCnWideStringList; H2: Word = 0);
 
     // 检查一个 GB18030 连续区间里 Unicode 的连续范围，Ranges 输出连续区的各自的起始编码和结束编码，以及个数
     procedure CheckRange(FromG, ToG: TCnCodePoint; Ranges, Others: TCnAnsiStringList; Threshold: Integer = 0);
@@ -149,6 +167,8 @@ const
   FACE_UTF8: array[0..3] of Byte = ($F0, $9F, $98, $82); // 笑哭了的表情符的 UTF8-MB4 表示
 
   CP_GB18030 = 54936;
+
+{$I ..\..\..\Source\Common\Unicode_Pua.inc}
 
 procedure TFormGB18030.btnCodePointFromUtf161Click(Sender: TObject);
 var
@@ -1948,6 +1968,231 @@ begin
   WS := '啊我要吃饭菜面油条了';
   for I := 1 to Length(WS) do
     ShowMessage(GetPinYinFromUtf16Char(WS[I]));
+end;
+
+procedure TFormGB18030.btnGenGB18030PuaUtf16Click(Sender: TObject);
+var
+  R: Integer;
+  WS: TCnWideStringList;
+begin
+  WS := TCnWideStringList.Create;
+// 双字节：
+//   A140~A77E, A180~A7A0          用户 3 区    不连续  672
+//   AAA1~AFFE                     用户 1 区    连续    564           E000 到 E233
+//   F8A1~FEFE                     用户 2 区    连续    658           E234 到 E4C5
+
+  R := 0;
+  WS.Add('区：双字节用户三; 上一区字符数：' + IntToStr(R));
+  R := GenCn2GB18030ToUtf16PageChar($A1, $40, $A7, $7E, WS);
+  R := R + GenCn2GB18030ToUtf16PageChar($A1, $80, $A7, $A0, WS);
+  WS.Add('区：双字节用户一; 上一区字符数：' + IntToStr(R));
+  R := GenCn2GB18030ToUtf16PageChar($AA, $A1, $AF, $FE, WS);
+  WS.Add('区：双字节用户二; 上一区字符数：' + IntToStr(R));
+  R := GenCn2GB18030ToUtf16PageChar($F8, $A1, $FE, $FE, WS);
+
+  WS.Add('区：四字节用户扩展; 上一区字符数：' + IntToStr(R));
+  R := GenCn4GB18030ToUtf16PageChar($FD308130, $FE39FE39, WS);
+  WS.Add('区：尾; 上一区字符数：' + IntToStr(R));
+
+  dlgSave1.FileName := 'GB18030_PUA_UTF16.txt';
+  if dlgSave1.Execute then
+  begin
+    WS.SaveToFile(dlgSave1.FileName);
+    ShowMessage('Save to ' + dlgSave1.FileName);
+  end;
+  WS.Free;
+end;
+
+function TFormGB18030.GenCn2GB18030ToUtf16PageChar(FromH, FromL, ToH,
+  ToL: Byte; Content: TCnWideStringList): Integer;
+var
+  H, L, T: Integer;
+  GBCP, UCP: TCnCodePoint;
+  S, C: WideString;
+begin
+  Result := 0;
+  for H := FromH to ToH do
+  begin
+    for L := FromL to ToL do
+    begin
+      GBCP := (H shl 8) or L;
+      UCP := GetUnicodeFromGB18030CodePoint(GBCP);
+      T := GetUtf16CharFromCodePoint(UCP, nil);
+      SetLength(C, T);
+      GetUtf16CharFromCodePoint(UCP, @C[1]);
+
+      S := IntToHex(GBCP, 2) + ' = ' + IntToHex(UCP, 2) + '  ' + C;
+
+      Content.Add(S);
+      Inc(Result);
+    end;
+  end;
+end;
+
+function TFormGB18030.GenCn4GB18030ToUtf16PageChar(From4,
+  To4: TCnCodePoint; Content: TCnWideStringList): Integer;
+var
+  T: Integer;
+  GBCP, UCP: TCnCodePoint;
+  S, C: WideString;
+begin
+  Result := 0;
+  GBCP := From4;
+  while GBCP <= To4 do
+  begin
+    UCP := GetUnicodeFromGB18030CodePoint(GBCP);
+    T := GetUtf16CharFromCodePoint(UCP, nil);
+    SetLength(C, T);
+    GetUtf16CharFromCodePoint(UCP, @C[1]);
+
+    S := IntToHex(GBCP, 2) + ' = ' + IntToHex(UCP, 2) + '  ' + C;
+
+    Content.Add(S);
+    Inc(Result);
+
+    Step4GB18030CodePoint(GBCP);
+  end;
+end;
+
+procedure TFormGB18030.GenCn2Utf16ToGB18030PageChars(FromH, FromL, ToH,
+  ToL: Byte; Content: TCnWideStringList; H2: Word);
+var
+  H, L, T: Integer;
+  GBCP, UCP: TCnCodePoint;
+  S, C: WideString;
+begin
+  for H := FromH to ToH do
+  begin
+    for L := FromL to ToL do
+    begin
+      UCP := ((H shl 8) or L) + (H2 shl 16);
+      T := GetUtf16CharFromCodePoint(UCP, nil);
+      SetLength(C, T);
+      GetUtf16CharFromCodePoint(UCP, @C[1]);
+
+      GBCP := GetGB18030FromUnicodeCodePoint(UCP);
+      if GBCP <> CN_INVALID_CODEPOINT then
+      begin
+        S := IntToHex(UCP, 2) + ' = ' + IntToHex(GBCP, 2) + '  ' + C;
+      end
+      else
+        S := IntToHex(UCP, 2) + ' = ';
+
+      Content.Add(S);
+    end;
+  end;
+end;
+
+procedure TFormGB18030.btnGenGB18030Utf16PuaClick(Sender: TObject);
+var
+  SL: TCnWideStringList;
+begin
+  SL := TCnWideStringList.Create;
+
+  GenCn2Utf16ToGB18030PageChars($E0, 0, $F8, $FF, SL);
+  GenCn2Utf16ToGB18030PageChars(0, 0, $FF, $FF, SL, $F);
+  GenCn2Utf16ToGB18030PageChars(0, 0, $FF, $FF, SL, $10);
+
+  dlgSave1.FileName := 'UTF16_PUA_GB18030.txt';
+  if dlgSave1.Execute then
+  begin
+    SL.SaveToFile(dlgSave1.FileName);
+    ShowMessage('Save to ' + dlgSave1.FileName);
+  end;
+  SL.Free;
+end;
+
+procedure TFormGB18030.btnGenGB18030UnicodeMapBMPClick(Sender: TObject);
+var
+  UCP, GBCP: TCnCodePoint;
+  SL: TCnAnsiStringList;
+  I: Integer;
+  S: AnsiString;
+begin
+  // 用 CnPack 的方法生成 Unicode 从 0000 开始 到 FFFF 的和 GB18030 对应的码表
+  // 以和信标委 NITS 提供的 GB18030-2022MappingTableBMP.txt 对照，注意内部部分调整码位的顺序不同但内容应一致
+  SL := TCnAnsiStringList.Create;
+  SL.UseSingleLF := True;
+  for I := $0 to $FFFF do
+  begin
+    UCP := TCnCodePoint(I);
+    GBCP := GetGB18030FromUnicodeCodePoint(UCP);
+    if GBCP <> CN_INVALID_CODEPOINT then
+    begin
+      S := Format('%4.4x', [UCP]) + #9 + IntToHex(GBCP, 2);
+      SL.Add(S);
+    end;
+  end;
+
+  dlgSave1.FileName := 'GB18030-2022MappingTableBMP_Cn.txt';
+  if dlgSave1.Execute then
+  begin
+    SL.SaveToFile(dlgSave1.FileName);
+    ShowMessage('Save to ' + dlgSave1.FileName);
+  end;
+  SL.Free;
+end;
+
+procedure TFormGB18030.btnGenGB18030UnicodeMapSMPClick(Sender: TObject);
+var
+  UCP, GBCP: TCnCodePoint;
+  SL: TCnAnsiStringList;
+  I: Integer;
+  S: AnsiString;
+begin
+  // 用 CnPack 的方法生成 Unicode 从 10000 开始 到 10FFFF 的和 GB18030 对应的码表
+  // 以和信标委 NITS 提供的 GB18030-2022MappingTableSMP.txt 对照，顺序内容应一致
+  SL := TCnAnsiStringList.Create;
+  SL.UseSingleLF := True;
+  for I := $10000 to $10FFFF do
+  begin
+    UCP := TCnCodePoint(I);
+    GBCP := GetGB18030FromUnicodeCodePoint(UCP);
+    if GBCP <> CN_INVALID_CODEPOINT then
+    begin
+      S := Format('%x', [UCP]) + #9 + IntToHex(GBCP, 2);
+      SL.Add(S);
+    end;
+  end;
+
+  dlgSave1.FileName := 'GB18030-2022MappingTableSMP_Cn.txt';
+  if dlgSave1.Execute then
+  begin
+    SL.SaveToFile(dlgSave1.FileName);
+    ShowMessage('Save to ' + dlgSave1.FileName);
+  end;
+  SL.Free;
+end;
+
+procedure TFormGB18030.btnGenUnicodePuaListClick(Sender: TObject);
+var
+  I, T: Integer;
+  SL: TCnWideStringList;
+  S, C1, C2: WideString;
+begin
+  SL := TCnWideStringList.Create;
+  for I := Low(CN_UNICODE_PUA_MAPPING) to High(CN_UNICODE_PUA_MAPPING) do
+  begin
+    T := GetUtf16CharFromCodePoint(CN_UNICODE_PUA_MAPPING[I], nil);
+    SetLength(C1, T);
+    GetUtf16CharFromCodePoint(CN_UNICODE_PUA_MAPPING[I], @C1[1]);
+
+    T := GetUtf16CharFromCodePoint(CN_UNICODE_UCS_MAPPING[I], nil);
+    SetLength(C2, T);
+    GetUtf16CharFromCodePoint(CN_UNICODE_UCS_MAPPING[I], @C2[1]);
+
+    S := Format('%x', [CN_UNICODE_PUA_MAPPING[I]]) + '  ' + Format('%x', [CN_UNICODE_UCS_MAPPING[I]]) + '  ' + C1 + C2;
+
+    SL.Add(S);
+  end;
+
+  dlgSave1.FileName := 'Unicode_PUA.txt';
+  if dlgSave1.Execute then
+  begin
+    SL.SaveToFile(dlgSave1.FileName);
+    ShowMessage('Save to ' + dlgSave1.FileName);
+  end;
+  SL.Free;
 end;
 
 end.

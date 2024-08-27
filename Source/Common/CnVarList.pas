@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2023 CnPack 开发组                       }
+{                   (C)Copyright 2001-2024 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -13,7 +13,7 @@
 {            您应该已经和开发包一起收到一份 CnPack 发布协议的副本。如果        }
 {        还没有，可访问我们的网站：                                            }
 {                                                                              }
-{            网站地址：http://www.cnpack.org                                   }
+{            网站地址：https://www.cnpack.org                                  }
 {            电子邮件：master@cnpack.org                                       }
 {                                                                              }
 {******************************************************************************}
@@ -76,8 +76,13 @@ type
     {* 获得列表某位置的变体的对应类型的字符串}
     function GetObject(Index: Integer): TObject;
     {* 获得列表某位置的对象实例，如果不是对象则返回 nil}
-    function ToString: WideString;
+{$IFDEF UNICODE}
+    function ToString: string; override;
     {* 将变体列表转换成字符串，允许嵌套}
+{$ELSE}
+    function ToString: WideString; {$IFDEF OBJECT_HAS_TOSTRING} override; {$ENDIF}
+    {* 将变体列表转换成字符串，允许嵌套}
+{$ENDIF}
     function FromString(Text: WideString; var Error: string): Boolean;
     {* 从字符串中恢复变体列表，如格式不对则返回 False，出错信息在 Error 中}
     
@@ -590,10 +595,21 @@ begin
   end;
 end;
 
+{$IFDEF UNICODE}
+
+function TCnVarList.ToString: string;
+begin
+  Result := string(GetString(Self));
+end;
+
+{$ELSE}
+
 function TCnVarList.ToString: WideString;
 begin
   Result := GetString(Self);
 end;
+
+{$ENDIF}
 
 procedure CleanVarList;
 var

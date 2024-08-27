@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2023 CnPack 开发组                       }
+{                   (C)Copyright 2001-2024 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -13,7 +13,7 @@
 {            您应该已经和开发包一起收到一份 CnPack 发布协议的副本。如果        }
 {        还没有，可访问我们的网站：                                            }
 {                                                                              }
-{            网站地址：http://www.cnpack.org                                   }
+{            网站地址：https://www.cnpack.org                                  }
 {            电子邮件：master@cnpack.org                                       }
 {                                                                              }
 {******************************************************************************}
@@ -23,7 +23,7 @@ unit CnLockFree;
 ================================================================================
 * 软件名称：CnPack 组件包
 * 单元名称：涉及到无锁机制的一些原子操作封装以及无锁数据结构的实现
-* 单元作者：刘啸 (liuxiao@cnpack.org)
+* 单元作者：CnPack 开发组 (master@cnpack.org)
 * 备    注：封装了 CnAtomicCompareAndSet 的 CAS 实现，适应 32 位和 64 位
 *           并基于此实现了自旋锁与无锁有序链表、单读单写的无锁循环队列
 *           无锁有序链表参考了 Timothy L. Harris 的论文：
@@ -388,11 +388,15 @@ begin
        Result := Pointer(InterlockedCompareExchange(Integer(Target), Integer(NewValue), Integer(Comperand)));
     {$ENDIF}
   {$ELSE}
-  {$IFDEF FPC}
-  Result := Pointer(InterlockedCompareExchange(LongInt(Target), LongInt(NewValue), LongInt(Comperand)));
-  {$ELSE}// D567 下的 InterlockedCompareExchange 被声明为 Pointer
-  Result := InterlockedCompareExchange(Target, NewValue, Comperand);
-  {$ENDIF}
+    {$IFDEF FPC}
+      {$IFDEF CPU64BITS}
+      Result := Pointer(InterlockedCompareExchange64(QWord(Target), QWord(NewValue), QWord(Comperand)));
+      {$ELSE}
+      Result := Pointer(InterlockedCompareExchange(LongInt(Target), LongInt(NewValue), LongInt(Comperand)));
+      {$ENDIF}
+    {$ELSE}// D567 下的 InterlockedCompareExchange 被声明为 Pointer
+      Result := InterlockedCompareExchange(Target, NewValue, Comperand);
+    {$ENDIF}
   {$ENDIF}
 {$ENDIF}
 end;

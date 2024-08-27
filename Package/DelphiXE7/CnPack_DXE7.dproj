@@ -92,6 +92,7 @@
         </DelphiCompile>
         <DCCReference Include="vcl.dcp"/>
         <DCCReference Include="vclx.dcp"/>
+        <DCCReference Include="vclimg.dcp"/>
         <DCCReference Include="vcldb.dcp"/>
         <DCCReference Include="adortl.dcp"/>
         <DCCReference Include="dsnap.dcp"/>
@@ -127,14 +128,17 @@
         <DCCReference Include="..\..\Source\Common\CnIni.pas"/>
         <DCCReference Include="..\..\Source\Common\CnIniCfg.pas"/>
         <DCCReference Include="..\..\Source\Common\CnIniStrUtils.pas"/>
+        <DCCReference Include="..\..\Source\Common\CnJSON.pas"/>
         <DCCReference Include="..\..\Source\Common\CnLinkedList.pas"/>
         <DCCReference Include="..\..\Source\Common\CnLockFree.pas"/>
-        <DCCReference Include="..\..\Source\Common\CnMatrix.pas"/>
         <DCCReference Include="..\..\Source\Common\CnMath.pas"/>
+        <DCCReference Include="..\..\Source\Common\CnMatrix.pas"/>
         <DCCReference Include="..\..\Source\Common\CnMethodHook.pas"/>
         <DCCReference Include="..\..\Source\Common\CnMulticastEvent.pas"/>
         <DCCReference Include="..\..\Source\Common\CnObjAuto.pas"/>
+        <DCCReference Include="..\..\Source\Common\CnPDF.pas"/>
         <DCCReference Include="..\..\Source\Common\CnPE.pas"/>
+        <DCCReference Include="..\..\Source\Common\CnQuantum.pas"/>
         <DCCReference Include="..\..\Source\Common\CnRopes.pas"/>
         <DCCReference Include="..\..\Source\Common\CnShellUtils.pas"/>
         <DCCReference Include="..\..\Source\Common\CnSingleton.pas"/>
@@ -158,6 +162,7 @@
         <DCCReference Include="..\..\Source\Crypto\CnBase64.pas"/>
         <DCCReference Include="..\..\Source\Crypto\CnBerUtils.pas"/>
         <DCCReference Include="..\..\Source\Crypto\CnBigNumber.pas"/>
+        <DCCReference Include="..\..\Source\Crypto\CnBits.pas"/>
         <DCCReference Include="..\..\Source\Crypto\CnCertificateAuthority.pas"/>
         <DCCReference Include="..\..\Source\Crypto\CnComplex.pas"/>
         <DCCReference Include="..\..\Source\Crypto\CnCRC32.pas"/>
@@ -168,16 +173,20 @@
         <DCCReference Include="..\..\Source\Crypto\CnFNV.pas"/>
         <DCCReference Include="..\..\Source\Crypto\CnInt128.pas"/>
         <DCCReference Include="..\..\Source\Crypto\CnKDF.pas"/>
+        <DCCReference Include="..\..\Source\Crypto\CnLattice.pas"/>
         <DCCReference Include="..\..\Source\Crypto\CnMD5.pas"/>
         <DCCReference Include="..\..\Source\Crypto\CnNative.pas"/>
         <DCCReference Include="..\..\Source\Crypto\CnOTP.pas"/>
+        <DCCReference Include="..\..\Source\Crypto\CnOTS.pas"/>
         <DCCReference Include="..\..\Source\Crypto\CnPaillier.pas"/>
+        <DCCReference Include="..\..\Source\Crypto\CnPDFCrypt.pas"/>
         <DCCReference Include="..\..\Source\Crypto\CnPemUtils.pas"/>
         <DCCReference Include="..\..\Source\Crypto\CnPolynomial.pas"/>
         <DCCReference Include="..\..\Source\Crypto\CnPrimeNumber.pas"/>
         <DCCReference Include="..\..\Source\Crypto\CnRandom.pas"/>
+        <DCCReference Include="..\..\Source\Crypto\CnRC4.pas"/>
         <DCCReference Include="..\..\Source\Crypto\CnRSA.pas"/>
-        <DCCReference Include="..\..\Source\Crypto\CnCnSecretSharing.pas"/>
+        <DCCReference Include="..\..\Source\Crypto\CnSecretSharing.pas"/>
         <DCCReference Include="..\..\Source\Crypto\CnSHA1.pas"/>
         <DCCReference Include="..\..\Source\Crypto\CnSHA2.pas"/>
         <DCCReference Include="..\..\Source\Crypto\CnSHA3.pas"/>
@@ -186,6 +195,7 @@
         <DCCReference Include="..\..\Source\Crypto\CnSM4.pas"/>
         <DCCReference Include="..\..\Source\Crypto\CnSM9.pas"/>
         <DCCReference Include="..\..\Source\Crypto\CnTEA.pas"/>
+        <DCCReference Include="..\..\Source\Crypto\CnVector.pas"/>
         <DCCReference Include="..\..\Source\Crypto\CnZUC.pas"/>
         <DCCReference Include="..\..\Source\DbReport\CnADOBinding.pas"/>
         <DCCReference Include="..\..\Source\DbReport\CnADOUpdateSQL.pas"/>

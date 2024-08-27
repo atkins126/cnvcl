@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2023 CnPack 开发组                       }
+{                   (C)Copyright 2001-2024 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -13,7 +13,7 @@
 {            您应该已经和开发包一起收到一份 CnPack 发布协议的副本。如果        }
 {        还没有，可访问我们的网站：                                            }
 {                                                                              }
-{            网站地址：http://www.cnpack.org                                   }
+{            网站地址：https://www.cnpack.org                                  }
 {            电子邮件：master@cnpack.org                                       }
 {                                                                              }
 {******************************************************************************}
@@ -23,7 +23,7 @@ unit CnPropSheetFrm;
 ================================================================================
 * 软件名称：CnPack 公用单元
 * 单元名称：对象 RTTI 信息显示窗体单元
-* 单元作者：刘啸（LiuXiao） liuxiao@cnpack.org
+* 单元作者：CnPack 开发组 master@cnpack.org
 * 备    注：部分类在遍历其属性并读属性值时其内部会发生改动，如高版本的 TPicture
 *           读 Bitmap/Icon/Metafile 属性时读什么内部就会强行转成什么导致原有数据丢失
 *           该类副作用遇到时要注意
@@ -266,6 +266,7 @@ type
     FOnAfterEvaluateProperties: TNotifyEvent;
     FOnAfterEvaluateComponents: TNotifyEvent;
     FGraphics: TCnGraphicsObject;
+    FLazyInspect: Boolean;
     function GetEventCount: Integer;
     function GetPropCount: Integer;
     function GetInspectComplete: Boolean;
@@ -331,6 +332,7 @@ type
     property CollectionItemCount: Integer read GetCollectionItemCount;
     property MenuItemCount: Integer read GetMenuItemCount;
 
+    property LazyInspect: Boolean read FLazyInspect write FLazyInspect;
     property IsRefresh: Boolean read FIsRefresh write FIsRefresh;
     property InspectComplete: Boolean read GetInspectComplete
       write SetInspectComplete;
@@ -365,6 +367,9 @@ type
 
     procedure DoEvaluate; override;
   public
+    constructor Create(Data: Pointer); override;
+    destructor Destroy; override;
+
 {$IFDEF SUPPORT_ENHANCED_RTTI}
     function ChangeFieldValue(const FieldName, Value: string;
       FieldObj: TCnFieldObject): Boolean; override;
@@ -456,8 +461,7 @@ type
     FContentTypes: TCnPropContentTypes;
     FPropListPtr: PPropList;
     FPropCount: Integer;
-    FObjectPointer: Pointer;
-    // 指向 Object 实例或 标识字符串
+    FObjectPointer: Pointer; // 指向 Object 实例
     FInspector: TCnObjectInspector;
     FInspectParam: Pointer;
     FCurrObj: TObject;
@@ -485,6 +489,8 @@ type
     FOnAfterEvaluateComponents: TNotifyEvent;
     FShowTree: Boolean;
     FSyncMode: Boolean;
+    FObjectExpr: string; // Object 标识字符串
+    FInspectorClass: TCnObjectInspectorClass;
 
     procedure SetContentTypes(const Value: TCnPropContentTypes);
     procedure SetParentSheetForm(const Value: TCnPropSheetForm);
@@ -501,8 +507,6 @@ type
     procedure SaveATreeNode(ALeaf: TCnLeaf; ATreeNode: TTreeNode; var Valid: Boolean);
 
     procedure MsgInspectObject(var Msg: TMessage); message CN_INSPECTOBJECT;
-    procedure DoEvaluateBegin; virtual;
-    procedure DoEvaluateEnd; virtual;
 
     // 事件转移导出到外面
     procedure AfterEvaluateComponents(Sender: TObject);
@@ -513,15 +517,25 @@ type
   protected
     procedure TileBkToImageBmp;
     procedure Notification(AComponent: TComponent; Operation: TOperation); override;
+
   public
     procedure SetPropListSize(const Value: Integer);
     procedure InspectObject(Data: Pointer);
     procedure Clear;
+    procedure DoEvaluateBegin; virtual;
+    procedure DoEvaluateEnd; virtual;
+
     property ObjectPointer: Pointer read FObjectPointer write FObjectPointer;
+    {* 进程内待显示的对象实例，为 nil 表示不在进程内求值模式}
+    property ObjectExpr: string read FObjectExpr write FObjectExpr;
+    {* 远程求值模式的对象字符串，为空时表示不在远程求值模式}
+
     property ContentTypes: TCnPropContentTypes read FContentTypes write SetContentTypes;
     property ParentSheetForm: TCnPropSheetForm read FParentSheetForm write SetParentSheetForm;
     property ShowTree: Boolean read FShowTree write SetShowTree;
     property SyncMode: Boolean read FSyncMode write FSyncMode;
+    property InspectorClass: TCnObjectInspectorClass read FInspectorClass write FInspectorClass;
+    property InspectParam: Pointer read FInspectParam write FInspectParam;
 
     property OnEvaluateBegin: TNotifyEvent read FOnEvaluateBegin write FOnEvaluateBegin;
     property OnEvaluateEnd: TNotifyEvent read FOnEvaluateEnd write FOnEvaluateEnd;
@@ -560,6 +574,9 @@ implementation
 {$R *.DFM}
 
 {$R CnPropSheet.res}
+
+uses
+  CnDebug;
 
 type
   PParamData = ^TParamData;
@@ -673,16 +690,18 @@ var
 begin
   Result := pctProps;
   for I := Low(TCnPropContentType) to High(TCnPropContentType) do
+  begin
     if AStr = SCnPropContentType[I] then
     begin
       Result := I;
       Exit;
     end;
+  end;
 end;
 
-function EvaluatePointer(Address: Pointer; Data: Pointer = nil;
-  AForm: TCnPropSheetForm = nil; SyncMode: Boolean = False;
-  AParentSheet: TCnPropSheetForm = nil): TCnPropSheetForm;
+function EvaluatePointer(Address: Pointer; Data: Pointer;
+  AForm: TCnPropSheetForm; SyncMode: Boolean;
+  AParentSheet: TCnPropSheetForm): TCnPropSheetForm;
 begin
   Result := nil;
   if Address = nil then Exit;
@@ -691,6 +710,7 @@ begin
     AForm := TCnPropSheetForm.Create(nil);
 
   AForm.ObjectPointer := Address;
+  AForm.ObjectExpr := '';
   AForm.Clear;
   AForm.ParentSheetForm := AParentSheet;
   AForm.SyncMode := SyncMode;
@@ -699,8 +719,8 @@ begin
   begin
     AForm.DoEvaluateBegin;
     try
-      AForm.FInspectParam := Data;
-      AForm.InspectObject(AForm.FInspectParam);
+      AForm.InspectParam := Data;
+      AForm.InspectObject(AForm.InspectParam);
     finally
       AForm.DoEvaluateEnd;
       AForm.Show;  // After Evaluation. Show the form.
@@ -966,6 +986,7 @@ end;
 function GetPropValueStr(Instance: TObject; PropInfo: PPropInfo): string;
 var
   iTmp: Integer;
+  Obj: TObject;
   S: string;
   IntToId: TIntToIdent;
   AMethod: TMethod;
@@ -1008,8 +1029,8 @@ begin
       end;
     tkClass:
       begin
-        iTmp := GetOrdProp(Instance, PropInfo);
-        S := GetObjValueStr(TObject(iTmp));
+        Obj := GetObjectProp(Instance, PropInfo);
+        S := GetObjValueStr(Obj);
       end;
     tkEnumeration:
       S := GetEnumProp(Instance, PropInfo);
@@ -1793,15 +1814,18 @@ begin
     ObjClassName := FObjectInstance.ClassName;
 
     Hies := TStringList.Create;
-    ATmpClass := ObjectInstance.ClassType;
-    Hies.Add(ATmpClass.ClassName);
-    while ATmpClass.ClassParent <> nil do
-    begin
-      ATmpClass := ATmpClass.ClassParent;
+    try
+      ATmpClass := ObjectInstance.ClassType;
       Hies.Add(ATmpClass.ClassName);
+      while ATmpClass.ClassParent <> nil do
+      begin
+        ATmpClass := ATmpClass.ClassParent;
+        Hies.Add(ATmpClass.ClassName);
+      end;
+      Hierarchy := Hies.Text;
+    finally
+      Hies.Free;
     end;
-    Hierarchy := Hies.Text;
-    Hies.Free;
 
     DoAfterEvaluateHierarchy;
 
@@ -2778,6 +2802,18 @@ begin
   Result := True;
 end;
 
+constructor TCnLocalObjectInspector.Create(Data: Pointer);
+begin
+  inherited;
+
+end;
+
+destructor TCnLocalObjectInspector.Destroy;
+begin
+
+  inherited;
+end;
+
 { TCnPropSheetForm }
 
 procedure TCnPropSheetForm.FormCreate(Sender: TObject);
@@ -2891,12 +2927,14 @@ var
   end;
 
 begin
-  if ObjectInspectorClass = nil then
-    Exit;
-
   if FInspector = nil then
   begin
-    FInspector := TCnObjectInspector(ObjectInspectorClass.NewInstance);
+    if FInspectorClass = nil then // 外界未指定 InspectorClass 则用默认的，如也无则出错
+      FInspectorClass := ObjectInspectorClass;
+    if FInspectorClass = nil then
+      Exit;
+
+    FInspector := TCnObjectInspector(FInspectorClass.NewInstance);
     FInspector.Create(Data);
   end;
 
@@ -2906,8 +2944,15 @@ begin
   FInspector.OnAfterEvaluateControls := AfterEvaluateControls;
   FInspector.OnAfterEvaluateCollections := AfterEvaluateCollections;
   FInspector.OnAfterEvaluateHierarchy := AfterEvaluateHierarchy;
-  
-  FInspector.ObjectAddr := FObjectPointer;
+
+  if FObjectPointer <> nil then
+    FInspector.ObjectAddr := FObjectPointer
+  else if FObjectExpr <> '' then
+  begin
+    // 将 FObjectExpr 的字符串内容塞给 Inspector 实例的 ObjectAddr，Inspector 内部复制内容处理
+    FInspector.ObjectAddr := PChar(FObjectExpr);
+  end;
+
   FInspector.InspectObject;
 
   while not FInspector.InspectComplete do
@@ -2927,13 +2972,16 @@ begin
   else
     edtClassName.Text := 'Unknown Object';
 
+  if FObjectExpr = '' then
+  begin
 {$IFDEF WIN64}
-  edtObj.Text := Format('%16.16x', [NativeInt(FInspector.ObjectAddr)]);
-  edtClassName.Text := Format('%s: $%16.16x', [edtClassName.Text, NativeInt(FInspector.ObjectAddr)]);
+    edtObj.Text := Format('%16.16x', [NativeInt(FInspector.ObjectAddr)]);
+    edtClassName.Text := Format('%s: $%16.16x', [edtClassName.Text, NativeInt(FInspector.ObjectAddr)]);
 {$ELSE}
-  edtObj.Text := Format('%8.8x', [Integer(FInspector.ObjectAddr)]);
-  edtClassName.Text := Format('%s: $%8.8x', [edtClassName.Text, Integer(FInspector.ObjectAddr)]);
+    edtObj.Text := Format('%8.8x', [Integer(FInspector.ObjectAddr)]);
+    edtClassName.Text := Format('%s: $%8.8x', [edtClassName.Text, Integer(FInspector.ObjectAddr)]);
 {$ENDIF}
+  end;
 
   for I := 0 to FInspector.PropCount - 1 do
   begin
@@ -3079,8 +3127,13 @@ begin
   UpdateHierarchys;
   ContentTypes := FInspector.ContentTypes;
 
-  btnLocate.Visible := (TObject(FInspector.ObjectAddr) is TGraphicControl) or
-    (TObject(FInspector.ObjectAddr) is TWinControl); 
+  if FObjectExpr = '' then
+  begin
+    btnLocate.Visible := (TObject(FInspector.ObjectAddr) is TGraphicControl) or
+      (TObject(FInspector.ObjectAddr) is TWinControl);
+  end
+  else
+    btnLocate.Visible := False;
 end;
 
 procedure TCnPropSheetForm.SetContentTypes(const Value: TCnPropContentTypes);

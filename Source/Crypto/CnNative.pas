@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2023 CnPack 开发组                       }
+{                   (C)Copyright 2001-2024 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -13,7 +13,7 @@
 {            您应该已经和开发包一起收到一份 CnPack 发布协议的副本。如果        }
 {        还没有，可访问我们的网站：                                            }
 {                                                                              }
-{            网站地址：http://www.cnpack.org                                   }
+{            网站地址：https://www.cnpack.org                                  }
 {            电子邮件：master@cnpack.org                                       }
 {                                                                              }
 {******************************************************************************}
@@ -22,20 +22,27 @@ unit CnNative;
 {* |<PRE>
 ================================================================================
 * 软件名称：CnPack 组件包
-* 单元名称：32 位和 64 位的一些统一声明以及一堆基础实现
-* 单元作者：刘啸 (liuxiao@cnpack.org)
-* 备    注：Delphi XE 2 支持 32 和 64 以来，开放出的 NativeInt 和 NativeUInt 随
+* 单元名称：32 位和 64 位及跨平台的一些统一声明以及一大批基础函数的实现单元
+* 单元作者：CnPack 开发组 (master@cnpack.org)
+* 备    注：本单元包括一批 32 位和 64 位及跨平台的一些统一声明与实现。
+*           Delphi XE 2 支持 32 和 64 以来，开放出的 NativeInt 和 NativeUInt 随
 *           当前是 32 位还是 64 而动态变化，影响到的是 Pointer、Reference等东西。
 *           考虑到兼容性，固定长度的 32 位 Cardinal/Integer 等和 Pointer 这些就
 *           不能再通用了，即使 32 位下也被编译器禁止。因此本单元声明了几个类型，
 *           供同时在低版本和高版本的 Delphi 中使用。
-*           后来加入 UInt64 的包装，注意 D567 下不直接支持 UInt64 的运算，需要用
-*           辅助函数实现，目前实现了 div 与 mod
-*           另外地址运算 Integer(APtr) 在 64 位下尤其是 MacOS 上容易出现截断，需要用 NativeInt
+*
+*           本单元也包括在不支持 UInt64 的编译器 Delphi 5/6/7 下用 Int64 模拟 UInt64
+*           的各类运算，加减天然支持，但乘除需要模拟 div 与 mod。
+*           地址运算 Integer(APtr) 在 64 位下尤其是 MacOS 上容易出现截断，需要用 NativeInt。
+*
+*           另外实现了大小端相关、字节数组转换、固定耗时等方面的大量底层函数与工具类。
+*
 * 开发平台：PWin2000 + Delphi 5.0
 * 兼容测试：PWin9X/2000/XP + Delphi 5/6/7 XE 2
 * 本 地 化：该单元中的字符串均符合本地化处理方式
-* 修改记录：2022.11.11 V2.3
+* 修改记录：2023.08.14 V2.4
+*               补上几个时间固定的函数并改名
+*           2022.11.11 V2.3
 *               补上几个无符号数的字节顺序调换函数
 *           2022.07.23 V2.2
 *               增加几个内存位运算函数与二进制转换字符串函数，并改名为 CnNative
@@ -82,6 +89,11 @@ type
   PByte = Windows.PByte;
   {* D5 下 PByte 定义在 Windows 中，其他版本定义在 System 中，
     这里统一一下供外界使用 PByte 时无需 uses Windows，以有利于跨平台}
+{$ENDIF}
+
+{$IFDEF BCB5OR6}
+  PInt64 = ^Int64;
+  {* C++Builder 5/6 的 sysmac.h 里没有 PInt64 的定义（有的 PUINT64 大小写不同，不算）}
 {$ENDIF}
 
 {$IFDEF SUPPORT_32_AND_64}
@@ -152,11 +164,23 @@ type
 
 {$IFNDEF TBYTES_DEFINED}
   TBytes = array of Byte;
-  {* 无符号字节数组，未定义时定义上}
+  {* 无符号字节动态数组，未定义时定义上}
 {$ENDIF}
 
   TShortInts = array of ShortInt;
-  {* 有符号字节数组}
+  {* 有符号字节动态数组}
+
+  TSmallInts = array of SmallInt;
+  {* 有符号双字节动态数组}
+
+  TWords = array of Word;
+  {* 无符号双字节动态数组}
+
+  TIntegers = array of Integer;
+  {* 有符号四字节动态数组}
+
+  TCardinals = array of Cardinal;
+  {* 无符号四字节动态数组}
 
   PCnByte = ^Byte;
   PCnWord = ^Word;
@@ -170,6 +194,8 @@ type
 
 const
   CN_MAX_SQRT_INT64: Cardinal               = 3037000499;
+  CN_MAX_INT64: Int64                       = $7FFFFFFFFFFFFFFF;
+  CN_MIN_INT64: Int64                       = $8000000000000000;
   CN_MAX_UINT16: Word                       = $FFFF;
   CN_MAX_UINT32: Cardinal                   = $FFFFFFFF;
   CN_MAX_TUINT64: TUInt64                   = $FFFFFFFFFFFFFFFF;
@@ -233,11 +259,23 @@ function GetUInt64HighBits(B: TUInt64): Integer;
 function GetUInt32HighBits(B: Cardinal): Integer;
 {* 返回 Cardinal 的是 1 的最高二进制位是第几位，最低位是 0，如果没有 1，返回 -1}
 
+function GetUInt16HighBits(B: Word): Integer;
+{* 返回 Word 的是 1 的最高二进制位是第几位，最低位是 0，如果没有 1，返回 -1}
+
+function GetUInt8HighBits(B: Byte): Integer;
+{* 返回 Byte 的是 1 的最高二进制位是第几位，最低位是 0，如果没有 1，返回 -1}
+
 function GetUInt64LowBits(B: TUInt64): Integer;
 {* 返回 Int64 的是 1 的最低二进制位是第几位，最低位是 0，基本等同于末尾几个 0。如果没有 1，返回 -1}
 
 function GetUInt32LowBits(B: Cardinal): Integer;
 {* 返回 Cardinal 的是 1 的最低二进制位是第几位，最低位是 0，基本等同于末尾几个 0。如果没有 1，返回 -1}
+
+function GetUInt16LowBits(B: Word): Integer;
+{* 返回 Word 的是 1 的最低二进制位是第几位，最低位是 0，基本等同于末尾几个 0。如果没有 1，返回 -1}
+
+function GetUInt8LowBits(B: Byte): Integer;
+{* 返回 Byte 的是 1 的最低二进制位是第几位，最低位是 0，基本等同于末尾几个 0。如果没有 1，返回 -1}
 
 function Int64Mod(M, N: Int64): Int64;
 {* 封装的 Int64 Mod，M 碰到负值时取反求模再模减，但 N 仍要求正数否则结果不靠谱}
@@ -396,20 +434,28 @@ function UInt32NetworkToHost(Value: Cardinal): Cardinal;
 function UInt16NetworkToHost(Value: Word): Word;
 {* 将 UInt16 值从网络字节顺序转换为主机字节顺序，在小端环境中会进行转换}
 
+procedure MemoryNetworkToHost(AMem: Pointer; MemByteLen: Integer);
+{* 将一片内存区域从网络字节顺序转换为主机字节顺序，在小端环境中会进行转换，
+  该方法应用场合较少，大多二/四/八字节转换已经足够}
+
+procedure MemoryHostToNetwork(AMem: Pointer; MemByteLen: Integer);
+{* 将一片内存区域从主机字节顺序转换为网络字节顺序，在小端环境中会进行转换，
+  该方法应用场合较少，大多二/四/八字节转换已经足够}
+
 procedure ReverseMemory(AMem: Pointer; MemByteLen: Integer);
 {* 按字节顺序倒置一块内存块，字节内部不变}
 
 function ReverseBitsInInt8(V: Byte): Byte;
-{* 倒置一字节内容}
+{* 倒置一字节内部的位的内容}
 
 function ReverseBitsInInt16(V: Word): Word;
-{* 倒置二字节内容}
+{* 倒置二字节及其内部位的内容}
 
 function ReverseBitsInInt32(V: Cardinal): Cardinal;
-{* 倒置四字节内容}
+{* 倒置四字节及其内部位的内容}
 
 function ReverseBitsInInt64(V: Int64): Int64;
-{* 倒置八字节内容}
+{* 倒置八字节及其内部位的内容}
 
 procedure ReverseMemoryWithBits(AMem: Pointer; MemByteLen: Integer);
 {* 按字节顺序倒置一块内存块，并且每个字节也倒过来}
@@ -517,6 +563,9 @@ function HexToStream(const Hex: string; Stream: TStream): Integer;
 procedure ReverseBytes(Data: TBytes);
 {* 按字节顺序倒置一字节数组}
 
+function CloneBytes(Data: TBytes): TBytes;
+{* 复制一个新的字节数组}
+
 function StreamToBytes(Stream: TStream): TBytes;
 {* 从流从头读入全部内容至字节数组，返回创建的字节数组}
 
@@ -529,36 +578,99 @@ function AnsiToBytes(const Str: AnsiString): TBytes;
 function BytesToAnsi(const Data: TBytes): AnsiString;
 {* 将字节数组的内容转换为 AnsiString，不处理编码}
 
+function BytesToString(const Data: TBytes): string;
+{* 将字节数组的内容转换为 string，内部逐个 Byte 赋值为 Char，不处理编码}
+
+function MemoryToString(Mem: Pointer; MemByteLen: Integer): string;
+{* 将内存块的内容转换为 string，内部逐个赋值，不处理编码}
+
+function BitsToString(Bits: TBits): string;
+{* 将位串对象转换为包含 0 和 1 的字符串}
+
 function ConcatBytes(A, B: TBytes): TBytes;
 {* 将 A B 两个字节数组顺序拼好返回一个新字节数组，A B 保持不变}
 
 function NewBytesFromMemory(Data: Pointer; DataByteLen: Integer): TBytes;
 {* 新建一字节数组，并从一片内存区域复制内容过来。}
 
-function CompareBytes(A, B: TBytes): Boolean;
+function CompareBytes(A, B: TBytes): Boolean; overload;
 {* 比较两个字节数组内容是否相同}
 
-procedure MoveMost(const Source; var Dest; ByteLen, MostLen: Integer);
-{* 从 Source 移动 ByteLen 且不超过 MostLen 个字节到 Dest 中，
+function CompareBytes(A, B: TBytes; MaxLength: Integer): Boolean; overload;
+{* 比较两个字节数组的最多前 MaxLength 个字节的内容是否相同}
+
+function MoveMost(const Source; var Dest; ByteLen, MostLen: Integer): Integer;
+{* 从 Source 移动 ByteLen 且不超过 MostLen 个字节到 Dest 中，返回实际移动的字节数
   如 ByteLen 小于 MostLen，则 Dest 填充 0，要求 Dest 容纳至少 MostLen}
 
-procedure ConstantTimeConditionalSwap8(CanSwap: Boolean; var A, B: Byte);
+// =============================== 算术右移 ===================================
+
+function SarInt8(var V: Byte; ShiftCount: Integer): Byte;
+{* 将一单字节整数进行算术右移，也就是保留符号位的右移}
+
+function SarInt16(var V: Word; ShiftCount: Integer): Word;
+{* 将一双字节整数进行算术右移，也就是保留符号位的右移}
+
+function SarInt32(var V: Cardinal; ShiftCount: Integer): Cardinal;
+{* 将一四字节整数进行算术右移，也就是保留符号位的右移}
+
+function SarInt64(var V: TUInt64; ShiftCount: Integer): TUInt64;
+{* 将一八字节整数进行算术右移，也就是保留符号位的右移}
+
+// ================ 以下是执行时间固定的无 if 判断的部分逻辑函数 ===============
+
+procedure ConstTimeConditionalSwap8(CanSwap: Boolean; var A, B: Byte);
 {* 针对两个字节变量的执行时间固定的条件交换，CanSwap 为 True 时才实施 A B 交换}
 
-procedure ConstantTimeConditionalSwap16(CanSwap: Boolean; var A, B: Word);
+procedure ConstTimeConditionalSwap16(CanSwap: Boolean; var A, B: Word);
 {* 针对两个双字节变量的执行时间固定的条件交换，CanSwap 为 True 时才实施 A B 交换}
 
-procedure ConstantTimeConditionalSwap32(CanSwap: Boolean; var A, B: Cardinal);
+procedure ConstTimeConditionalSwap32(CanSwap: Boolean; var A, B: Cardinal);
 {* 针对两个四字节变量的执行时间固定的条件交换，CanSwap 为 True 时才实施 A B 交换}
 
-procedure ConstantTimeConditionalSwap64(CanSwap: Boolean; var A, B: TUInt64);
+procedure ConstTimeConditionalSwap64(CanSwap: Boolean; var A, B: TUInt64);
 {* 针对两个八字节变量的执行时间固定的条件交换，CanSwap 为 True 时才实施 A B 交换}
 
-function ConstantTimeByteEqual(A, B: Byte): Boolean;
-{* 针对俩字节的执行时间固定的比较，避免 CPU 指令跳转预测导致的执行时间差异，内容相同时返回 True}
+function ConstTimeEqual8(A, B: Byte): Boolean;
+{* 针对俩单字节的执行时间固定的比较，避免 CPU 指令跳转预测导致的执行时间差异，内容相同时返回 True}
 
-function ConstantTimeBytesEqual(A, B: TBytes): Boolean;
+function ConstTimeEqual16(A, B: Word): Boolean;
+{* 针对俩双字节的执行时间固定的比较，避免 CPU 指令跳转预测导致的执行时间差异，内容相同时返回 True}
+
+function ConstTimeEqual32(A, B: Cardinal): Boolean;
+{* 针对俩四字节的执行时间固定的比较，避免 CPU 指令跳转预测导致的执行时间差异，内容相同时返回 True}
+
+function ConstTimeEqual64(A, B: TUInt64): Boolean;
+{* 针对俩八字节的执行时间固定的比较，避免 CPU 指令跳转预测导致的执行时间差异，内容相同时返回 True}
+
+function ConstTimeBytesEqual(A, B: TBytes): Boolean;
 {* 针对俩相同长度的字节数组的执行时间固定的比较，内容相同时返回 True}
+
+function ConstTimeExpandBoolean8(V: Boolean): Byte;
+{* 根据 V 的值返回一字节全 1 或全 0}
+
+function ConstTimeExpandBoolean16(V: Boolean): Word;
+{* 根据 V 的值返回俩字节全 1 或全 0}
+
+function ConstTimeExpandBoolean32(V: Boolean): Cardinal;
+{* 根据 V 的值返回四字节全 1 或全 0}
+
+function ConstTimeExpandBoolean64(V: Boolean): TUInt64;
+{* 根据 V 的值返回八字节全 1 或全 0}
+
+function ConstTimeConditionalSelect8(Condition: Boolean; A, B: Byte): Byte;
+{* 针对两个字节变量执行时间固定的判断选择，Condtion 为 True 时返回 A，否则返回 B}
+
+function ConstTimeConditionalSelect16(Condition: Boolean; A, B: Word): Word;
+{* 针对两个双字节变量执行时间固定的判断选择，Condtion 为 True 时返回 A，否则返回 B}
+
+function ConstTimeConditionalSelect32(Condition: Boolean; A, B: Cardinal): Cardinal;
+{* 针对两个四字节变量执行时间固定的判断选择，Condtion 为 True 时返回 A，否则返回 B}
+
+function ConstTimeConditionalSelect64(Condition: Boolean; A, B: TUInt64): TUInt64;
+{* 针对两个八字节变量执行时间固定的判断选择，Condtion 为 True 时返回 A，否则返回 B}
+
+// ================ 以上是执行时间固定的无 if 判断的部分逻辑函数 ===============
 
 {$IFDEF MSWINDOWS}
 
@@ -597,6 +709,36 @@ function UnsignedAddWithLimitRadix(A, B, C: Cardinal; var R: Cardinal;
   结果确保在 L 和 H 的闭区间内，用户须确保 H 大于 L，不考虑溢出的情形
   该函数多用于字符分区间计算与映射，其中 C 一般是进位}
 
+// =========================== 循环移位函数 ====================================
+
+// 注意这批函数的 N 应在 (0, A 最大位数) 开区间内，如 N 为 0 或 A 最大位数时返回值应仍为 A
+// N 超界时会求余（编译器行为，和仓颉等不同），如对 32 位 A，N 为 33 时返回值等于 N 为 1 时的返回值
+
+function RotateLeft16(A: Word; N: Integer): Word; {$IFDEF SUPPORT_INLINE} inline; {$ENDIF}
+{* 针对 16 位整数进行循环左移 N 位}
+
+function RotateRight16(A: Word; N: Integer): Word; {$IFDEF SUPPORT_INLINE} inline; {$ENDIF}
+{* 针对 16 位整数进行循环右移 N 位}
+
+function RotateLeft32(A: Cardinal; N: Integer): Cardinal; {$IFDEF SUPPORT_INLINE} inline; {$ENDIF}
+{* 针对 32 位整数进行循环左移 N 位}
+
+function RotateRight32(A: Cardinal; N: Integer): Cardinal; {$IFDEF SUPPORT_INLINE} inline; {$ENDIF}
+{* 针对 32 位整数进行循环右移 N 位}
+
+function RotateLeft64(A: TUInt64; N: Integer): TUInt64; {$IFDEF SUPPORT_INLINE} inline; {$ENDIF}
+{* 针对 64 位整数进行循环左移 N 位}
+
+function RotateRight64(A: TUInt64; N: Integer): TUInt64; {$IFDEF SUPPORT_INLINE} inline; {$ENDIF}
+{* 针对 64 位整数进行循环右移 N 位}
+
+{$IFDEF COMPILER5}
+
+function BoolToStr(Value: Boolean; UseBoolStrs: Boolean = False): string;
+{* Delphi 5 下没有该函数，补上}
+
+{$ENDIF}
+
 implementation
 
 uses
@@ -624,7 +766,7 @@ begin
   Result := not CurrentByteOrderIsBigEndian;
 end;
 
-function SwapInt64(Value: Int64): Int64;
+function ReverseInt64(Value: Int64): Int64;
 var
   Lo, Hi: Cardinal;
   Rec: Int64Rec;
@@ -640,7 +782,7 @@ begin
   Result := Int64(Rec);
 end;
 
-function SwapUInt64(Value: TUInt64): TUInt64;
+function ReverseUInt64(Value: TUInt64): TUInt64;
 var
   Lo, Hi: Cardinal;
   Rec: Int64Rec;
@@ -661,7 +803,7 @@ begin
   if FByteOrderIsBigEndian then
     Result := Value
   else
-    Result := SwapInt64(Value);
+    Result := ReverseInt64(Value);
 end;
 
 function Int32ToBigEndian(Value: Integer): Integer;
@@ -686,7 +828,7 @@ begin
   if not FByteOrderIsBigEndian then
     Result := Value
   else
-    Result := SwapInt64(Value);
+    Result := ReverseInt64(Value);
 end;
 
 function Int32ToLittleEndian(Value: Integer): Integer;
@@ -711,7 +853,7 @@ begin
   if FByteOrderIsBigEndian then
     Result := Value
   else
-    Result := SwapUInt64(Value);
+    Result := ReverseUInt64(Value);
 end;
 
 function UInt32ToBigEndian(Value: Cardinal): Cardinal;
@@ -736,7 +878,7 @@ begin
   if not FByteOrderIsBigEndian then
     Result := Value
   else
-    Result := SwapUInt64(Value);
+    Result := ReverseUInt64(Value);
 end;
 
 function UInt32ToLittleEndian(Value: Cardinal): Cardinal;
@@ -759,7 +901,7 @@ end;
 function Int64HostToNetwork(Value: Int64): Int64;
 begin
   if not FByteOrderIsBigEndian then
-    Result := SwapInt64(Value)
+    Result := ReverseInt64(Value)
   else
     Result := Value;
 end;
@@ -784,7 +926,7 @@ end;
 function Int64NetworkToHost(Value: Int64): Int64;
 begin
   if not FByteOrderIsBigEndian then
-    REsult := SwapInt64(Value)
+    REsult := ReverseInt64(Value)
   else
     Result := Value;
 end;
@@ -811,7 +953,7 @@ begin
   if CurrentByteOrderIsBigEndian then
     Result := Value
   else
-    Result := SwapUInt64(Value);
+    Result := ReverseUInt64(Value);
 end;
 
 function UInt32HostToNetwork(Value: Cardinal): Cardinal;
@@ -836,7 +978,7 @@ begin
   if CurrentByteOrderIsBigEndian then
     Result := Value
   else
-    Result := SwapUInt64(Value);
+    Result := ReverseUInt64(Value);
 end;
 
 function UInt32NetworkToHost(Value: Cardinal): Cardinal;
@@ -918,6 +1060,18 @@ begin
 
   for I := 0 to MemByteLen - 1 do
     P^[I] := ReverseBitsInInt8(P^[I]);
+end;
+
+procedure MemoryNetworkToHost(AMem: Pointer; MemByteLen: Integer);
+begin
+  if not FByteOrderIsBigEndian then
+    ReverseMemory(AMem, MemByteLen);
+end;
+
+procedure MemoryHostToNetwork(AMem: Pointer; MemByteLen: Integer);
+begin
+  if not FByteOrderIsBigEndian then
+    ReverseMemory(AMem, MemByteLen);
 end;
 
 // N 字节长度的内存块的位操作
@@ -1753,6 +1907,17 @@ begin
   end;
 end;
 
+function CloneBytes(Data: TBytes): TBytes;
+begin
+  if Length(Data) = 0 then
+    Result := nil
+  else
+  begin
+    SetLength(Result, Length(Data));
+    Move(Data[0], Result[0], Length(Data));
+  end;
+end;
+
 function StreamToBytes(Stream: TStream): TBytes;
 begin
   Result := nil;
@@ -1786,6 +1951,51 @@ begin
   SetLength(Result, Length(Data));
   if Length(Data) > 0 then
     Move(Data[0], Result[1], Length(Data));
+end;
+
+function BytesToString(const Data: TBytes): string;
+var
+  I: Integer;
+begin
+  SetLength(Result, Length(Data));
+  for I := 1 to Length(Data) do
+    Result[I] := Chr(Data[I - 1]);
+end;
+
+function MemoryToString(Mem: Pointer; MemByteLen: Integer): string;
+var
+  P: PByteArray;
+  I: Integer;
+begin
+  if (Mem = nil) or (MemByteLen <= 0) then
+  begin
+    Result := '';
+    Exit;
+  end;
+
+  P := PByteArray(Mem);
+  SetLength(Result, MemByteLen);
+  for I := 1 to MemByteLen do
+    Result[I] := Chr(P^[I - 1]);
+end;
+
+function BitsToString(Bits: TBits): string;
+var
+  I: Integer;
+begin
+  if (Bits = nil) or (Bits.Size = 0) then
+    Result := ''
+  else
+  begin
+    SetLength(Result, Bits.Size);
+    for I := 0 to Bits.Size - 1 do
+    begin
+      if Bits.Bits[I] then
+        Result[I + 1] := '1'
+      else
+        Result[I + 1] := '0';
+    end;
+  end;
 end;
 
 function ConcatBytes(A, B: TBytes): TBytes;
@@ -1838,82 +2048,121 @@ begin
     Result := CompareMem(@A[0], @B[0], L);
 end;
 
-procedure MoveMost(const Source; var Dest; ByteLen, MostLen: Integer);
+function CompareBytes(A, B: TBytes; MaxLength: Integer): Boolean;
+var
+  LA, LB: Integer;
 begin
-  if MostLen <= 0 then
+  Result := False;
+
+  LA := Length(A);
+  LB := Length(B);
+
+  if LA > MaxLength then
+    LA := MaxLength;
+  if LB > MaxLength then
+    LB := MaxLength;
+
+  if LA <> LB then
     Exit;
+
+  if LA = 0 then
+    Result := True
+  else
+    Result := CompareMem(@A[0], @B[0], LA);
+end;
+
+function MoveMost(const Source; var Dest; ByteLen, MostLen: Integer): Integer;
+begin
+  if (MostLen <= 0) or (ByteLen <= 0) then
+  begin
+    Result := 0;
+    Exit;
+  end;
 
   if ByteLen > MostLen then
     ByteLen := MostLen
   else if ByteLen < MostLen then
+  begin
     FillChar(Dest, MostLen, 0);
 
+    // TODO: 要变为 FillChar(Dest + ByteLen, MostLen - ByteLen, 0); 以只填充不满的部分
+  end;
+
   Move(Source, Dest, ByteLen);
+  Result := ByteLen;
 end;
 
-procedure ConstantTimeConditionalSwap8(CanSwap: Boolean; var A, B: Byte);
+// =============================== 算术右移 ===================================
+
+function SarInt8(var V: Byte; ShiftCount: Integer): Byte;
+begin
+  Result := V shr ShiftCount;
+  if (V and $80) <> 0 then
+    Result := Result or $80;
+end;
+
+function SarInt16(var V: Word; ShiftCount: Integer): Word;
+begin
+  Result := V shr ShiftCount;
+  if (V and $8000) <> 0 then
+    Result := Result or $8000;
+end;
+
+function SarInt32(var V: Cardinal; ShiftCount: Integer): Cardinal;
+begin
+  Result := V shr ShiftCount;
+  if (V and $80000000) <> 0 then
+    Result := Result or $80000000;
+end;
+
+function SarInt64(var V: TUInt64; ShiftCount: Integer): TUInt64;
+begin
+  Result := V shr ShiftCount;
+  if (V and $8000000000000000) <> 0 then
+    Result := Result or $8000000000000000;
+end;
+
+procedure ConstTimeConditionalSwap8(CanSwap: Boolean; var A, B: Byte);
 var
   T, V: Byte;
 begin
-  if CanSwap then
-    T := $FF
-  else
-    T := 0;
-
+  T := ConstTimeExpandBoolean8(CanSwap);
   V := (A xor B) and T;
   A := A xor V;
   B := B xor V;
 end;
 
-procedure ConstantTimeConditionalSwap16(CanSwap: Boolean; var A, B: Word);
+procedure ConstTimeConditionalSwap16(CanSwap: Boolean; var A, B: Word);
 var
   T, V: Word;
 begin
-  if CanSwap then
-    T := $FFFF
-  else
-    T := 0;
-
+  T := ConstTimeExpandBoolean16(CanSwap);
   V := (A xor B) and T;
   A := A xor V;
   B := B xor V;
 end;
 
-procedure ConstantTimeConditionalSwap32(CanSwap: Boolean; var A, B: Cardinal);
+procedure ConstTimeConditionalSwap32(CanSwap: Boolean; var A, B: Cardinal);
 var
   T, V: Cardinal;
 begin
-  if CanSwap then
-    T := $FFFFFFFF
-  else
-    T := 0;
-
+  T := ConstTimeExpandBoolean32(CanSwap);
   V := (A xor B) and T;
   A := A xor V;
   B := B xor V;
 end;
 
-procedure ConstantTimeConditionalSwap64(CanSwap: Boolean; var A, B: TUInt64);
+procedure ConstTimeConditionalSwap64(CanSwap: Boolean; var A, B: TUInt64);
 var
   T, V: TUInt64;
 begin
-  if CanSwap then
-  begin
-{$IFDEF SUPPORT_UINT64}
-    T := $FFFFFFFFFFFFFFFF;
-{$ELSE}
-    T := not 0;
-{$ENDIF}
-  end
-  else
-    T := 0;
-
+  T := ConstTimeExpandBoolean64(CanSwap);
   V := (A xor B) and T;
   A := A xor V;
   B := B xor V;
 end;
 
-function ConstantTimeByteEqual(A, B: Byte): Boolean;
+function ConstTimeEqual8(A, B: Byte): Boolean;
 var
   R: Byte;
 begin
@@ -1924,7 +2173,25 @@ begin
   Result := Boolean(R);   // 只有全 1 才是 1
 end;
 
-function ConstantTimeBytesEqual(A, B: TBytes): Boolean;
+function ConstTimeEqual16(A, B: Word): Boolean;
+begin
+  Result := ConstTimeEqual8(Byte(A shr 8), Byte(B shr 8))
+    and ConstTimeEqual8(Byte(A and $FF), Byte(B and $FF));
+end;
+
+function ConstTimeEqual32(A, B: Cardinal): Boolean;
+begin
+  Result := ConstTimeEqual16(Word(A shr 16), Word(B shr 16))
+    and ConstTimeEqual16(Word(A and $FFFF), Word(B and $FFFF));
+end;
+
+function ConstTimeEqual64(A, B: TUInt64): Boolean;
+begin
+  Result := ConstTimeEqual32(Cardinal(A shr 32), Cardinal(B shr 32))
+    and ConstTimeEqual32(Cardinal(A and $FFFFFFFF), Cardinal(B and $FFFFFFFF));
+end;
+
+function ConstTimeBytesEqual(A, B: TBytes): Boolean;
 var
   I: Integer;
 begin
@@ -1934,7 +2201,71 @@ begin
 
   Result := True;
   for I := 0 to Length(A) - 1 do // 每个字节都比较，而不是碰到不同就退出
-    Result := Result and (ConstantTimeByteEqual(A[I], B[I]));
+    Result := Result and (ConstTimeEqual8(A[I], B[I]));
+end;
+
+function ConstTimeExpandBoolean8(V: Boolean): Byte;
+begin
+  Result := Byte(V);
+  Result := not Result;                  // 如果 V 是 True，非 0，则此步 R 非纯 $FF，R 里头有 0
+  Result := Result and (Result shr 4);   // 以下一半一半地与
+  Result := Result and (Result shr 2);   // 如果有一位出现 0
+  Result := Result and (Result shr 1);   // 最后结果就是 00000000，否则 00000001
+  Result := Result or (Result shl 1);    // True 得到 00000000，False 得到 00000001，再往高位两倍两倍地扩
+  Result := Result or (Result shl 2);
+  Result := Result or (Result shl 4);    // 最终全 0 或 全 1
+  Result := not Result;                  // 反成全 1 或全 0
+end;
+
+function ConstTimeExpandBoolean16(V: Boolean): Word;
+var
+  R: Byte;
+begin
+  R := ConstTimeExpandBoolean8(V);
+  Result := R;
+  Result := (Result shl 8) or R;         // 单字节全 1 或全 0 扩成双字节
+end;
+
+function ConstTimeExpandBoolean32(V: Boolean): Cardinal;
+var
+  R: Word;
+begin
+  R := ConstTimeExpandBoolean16(V);
+  Result := R;
+  Result := (Result shl 16) or R;        // 双字节全 1 或全 0 扩成四字节
+end;
+
+function ConstTimeExpandBoolean64(V: Boolean): TUInt64;
+var
+  R: Cardinal;
+begin
+  R := ConstTimeExpandBoolean32(V);
+  Result := R;
+  Result := (Result shl 32) or R;        // 四字节全 1 或全 0 扩成八字节
+end;
+
+function ConstTimeConditionalSelect8(Condition: Boolean; A, B: Byte): Byte;
+begin
+  ConstTimeConditionalSwap8(Condition, A, B);
+  Result := B;
+end;
+
+function ConstTimeConditionalSelect16(Condition: Boolean; A, B: Word): Word;
+begin
+  ConstTimeConditionalSwap16(Condition, A, B);
+  Result := B;
+end;
+
+function ConstTimeConditionalSelect32(Condition: Boolean; A, B: Cardinal): Cardinal;
+begin
+  ConstTimeConditionalSwap32(Condition, A, B);
+  Result := B;
+end;
+
+function ConstTimeConditionalSelect64(Condition: Boolean; A, B: TUInt64): TUInt64;
+begin
+  ConstTimeConditionalSwap64(Condition, A, B);
+  Result := B;
 end;
 
 {$IFDEF MSWINDOWS}
@@ -2297,7 +2628,7 @@ var
   Empty: Boolean;
 begin
   I := FirstIndex;
-  Dig := 0;    // To avoid warning
+  Dig := 0; 
   Result := 0;
 
   if S = '' then
@@ -2305,9 +2636,11 @@ begin
     Code := 1;
     Exit;
   end;
+
   while S[I] = Char(' ') do
     Inc(I);
   Sign := False;
+
   if S[I] =  Char('-') then
   begin
     Sign := True;
@@ -2325,17 +2658,19 @@ begin
     Inc(I);
     while True do
     begin
-      case   Char(S[I]) of
-       Char('0').. Char('9'): Dig := Ord(S[I]) -  Ord('0');
-       Char('A').. Char('F'): Dig := Ord(S[I]) - (Ord('A') - 10);
-       Char('a').. Char('f'): Dig := Ord(S[I]) - (Ord('a') - 10);
+      case Char(S[I]) of
+        Char('0').. Char('9'): Dig := Ord(S[I]) -  Ord('0');
+        Char('A').. Char('F'): Dig := Ord(S[I]) - (Ord('A') - 10);
+        Char('a').. Char('f'): Dig := Ord(S[I]) - (Ord('a') - 10);
       else
         Break;
       end;
+
       if Result > (CN_MAX_TUINT64 shr 4) then
         Break;
       if Sign and (Dig <> 0) then
         Break;
+
       Result := Result shl 4 + TUInt64(Dig);
       Inc(I);
       Empty := False;
@@ -2355,6 +2690,7 @@ begin
         Break;
       if Sign and (Dig <> 0) then
         Break;
+
       Result := Result * 10 + TUInt64(Dig);
       Inc(I);
       Empty := False;
@@ -2588,6 +2924,57 @@ begin
   Result := 31 - Result;
 end;
 
+function GetUInt16HighBits(B: Word): Integer;
+begin
+  if B = 0 then
+  begin
+    Result := -1;
+    Exit;
+  end;
+
+  Result := 1;
+  if B shr 8 = 0 then
+  begin
+    Inc(Result, 8);
+    B := B shl 8;
+  end;
+  if B shr 12 = 0 then
+  begin
+    Inc(Result, 4);
+    B := B shl 4;
+  end;
+  if B shr 14 = 0 then
+  begin
+    Inc(Result, 2);
+    B := B shl 2;
+  end;
+  Result := Result - Integer(B shr 15); // 得到前导 0 的数量
+  Result := 15 - Result;
+end;
+
+function GetUInt8HighBits(B: Byte): Integer;
+begin
+  if B = 0 then
+  begin
+    Result := -1;
+    Exit;
+  end;
+
+  Result := 1;
+  if B shr 4 = 0 then
+  begin
+    Inc(Result, 4);
+    B := B shl 4;
+  end;
+  if B shr 6 = 0 then
+  begin
+    Inc(Result, 2);
+    B := B shl 2;
+  end;
+  Result := Result - Integer(B shr 7); // 得到前导 0 的数量
+  Result := 7 - Result;
+end;
+
 // 返回 Int64 的是 1 的最低二进制位是第几位，最低位是 0，如果没有 1，返回 -1
 function GetUInt64LowBits(B: TUInt64): Integer;
 var
@@ -2669,6 +3056,62 @@ begin
   end;
   B := B shl 1;
   Result := N - Integer(B shr 31);
+end;
+
+// 返回 Word 的是 1 的最低二进制位是第几位，最低位是 0，基本等同于末尾几个 0。如果没有 1，返回 -1
+function GetUInt16LowBits(B: Word): Integer;
+var
+  Y, N: Integer;
+begin
+  Result := -1;
+  if B = 0 then
+    Exit;
+
+  N := 15;
+  Y := B shl 8;
+  if Y <> 0 then
+  begin
+    Dec(N, 8);
+    B := Y;
+  end;
+  Y := B shl 4;
+  if Y <> 0 then
+  begin
+    Dec(N, 4);
+    B := Y;
+  end;
+  Y := B shl 2;
+  if Y <> 0 then
+  begin
+    Dec(N, 2);
+    B := Y;
+  end;
+  B := B shl 1;
+  Result := N - Integer(B shr 15);
+end;
+
+// 返回 Byte 的是 1 的最低二进制位是第几位，最低位是 0，基本等同于末尾几个 0。如果没有 1，返回 -1
+function GetUInt8LowBits(B: Byte): Integer;
+var
+  N: Integer;
+begin
+  Result := -1;
+  if B = 0 then
+    Exit;
+
+  N := 7;
+  if B shr 4 = 0 then
+  begin
+    Dec(N, 4);
+    B := B shl 4;
+  end;
+  if B shr 6 = 0 then
+  begin
+    Dec(N, 2);
+    B := B shl 2;
+  end;
+  B := B shl 1;
+  Result := N - Integer(B shr 7);
 end;
 
 // 封装的 Int64 Mod，碰到负值时取反求模再模减
@@ -3213,6 +3656,59 @@ begin
     else
       InternalQuickSort(Mem, 0, ElementCount - 1, ElementByteSize, DefaultCompareProc);
   end;
+end;
+
+{$IFDEF COMPILER5}
+
+function BoolToStr(Value: Boolean; UseBoolStrs: Boolean): string;
+begin
+  if UseBoolStrs then
+  begin
+    if Value then
+      Result := 'True'
+    else
+      Result := 'False';
+  end
+  else
+  begin
+    if Value then
+      Result := '-1'
+    else
+      Result := '0';
+  end;
+end;
+
+{$ENDIF}
+
+// =========================== 循环移位函数 ====================================
+
+function RotateLeft16(A: Word; N: Integer): Word;
+begin
+  Result := (A shl N) or (A shr (16 - N));
+end;
+
+function RotateRight16(A: Word; N: Integer): Word;
+begin
+  Result := (A shr N) or (A shl (16 - N));
+end;
+
+function RotateLeft32(A: Cardinal; N: Integer): Cardinal;
+begin
+  Result := (A shl N) or (A shr (32 - N));
+end;
+
+function RotateRight32(A: Cardinal; N: Integer): Cardinal;
+begin
+  Result := (A shr N) or (A shl (32 - N));
+end;
+
+function RotateLeft64(A: TUInt64; N: Integer): TUInt64;
+begin
+  Result := (A shl N) or (A shr (64 - N));
+end;
+function RotateRight64(A: TUInt64; N: Integer): TUInt64;
+begin
+  Result := (A shr N) or (A shl (64 - N));
 end;
 
 initialization

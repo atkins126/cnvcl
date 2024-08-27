@@ -28,15 +28,19 @@
       ..\..\Source\Common\CnGraphUtils.obj 
       ..\..\Source\Common\CnHardWareInfo.obj 
       ..\..\Source\Common\CnHashMap.obj 
+      ..\..\Source\Common\CnHashTable.obj 
       ..\..\Source\Common\CnIni.obj 
       ..\..\Source\Common\CnIniCfg.obj 
       ..\..\Source\Common\CnIniStrUtils.obj 
+      ..\..\Source\Common\CnJSON.obj 
       ..\..\Source\Common\CnLinkedList.obj 
       ..\..\Source\Common\CnLockFree.obj 
       ..\..\Source\Common\CnMatrix.obj 
       ..\..\Source\Common\CnMath.obj 
       ..\..\Source\Common\CnMethodHook.obj 
+      ..\..\Source\Common\CnPDF.obj 
       ..\..\Source\Common\CnPE.obj 
+      ..\..\Source\Common\CnQuantum.obj 
       ..\..\Source\Common\CnRopes.obj 
       ..\..\Source\Common\CnShellUtils.obj 
       ..\..\Source\Common\CnSingleton.obj 
@@ -58,6 +62,7 @@
       ..\..\Source\Crypto\CnBase64.obj 
       ..\..\Source\Crypto\CnBerUtils.obj 
       ..\..\Source\Crypto\CnBigNumber.obj 
+      ..\..\Source\Crypto\CnBits.obj 
       ..\..\Source\Crypto\CnCertificateAuthority.obj 
       ..\..\Source\Crypto\CnComplex.obj 
       ..\..\Source\Crypto\CnCRC32.obj 
@@ -68,14 +73,18 @@
       ..\..\Source\Crypto\CnFNV.obj 
       ..\..\Source\Crypto\CnInt128.obj 
       ..\..\Source\Crypto\CnKDF.obj 
+      ..\..\Source\Crypto\CnLattice.obj 
       ..\..\Source\Crypto\CnMD5.obj 
       ..\..\Source\Crypto\CnNative.obj 
       ..\..\Source\Crypto\CnOTP.obj 
+      ..\..\Source\Crypto\CnOTS.obj 
       ..\..\Source\Crypto\CnPaillier.obj 
+      ..\..\Source\Crypto\CnPDFCrypt.obj 
       ..\..\Source\Crypto\CnPemUtils.obj 
       ..\..\Source\Crypto\CnPolynomial.obj 
       ..\..\Source\Crypto\CnPrimeNumber.obj 
       ..\..\Source\Crypto\CnRandom.obj 
+      ..\..\Source\Crypto\CnRC4.obj 
       ..\..\Source\Crypto\CnRSA.obj 
       ..\..\Source\Crypto\CnSecretSharing.obj 
       ..\..\Source\Crypto\CnSHA1.obj 
@@ -86,6 +95,7 @@
       ..\..\Source\Crypto\CnSM4.obj 
       ..\..\Source\Crypto\CnSM9.obj 
       ..\..\Source\Crypto\CnTEA.obj 
+      ..\..\Source\Crypto\CnVector.obj 
       ..\..\Source\Crypto\CnZUC.obj 
       ..\..\Source\DbReport\CnADOBinding.obj 
       ..\..\Source\DbReport\CnADOUpdateSQL.obj 

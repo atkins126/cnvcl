@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2023 CnPack 开发组                       }
+{                   (C)Copyright 2001-2024 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -13,7 +13,7 @@
 {            您应该已经和开发包一起收到一份 CnPack 发布协议的副本。如果        }
 {        还没有，可访问我们的网站：                                            }
 {                                                                              }
-{            网站地址：http://www.cnpack.org                                   }
+{            网站地址：https://www.cnpack.org                                  }
 {            电子邮件：master@cnpack.org                                       }
 {                                                                              }
 {******************************************************************************}
@@ -23,8 +23,9 @@ unit CnKDF;
 ================================================================================
 * 软件名称：开发包基础库
 * 单元名称：密码生成算法（KDF）单元
-* 单元作者：刘啸
-* 备    注：基于 RFC2898 的 PBKDF1 与 PBKDF2 实现，但 PBKDF1 不支持 MD2
+* 单元作者：CnPack 开发组 (master@cnpack.org)
+* 备    注：本单元实现了基于 RFC2898 的 PBKDF1 与 PBKDF2 密码生成算法，但 PBKDF1 不支持 MD2 算法。
+*           同时也实现了国密 SM2/SM9 算法中规定的密码生成算法。
 * 开发平台：WinXP + Delphi 5.0
 * 兼容测试：暂未进行
 * 本 地 化：该单元无需本地化处理
@@ -50,25 +51,25 @@ uses
 
 type
   TCnKeyDeriveHash = (ckdMd5, ckdSha256, ckdSha1);
-  {* CnGetDeriveKey 中使用的 Hash 途径}
+  {* CnGetDeriveKey 中使用的杂凑方法}
 
   TCnPBKDF1KeyHash = (cpdfMd2, cpdfMd5, cpdfSha1);
-  {* PBKDF1 规定的三种 Hash 途径，其中 MD2 我们不支持}
+  {* PBKDF1 规定的三种杂凑方法，其中 MD2 我们不支持}
 
   TCnPBKDF2KeyHash = (cpdfSha1Hmac, cpdfSha256Hmac);
-  {* PBKDF2 规定的两种 Hash 途径}
+  {* PBKDF2 规定的两种杂凑方法}
 
   ECnKDFException = class(Exception);
   {* KDF 相关异常}
 
 function CnGetDeriveKey(const Password, Salt: AnsiString; OutKey: PAnsiChar; KeyLength: Cardinal;
   KeyHash: TCnKeyDeriveHash = ckdMd5): Boolean;
-{* 类似于 Openssl 中的 BytesToKey，用密码和盐与指定的 Hash 算法生成加密 Key，
+{* 类似于 Openssl 中的 BytesToKey，用密码和盐与指定的杂凑算法生成加密 Key，
   目前的限制是 KeyLength 最多支持两轮 Hash，也就是 MD5 32 字节，SHA256 64 字节}
 
 function CnPBKDF1(const Password, Salt: AnsiString; Count, DerivedKeyByteLength: Integer;
   KeyHash: TCnPBKDF1KeyHash = cpdfMd5): AnsiString;
-{* Password Based KDF 1 实现，简单的固定 Hash 迭代，只支持 MD5 和 SHA1，参数与返回值均为 AnsiString
+{* Password Based KDF 1 实现，简单的固定杂凑迭代，只支持 MD5 和 SHA1，参数与返回值均为 AnsiString
    DerivedKeyByteLength 是所需的密钥字节数，长度固定}
 
 function CnPBKDF2(const Password, Salt: AnsiString; Count, DerivedKeyByteLength: Integer;
@@ -78,7 +79,7 @@ function CnPBKDF2(const Password, Salt: AnsiString; Count, DerivedKeyByteLength:
 
 function CnPBKDF1Bytes(const Password, Salt: TBytes; Count, DerivedKeyByteLength: Integer;
   KeyHash: TCnPBKDF1KeyHash = cpdfMd5): TBytes;
-{* Password Based KDF 1 实现，简单的固定 Hash 迭代，只支持 MD5 和 SHA1，参数与返回值均为字节数组
+{* Password Based KDF 1 实现，简单的固定杂凑迭代，只支持 MD5 和 SHA1，参数与返回值均为字节数组
    DerivedKeyByteLength 是所需的密钥字节数，长度固定}
 
 function CnPBKDF2Bytes(const Password, Salt: TBytes; Count, DerivedKeyByteLength: Integer;
@@ -113,11 +114,11 @@ function CnSM2SM9KDF(Data: Pointer; DataLen: Integer; DerivedKeyByteLength: Inte
 implementation
 
 resourcestring
-  SCnKDFErrorTooLong = 'Derived Key Too Long.';
-  SCnKDFErrorParam = 'Invalid Parameters.';
-  SCnKDFHashNOTSupport = 'Hash Method NOT Support.';
+  SCnErrorKDFKeyTooLong = 'Derived Key Too Long.';
+  SCnErrorKDFParam = 'Invalid Parameters.';
+  SCnErrorKDFHashNOTSupport = 'Hash Method NOT Support.';
 
-function Min(A, B: Integer): Integer;
+function Min(A, B: Integer): Integer; {$IFDEF SUPPORT_INLINE} inline; {$ENDIF}
 begin
   if A < B then
     Result := A
@@ -143,7 +144,7 @@ begin
     Move(Salt[1], SaltBuf[1], Min(Length(Salt), 8));
 
   if not (KeyHash in [ckdMd5, ckdSha256]) then
-    raise ECnKDFException.Create(SCnKDFHashNOTSupport);
+    raise ECnKDFException.Create(SCnErrorKDFHashNOTSupport);
 
   PS := AnsiString(Password) + SaltBuf; // 规定前 8 个字节作为 Salt
   if KeyHash = ckdMd5 then
@@ -248,13 +249,13 @@ var
 begin
   Result := nil;
   if (Password = nil) or (Count <= 0) or (DerivedKeyByteLength <= 0) then
-    raise ECnKDFException.Create(SCnKDFErrorParam);
+    raise ECnKDFException.Create(SCnErrorKDFParam);
 
   case KeyHash of
     cpdfMd5:
       begin
         if DerivedKeyByteLength > SizeOf(TCnMD5Digest) then
-          raise ECnKDFException.Create(SCnKDFErrorTooLong);
+          raise ECnKDFException.Create(SCnErrorKDFKeyTooLong);
 
         SetLength(Result, DerivedKeyByteLength);
         Md5Dig := MD5Bytes(ConcatBytes(Password, Salt));  // Got T1
@@ -273,7 +274,7 @@ begin
     cpdfSha1:
       begin
         if DerivedKeyByteLength > SizeOf(TCnSHA1Digest) then
-          raise ECnKDFException.Create(SCnKDFErrorTooLong);
+          raise ECnKDFException.Create(SCnErrorKDFKeyTooLong);
 
         SetLength(Result, DerivedKeyByteLength);
         Sha1Dig := SHA1Bytes(ConcatBytes(Password, Salt));  // Got T1
@@ -290,7 +291,7 @@ begin
         Move(Sha1Dig[0], Result[0], DerivedKeyByteLength);
       end;
     else
-      raise ECnKDFException.Create(SCnKDFHashNOTSupport);
+      raise ECnKDFException.Create(SCnErrorKDFHashNOTSupport);
   end;
 end;
 
@@ -305,7 +306,7 @@ var
 begin
   Result := nil;
   if (Salt = nil) or (Count <= 0) or (DerivedKeyByteLength <=0) then
-    raise ECnKDFException.Create(SCnKDFErrorParam);
+    raise ECnKDFException.Create(SCnErrorKDFParam);
 
   if (Password = nil) or (Length(Password) = 0) then
     PAddr := nil
@@ -318,7 +319,7 @@ begin
     cpdfSha256Hmac:
       HLen := 32;
   else
-    raise ECnKDFException.Create(SCnKDFErrorParam);
+    raise ECnKDFException.Create(SCnErrorKDFParam);
   end;
 
   D := (DerivedKeyByteLength div HLen) + 1;
@@ -385,7 +386,7 @@ var
   Res: TBytes;
 begin
   if (Data = '') or (DerivedKeyByteLength <= 0) then
-    raise ECnKDFException.Create(SCnKDFErrorParam);
+    raise ECnKDFException.Create(SCnErrorKDFParam);
 
   Res := CnSM2SM9KDF(@Data[1], Length(Data), DerivedKeyByteLength);
   Result := BytesToAnsi(Res);
@@ -412,7 +413,7 @@ end;
 function CnSM2SM9KDF(Data: TBytes; DerivedKeyByteLength: Integer): TBytes;
 begin
   if (Data = nil) or (Length(Data) <= 0) or (DerivedKeyByteLength <= 0) then
-    raise ECnKDFException.Create(SCnKDFErrorParam);
+    raise ECnKDFException.Create(SCnErrorKDFParam);
 
   Result := CnSM2SM9KDF(@Data[0], Length(Data), DerivedKeyByteLength);
 end;
@@ -427,7 +428,7 @@ var
 begin
   Result := nil;
   if (Data = nil) or (DataLen <= 0) or (DerivedKeyByteLength <= 0) then
-    raise ECnKDFException.Create(SCnKDFErrorParam);
+    raise ECnKDFException.Create(SCnErrorKDFParam);
 
   DArr := nil;
   CT := 1;

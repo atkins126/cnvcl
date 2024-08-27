@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2023 CnPack 开发组                       }
+{                   (C)Copyright 2001-2024 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -13,7 +13,7 @@
 {            您应该已经和开发包一起收到一份 CnPack 发布协议的副本。如果        }
 {        还没有，可访问我们的网站：                                            }
 {                                                                              }
-{            网站地址：http://www.cnpack.org                                   }
+{            网站地址：https://www.cnpack.org                                  }
 {            电子邮件：master@cnpack.org                                       }
 {                                                                              }
 {******************************************************************************}
@@ -24,7 +24,7 @@ unit CnStrings;
 * 软件名称：CnPack 组件包
 * 单元名称：CnStrings 实现单元，包括 AnsiStringList 以及一个快速子串搜索算法
 *           基本支持 Win32/64 和 Posix
-* 单元作者：CnPack 开发组 刘啸 (liuxiao@cnpack.org)
+* 单元作者：CnPack 开发组 (master@cnpack.org)
 * 开发平台：PWinXPPro + Delphi 5.01
 * 兼容测试：PWin9X/2000/XP + Delphi 5/6/7/2005 + C++Build 5/6
 * 备    注：AnsiStringList 移植自 Delphi 7 的 StringList
@@ -49,6 +49,13 @@ interface
 uses
   Classes, SysUtils, {$IFDEF MSWINDOWS} Windows, {$ENDIF} CnNative;
 
+const
+  SCN_BOM_UTF8: array[0..2] of Byte = ($EF, $BB, $BF);
+
+  SCN_BOM_UTF16_LE: array[0..1] of Byte = ($FF, $FE);
+
+  SCN_BOM_UTF16_BE: array[0..1] of Byte = ($FE, $FF);
+
 type
   // 匹配模式，开头匹配，中间匹配，全范围模糊匹配
   TCnMatchMode = (mmStart, mmAnywhere, mmFuzzy);
@@ -71,6 +78,7 @@ type
     FNameValueSeparator: AnsiChar;
     FUpdateCount: Integer;
     FAdapter: ICnStringsAdapter;
+    FUseSingleLF: Boolean;
     function GetCommaText: AnsiString;
     function GetDelimitedText: AnsiString;
     function GetName(Index: Integer): AnsiString;
@@ -146,6 +154,8 @@ type
     property Strings[Index: Integer]: AnsiString read Get write Put; default;
     property Text: AnsiString read GetTextStr write SetTextStr;
     property StringsAdapter: ICnStringsAdapter read FAdapter write SetStringsAdapter;
+    property UseSingleLF: Boolean read FUseSingleLF write FUseSingleLF;
+    {* 增加的属性，控制 GetTextStr 时使用的换行是否是单个 #10 而不是常规的 #13#10}
   end;
 
   TCnAnsiStringList = class;
@@ -250,7 +260,7 @@ type
   end;
 
   TCnStringBuilder = class
-  {* 输出灵活的 StringBuilder，暂时只支持添加，不支持删除
+  {* 输出形式灵活的 StringBuilder，暂时只支持添加，不支持删除
     非 Unicode 版本支持 string 和 WideString，Unicode 版本支持 AnsiString 和 string}
   private
     FModeIsFromOut: Boolean;
@@ -270,33 +280,39 @@ type
     procedure SetCharLength(const Value: Integer);
   protected
     procedure ExpandCharCapacity;
+    {* 根据 CharLength 的要求来扩展内部存储为 CharLength * 2，如 CharLength 太短则固定扩展 Capacity 的 0.5 倍}
 
     function AppendString(const Value: string): TCnStringBuilder;
     {* 将 string 添加到 FData，无论是否 Unicode 环境。由调用者根据 AnsiMode 控制}
+  public
+    constructor Create; overload;
+    {* 构造函数，内部实现默认 string}
+    constructor Create(IsAnsi: Boolean); overload;
+    {* 可指定内部是 Ansi 还是 Wide 的构造函数}
+
+    destructor Destroy; override;
+    {* 析构函数}
+
+    procedure Clear;
+    {* 清空内容}
+
 {$IFDEF UNICODE}
     function AppendAnsi(const Value: AnsiString): TCnStringBuilder;
     {* 将 AnsiString 添加到 Unicode 环境下的 FAnsiData。由调用者根据 AnsiMode 控制}
 {$ELSE}
     function AppendWide(const Value: WideString): TCnStringBuilder;
-    {* 将 WideString 添加到 FWideData，非 Unicode 环境中使用。由调用者根据 AnsiMode 控制}
+    {* 将 WideString 添加到非 Unicode 环境中的 FWideData，由调用者根据 AnsiMode 控制}
 {$ENDIF}
-  public
-    constructor Create; overload;
-    {* 构造函数，内部实现默认 string}
-    constructor Create(IsAnsi: Boolean); overload;
-    {* 可指定内部是 Ansi 还是 Wided 的构造函数}
-
-    destructor Destroy; override;
-
-    procedure Clear;
-    {* 清空内容}
 
     function Append(const Value: string): TCnStringBuilder; overload;
     {* 添加通用字符串，是所有其他参数类型 Append 的总入口，内部根据当前编译器以及 AnsiMode 决定用何种实现来拼}
 
     function Append(const Value: Boolean): TCnStringBuilder; overload;
     function Append(const Value: Byte): TCnStringBuilder; overload;
-    function Append(const Value: Char): TCnStringBuilder; overload;
+    function AppendChar(const Value: Char): TCnStringBuilder;
+    function AppendAnsiChar(const Value: AnsiChar): TCnStringBuilder;
+    function AppendWideChar(const Value: WideChar): TCnStringBuilder;
+    // Char 和单字符 String 是混淆的，因而改名，不用 overload
     function AppendCurrency(const Value: Currency): TCnStringBuilder; overload;
     // Currency 低版本 Delphi 中和 Double 是混淆的，因而改名，不用 overload
     function Append(const Value: Double): TCnStringBuilder; overload;
@@ -320,13 +336,16 @@ type
     function AppendLine(const Value: string): TCnStringBuilder; overload;
 
     function ToString: string; {$IFDEF OBJECT_HAS_TOSTRING} override; {$ENDIF}
-    {* 返回内容的 string 形式，无论是否 Unicode 环境。
-      换句话说非 Unicode 环境中返回 AnsiString，Unicode 环境中返回 UnicodeString}
+    {* 返回内容的 string 形式，无论是否 Unicode 环境，只要 AnsiMode 与编译器的 Unicode 支持一致
+      换句话说非 Unicode 环境中 AnsiMode 为 True 时才返回 AnsiString，
+      Unicode 环境中 AnsiMode 为 False 时才返回 UnicodeString，其余情况返回空}
 
     function ToAnsiString: AnsiString;
-    {* 返回内容的 AnsiString 形式，应在 Unicode 环境中使用}
+    {* 强行返回内容的 AnsiString 形式，无论 AnsiMode 如何。
+      可在 Unicode 环境中使用，如在非 Unicode 环境中使用，等同于 ToString}
     function ToWideString: WideString;
-    {* 返回内容的 WideString 形式，应在非 Unicode 环境中使用}
+    {* 强行返回内容的 WideString 形式，无论 AnsiMode 如何。
+      可在非 Unicode 环境中使用，如在 Unicode 环境中使用，等同于 ToString}
 
     property CharCapacity: Integer read GetCharCapacity write SetCharCapacity;
     {* 以字符为单位的内部缓冲区的容量}
@@ -379,6 +398,7 @@ implementation
 
 const
   SLineBreak = #13#10;
+  SLineBreakLF = #10;
   STRING_BUILDER_DEFAULT_CAPACITY = 16;
 
 resourcestring
@@ -892,7 +912,12 @@ var
 begin
   Count := GetCount;
   Size := 0;
-  LB := SLineBreak;
+
+  if FUseSingleLF then
+    LB := SLineBreakLF
+  else
+    LB := SLineBreak;
+
   for I := 0 to Count - 1 do Inc(Size, Length(Get(I)) + Length(LB));
   SetString(Result, nil, Size);
   P := Pointer(Result);
@@ -2078,9 +2103,9 @@ function TCnStringBuilder.GetCharCapacity: Integer;
 begin
 {$IFDEF UNICODE}
    if FAnsiMode then
-     Result := Length(FData)
+     Result := Length(FAnsiData)
    else
-     Result := Length(FAnsiData);
+     Result := Length(FData);
 {$ELSE}
    if FAnsiMode then
      Result := Length(FData)
@@ -2156,14 +2181,14 @@ end;
 function TCnStringBuilder.ToAnsiString: AnsiString;
 begin
 {$IFDEF UNICODE}
-  if FAnsiMode then // Unicode 环境下如果是 Ansi 模式，用 FAnsiData
+  if FAnsiMode then // Unicode 环境下如果是 Ansi 模式，用 FAnsiData，无需转换
   begin
     if FCharLength = CharCapacity then
       Result := FAnsiData
     else
       Result := Copy(FAnsiData, 1, FCharLength);
   end
-  else  // Unicode 环境下如果是非 Ansi 模式，用 FData
+  else  // Unicode 环境下如果是非 Ansi 模式，用 FData，进行 AnsiString 转换
   begin
     if FCharLength = CharCapacity then
       Result := AnsiString(FData)
@@ -2178,14 +2203,14 @@ end;
 function TCnStringBuilder.ToWideString: WideString;
 begin
 {$IFNDEF UNICODE}
-  if FAnsiMode then // 非 Unicode 环境下如果是 Ansi 模式，用 FData
+  if FAnsiMode then // 非 Unicode 环境下如果是 Ansi 模式，用 FData，进行 WideString 转换
   begin
     if FCharLength = CharCapacity then
-      Result := FData
+      Result := WideString(FData)
     else
-      Result := Copy(FData, 1, FCharLength);
+      Result := WideString(Copy(FData, 1, FCharLength));
   end
-  else // Unicode 环境下如果是非 Ansi 模式，用 FWideData
+  else // 非 Unicode 环境下如果是非 Ansi 模式，用 FWideData，无需转换
   begin
     if FCharLength = CharCapacity then
       Result := FWideData
@@ -2244,7 +2269,7 @@ begin
   Result := Append(CurrToStr(Value));
 end;
 
-function TCnStringBuilder.Append(const Value: Char): TCnStringBuilder;
+function TCnStringBuilder.AppendChar(const Value: Char): TCnStringBuilder;
 var
   S: string;
 begin
@@ -2319,6 +2344,32 @@ function TCnStringBuilder.Append(const AFormat: string;
   const Args: array of const): TCnStringBuilder;
 begin
   Result := Append(Format(AFormat, Args));
+end;
+
+function TCnStringBuilder.AppendAnsiChar(const Value: AnsiChar): TCnStringBuilder;
+var
+  S: AnsiString;
+begin
+  SetLength(S, 1);
+  Move(Value, S[1], SizeOf(AnsiChar));
+{$IFDEF UNICODE}
+  Result := AppendAnsi(S);
+{$ELSE}
+  Result := Append(S); // Unicode 下 S 转为 string 可能会变问号
+{$ENDIF}
+end;
+
+function TCnStringBuilder.AppendWideChar(const Value: WideChar): TCnStringBuilder;
+var
+  S: WideString;
+begin
+  SetLength(S, 1);
+  Move(Value, S[1], SizeOf(WideChar));
+{$IFDEF UNICODE}
+  Result := Append(S);
+{$ELSE}
+  Result := AppendWide(S);
+{$ENDIF}
 end;
 
 end.

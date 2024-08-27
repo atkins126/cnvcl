@@ -122,6 +122,9 @@ cnpack\Source 目录内容说明：
   CnPackRegister.pas
     组件包注册单元
 
+  CnPDF.pas
+    一个简易的 PDF 文件解析及根据图像生成 PDF 文件的实现单元
+
   CnPE.pas
     PE 文件解析实现单元
 
@@ -130,6 +133,9 @@ cnpack\Source 目录内容说明：
 
   CnPropSheetFrm.pas
     CnDebug用于显示对象属性的窗体单元
+
+  CnQuantum.pas
+    部分量子基础实现单元
 
   CnRopes.pas
     Ropes 数据结构实现单元
@@ -191,12 +197,12 @@ cnpack\Source 目录内容说明：
   CnZip.pas
     Zip 压缩文件实现单元
 
-              66 文件
+              68 文件
 
 \Crypto - 加解密算法目录
 
   Cn25519.pas
-    Curve25519/Ed25519 系列椭圆曲线实现单元
+    Curve25519/Ed25519/448 系列椭圆曲线实现单元
 
   CnAEAD.pas
     AEAD 关联数据认证加密算法单元
@@ -246,6 +252,9 @@ cnpack\Source 目录内容说明：
   CnKDF.pas
     密码生成算法单元
 
+  CnLattice.pas
+    格密码计算单元
+
   CnMD5.pas
     MD5 算法单元
 
@@ -255,8 +264,14 @@ cnpack\Source 目录内容说明：
   CnOTP.pas
     动态口令实现单元
 
+  CnOTS.pas
+    一次性杂凑签名实现单元
+
   CnPaillier.pas
     加法同态 Paillier 算法实现单元
+
+  CnPDFCrypt.pas
+    PDF 文件加解密实现单元
 
   CnPemUtils.pas
     PEM 格式处理工具单元
@@ -272,6 +287,9 @@ cnpack\Source 目录内容说明：
 
   CnRandom.pas
     随机数生成单元
+
+  CnRC4.pas
+    RC4 算法实现单元
 
   CnRSA.pas
     RSA 算法实现单元
@@ -303,10 +321,13 @@ cnpack\Source 目录内容说明：
   CnTEA.pas
     TEA/XTEA/XXTEA 算法实现单元
 
+  CnVector.pas
+    向量计算实现单元
+
   CnZUC.pas
     祖冲之算法实现单元
 
-                共 38 文件
+                共 43 文件
 
 \DbReport －数据库组件与报表库目录
 

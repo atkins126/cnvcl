@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2023 CnPack 开发组                       }
+{                   (C)Copyright 2001-2024 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -13,7 +13,7 @@
 {            您应该已经和开发包一起收到一份 CnPack 发布协议的副本。如果        }
 {        还没有，可访问我们的网站：                                            }
 {                                                                              }
-{            网站地址：http://www.cnpack.org                                   }
+{            网站地址：https://www.cnpack.org                                  }
 {            电子邮件：master@cnpack.org                                       }
 {                                                                              }
 {******************************************************************************}
@@ -23,32 +23,46 @@ unit CnAEAD;
 ================================================================================
 * 软件名称：开发包基础库
 * 单元名称：各类 AEAD 实现单元
-* 单元作者：刘啸（Liu Xiao）
+* 单元作者：CnPack 开发组
 * 备    注：AEAD 是关联数据认证加密的简称。可以用密码、关联数据与初始化向量等对
 *           数据进行加密与生成验证内容，解密时如果验证内容通不过则失败。
-*           注：字节串转换为大整数时相当于大端表达法，且大下标指向高位地址
-*           目前实现了 GHash128（似乎也叫 GMAC）以及 CMAC，并基于两者实现了
+*
+*           目前本单元实现了 GHash128（也叫 GMAC）以及 CMAC，并基于两者实现了
 *           AES128/192/256/SM4 的 GCM/CCM（但 CCM 里的 CMAC 和单纯的 CMAC 还不同）
+*
 *           GCM 参考文档《The Galois/Counter Mode of Operation (GCM)》以及
 *           《NIST Special Publication 800-38D》以及 RFC 8998 的例子数据
+*
 *           CMAC 参考文档 NIST Special Publication 800-38B:
 *           《Recommendation for Block Cipher Modes of Operation:
 *           The CMAC Mode for Authentication》 以及 RFC 4993 的例子数据(AES-128)
+*
 *           CCM 参考文档 NIST Special Publication 800-38C:
 *          《Recommendation for Block Cipher Modes of Operation:
 *           The CCM Mode for Authentication and Confidentiality》
 *           以及 RFC 3610 的例子数据(AES-128)、RFC 8998 的例子数据 SM4-CCM
+*
 *           注意 CCM 有两个编译期的参数，摘要长度 CCM_M_LEN 和明文长度的字节长度 CCM_L_LEN
 *           NIST 800-38C 例子中是 4、8，RFC 3610 例子中是 8、2，RFC 8998 是 16、？
-*           俩参数不同是无法通过 CCM 正确加解密的。
+*           如果不同端的俩参数不同，则无法通过 CCM 正确加解密。
 *
 *           补充：Java 等语言中 AES/GCM/NoPadding 的加密方式具体使用 AES256-GCM，
 *           并会把 16 字节的 Tag 拼在密文后一起输出
 *
+*           本单元中的 Nonce、Iv 虽然也叫初始化向量，但内部并不是直接补齐截断使用 16 字节，
+*           而是根据长度直接 12 字节或 GHash 成 16 字节后取前 12 字节，再拼个四
+*           字节的计数器，这才作为传统 Iv 使用。
+*
+*           注：字节串转换为大整数时相当于大端表达法，且越大的下标指向越高位的地址
+*
 * 开发平台：PWinXP + Delphi 5.0
 * 兼容测试：PWinXP/7 + Delphi 5/6
 * 本 地 化：该单元中的字符串均符合本地化处理方式
-* 修改记录：2022.10.22 V1.1
+* 修改记录：2024.05.09 V1.3
+*               加入两组 AES/SM4 GCM 到十六进制的加解密函数
+*           2022.07.31 V1.2
+*               加入 ChaCha20-Poly1305 和 XChaCha20-Poly1305 算法
+*           2022.10.22 V1.1
 *               修正 AES192/256 的 Key 可能被错误截断的问题，并增加 Tag 拼接在密文后的处理
 *           2022.07.27 V1.0
 *               创建单元
@@ -60,7 +74,7 @@ interface
 {$I CnPack.inc}
 
 uses
-  SysUtils, Classes, CnNative;
+  SysUtils, Classes, CnPoly1305, CnNative;
 
 const
   CN_AEAD_BLOCK  = 16;
@@ -374,10 +388,92 @@ function SM4CCMDecrypt(Key: Pointer; KeyByteLength: Integer; Nonce: Pointer; Non
   成功则返回 True 并将明文返回至 OutPlainData 所指的区域中，
   以上参数均为内存块并指定字节长度的形式，并验证 InTag 是否合法，不合法返回 False}
 
+// ======== 封装的 AES|SM4/GCM 十六进制字节数组加解密函数，无需 Padding ========
+
+function AESGCMEncryptToHex(Key, Iv, AD: TBytes; const Input: TBytes): string;
+{* 封装的常用加密函数。使用密码、初始化向量、额外数据对明文进行 AES-GCM 加密并转换
+  成十六进制字符串。算法采用 AES256，GCM 无需 Padding、验证 Tag 拼在字符串后部与
+  内部加密结果形成完整密文}
+
+function AESGCMDecryptFromHex(Key, Iv, AD: TBytes; const Input: string): TBytes;
+{* 封装的常用解密函数。使用密码、初始化向量、额外数据对十六进制密文进行 AES-GCM 解密
+  并验证 Tag，算法采用 AES256，GCM 无需 Padding，返回解密后的明文字节数组}
+
+function SM4GCMEncryptToHex(Key, Iv, AD: TBytes; const Input: TBytes): string;
+{* 封装的常用加密函数。使用密码、初始化向量、额外数据对明文进行 SM4-GCM 加密并转换
+  成十六进制字符串，算法采用 SM4，GCM 无需 Padding、验证 Tag 拼在字符串后部与内
+  部加密结果形成完整密文}
+
+function SM4GCMDecryptFromHex(Key, Iv, AD: TBytes; const Input: string): TBytes;
+{* 封装的常用解密函数。使用密码、初始化向量、额外数据对十六进制密文进行 SM4-GCM 解密
+  并验证 Tag，算法采用 SM4，GCM 无需 Padding，返回解密后的明文字节数组}
+
+// =================== ChaCha20_Poly1305 数据块加解密函数 ======================
+
+procedure ChaCha20Poly1305Encrypt(Key: Pointer; KeyByteLength: Integer; Iv: Pointer; IvByteLength: Integer;
+  PlainData: Pointer; PlainByteLength: Integer; AAD: Pointer; AADByteLength: Integer;
+  OutEnData: Pointer; var OutTag: TCnPoly1305Digest);
+{* 使用密码、初始化向量、额外数据对明文进行 ChaCha20_Poly1305 加密，返回密文至 OutEnData 所指的区域中
+  OutEnData 所指的区域长度须至少为 PlainByteLength，否则可能引发越界等严重后果
+  以上参数均为内存块并指定字节长度的形式，并在 OutTag 中返回认证数据供解密验证
+  其中，KeyByteLength 要求为 32 字节否则会截断或补 0，
+  Iv 要求为 12 字节否则也截断或补 0（另一种说法是 8 字节然而要额外加个 4 字节固定数据，这里未采用）
+  输出的 Tag 为 16 字节}
+
+function ChaCha20Poly1305Decrypt(Key: Pointer; KeyByteLength: Integer; Iv: Pointer; IvByteLength: Integer;
+  EnData: Pointer; EnByteLength: Integer; AAD: Pointer; AADByteLength: Integer;
+  OutPlainData: Pointer; var InTag: TCnPoly1305Digest): Boolean;
+{* 使用密码、初始化向量、额外数据对密文进行 ChaCha20_Poly1305 解密并验证，
+  其中，KeyByteLength 要求为 32 字节否则会截断或补 0，
+  Iv 要求为 12 字节否则也截断或补 0（另一种说法是 8 字节然而要额外加个 4 字节固定数据，这里未采用）
+  成功则返回 True 并将明文返回至 OutPlainData 所指的区域中，
+  以上参数均为内存块并指定字节长度的形式，并验证 InTag 是否合法，不合法返回 False}
+
+// ================== ChaCha20_Poly1305 字节数组加解密函数 =====================
+
+function ChaCha20Poly1305EncryptBytes(Key, Iv, PlainData, AAD: TBytes; var OutTag: TCnPoly1305Digest): TBytes;
+{* 使用密码、临时数据、额外数据对明文进行 ChaCha20_Poly1305 加密，返回密文
+  以上参数与返回值均为字节数组，并在 OutTag 中返回认证数据供解密验证}
+
+function ChaCha20Poly1305DecryptBytes(Key, Iv, EnData, AAD: TBytes; var InTag: TCnPoly1305Digest): TBytes;
+{* 使用密码、初始化向量、额外数据对密文进行 ChaCha20_Poly1305 解密并验证，成功则返回明文
+  以上参数与返回值均为字节数组，并验证 InTag 是否合法，不合法返回 nil}
+
+// =================== XChaCha20_Poly1305 数据块加解密函数 =====================
+
+procedure XChaCha20Poly1305Encrypt(Key: Pointer; KeyByteLength: Integer; Iv: Pointer; IvByteLength: Integer;
+  PlainData: Pointer; PlainByteLength: Integer; AAD: Pointer; AADByteLength: Integer;
+  OutEnData: Pointer; var OutTag: TCnPoly1305Digest);
+{* 使用密码、初始化向量、额外数据对明文进行 XChaCha20_Poly1305 加密，返回密文至 OutEnData 所指的区域中
+  OutEnData 所指的区域长度须至少为 PlainByteLength，否则可能引发越界等严重后果
+  以上参数均为内存块并指定字节长度的形式，并在 OutTag 中返回认证数据供解密验证
+  其中，KeyByteLength 要求为 32 字节否则会截断或补 0，
+  Iv 要求为 24 字节否则也截断或补 0（另一种说法是 8 字节然而要额外加个 4 字节固定数据，这里未采用）
+  输出的 Tag 为 16 字节}
+
+function XChaCha20Poly1305Decrypt(Key: Pointer; KeyByteLength: Integer; Iv: Pointer; IvByteLength: Integer;
+  EnData: Pointer; EnByteLength: Integer; AAD: Pointer; AADByteLength: Integer;
+  OutPlainData: Pointer; var InTag: TCnPoly1305Digest): Boolean;
+{* 使用密码、初始化向量、额外数据对密文进行 XChaCha20_Poly1305 解密并验证，
+  其中，KeyByteLength 要求为 32 字节否则会截断或补 0，
+  Iv 要求为 24 字节否则也截断或补 0（另一种说法是 8 字节然而要额外加个 4 字节固定数据，这里未采用）
+  成功则返回 True 并将明文返回至 OutPlainData 所指的区域中，
+  以上参数均为内存块并指定字节长度的形式，并验证 InTag 是否合法，不合法返回 False}
+
+// ================== XChaCha20_Poly1305 字节数组加解密函数 ====================
+
+function XChaCha20Poly1305EncryptBytes(Key, Iv, PlainData, AAD: TBytes; var OutTag: TCnPoly1305Digest): TBytes;
+{* 使用密码、临时数据、额外数据对明文进行 XChaCha20_Poly1305 加密，返回密文
+  以上参数与返回值均为字节数组，并在 OutTag 中返回认证数据供解密验证}
+
+function XChaCha20Poly1305DecryptBytes(Key, Iv, EnData, AAD: TBytes; var InTag: TCnPoly1305Digest): TBytes;
+{* 使用密码、初始化向量、额外数据对密文进行 XChaCha20_Poly1305 解密并验证，成功则返回明文
+  以上参数与返回值均为字节数组，并验证 InTag 是否合法，不合法返回 nil}
+
 implementation
 
 uses
-  CnSM4, CnAES;
+  CnSM4, CnAES, CnChaCha20;
 
 const
   GHASH_POLY: TCn128BitsBuffer = ($E1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
@@ -647,17 +743,17 @@ begin
     aetAES128:
       begin
         MoveMost(Key^, Key128[0], KeyByteLength, SizeOf(TCnAESKey128));
-        ExpandAESKeyForEncryption(Key128, Context.ExpandedKey128);
+        ExpandAESKeyForEncryption128(Key128, Context.ExpandedKey128);
       end;
     aetAES192:
       begin
         MoveMost(Key^, Key192[0], KeyByteLength, SizeOf(TCnAESKey192));
-        ExpandAESKeyForEncryption(Key192, Context.ExpandedKey192);
+        ExpandAESKeyForEncryption192(Key192, Context.ExpandedKey192);
       end;
     aetAES256:
       begin
         MoveMost(Key^, Key256[0], KeyByteLength, SizeOf(TCnAESKey256));
-        ExpandAESKeyForEncryption(Key256, Context.ExpandedKey256);
+        ExpandAESKeyForEncryption256(Key256, Context.ExpandedKey256);
       end;
     aetSM4:
       begin
@@ -672,9 +768,9 @@ procedure AEADEncryptBlock(var Context: TAEADContext; var InData, OutData: TCn12
   EncryptType: TAEADEncryptType);
 begin
   case EncryptType of
-    aetAES128: EncryptAES(TCnAESBuffer(InData), Context.ExpandedKey128, TCnAESBuffer(OutData));
-    aetAES192: EncryptAES(TCnAESBuffer(InData), Context.ExpandedKey192, TCnAESBuffer(OutData));
-    aetAES256: EncryptAES(TCnAESBuffer(InData), Context.ExpandedKey256, TCnAESBuffer(OutData));
+    aetAES128: EncryptAES128(TCnAESBuffer(InData), Context.ExpandedKey128, TCnAESBuffer(OutData));
+    aetAES192: EncryptAES192(TCnAESBuffer(InData), Context.ExpandedKey192, TCnAESBuffer(OutData));
+    aetAES256: EncryptAES256(TCnAESBuffer(InData), Context.ExpandedKey256, TCnAESBuffer(OutData));
     aetSM4:    SM4OneRound(@(Context.SM4Context.Sk[0]), @InData[0], @OutData[0]);
   end;
 end;
@@ -1765,6 +1861,380 @@ function SM4CCMDecrypt(Key: Pointer; KeyByteLength: Integer; Nonce: Pointer; Non
 begin
   Result := CCMDecrypt(Key, KeyByteLength, Nonce, NonceByteLength, EnData, EnByteLength,
     AAD, AADByteLength, OutPlainData, InTag, aetSM4);
+end;
+
+// ======== 封装的 AES|SM4/GCM 十六进制字节数组加解密函数，无需 Padding ========
+
+function AESGCMEncryptToHex(Key, Iv, AD: TBytes; const Input: TBytes): string;
+var
+  OutTag: TCnGCM128Tag;
+  Res: TBytes;
+  L: Integer;
+begin
+  Res := AES256GCMEncryptBytes(Key, Iv, Input, AD, OutTag);
+  if Length(Res) > 0 then
+  begin
+    L := Length(Res);
+    SetLength(Res, L + SizeOf(TCnGCM128Tag));
+    Move(OutTag[0], Res[L], SizeOf(TCnGCM128Tag));
+    Result := BytesToHex(Res);
+  end
+  else
+    Result := '';
+end;
+
+function AESGCMDecryptFromHex(Key, Iv, AD: TBytes; const Input: string): TBytes;
+var
+  InTag: TCnGCM128Tag;
+  Res: TBytes;
+begin
+  Res := HexToBytes(Input);
+  if Length(Res) < SizeOf(TCnGCM128Tag) then // 太短说明没 Tag
+  begin
+    Result := nil;
+    Exit;
+  end;
+
+  Move(Res[Length(Res) - SizeOf(TCnGCM128Tag)], InTag[0], SizeOf(TCnGCM128Tag));
+  SetLength(Res, Length(Res) - SizeOf(TCnGCM128Tag));
+  Result := AES256GCMDecryptBytes(Key, Iv, Res, AD, InTag);
+end;
+
+function SM4GCMEncryptToHex(Key, Iv, AD: TBytes; const Input: TBytes): string;
+var
+  OutTag: TCnGCM128Tag;
+  Res: TBytes;
+  L: Integer;
+begin
+  Res := SM4GCMEncryptBytes(Key, Iv, Input, AD, OutTag);
+  if Length(Res) > 0 then
+  begin
+    L := Length(Res);
+    SetLength(Res, L + SizeOf(TCnGCM128Tag));
+    Move(OutTag[0], Res[L], SizeOf(TCnGCM128Tag));
+    Result := BytesToHex(Res);
+  end
+  else
+    Result := '';
+end;
+
+function SM4GCMDecryptFromHex(Key, Iv, AD: TBytes; const Input: string): TBytes;
+var
+  InTag: TCnGCM128Tag;
+  Res: TBytes;
+begin
+  Res := HexToBytes(Input);
+  if Length(Res) < SizeOf(TCnGCM128Tag) then // 太短说明没 Tag
+  begin
+    Result := nil;
+    Exit;
+  end;
+
+  Move(Res[Length(Res) - SizeOf(TCnGCM128Tag)], InTag[0], SizeOf(TCnGCM128Tag));
+  SetLength(Res, Length(Res) - SizeOf(TCnGCM128Tag));
+  Result := SM4GCMDecryptBytes(Key, Iv, Res, AD, InTag);
+end;
+
+// =================== ChaCha20_Poly1305 数据块加解密函数 ======================
+
+procedure ChaCha20Poly1305Encrypt(Key: Pointer; KeyByteLength: Integer; Iv: Pointer; IvByteLength: Integer;
+  PlainData: Pointer; PlainByteLength: Integer; AAD: Pointer; AADByteLength: Integer;
+  OutEnData: Pointer; var OutTag: TCnPoly1305Digest);
+var
+  ChaChaKey: TCnChaChaKey;
+  Nonce: TCnChaChaNonce;
+  OutKey: TCnChaChaState;
+  Poly1305Key: TCnPoly1305Key;
+  Poly1305Context: TCnPoly1305Context;
+  Lens: array[0..1] of Int64;
+begin
+  MoveMost(Key^, ChaChaKey[0], KeyByteLength, SizeOf(TCnChaChaKey));
+  MoveMost(Iv^, Nonce[0], IvByteLength, SizeOf(TCnChaChaNonce));
+
+  ChaCha20Block(ChaChaKey, Nonce, 0, OutKey); // 注意这里的计数器是 0
+
+  // 64 字节的 OutKey 的前一半作为计算 Poly1305 摘要 Tag 的 Key
+  Move(OutKey[0], Poly1305Key[0], SizeOf(TCnPoly1305Key));
+
+  ChaCha20EncryptData(ChaChaKey, Nonce, PlainData, PlainByteLength, OutEnData);
+
+  // 开始分块计算 Poly1305
+  Poly1305Init(Poly1305Context, Poly1305Key);
+
+  // 先算 AAD 及其 Padding
+  Poly1305Update(Poly1305Context, AAD, AADByteLength, True);
+
+  // 再算密文及其 Padding
+  Poly1305Update(Poly1305Context, OutEnData, PlainByteLength, True);
+
+  Lens[0] := AADByteLength;
+  Lens[1] := PlainByteLength;
+  Lens[0] := Int64ToLittleEndian(Lens[0]); // RFC 规定要走小端
+  Lens[1] := Int64ToLittleEndian(Lens[1]);
+
+  // 再算两个长度
+  Poly1305Update(Poly1305Context, @Lens[0], SizeOf(Lens));
+
+  // 最后得到结果
+  Poly1305Final(Poly1305Context, OutTag);
+end;
+
+function ChaCha20Poly1305Decrypt(Key: Pointer; KeyByteLength: Integer; Iv: Pointer; IvByteLength: Integer;
+  EnData: Pointer; EnByteLength: Integer; AAD: Pointer; AADByteLength: Integer;
+  OutPlainData: Pointer; var InTag: TCnPoly1305Digest): Boolean;
+var
+  ChaChaKey: TCnChaChaKey;
+  Nonce: TCnChaChaNonce;
+  OutKey: TCnChaChaState;
+  Poly1305Key: TCnPoly1305Key;
+  Poly1305Context: TCnPoly1305Context;
+  Tag: TCnPoly1305Digest;
+  Lens: array[0..1] of Int64;
+begin
+  MoveMost(Key^, ChaChaKey[0], KeyByteLength, SizeOf(TCnChaChaKey));
+  MoveMost(Iv^, Nonce[0], IvByteLength, SizeOf(TCnChaChaNonce));
+
+  ChaCha20Block(ChaChaKey, Nonce, 0, OutKey); // 注意这里的计数器是 0
+
+  // 64 字节的 OutKey 的前一半作为计算 Poly1305 摘要 Tag 的 Key
+  Move(OutKey[0], Poly1305Key[0], SizeOf(TCnPoly1305Key));
+
+  ChaCha20DecryptData(ChaChaKey, Nonce, EnData, EnByteLength, OutPlainData);
+
+  // 开始分块计算 Poly1305
+  Poly1305Init(Poly1305Context, Poly1305Key);
+
+  // 先算 AAD 及其 Padding
+  Poly1305Update(Poly1305Context, AAD, AADByteLength, True);
+
+  // 再算密文及其 Padding
+  Poly1305Update(Poly1305Context, EnData, EnByteLength, True);
+
+  Lens[0] := AADByteLength;
+  Lens[1] := EnByteLength;
+  Lens[0] := Int64ToLittleEndian(Lens[0]); // RFC 规定要走小端
+  Lens[1] := Int64ToLittleEndian(Lens[1]);
+
+  // 再算两个长度
+  Poly1305Update(Poly1305Context, @Lens[0], SizeOf(Lens));
+
+  // 最后得到结果
+  Poly1305Final(Poly1305Context, Tag);
+
+  // 当且仅当计算出的 Tag 和传入 Tag 相同才通过
+  Result := CompareMem(@Tag[0], @InTag[0], SizeOf(TCnPoly1305Digest));
+end;
+
+// ================== ChaCha20_Poly1305 字节数组加解密函数 =====================
+
+function ChaCha20Poly1305EncryptBytes(Key, Iv, PlainData, AAD: TBytes;
+  var OutTag: TCnPoly1305Digest): TBytes;
+var
+  K, I, P, A: Pointer;
+begin
+  if Key = nil then
+    K := nil
+  else
+    K := @Key[0];
+
+  if Iv = nil then
+    I := nil
+  else
+    I := @Iv[0];
+
+  if PlainData = nil then
+    P := nil
+  else
+    P := @PlainData[0];
+
+  if AAD = nil then
+    A := nil
+  else
+    A := @AAD[0];
+
+  if Length(PlainData) > 0 then
+  begin
+    SetLength(Result, Length(PlainData));
+    ChaCha20Poly1305Encrypt(K, Length(Key), I, Length(Iv), P, Length(PlainData), A,
+      Length(AAD), @Result[0], OutTag);
+  end
+  else
+  begin
+    ChaCha20Poly1305Encrypt(K, Length(Key), I, Length(Iv), P, Length(PlainData), A,
+      Length(AAD), nil, OutTag);
+  end;
+end;
+
+function ChaCha20Poly1305DecryptBytes(Key, Iv, EnData, AAD: TBytes; var InTag: TCnPoly1305Digest): TBytes;
+var
+  K, I, P, A: Pointer;
+begin
+  if Key = nil then
+    K := nil
+  else
+    K := @Key[0];
+
+  if Iv = nil then
+    I := nil
+  else
+    I := @Iv[0];
+
+  if EnData = nil then
+    P := nil
+  else
+    P := @EnData[0];
+
+  if AAD = nil then
+    A := nil
+  else
+    A := @AAD[0];
+
+  if Length(EnData) > 0 then
+  begin
+    SetLength(Result, Length(EnData));
+    if not ChaCha20Poly1305Decrypt(K, Length(Key), I, Length(Iv), P, Length(EnData), A,
+      Length(AAD), @Result[0], InTag) then // Tag 比对失败则返回
+      SetLength(Result, 0);
+  end
+  else
+  begin
+    ChaCha20Poly1305Decrypt(K, Length(Key), I, Length(Iv), P, Length(EnData), A,
+      Length(AAD), nil, InTag); // 没密文，其实 Tag 比对成功与否都没用
+  end;
+end;
+
+// =================== XChaCha20_Poly1305 数据块加解密函数 =====================
+
+procedure XChaCha20Poly1305Encrypt(Key: Pointer; KeyByteLength: Integer; Iv: Pointer; IvByteLength: Integer;
+  PlainData: Pointer; PlainByteLength: Integer; AAD: Pointer; AADByteLength: Integer;
+  OutEnData: Pointer; var OutTag: TCnPoly1305Digest);
+var
+  ChaChaKey: TCnChaChaKey;
+  H: TCnHChaChaNonce;
+  N: TCnChaChaNonce;
+  OutKey: TCnHChaChaSubKey;
+  P: PByte;
+begin
+  MoveMost(Key^, ChaChaKey[0], KeyByteLength, SizeOf(TCnChaChaKey));
+  MoveMost(Iv^, H[0], IvByteLength, SizeOf(TCnHChaChaNonce));
+
+  HChaCha20SubKey(ChaChaKey, H, OutKey); // 算出一个新的 Key
+  N[0] := 0;                             // 四字节 0 加上 XChaCha20 的剩下 8 字节共 12 字节作为 ChaCha20_Poly1305 的 Nonce
+  N[1] := 0;
+  N[2] := 0;
+  N[3] := 0;
+
+  P := PByte(Iv);
+  Inc(P, 16);
+  Move(P^, N[4], CN_XCHACHA_NONCE_SIZE - CN_HCHACHA_NONCE_SIZE);
+
+  ChaCha20Poly1305Encrypt(@OutKey[0], SizeOf(TCnHChaChaSubKey), @N[0], SizeOf(TCnChaChaNonce),
+    PlainData, PlainByteLength, AAD, AADByteLength, OutEnData, OutTag);
+end;
+
+function XChaCha20Poly1305Decrypt(Key: Pointer; KeyByteLength: Integer; Iv: Pointer; IvByteLength: Integer;
+  EnData: Pointer; EnByteLength: Integer; AAD: Pointer; AADByteLength: Integer;
+  OutPlainData: Pointer; var InTag: TCnPoly1305Digest): Boolean;
+var
+  ChaChaKey: TCnChaChaKey;
+  H: TCnHChaChaNonce;
+  N: TCnChaChaNonce;
+  OutKey: TCnHChaChaSubKey;
+  P: PByte;
+begin
+  MoveMost(Key^, ChaChaKey[0], KeyByteLength, SizeOf(TCnChaChaKey));
+  MoveMost(Iv^, H[0], IvByteLength, SizeOf(TCnHChaChaNonce));
+
+  HChaCha20SubKey(ChaChaKey, H, OutKey); // 算出一个新的 Key
+  N[0] := 0;                             // 四字节 0 加上 XChaCha20 的剩下 8 字节共 12 字节作为 ChaCha20_Poly1305 的 Nonce
+  N[1] := 0;
+  N[2] := 0;
+  N[3] := 0;
+
+  P := PByte(Iv);
+  Inc(P, 16);
+  Move(P^, N[4], CN_XCHACHA_NONCE_SIZE - CN_HCHACHA_NONCE_SIZE);
+
+  Result := ChaCha20Poly1305Decrypt(@OutKey[0], SizeOf(TCnHChaChaSubKey), @N[0], SizeOf(TCnChaChaNonce),
+    EnData, EnByteLength, AAD, AADByteLength, OutPlainData, InTag);
+end;
+
+// ================== XChaCha20_Poly1305 字节数组加解密函数 ====================
+
+function XChaCha20Poly1305EncryptBytes(Key, Iv, PlainData, AAD: TBytes;
+  var OutTag: TCnPoly1305Digest): TBytes;
+var
+  K, I, P, A: Pointer;
+begin
+  if Key = nil then
+    K := nil
+  else
+    K := @Key[0];
+
+  if Iv = nil then
+    I := nil
+  else
+    I := @Iv[0];
+
+  if PlainData = nil then
+    P := nil
+  else
+    P := @PlainData[0];
+
+  if AAD = nil then
+    A := nil
+  else
+    A := @AAD[0];
+
+  if Length(PlainData) > 0 then
+  begin
+    SetLength(Result, Length(PlainData));
+    XChaCha20Poly1305Encrypt(K, Length(Key), I, Length(Iv), P, Length(PlainData), A,
+      Length(AAD), @Result[0], OutTag);
+  end
+  else
+  begin
+    XChaCha20Poly1305Encrypt(K, Length(Key), I, Length(Iv), P, Length(PlainData), A,
+      Length(AAD), nil, OutTag);
+  end;
+end;
+
+function XChaCha20Poly1305DecryptBytes(Key, Iv, EnData, AAD: TBytes; var InTag: TCnPoly1305Digest): TBytes;
+var
+  K, I, P, A: Pointer;
+begin
+  if Key = nil then
+    K := nil
+  else
+    K := @Key[0];
+
+  if Iv = nil then
+    I := nil
+  else
+    I := @Iv[0];
+
+  if EnData = nil then
+    P := nil
+  else
+    P := @EnData[0];
+
+  if AAD = nil then
+    A := nil
+  else
+    A := @AAD[0];
+
+  if Length(EnData) > 0 then
+  begin
+    SetLength(Result, Length(EnData));
+    if not XChaCha20Poly1305Decrypt(K, Length(Key), I, Length(Iv), P, Length(EnData), A,
+      Length(AAD), @Result[0], InTag) then // Tag 比对失败则返回
+      SetLength(Result, 0);
+  end
+  else
+  begin
+    XChaCha20Poly1305Decrypt(K, Length(Key), I, Length(Iv), P, Length(EnData), A,
+      Length(AAD), nil, InTag); // 没密文，其实 Tag 比对成功与否都没用
+  end;
 end;
 
 end.

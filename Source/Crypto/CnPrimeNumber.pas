@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2023 CnPack 开发组                       }
+{                   (C)Copyright 2001-2024 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -13,7 +13,7 @@
 {            您应该已经和开发包一起收到一份 CnPack 发布协议的副本。如果        }
 {        还没有，可访问我们的网站：                                            }
 {                                                                              }
-{            网站地址：http://www.cnpack.org                                   }
+{            网站地址：https://www.cnpack.org                                  }
 {            电子邮件：master@cnpack.org                                       }
 {                                                                              }
 {******************************************************************************}
@@ -23,16 +23,19 @@ unit CnPrimeNumber;
 ================================================================================
 * 软件名称：开发包基础库
 * 单元名称：素数算法单元
-* 单元作者：刘啸
-* 备    注：2^16 以内的素数表可以预先生成，以用来快速判断 2^32 内的数是否素数，
+* 单元作者：CnPack 开发组 (master@cnpack.org)
+* 备    注：本单元实现了 Int64 范围内的素数相关的一些算法，如素数判定与生成等。
+*
+*           2^16 以内的素数表可以预先生成，以用来快速判断 2^32 内的数是否素数，
 *           理论上 2^32 内的素数也可预先生成写代码里，用来快速判断 2^64 内的素数
 *           但经过生成，2^32 内的素数有 203280221 个，写在代码里超过 2.5 个 G……
 *           后来采用基于费马小定理以及二次探测的 Miller Rabin 素数判定概率算法，
 *           无需排除部分已知的 Carmichael 数（Carmichael 数严格符合费马小定理，
 *           但加入二次探测后就被筛了，和其他素数保持同等概率）。
+*
 *           另外本单元中的 Int64 系列均是 32 位编译器下靠 Int64 封装支持 UInt64，
-*           为的是照顾不支持 UInt64 的编译器。
-*           真正的 UInt64 系列函数均是 CPUX64 位下实现。
+*           为的是照顾不支持 UInt64 的编译器。真正的 UInt64 系列函数均是 CPUX64 位下实现。
+*           
 * 开发平台：WinXP + Delphi 5.0
 * 兼容测试：暂未进行
 * 本 地 化：该单元无需本地化处理
@@ -63,7 +66,7 @@ interface
 {$I CnPack.inc}
 
 uses
-  SysUtils, Classes, Math, CnNative, CnContainers, CnClasses;
+  SysUtils, Classes, Math, CnNative, CnContainers;
 
 const
   // 用 Miller Rabin 素数概率判断算法所进行的次数
@@ -677,6 +680,9 @@ const
   CN_MIN_PRIME_MORE_THAN_SQRT_INT64 = 3037000507;
 
 type
+  ECnPrimeException = class(Exception);
+  {* 素数相关异常}
+
   TCnPrimeType = (pt4U3, pt8U5, pt8U1);
   {* 素数类型，mod 4 余 3、mod 8 余 5、mod 8 余 1，用于二次剩余模素数求解}
 
@@ -797,25 +803,30 @@ procedure CnInt64FindFactors(Num: TUInt64; Factors: TCnUInt64List);
 {* 求一 64 位无符号数的全部质因数，可重复不排序，结果放 Factors 列表中}
 
 function CnEulerUInt32(Num: Cardinal): Cardinal;
-{* 求不大于一 32 位无符号数 Num 的与 Num 互质的正整数的个数，也就是欧拉函数}
+{* 求不大于一 32 位无符号数 Num 的与 Num 互素的正整数的个数，也就是欧拉函数}
 
 function CnEulerInt64(Num: TUInt64): TUInt64;
-{* 求不大于一 64 位无符号数 Num 的与 Num 互质的正整数的个数，也就是欧拉函数}
+{* 求不大于一 64 位无符号数 Num 的与 Num 互素的正整数的个数，也就是欧拉函数}
 
 function CnUInt32ModularInverse(X: Cardinal; Modulus: Cardinal): Cardinal;
-{* 求 X 针对 M 的模反元素也就是模逆元 Y，满足 (X * Y) mod M = 1，范围为 UInt32，X、M 必须互质，否则返回 0}
+{* 求 X 针对 M 的模反元素也就是模逆元 Y，满足 (X * Y) mod M = 1，范围为 UInt32
+   X、Modulus 必须互素，如不互素则模逆元不存在，返回 0}
 
 function CnInt64ModularInverse(X: TUInt64; Modulus: TUInt64): TUInt64;
-{* 求 X 针对 M 的模反元素也就是模逆元 Y，满足 (X * Y) mod M = 1，范围为 UInt64，X、M 必须互质，否则返回 0}
+{* 求 X 针对 M 的模反元素也就是模逆元 Y，满足 (X * Y) mod M = 1，范围为 UInt64
+   X、Modulus 必须互素，如不互素则模逆元不存在，返回 0}
 
 function CnInt64ModularInverse2(X: Int64; Modulus: Int64): Int64;
-{* 求 X 针对 M 的模反元素也就是模逆元 Y，满足 (X * Y) mod M = 1，范围为 Int64，也就是支持负值，X、M 必须互质}
+{* 求 X 针对 M 的模反元素也就是模逆元 Y，满足 (X * Y) mod M = 1，范围为 Int64，也就是支持负值
+   X、Modulus 必须互素，如不互素则模逆元不存在，返回 0}
 
 function CnInt64NegativeModularInverse(X: TUInt64; Modulus: TUInt64): TUInt64;
-{* 求 X 针对 M 的负模反元素也就是负模逆元 Y，满足 (X * Y) mod M = -1，范围为 UInt64，X、M 必须互质，否则返回 0}
+{* 求 X 针对 M 的负模反元素也就是负模逆元 Y，满足 (X * Y) mod M = -1，范围为 UInt64
+   X、Modulus 必须互素，如不互素则负模逆元不存在，返回 0}
 
 function CnInt64NegativeModularInverse2(X: Int64; Modulus: Int64): Int64;
-{* 求 X 针对 M 的负模反元素也就是负模逆元 Y，满足 (X * Y) mod M = 1，范围为 Int64，也就是支持负值，X、M 必须互质}
+{* 求 X 针对 M 的负模反元素也就是负模逆元 Y，满足 (X * Y) mod M = 1，范围为 Int64，也就是支持负值
+   X、Modulus 必须互素，如不互素则负模逆元不存在，返回 0}
 
 function CnUInt32ExtendedEuclideanGcd(A, B: Cardinal; out X: Cardinal; out Y: Cardinal): Cardinal;
 {* 扩展欧几里得辗转相除法求二元一次不定方程 A * X + B * Y = 1 的整数解，调用者需自行保证 A B 互素
@@ -1814,7 +1825,7 @@ begin
   CnInt64FindFactors(UInt64Div(Num, P), Factors);
 end;
 
-// 求不大于一 32 位无符号数 Num 的与 Num 互质的正整数的个数，也就是欧拉函数
+// 求不大于一 32 位无符号数 Num 的与 Num 互素的正整数的个数，也就是欧拉函数
 function CnEulerUInt32(Num: Cardinal): Cardinal;
 var
   F: TCnUInt32List;
@@ -1837,7 +1848,7 @@ begin
   end;
 end;
 
-// 求不大于一 64 位无符号数 Num 的与 Num 互质的正整数的个数，也就是欧拉函数
+// 求不大于一 64 位无符号数 Num 的与 Num 互素的正整数的个数，也就是欧拉函数
 function CnEulerInt64(Num: TUInt64): TUInt64;
 var
   F: TCnUInt64List;
@@ -1890,7 +1901,7 @@ begin
     Result := Result + Modulus;
 end;
 
-// 求 X 针对 M 的模反元素也就是模逆元 Y，满足 (X * Y) mod M = 1，范围为 Int64，也就是支持负值，X、M 必须互质
+// 求 X 针对 M 的模反元素也就是模逆元 Y，满足 (X * Y) mod M = 1，范围为 Int64，也就是支持负值，X、M 必须互素
 function CnInt64ModularInverse2(X: Int64; Modulus: Int64): Int64;
 var
   N: Int64;
@@ -1905,13 +1916,13 @@ begin
     Result := Result + Modulus;
 end;
 
-// 求 X 针对 M 的负模反元素也就是负模逆元 Y，满足 (X * Y) mod M = -1，范围为 UInt64，X、M 必须互质，否则返回 0
+// 求 X 针对 M 的负模反元素也就是负模逆元 Y，满足 (X * Y) mod M = -1，范围为 UInt64，X、M 必须互素
 function CnInt64NegativeModularInverse(X: TUInt64; Modulus: TUInt64): TUInt64;
 begin
   Result := Modulus - CnInt64ModularInverse(X, Modulus);
 end;
 
-// 求 X 针对 M 的负模反元素也就是负模逆元 Y，满足 (X * Y) mod M = 1，范围为 Int64，也就是支持负值，X、M 必须互质}
+// 求 X 针对 M 的负模反元素也就是负模逆元 Y，满足 (X * Y) mod M = 1，范围为 Int64，也就是支持负值，X、M 必须互素}
 function CnInt64NegativeModularInverse2(X: Int64; Modulus: Int64): Int64;
 begin
   Result := Modulus - CnInt64ModularInverse2(X, Modulus);
@@ -2384,7 +2395,7 @@ end;
 function CnInt64IsPerfectPower(N: Int64): Boolean;
 var
   LG2, I: Integer;
-  A: Int64;
+  A, M: Int64;
 begin
   Result := False;
   if (N < 0) or (N = 2) or (N = 3) then
@@ -2402,13 +2413,23 @@ begin
     // 求 N 的 I 次方根的整数部分
     A := Trunc(Power(N, 1.0 / I));
     // 整数部分再求幂
-    A := Int64NonNegativPower(A, I);
+    M := Int64NonNegativPower(A, I);
 
     // 判断是否相等
-    if A = N then
+    if M = N then
     begin
       Result := True;
       Exit;
+    end
+    else // 如果整数部分偏小，譬如 9682651996416 的 1/8 次方，Power 函数可能返回 41.999 这种，Trunc 会判断错误，再加一再幂一下
+    begin
+      Inc(A);
+      M := Int64NonNegativPower(A, I);
+      if M = N then
+      begin
+        Result := True;
+        Exit;
+      end;
     end;
   end;
 end;
@@ -2653,4 +2674,3 @@ begin
 end;
 
 end.
-

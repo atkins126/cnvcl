@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2023 CnPack 开发组                       }
+{                   (C)Copyright 2001-2024 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -13,7 +13,7 @@
 {            您应该已经和开发包一起收到一份 CnPack 发布协议的副本。如果        }
 {        还没有，可访问我们的网站：                                            }
 {                                                                              }
-{            网站地址：http://www.cnpack.org                                   }
+{            网站地址：https://www.cnpack.org                                  }
 {            电子邮件：master@cnpack.org                                       }
 {                                                                              }
 {******************************************************************************}
@@ -22,13 +22,16 @@ unit CnBerUtils;
 {* |<PRE>
 ================================================================================
 * 软件名称：开发包基础库
-* 单元名称：处理 ASN.1 的 BER 编码单元
-* 单元作者：刘啸
-* 备    注：
+* 单元名称：ASN.1 格式的 BER/DER 编解码实现单元
+* 单元作者：CnPack 开发组 (master@cnpack.org)
+* 备    注：本单元实现了 ASN.1 格式的 BER/DER 编解码，提供了 TCnBerReader 类可将
+*           内容解析为树状数据结构，提供了 TCnBerWriter 类实现数据组装并输出。
 * 开发平台：WinXP + Delphi 5.0
 * 兼容测试：暂未进行
 * 本 地 化：该单元无需本地化处理
-* 修改记录：2022.04.26 V1.5
+* 修改记录：2023.12.13 V1.6
+*               增加对 00 00 不固定长度节点的解析支持，待进一步测试
+*           2022.04.26 V1.5
 *               修改 LongWord 与 Integer 地址转换以支持 MacOS64
 *           2022.04.15 V1.4
 *               加入一 AsCommonInteger 方法允许自动根据数据长度 1、2、4 获取整型值。
@@ -47,6 +50,8 @@ interface
 
 {$I CnPack.inc}
 
+// 如需要启用和 TreeView 交互的功能，需在工程选项中定义 ENABLE_UIINTERACT
+
 // 用 ENABLE_FMX 来控制 FMX 环境下是否支持 FMX，默认不支持，以避免编译出来的东西体积太大
 {$IFNDEF ENABLE_FMX}
   {$UNDEF SUPPORT_FMX}
@@ -54,10 +59,10 @@ interface
 
 uses
   SysUtils, Classes, TypInfo, CnNative, CnBigNumber, CnTree
-  {$IFDEF DEBUG}
+  {$IFDEF DEBUG} {$IFDEF ENABLE_UIINTERACT}
     {$IFDEF MSWINDOWS}, ComCtrls  {$ENDIF} // 如果 Windows 下编译错误找不到该单元，请在编译选项里加 Vcl 前缀
     {$IFDEF SUPPORT_FMX}, FMX.TreeView {$ENDIF}
-  {$ENDIF};
+  {$ENDIF} {$ENDIF};
   // If ComCtrls not found, please add 'Vcl' to 'Unit Scope Names' in Project Options.
 
 const
@@ -203,7 +208,9 @@ type
     FData: PByte;
     FDataLen: Cardinal;
     FParseInnerString: Boolean;
+    FCurrentIsBitString: Boolean;
 {$IFDEF DEBUG}
+{$IFDEF ENABLE_UIINTERACT}
   {$IFDEF MSWINDOWS}
     function GetOnSaveNode: TCnTreeNodeEvent;
     procedure SetOnSaveNode(const Value: TCnTreeNodeEvent);
@@ -213,11 +220,15 @@ type
     procedure SetOnSaveItem(const Value: TCnTreeViewItemEvent);
   {$ENDIF}
 {$ENDIF}
+{$ENDIF}
     function GetTotalCount: Integer;
     function GetItems(Index: Integer): TCnBerReadNode;
-    procedure ParseArea(Parent: TCnLeaf; AData: PByteArray;
-      ADataLen: Cardinal; AStartOffset: Cardinal);
-    {* 解析一段数据，该数据里的所有 ASN.1 节点均序次挂在 Parent 节点下}
+    function ParseArea(Parent: TCnLeaf; AData: PByteArray; ADataLen: Cardinal;
+      AStartOffset: Cardinal; var IsEnd: Boolean; IsTop: Boolean = True): Cardinal;
+    {* 解析一段数据为一个或多个节点，该数据里的所有 ASN.1 节点均序次挂在 Parent 节点下，
+      返回这个 Area 的总长度。IsTop 表示是 Parent 是 Root 顶级节点，以处理长度问题。
+      ADataLen 如果传 0，表示是不定长节点，ParseArea 此时需要判断 00 00 以告知上一级结尾了
+      并通过 IsEnd 函数返回告诉调用者}
   protected
 
   public
@@ -230,6 +241,7 @@ type
     {* 某些节点的 Tag 并非 SEQUENCE/SET 等但内容却有子内容，需要外部手工调用此方法来实施二次解析}
 
 {$IFDEF DEBUG}
+{$IFDEF ENABLE_UIINTERACT}
   {$IFDEF MSWINDOWS}
     procedure DumpToTreeView(ATreeView: ComCtrls.TTreeView); {$IFDEF SUPPORT_FMX} overload; {$ENDIF}
     property OnSaveNode: TCnTreeNodeEvent read GetOnSaveNode write SetOnSaveNode;
@@ -238,6 +250,7 @@ type
     procedure DumpToTreeView(ATreeView: FMX.TreeView.TTreeView); {$IFDEF MSWINDOWS} overload; {$ENDIF}
     property OnSaveItem: TCnTreeViewItemEvent read GetOnSaveItem write SetOnSaveItem;
   {$ENDIF}
+{$ENDIF}
 {$ENDIF}
 
     property ParseInnerString: Boolean read FParseInnerString;
@@ -304,6 +317,7 @@ type
     FBerTree: TCnTree;
     function GetTotalSize: Integer;
 {$IFDEF DEBUG}
+{$IFDEF ENABLE_UIINTERACT}
   {$IFDEF MSWINDOWS}
     function GetOnSaveNode: TCnTreeNodeEvent;
     procedure SetOnSaveNode(const Value: TCnTreeNodeEvent);
@@ -312,6 +326,7 @@ type
     function GetOnSaveItem: TCnTreeViewItemEvent;
     procedure SetOnSaveItem(const Value: TCnTreeViewItemEvent);
   {$ENDIF}
+{$ENDIF}
 {$ENDIF}
   public
     constructor Create;
@@ -327,6 +342,7 @@ type
     {* 将 BER 内容保存至流}
 
 {$IFDEF DEBUG}
+{$IFDEF ENABLE_UIINTERACT}
   {$IFDEF MSWINDOWS}
     procedure DumpToTreeView(ATreeView: ComCtrls.TTreeView); {$IFDEF SUPPORT_FMX} overload; {$ENDIF}
     property OnSaveNode: TCnTreeNodeEvent read GetOnSaveNode write SetOnSaveNode;
@@ -335,6 +351,7 @@ type
     procedure DumpToTreeView(ATreeView: FMX.TreeView.TTreeView); {$IFDEF MSWINDOWS} overload; {$ENDIF}
     property OnSaveItem: TCnTreeViewItemEvent read GetOnSaveItem write SetOnSaveItem;
   {$ENDIF}
+{$ENDIF}
 {$ENDIF}
 
     function AddNullNode(Parent: TCnBerWriteNode = nil): TCnBerWriteNode;
@@ -363,9 +380,11 @@ function CompareObjectIdentifier(Node: TCnBerReadNode; OIDAddr: Pointer;
 {* 比较一个 Node 中的数据是否等于一个指定的 OID}
 
 function AddBigNumberToWriter(Writer: TCnBerWriter; Num: TCnBigNumber;
-  Parent: TCnBerWriteNode): TCnBerWriteNode;
-{* 将一个大数的内容写入一个新增的 Ber 整型格式的节点，无需指定固定长度，
-  节点会根据最高位的实际情况决定是否加一个字节 0}
+  Parent: TCnBerWriteNode; Tag: Integer = CN_BER_TAG_INTEGER; FixedLen: Integer = 0): TCnBerWriteNode;
+{* 将一个大数的内容写入一个新增的 Ber 整型格式的节点，FixedLen 为 0 时无固定长度，
+   FixedLen 指定大数实际长度不足时使用固定长度，为 0 时则使用大数实际长度
+  如 FixedLen 为 0，节点会根据最高位的实际情况决定是否加一个字节 0
+  如 FixedLen 不为 0，节点会在 FixedLen 与大数实际长度的基础上强行加一个字节 0}
 
 procedure PutIndexedBigIntegerToBigNumber(Node: TCnBerReadNode; BigNumber: TCnBigNumber);
 {* 将一个 Ber 整型格式的节点写入一个大数的内容}
@@ -378,6 +397,8 @@ const
 
   CN_TAG_SET_TIME: TCnBerTagSet = [CN_BER_TAG_UTCTIME, CN_BER_TAG_GENERALIZEDTIME];
 
+{$IFDEF DEBUG}
+
 function GetTagName(Tag: Integer): string;
 begin
   Result := 'Invalid';
@@ -389,30 +410,7 @@ begin
   end;
 end;
 
-function SwapWord(Value: Word): Word;
-begin
-  Result := ((Value and $FF00) shr 8) or ((Value and $00FF) shl 8);
-end;
-
-function SwapCardinal(Value: Cardinal): Cardinal;
-begin
-  Result := ((Value and $000000FF) shl 24) or ((Value and $0000FF00) shl 8)
-    or ((Value and $00FF0000) shr 8) or ((Value and $FF000000) shr 24);
-end;
-
-function SwapInt64(Value: Int64): Int64;
-var
-  Lo, Hi: Cardinal;
-  Rec: Int64Rec;
-begin
-  Lo := Int64Rec(Value).Lo;
-  Hi := Int64Rec(Value).Hi;
-  Lo := SwapCardinal(Lo);
-  Hi := SwapCardinal(Hi);
-  Rec.Lo := Hi;
-  Rec.Hi := Lo;
-  Result := Int64(Rec);
-end;
+{$ENDIF}
 
 function CompareObjectIdentifier(Node: TCnBerReadNode; OIDAddr: Pointer;
   OIDSize: Integer): Boolean;
@@ -431,16 +429,27 @@ begin
   end;
 end;
 
-// 如果整数最高位是 1，则需要前面补 0 避免与负数的表述混淆
-function CalcIntegerTLV(BigNumber: TCnBigNumber): Cardinal;
+// FixedLen 小于或等于 0 时，如果整数最高位是 1，则需要前面补 0 避免与负数的表述混淆
+// FixedLen 大于 0 时，如够长，则固定补 0，否则按大数实际情况补 0
+function CalcIntegerTLV(BigNumber: TCnBigNumber; FixedLen: Integer = 0): Cardinal;
 begin
   Result := BigNumber.GetBytesCount;
-  if BigNumber.IsBitSet((Result * 8) - 1) then
-    Inc(Result);
+  if FixedLen <= 0 then
+  begin
+    if BigNumber.IsBitSet((Result * 8) - 1) then // 根据最高位是否是 1 决定是否补 0
+      Inc(Result);
+  end
+  else
+  begin
+    if Cardinal(FixedLen) >= Result then // 固定位，够长，前面补 0
+      Result := FixedLen + 1
+    else if BigNumber.IsBitSet((Result * 8) - 1) then // 固定位不够按实际长，前面按需补 0
+      Inc(Result);
+  end;
 end;
 
 function AddBigNumberToWriter(Writer: TCnBerWriter; Num: TCnBigNumber;
-  Parent: TCnBerWriteNode): TCnBerWriteNode;
+  Parent: TCnBerWriteNode; Tag: Integer; FixedLen: Integer): TCnBerWriteNode;
 var
   P: Pointer;
   C, D: Integer;
@@ -449,8 +458,8 @@ begin
   if (Writer = nil) or (Num = nil) then
     Exit;
 
-  // Integer 编码需要处理最高位
-  C := CalcIntegerTLV(Num);
+  // Integer 编码需要处理最高位以决定是否补一个 0
+  C := CalcIntegerTLV(Num, FixedLen);
   if C <= 0 then
     Exit;
 
@@ -460,7 +469,7 @@ begin
   FillChar(P^, D, 0);
   Num.ToBinary(PAnsiChar(TCnNativeInt(P) + D));
 
-  Result := Writer.AddBasicNode(CN_BER_TAG_INTEGER, P, C, Parent);
+  Result := Writer.AddBasicNode(Tag, P, C, Parent);
   FreeMemory(P);
 end;
 
@@ -495,7 +504,7 @@ begin
 end;
 
 {$IFDEF DEBUG}
-
+{$IFDEF ENABLE_UIINTERACT}
 {$IFDEF MSWINDOWS}
 
 procedure TCnBerReader.DumpToTreeView(ATreeView: ComCtrls.TTreeView);
@@ -531,8 +540,9 @@ procedure TCnBerReader.SetOnSaveItem(const Value: TCnTreeViewItemEvent);
 begin
   FBerTree.OnSaveAItem := Value;
 end;
-{$ENDIF}
 
+{$ENDIF}
+{$ENDIF}
 {$ENDIF}
 
 function TCnBerReader.GetItems(Index: Integer): TCnBerReadNode;
@@ -545,18 +555,21 @@ begin
   Result := FBerTree.Root.AllCount;
 end;
 
-procedure TCnBerReader.ParseArea(Parent: TCnLeaf; AData: PByteArray;
-  ADataLen: Cardinal; AStartOffset: Cardinal);
+function TCnBerReader.ParseArea(Parent: TCnLeaf; AData: PByteArray;
+  ADataLen: Cardinal; AStartOffset: Cardinal; var IsEnd: Boolean; IsTop: Boolean): Cardinal;
 var
   Run, Start: Cardinal;
-  Tag, DataLen, DataOffset, LenLen, Delta: Integer;
+  Tag, DataLen, DataOffset, LenLen, Delta, SubLen: Integer;
   B: Byte;
-  IsStruct: Boolean;
+  IsStruct, OutLenIsZero, MyEnd, LenSingle: Boolean;
   ALeaf: TCnBerReadNode;
 begin
   Run := 0;  // Run 是基于 AData 起始处的偏移量
+  Result := ADataLen;
+  OutLenIsZero := ADataLen = 0;
+  MyEnd := False;
 
-  while Run < ADataLen do
+  while (ADataLen = 0) or (Run < ADataLen) do // ADataLen 如果等于 0 表示是不定长节点
   begin
     B := AData^[Run];
 
@@ -570,11 +583,21 @@ begin
     Tag := B and CN_BER_TAG_VALUE_MASK;
 
     Inc(Run);
-    if Run >= ADataLen then
+    if (Run >= ADataLen) and (ADataLen > 0) then
       raise Exception.CreateFmt('Data Corruption when Processing Tag (Base %d), %d > %d.',
         [AStartOffset, Run, ADataLen]);
 
-    // Run 指向长度，处理长度
+    // Run 指向长度，如果 Tag 和长度都是 0，表示不定长内容的终结，不新建节点
+    // 注意 ADataLen 可能因为是顶层节点，长度由外部传入，
+    if (IsTop or (ADataLen = 0)) and (B = 0) and (AData^[Run] = 0) then
+    begin
+      if OutLenIsZero then // 加 Tag 和 0 长度俩字节
+        Inc(Result, 2);
+      IsEnd := True;
+      Exit;
+    end;
+
+    // 处理长度
     Delta := 1;  // 1 表示 Tag 所占字节
     B := AData^[Run];
     if (B and CN_BER_LENLEN_MASK) = 0 then
@@ -584,29 +607,35 @@ begin
       DataOffset := AStartOffset + Run + 1;
       Inc(Delta); // 加上长度的这一字节
       Inc(Run);   // Run 指向数据
+      LenSingle := True;
     end
     else
     begin
       // 本字节高位为 1，表示长度的长度
+      LenSingle := False;
       LenLen := B and CN_BER_LENGTH_MASK;
       Inc(Delta); // 加上长度的长度这一字节
-      Inc(Run);   // Run 指向长度
+      Inc(Run);   // Run 指向具体长度，如果 LenLen 为 0，则 Run 指向下一个 Area 开头
 
       // AData[Run] 到 AData[Run + LenLen - 1] 是长度
-      if Run + Cardinal(LenLen) - 1 >= ADataLen then
+      if (ADataLen > 0) and (Run + Cardinal(LenLen) - 1 >= ADataLen) then
         raise Exception.CreateFmt('Data Corruption when Processing Tag (Base %d) at %d Got Len %d.',
           [AStartOffset, Run, LenLen]);
 
+      DataLen := 0;
       if LenLen = SizeOf(Byte) then
         DataLen := AData^[Run]
       else if LenLen = SizeOf(Word) then
         DataLen := (Cardinal(AData^[Run]) shl 8) or Cardinal(AData^[Run + 1])
-      else // if LenLen > SizeOf(Word) then
-        raise Exception.CreateFmt('Length Too Long (Base %d) %d.', [AStartOffset, LenLen]);
+      else if LenLen > SizeOf(Word) then  // TODO: LenLen = 0 时是不定长编码，BER 中支持，以 00 00 结尾
+        raise Exception.CreateFmt('Length Too Long or Incorrect (Base %d) %d.', [AStartOffset, LenLen]);
 
       DataOffset := AStartOffset + Run + Cardinal(LenLen);
-      Inc(Delta, LenLen);
-      Inc(Run, LenLen);   // Run 指向数据
+      if LenLen > 0 then
+      begin
+        Inc(Delta, LenLen);
+        Inc(Run, LenLen);   // Run 指向数据
+      end;
     end;
 
     // Tag, Len, DataOffset 都齐全了，Delta 是数据起始区与当前节点起始区的偏移
@@ -619,46 +648,78 @@ begin
     ALeaf.BerOffset := AStartOffset + Start;
     ALeaf.BerLength := DataLen + Delta;
     ALeaf.BerTag := Tag;
-    ALeaf.BerDataLength := DataLen;
+    ALeaf.BerDataLength := DataLen;  // 注意 DataLen 为 0 时，如 LenSingle 是 True，表示没东西，为 False 才表示未定长度
     ALeaf.BerDataOffset := DataOffset;
+
+    if OutLenIsZero then
+      Inc(Result, ALeaf.BerLength);
 
 {$IFDEF DEBUG}
     ALeaf.Text := Format('Offset %d. Len %d. Tag %d (%s). DataLen %d', [ALeaf.BerOffset,
       ALeaf.BerLength, ALeaf.BerTag, GetTagName(ALeaf.BerTag), ALeaf.BerDataLength]);
 {$ENDIF}
 
-    if IsStruct or (FParseInnerString and (ALeaf.BerTag in [CN_BER_TAG_BIT_STRING,
-      CN_BER_TAG_OCTET_STRING])) then
+    SubLen := 0;
+    // 有子节点时对长度的要求：(DataLen > 0) 或 (DataLen = 0 且 LenSingle 为 False)
+    // 也就是说，单纯一个字节表示 DataLen 是 0，确实就表示没数据
+    // 组合表示 0，才说明是无固定长度数据，有子节点且最后一个字节点以 00 00 结尾
+    if (IsStruct or (FParseInnerString and (ALeaf.BerTag in [CN_BER_TAG_BIT_STRING,
+      CN_BER_TAG_OCTET_STRING])))
+      and ((DataLen > 0) or (DataLen = 0) and not LenSingle) then
     begin
       // 说明 BerDataOffset 到 BerDataLength 内可能有子节点
       try
-        if ALeaf.BerTag = CN_BER_TAG_BIT_STRING then
+        if ALeaf.BerTag = CN_BER_TAG_BIT_STRING then // 凑成 8 的倍数所缺少的 Bit 数照理应小于 8，但不能加这个额外条件 and (AData^[Run + 1] < 8)
         begin
-          // BIT_STRING 数据区第一个内容字节是该 BIT_STRING 凑成 8 的倍数所缺少的 Bit 数，这里跳过
-          ParseArea(ALeaf, PByteArray(TCnNativeUInt(AData) + Run + 1),
-            ALeaf.BerDataLength - 1, ALeaf.BerDataOffset + 1);
+          FCurrentIsBitString := True;
+          try
+            try
+              // BIT_STRING 数据区第一个内容字节是该 BIT_STRING 凑成 8 的倍数所缺少的 Bit 数，这里要跳过
+              SubLen := ParseArea(ALeaf, PByteArray(TCnNativeUInt(AData) + Run + 1),
+                ALeaf.BerDataLength - 1, ALeaf.BerDataOffset + 1, MyEnd, False);
+            except
+              // 但有些场合没这个字节。所以上面出错时，不跳过这个字节，重新解析
+              SubLen := ParseArea(ALeaf, PByteArray(TCnNativeUInt(AData) + Run),
+                ALeaf.BerDataLength, ALeaf.BerDataOffset, MyEnd, False);
+            end;
+          finally
+            FCurrentIsBitString := False;
+          end;
         end
         else
-          ParseArea(ALeaf, PByteArray(TCnNativeUInt(AData) + Run),
-            ALeaf.BerDataLength, ALeaf.BerDataOffset);
+        begin
+          SubLen := ParseArea(ALeaf, PByteArray(TCnNativeUInt(AData) + Run),
+            ALeaf.BerDataLength, ALeaf.BerDataOffset, MyEnd, False);
+        end;
       except
         ; // 如果内嵌解析失败，不终止，当做普通节点
       end;
     end;
 
-    Inc(Run, DataLen);
+    if DataLen = 0 then // 本轮的本块（不是外头总块）长度不确定时，步进时要走子解析返回的长度
+      Inc(Run, SubLen)
+    else
+      Inc(Run, DataLen);
+
+    Inc(Result, SubLen);  // 子块无论结束与否，其长度都要叠加到父长度上返回
   end;
 end;
 
 procedure TCnBerReader.ParseToTree;
+var
+  MyEnd: Boolean;
 begin
-  ParseArea(FBerTree.Root, PByteArray(FData), FDataLen, 0);
+  ParseArea(FBerTree.Root, PByteArray(FData), FDataLen, 0, MyEnd);
 end;
 
 procedure TCnBerReader.ManualParseNodeData(RootNode: TCnBerReadNode);
+var
+  MyEnd: Boolean;
 begin
   RootNode.Clear;
-  ParseArea(RootNode, PByteArray(RootNode.BerDataAddress), RootNode.BerDataLength, RootNode.BerDataOffset);
+  ParseArea(RootNode, PByteArray(RootNode.BerDataAddress), RootNode.BerDataLength,
+    RootNode.BerDataOffset, MyEnd, False);
+  // 注意 RootNode 一般不会是 Tree 的 Root，因而 IsTop 要传 False
 end;
 
 { TCnBerReadNode }
@@ -687,9 +748,9 @@ begin
 
   // Byte 不需交换，SmallInt 交换两位，Integer 交换四位
   if ByteSize = SizeOf(Word) then
-    IntValue := Integer(SwapWord(Word(IntValue)))
+    IntValue := Integer(UInt16NetworkToHost(Word(IntValue)))
   else if ByteSize = SizeOf(Cardinal) then
-    IntValue := SwapCardinal(IntValue);
+    IntValue := UInt32NetworkToHost(IntValue);
   Result := IntValue;
 end;
 
@@ -704,7 +765,7 @@ begin
 
   Result := 0;
   CopyDataTo(@Result);
-  Result := SwapInt64(Result);
+  Result := Int64NetworkToHost(Result);
 end;
 
 function TCnBerReadNode.AsByte: Byte;
@@ -796,11 +857,27 @@ end;
 function TCnBerReadNode.AsDateTime: TDateTime;
 var
   S: string;
+  Y, M, D, H, Mi, Se: Word;
 begin
   S := string(InternalAsString(CN_TAG_SET_TIME));
   // TODO: YYMMDDhhmm 后面加 Z 或 ss 或 +- 时区
+  if (Length(S) in [11, 13]) and (S[Length(S)] = 'Z') then
+  begin
+    Y := StrToInt(Copy(S, 1, 2)) + 2000;
+    M := StrToInt(Copy(S, 3, 2));
+    D := StrToInt(Copy(S, 5, 2));
+    H := StrToInt(Copy(S, 7, 2));
+    Mi := StrToInt(Copy(S, 9, 2));
+    if Length(S) = 13 then
+      Se := StrToInt(Copy(S, 11, 2))
+    else
+      Se := 0;
 
-  Result := StrToDateTime(S);
+    Result := EncodeDate(Y, M, D) + EncodeTime(H, Mi, Se, 0);
+  end
+  else
+    Result := StrToDateTime(S);
+
   // TODO: 也可能是 Integer 的 Binary Time 格式，
   // 1970 年 1 月 1 日零时起的秒数，参考 rfc4049
 end;
@@ -894,9 +971,9 @@ begin
 
   // Byte 不需交换，SmallInt 交换两位，Integer 交换四位
   if FBerDataLength = SizeOf(Word) then
-    IntValue := Integer(SwapWord(Word(IntValue)))
+    IntValue := Integer(UInt16NetworkToHost(Word(IntValue)))
   else if FBerDataLength = SizeOf(Cardinal) then
-    IntValue := SwapCardinal(IntValue);
+    IntValue := UInt32NetworkToHost(IntValue);
   Result := IntValue;
 end;
 
@@ -947,7 +1024,7 @@ begin
 end;
 
 {$IFDEF DEBUG}
-
+{$IFDEF ENABLE_UIINTERACT}
 {$IFDEF MSWINDOWS}
 
 procedure TCnBerWriter.DumpToTreeView(ATreeView: ComCtrls.TTreeView);
@@ -985,7 +1062,7 @@ begin
 end;
 
 {$ENDIF}
-
+{$ENDIF}
 {$ENDIF}
 
 function TCnBerWriter.GetTotalSize: Integer;
@@ -1112,14 +1189,14 @@ begin
     begin
       LenLen := 2;
       W := ADataLen;
-      W := SwapWord(W);
+      W := UInt16HostToNetwork(W);
       Move(W, FHead[2], LenLen);
     end
     else if ADataLen < $1000000 then
     begin
       LenLen := 3;
       D := ADataLen;
-      D := SwapCardinal(D);
+      D := UInt32HostToNetwork(D);
       D := D shr 8;
       Move(D, FHead[2], LenLen);
     end
@@ -1127,7 +1204,7 @@ begin
     begin
       LenLen := 4;
       D := ADataLen;
-      D := SwapCardinal(D);
+      D := UInt32HostToNetwork(D);
       Move(D, FHead[2], LenLen);
     end;
 

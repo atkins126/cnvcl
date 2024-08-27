@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2023 CnPack 开发组                       }
+{                   (C)Copyright 2001-2024 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -13,7 +13,7 @@
 {            您应该已经和开发包一起收到一份 CnPack 发布协议的副本。如果        }
 {        还没有，可访问我们的网站：                                            }
 {                                                                              }
-{            网站地址：http://www.cnpack.org                                   }
+{            网站地址：https://www.cnpack.org                                  }
 {            电子邮件：master@cnpack.org                                       }
 {                                                                              }
 {******************************************************************************}
@@ -992,8 +992,17 @@ function CheckWin8: Boolean;
 function CheckWin10: Boolean;
 {* 检查是否 Windows 10 或以上系统}
 
+function CheckWin64: Boolean;
+{* 检查是否是 64 位 Windows}
+
 function CheckWow64: Boolean;
-{* 检查是否 64bit 系统 }
+{* 检查当前进程是否是 32 位进程跑在 64 位子系统里}
+
+function CheckProcess64(ProcessHandle: THandle = 0): Boolean;
+{* 检查指定进程是否 64 位，参数为进程句柄（并非进程号）。如传 0 ，则判断当前进程}
+
+function CheckProcessWow64(ProcessHandle: THandle): Boolean;
+{* 检查指定进程是否是 32 位进程跑在 64 位子系统里。参数为进程句柄（并非进程号）}
 
 function CheckXPManifest(var OSSupport, AppValid: Boolean): Boolean;
 {* 检查系统和当前进程是否支持 XP Manifest
@@ -1038,6 +1047,9 @@ procedure ListboxHorizontalScrollbar(Listbox: TCustomListBox);
 
 procedure CloneMenuItem(Source, Dest: TMenuItem);
 {* 复制菜单项和其子项}
+
+function MemoGetCaretPos(Memo: TCustomMemo): TPoint;
+{* 封装的获取 Memo 光标位置的方法，修补了 XE3 或以下碰到大文件时出负值的问题}
 
 {$ENDIF}
 
@@ -1197,6 +1209,9 @@ function NtIsDeugged: Boolean;
 procedure KillProcessByFileName(const FileName: String);
 {* 根据文件名结束进程，不区分路径}
 
+function KillProcessByFullFileName(const FullFileName: string): Boolean;
+{* 根据完整文件名结束进程，区分路径，支持 32 位进程与 64 位进程交叉结束}
+
 {$ENDIF}
 
 function IndexStr(const AText: string; AValues: array of string; IgCase: Boolean = True): Integer;
@@ -1277,6 +1292,14 @@ function GetParentFont(AControl: TComponent): TFont;
 
 {$ENDIF}
 
+type
+  TCnWideMemIniFile = class(TMemIniFile)
+  {* 支持宽字符串存储的 Ini 类}
+  public
+    constructor Create(const AFileName: string);
+    procedure UpdateFile; override;
+  end;
+
 const
   InvalidFileNameChar: set of AnsiChar = ['\', '/', ':', '*', '?', '"', '<', '>', '|'];
 
@@ -1320,49 +1343,6 @@ function SingleEqual(const S1, S2: Single): Boolean;
 
 function CodePageOnlySupportsEnglish: Boolean;
 {* 判断当前平台是否只支持英文，用于处理防止 Unicode -> Ansi 时丢字符的问题}
-
-function WideCharIsWideLength(const AWChar: WideChar): Boolean; {$IFDEF SUPPORT_INLINE} inline; {$ENDIF}
-{* 粗略判断一个 Unicode 宽字符是否占两个字符宽度}
-
-function CalcAnsiLengthFromWideString(Text: PWideChar; VisualMode: Boolean = True): Integer;
-{* 计算 Unicode 宽字符串的 Ansi 长度，等于转 Ansi 后的 Length，但不用转 Ansi，以防止纯英文平台下丢字符
-   VisualMode 为 True 时以粗略字符宽度判断，为 False 时以纯粹大于 $FF 判断。}
-
-function CalcAnsiLengthFromWideStringOffset(Text: PWideChar; WideOffset: Integer; VisualMode: Boolean = True): Integer;
-{* 计算 Unicode 宽字符串从 1 到 WideOffset 的子串的 Ansi 长度，WideOffset 从 1 开始。
-   等于 Copy(1, WideOffset) 后的子串转 Ansi 取 Length，但不用实际转 Ansi，以防止纯英文平台下丢字符
-   VisualMode 为 True 时以粗略字符宽度判断，为 False 时以纯粹大于 $FF 判断。}
-
-function CalcUtf8LengthFromWideStringOffset(Text: PWideChar; WideOffset: Integer): Integer;
-{* 计算 Unicode 宽字符串从 1 到 WideOffset 的子串的 Utf8 长度，WideOffset 从 1 开始。如果 WideOffset 是 0 则返回 0
-   等于 Copy(1, WideOffset) 后的子串转 Utf8 取 Length，但不用实际转 Utf8，以节省开销。}
-
-function CalcWideStringLengthFromAnsiOffset(Text: PWideChar; AnsiOffset: Integer;
-  VisualMode: Boolean = True; AllowExceedEnd: Boolean = False): Integer;
-{* 计算 Unicode 宽字符串指定 Ansi 子串长度对应的 Unicode 子串长度，AnsiOffset 从 1 开始。
-   等于转 Ansi 后的 Copy(1, AnsiOffset) 再转换回 Unicode 再取 Length，但不用 Ansi/Unicode 互转，以防止纯英文平台下丢字符
-   注意 Ansi 后的 Copy 可能会割裂双字节字符。
-   AllowExceedEnd 为 False 时，计算到 #0 便会终止，不包括 #0。为 True 时，以补空格方式计算
-   VisualMode 为 True 时以粗略字符宽度判断，为 False 时以纯粹大于 $FF 判断。}
-
-function CalcUtf8StringLengthFromWideOffset(Utf8Text: PAnsiChar; WideOffset: Integer): Integer;
-{* 计算 Utf8 字符串转换成 WideSting 后指定 Wide 子串长度对应的 Utf8 字符串长度，WideOffset 从 1 开始。
-   等于转 WideString 后 Copy(1, WideOffset) 再转回 Utf8 再取 Length，但不用 Utf8/WideString 互转，以避免额外的编码问题}
-
-function CalcUtf8LengthFromWideChar(AChar: WideChar): Integer; {$IFDEF SUPPORT_INLINE} inline; {$ENDIF}
-{* 计算一个 WideChar 转换成 Utf8 后的字符长度}
-
-function CalcUtf8LengthFromWideString(Text: PWideChar): Integer;
-{* 计算宽字符串的 Utf8 长度，等于 Utf8Encode 后取 Length，但不实际转换}
-
-function CalcUtf8LengthFromUtf8HeadChar(AChar: AnsiChar): Integer;
-{* 计算一个 Utf8 前导字符所代表的字符长度}
-
-function ConvertUtf16ToAlterAnsi(WideText: PWideChar; AlterChar: AnsiChar = ' '): AnsiString;
-{* 手动将宽字符串转换成 Ansi，把其中的宽字符都替换成两个 AlterChar，用于纯英文环境下的字符宽度计算}
-
-function ConvertUtf8ToAlterAnsi(Utf8Text: PAnsiChar; AlterChar: AnsiChar = ' '): AnsiString;
-{* 手动将 Utf8 字符串转换成 Ansi，把其中的宽字符都替换成两个 AlterChar，用于纯英文环境下的字符宽度计算}
 
 function GetSetElementCount(const ASet; ASetSize: Integer): Integer;
 {* 获取某集合内的元素数目，尺寸不对则返回 -1}
@@ -1409,6 +1389,10 @@ function ConvertStringToIdent(const Str: string; const Prefix: string = 'S';
   MaxWords：最长处理的分词数
   MaxCharLength: 最长的字符数。注意这三个 Max 只要达到一个就完成，可能会超 MaxCharLength}
 
+function Int32Len(IntPtr: Pointer): Integer;
+{* 返回以 0 结尾的四字节长度块的块数，不包括结尾的 0，类似于 StrLen
+   注意 Int8Len 和 Int16Len 可以用 StrLen PAnsiChar/PWideChar 代替}
+
 implementation
 
 uses
@@ -1426,8 +1410,8 @@ const
 {$ENDIF}
 
   SCnDlgButtonCaptions: array[Low(TCnDlgButtonCaption)..High(TCnDlgButtonCaption)] of PString = (
-    @SCnMsgDlgOK, @SCnMsgDlgCancel, @SCnMsgDlgYes, @SCnMsgDlgNo, @SCnMsgDlgYesToAll,
-    @SCnMsgDlgNoToAll
+    @SCnMsgDlgCancel, @SCnMsgDlgOK, @SCnMsgDlgNo, @SCnMsgDlgYes, @SCnMsgDlgNoToAll,
+    @SCnMsgDlgYesToAll
   );
 
   SCN_CHINESE_SEP_CHARS: array[0..11] of WideString =
@@ -1465,356 +1449,6 @@ begin
   Result := (GetACP = 1252); // ANSI LATIN
 end;
 
-// 粗略判断一个 Unicode 宽字符是否占两个字符宽度
-function WideCharIsWideLength(const AWChar: WideChar): Boolean; {$IFDEF SUPPORT_INLINE} inline; {$ENDIF}
-begin
-  Result := Ord(AWChar) > SCN_UTF16_ANSI_WIDE_CHAR_SEP; // 姑且认为比 $900 大的 Utf16 字符才占俩字节
-end;
-
-// 计算 Unicode 宽字符串的 Ansi 长度，等于转 Ansi 后的 Length，但不用转 Ansi，以防止纯英文平台下丢字符
-function CalcAnsiLengthFromWideString(Text: PWideChar; VisualMode: Boolean): Integer;
-begin
-  Result := 0;
-  if Text <> nil then
-  begin
-    if VisualMode then
-    begin
-      while Text^ <> #0 do
-      begin
-        if WideCharIsWideLength(Text^) then
-          Inc(Result, SizeOf(WideChar))
-        else
-          Inc(Result, SizeOf(AnsiChar));
-        Inc(Text);
-      end;
-    end
-    else
-    begin
-      while Text^ <> #0 do
-      begin
-        if Ord(Text^) > $FF then
-          Inc(Result, SizeOf(WideChar))
-        else
-          Inc(Result, SizeOf(AnsiChar));
-        Inc(Text);
-      end;
-    end;
-  end;
-end;
-
-// 计算 Unicode 宽字符串从 1 到 WideOffset 的子串的 Ansi 长度，WideOffset 从 1 开始。
-function CalcAnsiLengthFromWideStringOffset(Text: PWideChar; WideOffset: Integer;
-  VisualMode: Boolean): Integer;
-var
-  Idx: Integer;
-begin
-  Result := 0;
-  if (Text <> nil) and (WideOffset > 0) then
-  begin
-    Idx := 0;
-    if VisualMode then
-    begin
-      while (Text^ <> #0) and (Idx < WideOffset) do // Idx 0 开始，WideOffset 1 开始，所以用 <
-      begin
-        if WideCharIsWideLength(Text^) then
-          Inc(Result, SizeOf(WideChar))
-        else
-          Inc(Result, SizeOf(AnsiChar));
-        Inc(Text);
-        Inc(Idx);
-      end;
-    end
-    else
-    begin
-      while (Text^ <> #0) and (Idx < WideOffset) do // Idx 0 开始，WideOffset 1 开始，所以用 <
-      begin
-        if Ord(Text^) > $FF then
-          Inc(Result, SizeOf(WideChar))
-        else
-          Inc(Result, SizeOf(AnsiChar));
-        Inc(Text);
-        Inc(Idx);
-      end
-    end;
-  end;
-end;
-
-// 计算 Unicode 宽字符串从 1 到 WideOffset 的子串的 Utf8 长度，WideOffset 从 1 开始。
-function CalcUtf8LengthFromWideStringOffset(Text: PWideChar; WideOffset: Integer): Integer;
-var
-  Idx: Integer;
-begin
-  Result := 0;
-  if (Text <> nil) and (WideOffset > 0) then
-  begin
-    Idx := 0;
-    while (Text^ <> #0) and (Idx < WideOffset) do // Idx 0 开始，WideOffset 1 开始，所以用 <
-    begin
-      Inc(Result, CalcUtf8LengthFromWideChar(Text^));
-      Inc(Text);
-      Inc(Idx);
-    end;
-  end;
-end;
-
-// 计算 Unicode 宽字符串指定 Ansi 子串长度对应的 Unicode 子串长度，AnsiOffset 从 1 开始。
-function CalcWideStringLengthFromAnsiOffset(Text: PWideChar; AnsiOffset: Integer;
-  VisualMode: Boolean; AllowExceedEnd: Boolean): Integer;
-var
-  Idx: Integer;
-begin
-  Result := 0;
-  if (Text <> nil) and (AnsiOffset > 0) then
-  begin
-    Idx := 0;
-    if VisualMode then
-    begin
-      while (Text^ <> #0) and (Idx < AnsiOffset) do
-      begin
-        if WideCharIsWideLength(Text^) then
-          Inc(Idx, SizeOf(WideChar))
-        else
-          Inc(Idx, SizeOf(AnsiChar));
-        Inc(Text);
-        Inc(Result);
-      end;
-    end
-    else
-    begin
-      while (Text^ <> #0) and (Idx < AnsiOffset) do
-      begin
-        if Ord(Text^) > $FF then
-          Inc(Idx, SizeOf(WideChar))
-        else
-          Inc(Idx, SizeOf(AnsiChar));
-        Inc(Text);
-        Inc(Result);
-      end;
-    end;
-
-    if AllowExceedEnd and (Text^ = #0) and (Idx < AnsiOffset) then
-      Inc(Result, AnsiOffset - Idx);
-  end;
-end;
-
-// 计算 Utf8 字符串转换成 WideSting 后指定 Wide 子串长度对应的 Utf8 字符串长度，WideOffset 从 1 开始。
-// 等于转 WideString 后 Copy(1, WideOffset) 再转回 Utf8 再取 Length，但不用 Utf8/WideString 互转，以避免额外的编码问题
-function CalcUtf8StringLengthFromWideOffset(Utf8Text: PAnsiChar;
-  WideOffset: Integer): Integer;
-var
-  Utf8Len, WideIdx: Integer;
-begin
-  Result := 0;
-  if (Utf8Text = nil) or (WideOffset <= 0) then
-    Exit;
-
-  WideIdx := 0;
-  while (Utf8Text^ <> #0) and (WideIdx < WideOffset) do
-  begin
-    Utf8Len := CalcUtf8LengthFromUtf8HeadChar(Utf8Text^);
-    Inc(Result, Utf8Len);
-
-    case Utf8Len of
-      1:
-        begin
-          Inc(WideIdx);
-          Inc(Utf8Text);
-        end;
-      2:
-        begin
-          Inc(WideIdx);
-          Inc(Utf8Text);
-          if Utf8Text^ = #0 then
-            Exit;
-          Inc(Utf8Text);
-        end;
-      3:
-        begin
-          Inc(WideIdx);
-          Inc(Utf8Text);
-          if Utf8Text^ = #0 then
-            Exit;
-          Inc(Utf8Text);
-          if Utf8Text^ = #0 then
-            Exit;
-          Inc(Utf8Text);
-        end;
-      else
-        Exit;
-    end;
-  end;
-end;
-
-// 计算一个 WideChar 转换成 Utf8 后的字符长度
-function CalcUtf8LengthFromWideChar(AChar: WideChar): Integer;
-var
-  V: Cardinal;
-begin
-  V := Ord(AChar);
-  if V <= $7F then
-    Result := 1
-  else if V <= $7FF then
-    Result := 2
-  else if V <= $FFFF then
-    Result := 3
-  else if V <= $10FFFF then
-    Result := 4
-  else
-    Result := 0;
-end;
-
-// 计算宽字符串的 Utf8 长度，等于 Utf8Encode 后取 Length，但不实际转换
-function CalcUtf8LengthFromWideString(Text: PWideChar): Integer;
-begin
-  Result := 0;
-  if Text = nil then
-    Exit;
-
-  while Text^ <> #0 do
-  begin
-    Inc(Result, CalcUtf8LengthFromWideChar(Text^));
-    Inc(Text);
-  end;
-end;
-
-// 计算一个 Utf8 前导字符所代表的字符长度
-function CalcUtf8LengthFromUtf8HeadChar(AChar: AnsiChar): Integer;
-var
-  B: Byte;
-begin
-  B := Ord(AChar);
-  if B and $80 = 0 then  // 0xxx xxxx
-    Result := 1
-  else if B and $E0 = $C0 then // 110x xxxx 10xxxxxx
-    Result := 2
-  else if B and $F0 = $E0 then // 1110 xxxx 10xxxxxx 10xxxxxx
-    Result := 3
-  else
-    raise Exception.Create('More than UTF16 NOT Support.');
-end;
-
-// 手动将宽字符串转换成 Ansi，把其中的宽字符都替换成两个 AlterChar，用于纯英文环境下的字符宽度计算
-function ConvertUtf16ToAlterAnsi(WideText: PWideChar; AlterChar: AnsiChar = ' '): AnsiString;
-var
-  Len: Integer;
-begin
-  if WideText = nil then
-  begin
-    Result := '';
-    Exit;
-  end;
-
-{$IFDEF UNICODE}
-  Len := StrLen(WideText);
-{$ELSE}
-  Len := Length(WideString(WideText));
-{$ENDIF}
-
-  if Len = 0 then
-  begin
-    Result := '';
-    Exit;
-  end;
-
-  SetLength(Result, Len * SizeOf(WideChar));
-  Len := 0;
-  while WideText^ <> #0 do
-  begin
-    if WideCharIsWideLength(WideText^) then
-    begin
-      Inc(Len);
-      Result[Len] := AlterChar;
-      Inc(Len);
-      Result[Len] := AlterChar;
-    end
-    else
-    begin
-      Inc(Len);
-      if Ord(WideText^) <= 255 then // Absolutely 'Single' Char
-        Result[Len] := AnsiChar(WideText^)
-      else                          // Extended 'Single' Char, Replace
-        Result[Len] := AlterChar;
-    end;
-    Inc(WideText);
-  end;
-  SetLength(Result, Len);
-end;
-
-// 手动将 Utf8 字符串转换成 Ansi，把其中的宽字符都替换成两个 AlterChar，用于纯英文环境下的字符宽度计算
-function ConvertUtf8ToAlterAnsi(Utf8Text: PAnsiChar; AlterChar: AnsiChar = ' '): AnsiString;
-var
-  I, J, Len, ByteCount: Integer;
-  C: AnsiChar;
-  W: Word;
-  B, B1, B2: Byte;
-begin
-  Result := '';
-  if Utf8Text = nil then
-    Exit;
-
-  Len := StrLen(Utf8Text);
-  if Len = 0 then
-    Exit;
-
-  SetLength(Result, Len);
-  I := 0;
-  J := 1;
-  while I < Len do
-  begin
-    C := Utf8Text[I];
-    B := Ord(C);
-    W := 0;
-
-    // 根据 B 的值得出这个字符占多少位
-    if B and $80 = 0 then  // 0xxx xxxx
-      ByteCount := 1
-    else if B and $E0 = $C0 then // 110x xxxx 10xxxxxx
-      ByteCount := 2
-    else if B and $F0 = $E0 then // 1110 xxxx 10xxxxxx 10xxxxxx
-      ByteCount := 3
-    else
-      raise Exception.Create('More than UTF16 NOT Support.');
-
-    // 再计算出相应的宽字节字符
-    case ByteCount of
-      1:
-      begin
-        W := B and $7F;
-      end;
-      2:
-      begin
-        B1 := Ord(Utf8Text[I + 1]);
-        W := ((B and $1F) shl 6) or (B1 and $3F);
-      end;
-      3:
-      begin
-        B1 := Ord(Utf8Text[I + 1]);
-        B2 := Ord(Utf8Text[I + 2]);
-        W := ((B and $0F) shl 12) or ((B1 and $3F) shl 6) or (B2 and $3F);
-      end;
-    end;
-
-    if WideCharIsWideLength(WideChar(W)) then
-    begin
-      Result[J] := AlterChar;
-      Inc(J);
-      Result[J] := AlterChar;
-      Inc(J);
-    end
-    else
-    begin
-      if W <= 255 then
-        Result[J] := AnsiChar(W)
-      else
-        Result[J] := AlterChar;
-      Inc(J);
-    end;
-    Inc(I, ByteCount);
-  end;
-
-  SetLength(Result, J);
-end;
-
 // 封装的 PChar 转换函数，供 D2009 下与以前版本 IDE 下同时使用
 // 另外，D2009 或以上版本，必须加 inline，
 // 避免产生实质转换时返回值指向局部被释放的内容
@@ -1827,9 +1461,9 @@ begin
 {$ENDIF}
 end;
 
-// 对ExtractFileExt的封装，Delphi XE3的ExtractFileExt因为调用了
-// TStringHelper.LastDelimiter（0基）导致ExtractFileExt('.dpr')不再返回'.dpr'，
-// 而是返回空值了； XE3下SysUtils.LastDelimiter还是与XE2兼容的
+// 对ExtractFileExt 的封装，Delphi XE3 的 ExtractFileExt 因为调用了
+// TStringHelper.LastDelimiter（0基）导致 ExtractFileExt('.dpr') 不再返回'.dpr'，
+// 而是返回空值了；XE3 下 SysUtils.LastDelimiter 还是与 XE2 兼容的
 function _CnExtractFileExt(const FileName: string): string;
 {$IFDEF DELPHIXE3_UP}
 var
@@ -1846,8 +1480,8 @@ begin
 end;
 {$ENDIF}
 
-// 对ExtractFileName的封装，防止Delphi XE3的
-// TStringHelper.LastDelimiter引入的不兼容
+// 对 ExtractFileName 的封装，防止 Delphi XE3 的
+// TStringHelper.LastDelimiter 引入的不兼容
 function _CnExtractFileName(const FileName: string): string;
 {$IFDEF DELPHIXE3_UP}
 var
@@ -4848,7 +4482,7 @@ end;
 
 {$WARNINGS OFF}
 
-// 判断是否是简单的格式化字符串
+// 判断是否是简单的格式化字符串，支持单引号和双引号
 function IsSimpleFormat(const S: string): Boolean;
 var
   T: string;
@@ -4859,10 +4493,10 @@ begin
   if Length(T) <= 1 then
     Exit;
 
-  // 去掉前后单引号
-  if T[1] = '''' then
+  // 去掉前后单双引号
+  if (T[1] = '''') or (T[1] = '"') then
     Delete(T, 1, 1);
-  if T[Length(T)] = '''' then
+  if (T[Length(T)] = '''') or (T[Length(T)] = '"') then
     Delete(T, Length(T), 1);
 
   if T[1] <> '%' then
@@ -7158,19 +6792,59 @@ begin
   Result := Win32MajorVersion >= 10;
 end;
 
-// 检查是否 64bit 系统
+// 检查是否是 64 位 Windows
+function CheckWin64: Boolean;
+type
+  TGetNativeSystemInfoProc = procedure(var lpSystemInfo: TSystemInfo); stdcall;
+const
+  PROCESSOR_ARCHITECTURE_AMD64 = 9;
+  PROCESSOR_ARCHITECTURE_IA64 = 6;
+var
+  Proc: TGetNativeSystemInfoProc;
+  Info: TSystemInfo;
+begin
+  Result := False;
+  Proc := TGetNativeSystemInfoProc(GetProcAddress(GetModuleHandle('kernel32'), 'GetNativeSystemInfo'));
+  if Assigned(Proc) then
+  begin
+    Proc(Info);
+    Result := (Info.wProcessorArchitecture = PROCESSOR_ARCHITECTURE_AMD64) or
+      (Info.wProcessorArchitecture = PROCESSOR_ARCHITECTURE_IA64);
+  end;
+end;
+
+// 检查当前进程是否是 32 位进程跑在 64 位子系统里
 function CheckWow64: Boolean;
+begin
+  Result := CheckProcess64(GetCurrentProcess);
+end;
+
+// 检查指定进程是否 64 位，参数为进程句柄（并非进程号）如传 0 ，则判断当前进程
+function CheckProcess64(ProcessHandle: THandle = 0): Boolean;
+begin
+  Result := False;
+  if not CheckWin64 then  // 32 位系统下只有 32 位进程
+    Exit;
+
+  if ProcessHandle = 0 then
+    ProcessHandle := GetCurrentProcess;
+
+  Result := not CheckProcessWow64(ProcessHandle); // 64 位下要判断是否 32 位跑 64 位子系统，是则 32
+end;
+
+// 检查指定进程是否是 32 位进程跑在 64 位子系统里。参数为进程句柄（并非进程号）
+function CheckProcessWow64(ProcessHandle: THandle): Boolean;
 type
   TIsWow64ProcessProc = function(Handle: THandle; var IsWow64: LongBool): LongBool stdcall;
 var
-  proc: TIsWow64ProcessProc;
+  Proc: TIsWow64ProcessProc;
   IsWow64: LongBool;
 begin
   Result := False;
-  proc := TIsWow64ProcessProc(GetProcAddress(GetModuleHandle('kernel32'), 'IsWow64Process'));
-  if Assigned(proc) then
+  Proc := TIsWow64ProcessProc(GetProcAddress(GetModuleHandle('kernel32'), 'IsWow64Process'));
+  if Assigned(Proc) then
   begin
-    if proc(GetCurrentProcess, IsWow64) then
+    if Proc(ProcessHandle, IsWow64) then
       Result := IsWow64;
   end;
 end;
@@ -7480,6 +7154,35 @@ begin
       CloneMenuItem(Source.Items[I], Item);
     end;
   end;
+end;
+
+{$IFDEF MEMO_CARETPOS_BUG}
+type
+  TCnSelection = record
+    StartPos, EndPos: Integer;
+  end;
+{$ENDIF}
+
+// 封装的获取 Memo 光标位置的方法，修补了 XE3 或以下碰到大文件时出负值的问题
+function MemoGetCaretPos(Memo: TCustomMemo): TPoint;
+{$IFDEF MEMO_CARETPOS_BUG}
+var
+  Selection : TCnSelection;
+{$ENDIF}
+begin
+{$IFDEF MEMO_CARETPOS_BUG}
+  {$IFDEF SUPPORT_WIN64}
+  SendMessage(Memo.Handle, EM_GETSEL, NativeInt(@Selection.StartPos), NativeInt(@Selection.EndPos));
+  Result.Y := SendMessage(Memo.Handle, EM_LINEFROMCHAR, WPARAM(Selection.StartPos), 0);
+  Result.X := Selection.StartPos - SendMessage(Memo.Handle, EM_LINEINDEX, WPARAM(Result.Y), 0);
+  {$ELSE}
+  SendMessage(Memo.Handle, EM_GETSEL, LongWord(@Selection.StartPos), LongWord(@Selection.EndPos));
+  Result.Y := SendMessage(Memo.Handle, EM_LINEFROMCHAR, WPARAM(Selection.StartPos), 0);
+  Result.X := Selection.StartPos - SendMessage(Memo.Handle, EM_LINEINDEX, WPARAM(Result.Y), 0);
+  {$ENDIF}
+{$ELSE}
+  Result := Memo.CaretPos;
+{$ENDIF}
 end;
 
 {$ENDIF}
@@ -8254,12 +7957,12 @@ end;
 // 根据文件名结束进程，不区分路径
 procedure KillProcessByFileName(const FileName: String);
 var
-  ID:DWORD;
+  ID: DWORD;
   S, Tmp: string;
   Ret: Boolean;
   SnapshotHandle: THandle;
   PE32: TProcessEntry32;
-  hh: HWND;
+  H: HWND;
 begin
   S := LowerCase(FileName);
   SnapshotHandle := CreateToolHelp32Snapshot(TH32CS_SNAPPROCESS, 0);
@@ -8271,11 +7974,111 @@ begin
     if Pos(S, Tmp) > 0 then
     begin
       Id := PE32.th32ProcessID;
-      hh := OpenProcess(PROCESS_ALL_ACCESS, True,Id);
-      TerminateProcess(hh, 0);
+      H := OpenProcess(PROCESS_ALL_ACCESS, True, Id);
+      TerminateProcess(H, 0);
     end;
     Ret := Process32Next(SnapshotHandle,PE32);
   end;
+end;
+
+// 根据完整文件名结束进程，区分路径，32/64 交叉 Kill 32/64 通过
+function KillProcessByFullFileName(const FullFileName: string): Boolean;
+type
+  TGetProcessImageFileNameProc = function (hProcess: THandle; ImageFileName: PChar; nBufferLength: DWORD): BOOL; stdcall;
+var
+  SnapshotHandle, PH, HPsApi: THandle;
+  ProcessEntry: TProcessEntry32;
+  TargetProcessPath, TargetDosPath: string;
+  FullDevName, DriverName, DevName: string;
+  Proc: TGetProcessImageFileNameProc;
+begin
+  Result := False;
+  SnapshotHandle := CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+  if SnapshotHandle = INVALID_HANDLE_VALUE then
+    Exit;
+
+  ProcessEntry.dwSize := SizeOf(TProcessEntry32);
+  if not Process32First(SnapshotHandle, ProcessEntry) then
+  begin
+    CloseHandle(SnapshotHandle);
+    Exit;
+  end;
+
+  Result := False;
+  Proc := nil;
+  HPsApi := 0;
+  FullDevName := '';
+
+  try
+    repeat
+      PH := OpenProcess(PROCESS_QUERY_INFORMATION or PROCESS_VM_READ or PROCESS_TERMINATE,
+        False, ProcessEntry.th32ProcessID);
+      if PH <> 0 then
+      begin
+        // 获取目标进程的完整路径
+        SetLength(TargetProcessPath, MAX_PATH);
+        SetLength(TargetDosPath, MAX_PATH);
+
+        // 注意如果对方是 64 位，则要换 GetProcesslmageFileName
+        if CheckProcess64(PH) then
+        begin
+          if not Assigned(Proc) then
+          begin
+            HPsApi := LoadLibrary('PSAPI.dll');
+            if HPsApi > 32 then
+            begin
+{$IFDEF UNICODE}
+              Proc := TGetProcessImageFileNameProc(GetProcAddress(HPsApi, 'GetProcessImageFileNameW'));
+{$ELSE}
+              Proc := TGetProcessImageFileNameProc(GetProcAddress(HPsApi, 'GetProcessImageFileNameA'));
+{$ENDIF}
+            end;
+          end;
+
+          if Assigned(Proc) then
+          begin
+            if Proc(PH, PChar(TargetProcessPath), Length(TargetProcessPath)) then
+            begin
+              if FullDevName = '' then // 把原始逻辑盘的 C:\a.exe 这种转换为 \Device\Harddisk1\a.exe 这种
+              begin
+                if (Length(FullFileName) > 3) and (FullFileName[2] = ':') and (FullFileName[3] = '\') then
+                begin
+                  DriverName := Copy(FullFileName, 1, 2);
+                  TargetDosPath := Copy(FullFileName, 3, MaxInt);
+                  SetLength(DevName, MAX_PATH);
+                  if QueryDosDevice(PChar(DriverName), PChar(DevName), Length(DevName)) > 0 then
+                  begin
+                    SetLength(DevName, StrLen(PChar(DevName)));
+                    FullDevName := DevName + TargetDosPath;
+                  end;
+                end;
+              end;
+
+              // 此处的完整路径是 \Device\ 开头，不能和 FullFileName 直接比较
+              if StrComp(PChar(TargetProcessPath), PChar(FullDevName)) = 0 then
+                Result := TerminateProcess(PH, 0);
+            end;
+          end;
+          CloseHandle(PH); // 无论是否获取成功都关闭 Handle
+        end
+        else
+        begin
+          if GetModuleFileNameEx(PH, 0, PChar(TargetProcessPath), Length(TargetProcessPath)) > 0 then
+          begin
+            // 比较完整路径，相等则尝试结束进程
+            if StrComp(PChar(TargetProcessPath), PChar(FullFileName)) = 0 then
+              Result := TerminateProcess(PH, 0);
+          end;
+
+          CloseHandle(PH); // 无论是否获取成功都关闭 Handle
+        end;
+      end;
+    until not Process32Next(SnapshotHandle, ProcessEntry);
+  finally
+    if HPsApi > 32 then
+      FreeLibrary(HPsApi);
+  end;
+  CloseHandle(SnapshotHandle);
 end;
 
 {$ENDIF}
@@ -9056,6 +8859,63 @@ begin
 end;
 
 {$WARNINGS ON}
+
+function Int32Len(IntPtr: Pointer): Integer;
+var
+  P: PDWORD;
+begin
+  Result := 0;
+  if IntPtr = nil then
+    Exit;
+
+  P := PDWORD(IntPtr);
+  while P^ <> 0 do
+  begin
+    Inc(Result);
+    Inc(P);
+  end;
+end;
+
+{ TCnWideMemIniFile }
+
+constructor TCnWideMemIniFile.Create(const AFileName: string);
+var
+  WList: TCnWideStringList;
+  List: TStringList;
+begin
+  inherited Create(AFileName);
+  WList := nil;
+  List := nil;
+  try
+    WList := TCnWideStringList.Create;
+    WList.LoadFromFile(AFileName);
+    List := TStringList.Create;
+    List.Text := WList.Text;
+    SetStrings(List);
+  finally
+    WList.Free;
+    List.Free;
+  end;
+end;
+
+procedure TCnWideMemIniFile.UpdateFile;
+var
+  WList: TCnWideStringList;
+  List: TStringList;
+begin
+  WList := nil;
+  List := nil;
+  try
+    List := TStringList.Create;
+    GetStrings(List);
+    WList := TCnWideStringList.Create;
+    WList.Text := List.Text;
+    WList.SaveToFile(FileName, wlfUtf8);
+  finally
+    WList.Free;
+    List.Free;
+  end;
+end;
 
 {$IFDEF MSWINDOWS}
 

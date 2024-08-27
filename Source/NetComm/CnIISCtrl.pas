@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2023 CnPack 开发组                       }
+{                   (C)Copyright 2001-2024 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -13,17 +13,16 @@
 {            您应该已经和开发包一起收到一份 CnPack 发布协议的副本。如果        }
 {        还没有，可访问我们的网站：                                            }
 {                                                                              }
-{            网站地址：http://www.cnpack.org                                   }
+{            网站地址：https://www.cnpack.org                                  }
 {            电子邮件：master@cnpack.org                                       }
 {                                                                              }
 {******************************************************************************}
 
 unit CnIISCtrl;
-
 {* |<PRE>
 ================================================================================
 * 软件名称：网络通讯组件包
-* 单元名称：实现IIS配置功能单元
+* 单元名称：实现 IIS 配置功能单元
 * 单元作者：rarnu(rarnu@cnpack.org)
 * 备    注：
 * 开发平台：Windows2003 Server + Delphi2007 up2
@@ -39,15 +38,19 @@ interface
 {$I CnPack.inc}
 
 uses
-  SysUtils, Classes, ComObj, Windows;
+  SysUtils, Classes, ComObj, Windows, CnConsts, CnNetConsts, CnClasses;
 
 type
-  TCnIISCtrl = class(TComponent)
+{$IFDEF SUPPORT_32_AND_64}
+  [ComponentPlatformsAttribute(pidWin32 or pidWin64)]
+{$ENDIF}
+  TCnIISCtrl = class(TCnComponent)
   private
     FOnDeleteVirtualDirApp: TNotifyEvent;
     FOnDeleteVirtualDir: TNotifyEvent;
     FOnCreateVirtualDir: TNotifyEvent;
   protected
+    procedure GetComponentInfo(var AName, Author, Email, Comment: string); override;
   public
     constructor Create(AOwner: TComponent); override;
     {* 检查是否存在 .NET FrameWork }
@@ -179,6 +182,14 @@ begin
   end;
   if Assigned(FOnDeleteVirtualDirApp) then
     FOnDeleteVirtualDirApp(Self);
+end;
+
+procedure TCnIISCtrl.GetComponentInfo(var AName, Author, Email, Comment: string);
+begin
+  AName := SCnIISCtrlName;
+  Author := SCnPack_rarnu;
+  Email := SCnPack_rarnuEmail;
+  Comment := SCnIISCtrlComment;
 end;
 
 end.

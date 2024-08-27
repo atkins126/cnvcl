@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2023 CnPack 开发组                       }
+{                   (C)Copyright 2001-2024 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -13,7 +13,7 @@
 {            您应该已经和开发包一起收到一份 CnPack 发布协议的副本。如果        }
 {        还没有，可访问我们的网站：                                            }
 {                                                                              }
-{            网站地址：http://www.cnpack.org                                   }
+{            网站地址：https://www.cnpack.org                                  }
 {            电子邮件：master@cnpack.org                                       }
 {                                                                              }
 {******************************************************************************}
@@ -22,15 +22,23 @@ unit CnBigNumber;
 {* |<PRE>
 ================================================================================
 * 软件名称：开发包基础库
-* 单元名称：大数算法单元
-* 单元作者：刘啸
-* 备    注：部分从 Openssl 的 C 代码移植而来，大数池默认支持多线程
-*           Word 系列操作函数指大数与 UInt32/UInt64 进行运算，而 Words 系列操作函数指
-*           大数中间的运算过程。
-*           注：D5/D6/CB5/CB6 下可能遇上编译器 Bug 无法修复，
-*               譬如写 Int64(AInt64Var) 这样的强制类型转换时
+* 单元名称：大整数运算实现单元
+* 单元作者：CnPack 开发组 (master@cnpack.org)
+* 备    注：本单元实现了大整数 TCnBigNumber 的加减乘除等各种运算及大数池 TCnBigNumberPool。
+*           大整数的实现机制一部分参考 OpenSSL 的 C 代码改写而来。大数池默认支持多线程。
+*
+*           Word 系列操作函数指大整数与 UInt32/UInt64 进行运算。
+*           Words 系列操作函数指大整数中间的运算过程。
+*
+*           大整数实现类 TCnBigNumber 内部用一个 UInt32/UInt64 数组表示大数，
+*           编译条件 BN_DATA_USE_64 控制数组元素是 UInt32 还是 UInt64，默认前者。
+*           数组越往后越代表大整数的高位，数组元素内部的值依赖于 CPU 的大小端序。
+*           因而在小端 CPU 上，大整数对象的值严格等于该数组按字节倒序所表达的数。
+*
 * 开发平台：Win 7 + Delphi 5.0
-* 兼容测试：Win32/Win64/MACOS D5~XE11
+* 兼容测试：Win32/Win64/MACOS D5~Delphi 最新版。
+*           注意 D5/D6/CB5/CB6 下可能遇上编译器 Bug 无法修复，
+*           譬如写 Int64(AInt64Var) 这样的强制类型转换时。
 * 本 地 化：该单元无需本地化处理
 * 修改记录：2023.01.12 V2.6
 *               64 位模式下增加用 64 位存储计算的模式，测试中，默认禁用
@@ -121,8 +129,12 @@ type
     function GetDebugDump: string;
   public
     D: PCnBigNumberElement;
-    // 一个 array[0..Top-1] of UInt32/UInt64 数组，越往后越代表高位。
-    // 在 x86 这种小端 CPU 上，该大数值严格等于本数组字节倒序所表达的数，大端没测过，行为八成不靠谱
+    // 一个 array[0..Top-1] of UInt32/UInt64 数组，元素越往后越代表高位，元素内部依赖 CPU 字节序。
+    // 在 x86 这种小端 CPU 上，该大数值严格等于本数组字节倒序所表达的数，
+    // 大端则每个元素内部倒序再全部从高到低读字节，才符合可读的要求，具体也没条件测
+    // 因而在 ToBinary/FromBinary/SetBinary 时，有个元素间的倒序过程，
+    // 另外元素内部的字节在读取写入时使用了拆字节拼接，因而抹平了 CPU 的大小端区别
+    // 这样对应的 Binary 内存区域从低地址到高地址每个字节都符合网络或阅读习惯，无论 CPU 的大小端是啥
 
     Top: Integer;
     // Top 表示数字上限，也即有 Top 个有效 UInt32/UInt64，D[Top - 1] 是最高位有效数所在的 UInt32/UInt64
@@ -258,8 +270,8 @@ type
     {* 将大数扩展成支持 Words 个 UInt32/UInt64，成功返回扩展的大数对象本身 Self，失败返回 nil}
 
     function ToBinary(const Buf: PAnsiChar; FixedLen: Integer = 0): Integer;
-    {* 将大数转换成二进制数据放入 Buf 中，Buf 的长度必须大于等于其 BytesCount，
-       返回 Buf 写入的长度}
+    {* 将大数转换成二进制数据放入 Buf 中，使用符合阅读习惯的网络字节顺序，
+       Buf 的长度必须大于等于其 BytesCount，返回 Buf 写入的长度}
 
     function LoadFromStream(Stream: TStream): Boolean;
     {* 从流中加载大数}
@@ -268,7 +280,7 @@ type
     {* 将大数写入流}
 
     function SetBinary(Buf: PAnsiChar; Len: Integer): Boolean;
-    {* 根据一个二进制块给自身赋值，内部采用复制}
+    {* 根据一个二进制块给自身赋值，使用符合阅读习惯的网络字节顺序，内部采用复制}
 
     class function FromBinary(Buf: PAnsiChar; Len: Integer): TCnBigNumber;
     {* 根据一个二进制块产生一个新的大数对象，其内容为复制}
@@ -334,6 +346,7 @@ type
     procedure SetItem(Index: Integer; ABigNumber: TCnBigNumber);
   public
     constructor Create; reintroduce;
+    {* 构造函数}
 
     function Add: TCnBigNumber; overload;
     {* 新增一个大数对象，返回该对象，注意添加后无需也不应手动释放}
@@ -397,6 +410,7 @@ type
     procedure SetSafeValue(Exponent: Integer; const Value: TCnBigNumber);
   public
     constructor Create; reintroduce;
+    {* 构造函数}
 
     function ToString: string; {$IFDEF OBJECT_HAS_TOSTRING} override; {$ENDIF}
     {* 将所有元素中的指数与大数转成多行字符串}
@@ -587,7 +601,8 @@ function BigNumberToBinary(const Num: TCnBigNumber; Buf: PAnsiChar; FixedLen: In
 {* 将一个大数转换成二进制数据放入 Buf 中，Buf 的长度必须大于等于其 BytesCount，
    返回 Buf 写入的长度，注意不处理正负号。如果 Buf 为 nil，则直接返回所需长度
    大数长度超过 FixedLen 时按大数实际字节长度写，否则先写字节 0 补齐长度
-   注意内部有个倒序的过程，也就是说低内存被写入的是大数内部的高位数据，符合网络或阅读习惯}
+   注意内部有个元素间倒序的过程，同时元素内也有拆字节的过程，抹平了 CPU 大小端的不同
+   也就是说低内存被写入的是大数内部的高位数据，符合网络或阅读习惯}
 
 function BigNumberFromBinary(Buf: PAnsiChar; Len: Integer): TCnBigNumber;
 {* 将一个二进制块转换成大数对象，注意不处理正负号。其结果不用时必须用 BigNumberFree 释放}
@@ -597,19 +612,20 @@ function BigNumberReadBinaryFromStream(const Num: TCnBigNumber; Stream: TStream)
 
 function BigNumberWriteBinaryToStream(const Num: TCnBigNumber; Stream: TStream;
   FixedLen: Integer = 0): Integer;
-{* 将一个大数的二进制部分写入流，返回写入流的长度。注意内部有个倒序的过程以符合网络或阅读习惯
+{* 将一个大数的二进制部分写入流，返回写入流的长度。注意内部有个元素间以及元素内倒序的过程以符合网络或阅读习惯
   FixedLen 表示大数内容不够 FixedLen 字节长度时高位补足 0 以保证 Stream 中输出固定 FixedLen 字节的长度
   大数长度超过 FixedLen 时按大数实际字节长度写}
 
 function BigNumberFromBytes(Buf: TBytes): TCnBigNumber;
-{* 将一个字节数组内容转换成大数对象，注意不处理正负号。其结果不用时必须用 BigNumberFree 释放}
+{* 将一个字节数组内容转换成大数对象，字节顺序同 Binary，注意不处理正负号。其结果不用时必须用 BigNumberFree 释放}
 
 function BigNumberToBytes(const Num: TCnBigNumber): TBytes;
-{* 将一个大数转换成二进制数据写入字节数组并返回，失败返回 nil}
+{* 将一个大数转换成二进制数据写入字节数组并返回，字节顺序同 Binary，失败返回 nil}
 
 function BigNumberSetBinary(Buf: PAnsiChar; Len: Integer;
   const Res: TCnBigNumber): Boolean;
-{* 将一个二进制块赋值给指定大数对象，注意不处理正负号，内部采用复制}
+{* 将一个二进制块赋值给指定大数对象，注意不处理正负号，内部采用复制，
+  注意内部有个元素间倒序以及逐个字节由低到高拼成一个元素的过程，以符合网络或阅读习惯}
 
 function BigNumberToBase64(const Num: TCnBigNumber): string;
 {* 将一个大数对象转成 Base64 字符串，不处理正负号}
@@ -621,7 +637,7 @@ function BigNumberFromBase64(const Buf: AnsiString): TCnBigNumber;
 {* 将一串 Base64 字符串转换为大数对象，不处理正负号。其结果不用时必须用 BigNumberFree 释放}
 
 function BigNumberToString(const Num: TCnBigNumber): string;
-{* 将一个大数对象转成十进制字符串，负以 - 表示}
+{* 将一个大数对象转成普通可读的十六进制字符串，负以 - 表示}
 
 function BigNumberToHex(const Num: TCnBigNumber; FixedLen: Integer = 0): string;
 {* 将一个大数对象转成十六进制字符串，负以 - 表示
@@ -682,6 +698,9 @@ function BigNumberCopyHigh(const Dst: TCnBigNumber; const Src: TCnBigNumber;
 procedure BigNumberSwap(const Num1: TCnBigNumber; const Num2: TCnBigNumber);
 {* 交换两个大数对象的内容}
 
+procedure BigNumberSwapBit(const Num: TCnBigNumber; BitIndex1, BitIndex2: Integer);
+{* 交换大数中两个指定 Bit 位的内容，BitIndex 均以 0 开始}
+
 function BigNumberRandBytes(const Num: TCnBigNumber; BytesCount: Integer): Boolean;
 {* 产生固定字节长度的随机大数，不保证最高位置 1，甚至最高字节都不保证非 0}
 
@@ -740,7 +759,8 @@ function BigNumberSqr(const Res: TCnBigNumber; const Num: TCnBigNumber): Boolean
 function BigNumberSqrt(const Res: TCnBigNumber; const Num: TCnBigNumber): Boolean;
 {* 计算一大数对象的平方根的整数部分，结果放 Res 中，返回平方计算是否成功，Res 可以是 Num}
 
-function BigNumberRoot(const Res: TCnBigNumber; const Num: TCnBigNumber; Exponent: Integer): Boolean;
+function BigNumberRoot(const Res: TCnBigNumber; const Num: TCnBigNumber;
+  Exponent: Integer): Boolean; {$IFDEF SUPPORT_DEPRECATED} deprecated; {$ENDIF}
 {* 计算一大数对象的 Exp 次方根的整数部分，结果放 Res 中，返回根计算是否成功
   要求 Num 不能为负，Exponent 不能为 0 或负
   注：FIXME: 因为大数无法进行浮点计算，目前整数运算有偏差，结果偏大，不推荐使用！}
@@ -761,16 +781,33 @@ function BigNumberMulFloat(const Res: TCnBigNumber; Num: TCnBigNumber;
 function BigNumberDiv(const Res: TCnBigNumber; const Remain: TCnBigNumber;
   const Num: TCnBigNumber; const Divisor: TCnBigNumber): Boolean;
 {* 两大数对象相除，Num / Divisor，商放 Res 中，余数放 Remain 中，返回除法计算是否成功，
-   Res 可以是 Num，Remain 可以是 nil 以不需要计算余数}
+   Res 可以是 Num，Remain 可以是 nil 以不需要计算余数
+   被除数与除数均以正数相除得到正的商和正的余数，之后的正负规则如下：
+   正被除数正除数得到正商和正余数，如  1005 /  100 =  10 ...  5
+   负被除数正除数得到负商和负余数，如 -1005 /  100 = -10 ... -5
+   正被除数负除数得到负商和正余数，如  1005 / -100 = -10 ...  5
+   负被除数负除数得到正商和负余数，如 -1005 / -100 =  10 ... -5
+   余数符号跟着被除数走，余数绝对值会小于除数绝对值，且不会出现余 95 这种情况}
+
+function BigNumberRoundDiv(const Res: TCnBigNumber; const Num: TCnBigNumber;
+  const Divisor: TCnBigNumber; out Rounding: Boolean): Boolean;
+{* 两大数对象相除，Num / Divisor，商四舍五入放 Res 中，Res 可以是 Num，
+   注意入的方向始终是绝对值大的方向，与 Round 函数基本保持一致，但忽略其四舍六入五成双的规则，逢五必入
+   返回除法计算是否成功，Rounding 参数返回真实结果的舍入情况，True 表示入，False 表示舍}
 
 function BigNumberMod(const Remain: TCnBigNumber;
   const Num: TCnBigNumber; const Divisor: TCnBigNumber): Boolean;
-{* 两大数对象求余，Num mod Divisor，余数放 Remain 中，返回求余计算是否成功，Remain 可以是 Num}
+{* 两大数对象求余，Num mod Divisor，余数放 Remain 中，
+   余数正负规则等同于 BigNumberDiv，返回求余计算是否成功，Remain 可以是 Num}
 
 function BigNumberNonNegativeMod(const Remain: TCnBigNumber;
   const Num: TCnBigNumber; const Divisor: TCnBigNumber): Boolean;
 {* 两大数对象非负求余，Num mod Divisor，余数放 Remain 中，0 <= Remain < |Divisor|
-   Remain 始终大于零，返回求余计算是否成功}
+   余数的正负规则等同于 BigNumberMod 后再通过加减 Divisor 以确保 Remain 始终大于零
+   与 BigNumberMod 不同的是
+   负被除数正除数先得到负商和负余数，负余数需加正除数，如 -1005 /  100 = ... 95
+   负被除数负除数先得到正商和负余数，负余数需减负除数，如 -1005 / -100 = ... 95
+   返回求余计算是否成功}
 
 function BigNumberMulWordNonNegativeMod(const Res: TCnBigNumber;
   const Num: TCnBigNumber; N: Integer; const Divisor: TCnBigNumber): Boolean;
@@ -890,31 +927,39 @@ function BigNumberIsUInt64(const Num: TCnBigNumber): Boolean;
 
 procedure BigNumberExtendedEuclideanGcd(A, B: TCnBigNumber; X: TCnBigNumber;
   Y: TCnBigNumber);
-{* 扩展欧几里得辗转相除法求二元一次不定方程 A * X + B * Y = 1 的整数解，调用者需自行保证 A B 互素
+{* 扩展欧几里得辗转相除法求二元一次不定方程 A * X + B * Y = 1 的整数解
+   调用者需自行保证 A B 互素，因为结果只满足 A * X + B * Y = GCD(A, B)
    A, B 是已知大数，X, Y 是解出来的结果，注意 X 有可能小于 0，如需要正数，可以再加上 B}
 
 procedure BigNumberExtendedEuclideanGcd2(A, B: TCnBigNumber; X: TCnBigNumber;
   Y: TCnBigNumber);
-{* 扩展欧几里得辗转相除法求二元一次不定方程 A * X - B * Y = 1 的整数解，调用者需自行保证 A B 互素
+{* 扩展欧几里得辗转相除法求二元一次不定方程 A * X - B * Y = 1 的整数解
+   调用者需自行保证 A B 互素，因为结果只满足 A * X + B * Y = GCD(A, B)
    A, B 是已知大数，X, Y 是解出来的结果，注意 X 有可能小于 0，如需要正数，可以再加上 B
    X 被称为 A 针对 B 的模反元素，因此本算法也用来算 A 针对 B 的模反元素
-   （由于可以视作 -Y，所以本方法与上一方法是等同的 ）}
+   （由于可以视作 -Y，所以本方法与上一方法是等同的）}
 
-function BigNumberModularInverse(const Res: TCnBigNumber; X, Modulus: TCnBigNumber): Boolean;
+function BigNumberModularInverse(const Res: TCnBigNumber;
+  X, Modulus: TCnBigNumber; CheckGcd: Boolean = False): Boolean;
 {* 求 X 针对 Modulus 的模反或叫模逆元 Y，满足 (X * Y) mod M = 1，X 可为负值，Y 求出正值。
-   调用者须自行保证 X、Modulus 互质，且 Res 不能是 X 或 Modulus}
+   CheckGcd 参数为 True 时，内部会检查 X、Modulus 是否互素，不互素则直接返回 False
+   调用者须自行保证 X、Modulus 互素，且 Res 不能是 X 或 Modulus}
 
-function BigNumberPrimeModularInverse(const Res: TCnBigNumber; X, Modulus: TCnBigNumber): Boolean;
+function BigNumberPrimeModularInverse(const Res: TCnBigNumber;
+  X, Modulus: TCnBigNumber): Boolean;
 {* 求 X 针对素数 Modulus 的模反或叫模逆元 Y，满足 (X * Y) mod M = 1，X 可为负值，Y 求出正值。
+   CheckGcd 参数为 True 时，内部会检查 X、Modulus 是否互素，不互素则直接返回 False
    调用者须自行保证 Modulus 为素数，且 Res 不能是 X 或 Modulus，内部用费马小定理求值，略慢}
 
-function BigNumberNegativeModularInverse(const Res: TCnBigNumber; X, Modulus: TCnBigNumber): Boolean;
+function BigNumberNegativeModularInverse(const Res: TCnBigNumber;
+  X, Modulus: TCnBigNumber; CheckGcd: Boolean = False): Boolean;
 {* 求 X 针对 Modulus 的负模反或叫负模逆元 Y，满足 (X * Y) mod M = -1，X 可为负值，Y 求出正值。
-   调用者须自行保证 X、Modulus 互质，且 Res 不能是 X 或 Modulus}
+   调用者须自行保证 X、Modulus 互素，且 Res 不能是 X 或 Modulus}
 
-procedure BigNumberModularInverseWord(const Res: TCnBigNumber; X: Integer; Modulus: TCnBigNumber);
+procedure BigNumberModularInverseWord(const Res: TCnBigNumber;
+  X: Integer; Modulus: TCnBigNumber; CheckGcd: Boolean = False);
 {* 求 32 位有符号数 X 针对 Modulus 的模反或叫模逆元 Y，满足 (X * Y) mod M = 1，X 可为负值，Y 求出正值。
-   调用者须自行保证 X、Modulus 互质，且 Res 不能是 X 或 Modulus}
+   调用者须自行保证 X、Modulus 互素，且 Res 不能是 X 或 Modulus}
 
 function BigNumberLegendre(A, P: TCnBigNumber): Integer;
 {* 用二次互反律递归计算勒让德符号 ( A / P) 的值，较快}
@@ -937,7 +982,7 @@ procedure BigNumberFindFactors(Num: TCnBigNumber; Factors: TCnBigNumberList);
 {* 找出大数的质因数列表}
 
 procedure BigNumberEuler(const Res: TCnBigNumber; Num: TCnBigNumber);
-{* 求不大于一 64 位无符号数 Num 的与 Num 互质的正整数的个数，也就是欧拉函数}
+{* 求不大于一 64 位无符号数 Num 的与 Num 互素的正整数的个数，也就是欧拉函数}
 
 function BigNumberLucasSequenceMod(X, Y, K, N: TCnBigNumber; Q, V: TCnBigNumber): Boolean;
 {* 计算 IEEE P1363 的规范中说明的 Lucas 序列，调用者需自行保证 N 为奇素数
@@ -1009,10 +1054,12 @@ uses
   CnPrimeNumber, CnBigDecimal, CnFloat, CnBase64;
 
 resourcestring
-  SCN_BN_64MOD_RANGE_ERROR = 'Mod Word only Supports Unsigned Int32';
-  SCN_BN_LOG_RANGE_ERROR = 'Log Range Error';
-  SCN_BN_LEGENDRE_ERROR = 'Legendre: A, P Must > 0';
-  SCN_BN_FLOAT_EXP_RANGE_ERROR = 'Extended Float Exponent Range Error';
+{$IFDEF BN_DATA_USE_64}
+  SCnErrorBigNumberInvalid64ModRange = 'Mod Word only Supports Unsigned Int32';
+{$ENDIF}
+  SCnErrorBigNumberLogRange = 'Log Range Error';
+  SCnErrorBigNumberLegendre = 'Legendre: A, P Must > 0';
+  CnErrorBigNumberFloatExponentRange = 'Extended Float Exponent Range Error';
 
 const
   Hex: string = '0123456789ABCDEF';
@@ -1743,7 +1790,7 @@ function BigNumberFromBytes(Buf: TBytes): TCnBigNumber;
 begin
   Result := nil;
   if (Buf <> nil) and (Length(Buf) > 0) then
-    Result := BigNumberFromBinary(@Buf[0], Length(Buf) - 1);
+    Result := BigNumberFromBinary(@Buf[0], Length(Buf));
 end;
 
 function BigNumberToBytes(const Num: TCnBigNumber): TBytes;
@@ -1787,12 +1834,12 @@ begin
   while N > 0 do
   begin
     L := (L shl 8) or Ord(Buf^);
-    Buf := PAnsiChar(TCnNativeInt(Buf) + 1);
+    Buf := PAnsiChar(TCnNativeInt(Buf) + 1);  // Buf 是越处理越往高地址走
 
     if M = 0 then
     begin
       Dec(I);
-      PCnBigNumberElementArray(Res.D)^[I] := L;
+      PCnBigNumberElementArray(Res.D)^[I] := L; // D 的 I 则是越处理越往低地址走
       L := 0;
       M := BN_BYTES - 1;
     end
@@ -1973,41 +2020,6 @@ begin
 
   if (TCnBigNumberElement(PCnBigNumberElementArray(Num.D)^[I] shr J) and TCnBigNumberElement(1)) <> 0 then
     Result := True;
-end;
-
-function BigNumberCompareWords(var Num1: TCnBigNumber; var Num2: TCnBigNumber;
-  N: Integer): Integer;
-var
-  I: Integer;
-  A, B: TCnBigNumberElement;
-begin
-  A := PCnBigNumberElementArray(Num1.D)^[N - 1];
-  B := PCnBigNumberElementArray(Num2.D)^[N - 1];
-
-  if A <> B then
-  begin
-    if A > B then
-      Result := 1
-    else
-      Result := -1;
-    Exit;
-  end;
-
-  for I := N - 2 downto 0 do
-  begin
-    A := PCnBigNumberElementArray(Num1.D)^[I];
-    B := PCnBigNumberElementArray(Num2.D)^[I];
-
-    if A <> B then
-    begin
-      if A > B then
-        Result := 1
-      else
-        Result := -1;
-      Exit;
-    end;
-  end;
-  Result := 0;
 end;
 
 function BigNumberEqual(const Num1: TCnBigNumber; const Num2: TCnBigNumber): Boolean;
@@ -2383,6 +2395,30 @@ begin
   Num2.Top := TmpTop;
   Num2.DMax := TmpDMax;
   Num2.Neg := TmpNeg;
+end;
+
+procedure BigNumberSwapBit(const Num: TCnBigNumber; BitIndex1, BitIndex2: Integer);
+var
+  B1, B2: Boolean;
+begin
+  if (BitIndex1 = BitIndex2) or (BitIndex1 < 0) or (BitIndex2 < 0) then
+    Exit;
+
+  if (BitIndex1 >= Num.GetBitsCount) or (BitIndex2 >= Num.GetBitsCount) then
+    Exit;
+
+  B1 := Num.IsBitSet(BitIndex1);
+  B2 := Num.IsBitSet(BitIndex2);
+
+  if B2 then
+    Num.SetBit(BitIndex1)
+  else
+    Num.ClearBit(BitIndex1);
+
+  if B1 then
+    Num.SetBit(BitIndex2)
+  else
+    Num.ClearBit(BitIndex2);
 end;
 
 // ============================ 低阶运算定义开始 ===============================
@@ -3622,7 +3658,7 @@ begin
 
 {$IFDEF BN_DATA_USE_64}
   if W > $FFFFFFFF then
-    raise Exception.Create(SCN_BN_64MOD_RANGE_ERROR);
+    raise Exception.Create(SCnErrorBigNumberInvalid64ModRange);
 {$ENDIF}
 
   Result := 0;
@@ -4066,7 +4102,7 @@ begin
     E := B - 1;
 
     if E > CN_EXTENDED_MAX_EXPONENT then
-      raise ERangeError.Create(SCN_BN_FLOAT_EXP_RANGE_ERROR);
+      raise ERangeError.Create(CnErrorBigNumberFloatExponentRange);
 
     if B <= 64 then
     begin
@@ -4817,6 +4853,49 @@ begin
     WNum.Top := BackupTop;
     WNum.DMax := BackupDMax;
     FLocalBigNumberPool.Recycle(WNum);
+  end;
+end;
+
+function BigNumberRoundDiv(const Res: TCnBigNumber; const Num: TCnBigNumber;
+  const Divisor: TCnBigNumber; out Rounding: Boolean): Boolean;
+var
+  R, H: TCnBigNumber;
+  C: Integer;
+begin
+  R := FLocalBigNumberPool.Obtain;
+  H := FLocalBigNumberPool.Obtain;
+  try
+    Result := BigNumberDiv(Res, R, Num, Divisor);
+
+    // 根据余数 R 判断 Res 是否要加减一
+    BigNumberShiftRightOne(H, Divisor);
+    // H 是除数一半的整数部分小于等于除数的精确的一半
+
+    if Divisor.IsOdd then // H 的绝对值加一
+    begin
+      if Divisor.IsNegative then
+        H.SubWord(1)
+      else
+        H.AddWord(1);
+    end;
+
+    C := BigNumberUnsignedCompare(R, H); // 比较绝对值
+    if C >= 0 then
+    begin
+      // 除数是偶数时，H 是除数的一半，因而余数大于或等于 H 时符合五入
+      // 除数是奇数时，H 是除数的一半大一，因而余数大于或等于 H 时一定大于一半，也符合五入
+      // 五入是商的绝对值加一，要看商的符号决定是加一还是减一
+      if Res.IsNegative then
+        Res.SubWord(1)
+      else
+        Res.AddWord(1);
+      Rounding := True;
+    end
+    else // 其余情况四舍，不动
+      Rounding := False;
+  finally
+    FLocalBigNumberPool.Recycle(H);
+    FLocalBigNumberPool.Recycle(R);
   end;
 end;
 
@@ -5626,7 +5705,7 @@ end;
 procedure CheckLog(const Num: TCnBigNumber);
 begin
   if Num.IsZero or Num.IsNegative then
-    raise ERangeError.Create(SCN_BN_LOG_RANGE_ERROR);
+    raise ERangeError.Create(SCnErrorBigNumberLogRange);
 end;
 
 function BigNumberLog2(const Num: TCnBigNumber): Extended;
@@ -6138,8 +6217,9 @@ begin
   end;
 end;
 
-// 求 X 针对 Modulus 的模反或叫模逆元 Y，满足 (X * Y) mod M = 1，X 可为负值，Y 求出正值。调用者须自行保证 X、Modulus 互质
-function BigNumberModularInverse(const Res: TCnBigNumber; X, Modulus: TCnBigNumber): Boolean;
+// 求 X 针对 Modulus 的模反或叫模逆元 Y，满足 (X * Y) mod M = 1，X 可为负值，Y 求出正值。调用者须自行保证 X、Modulus 互素
+function BigNumberModularInverse(const Res: TCnBigNumber; X, Modulus: TCnBigNumber;
+  CheckGcd: Boolean): Boolean;
 var
   Neg: Boolean;
   X1, Y: TCnBigNumber;
@@ -6153,6 +6233,13 @@ begin
   try
     X1 := FLocalBigNumberPool.Obtain;
     Y := FLocalBigNumberPool.Obtain;
+
+    if CheckGcd then
+    begin
+      BigNumberGcd(X1, X, Modulus);
+      if not X1.IsOne then
+        Exit;
+    end;
 
     if BigNumberCopy(X1, X) = nil then
       Exit;
@@ -6199,23 +6286,24 @@ begin
 end;
 
 // 求 X 针对 Modulus 的负模反或叫负模逆元 Y，满足 (X * Y) mod M = -1，X 可为负值，Y 求出正值
-function BigNumberNegativeModularInverse(const Res: TCnBigNumber; X, Modulus: TCnBigNumber): Boolean;
+function BigNumberNegativeModularInverse(const Res: TCnBigNumber;
+  X, Modulus: TCnBigNumber; CheckGcd: Boolean): Boolean;
 begin
-  Result := BigNumberModularInverse(Res, X, Modulus);
+  Result := BigNumberModularInverse(Res, X, Modulus, CheckGcd);
   if Result then
     Result := BigNumberSub(Res, Modulus, Res); // 负逆元等于模数减逆元
 end;
 
 // 求 32 位有符号数 X 针对 Modulus 的模反或叫模逆元 Y，满足 (X * Y) mod M = 1，X 可为负值，Y 求出正值
 procedure BigNumberModularInverseWord(const Res: TCnBigNumber; X: Integer;
-  Modulus: TCnBigNumber);
+  Modulus: TCnBigNumber; CheckGcd: Boolean);
 var
   T: TCnBigNumber;
 begin
   T := FLocalBigNumberPool.Obtain;
   try
     T.SetInteger(X);
-    BigNumberModularInverse(Res, T, Modulus);
+    BigNumberModularInverse(Res, T, Modulus, CheckGcd);
   finally
     FLocalBigNumberPool.Recycle(T);
   end;
@@ -6227,7 +6315,7 @@ var
   AA, Q: TCnBigNumber;
 begin
   if A.IsZero or A.IsNegative or P.IsZero or P.IsNegative then
-    raise Exception.Create(SCN_BN_LEGENDRE_ERROR);
+    raise Exception.Create(SCnErrorBigNumberLegendre);
 
   if A.IsOne then
   begin
@@ -6280,7 +6368,7 @@ var
   R, Res: TCnBigNumber;
 begin
   if A.IsZero or A.IsNegative or P.IsZero or P.IsNegative then
-    raise Exception.Create(SCN_BN_LEGENDRE_ERROR);
+    raise Exception.Create(SCnErrorBigNumberLegendre);
 
   R := FLocalBigNumberPool.Obtain;
   Res := FLocalBigNumberPool.Obtain;
@@ -6544,6 +6632,8 @@ begin
           // 结果是 g^(u+1) mod p
           BigNumberAddWord(U, 1);
           BigNumberMontgomeryPowerMod(Y, A, U, Prime);
+          // 但解可能逆运算平方回去 mod Prime 后得到 -A 不符合原要求因而需要验算
+
           BigNumberDirectMulMod(Z, Y, Y, Prime);
           if BigNumberCompare(Z, A) = 0 then
           begin
@@ -6997,7 +7087,7 @@ begin
   try
     for I := 2 to LG2 do
     begin
-      // 求 Num 的 I 次方根的整数部分
+      // 求 Num 的 I 次方根的整数部分，应该不会出现浮点数的 Power 1/I 次方那样整数部分偏小的问题
       BigNumberRoot(T, Num, I);
       // 整数部分再求幂
       BigNumberPower(T, T, I);
@@ -8248,7 +8338,13 @@ function TCnSparseBigNumberList.Top: TCnExponentBigNumberPair;
 begin
   Result := nil;
   if Count > 0 then
+  begin
+{$IFDEF LIST_INDEX_NATIVEINT}
+    Result := TCnExponentBigNumberPair(Items[Count - 1]);
+{$ELSE}
     Result := Items[Count - 1];
+{$ENDIF}
+  end;
 end;
 
 function TCnSparseBigNumberList.ToString: string;

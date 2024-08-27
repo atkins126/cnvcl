@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2023 CnPack 开发组                       }
+{                   (C)Copyright 2001-2024 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -13,7 +13,7 @@
 {            您应该已经和开发包一起收到一份 CnPack 发布协议的副本。如果        }
 {        还没有，可访问我们的网站：                                            }
 {                                                                              }
-{            网站地址：http://www.cnpack.org                                   }
+{            网站地址：https://www.cnpack.org                                  }
 {            电子邮件：master@cnpack.org                                       }
 {                                                                              }
 {******************************************************************************}
@@ -83,6 +83,9 @@ type
 
 { TAALabel }
 
+{$IFDEF SUPPORT_32_AND_64}
+  [ComponentPlatformsAttribute(pidWin32 or pidWin64)]
+{$ENDIF}
   TCnAALabel = class(TCnAAGraphicControl)
   {* 平滑特效字体标签控件，用于显示单行文本，在控件的 Effect 属性中定义了所有与
      特效显示相关的设置。
@@ -154,7 +157,7 @@ type
     property URL: string read FURL write FURL;
     {* 超链接内容或文件名，例如：
      |<PRE>
-       http://www.cnpack.org      - 网页
+       https://www.cnpack.org     - 网页
        mailto:zjy@cnpack.org      - 邮件地址
        mailto:zjy@cnpack.org?subject=你好 - 带邮件标题的邮件地址链接
        c:\tools\anyexe.exe      - 可执行文件
@@ -176,6 +179,9 @@ type
 
   TCnFadeStyle = (fsNone, fsIn, fsOut);
 
+{$IFDEF SUPPORT_32_AND_64}
+  [ComponentPlatformsAttribute(pidWin32 or pidWin64)]
+{$ENDIF}
   TCnAALinkLabel = class(TCnAALabel)
   {* 平滑特效超链接标签控件，用于显示超链接，支持切换时的淡入淡出效果}
   private
@@ -256,6 +262,9 @@ type
 
 { TCnAAText }
 
+{$IFDEF SUPPORT_32_AND_64}
+  [ComponentPlatformsAttribute(pidWin32 or pidWin64)]
+{$ENDIF}
   TCnAAText = class(TCnAACustomText)
   {* 平滑特效文本控件，用于显示多行文本，通过使用标签，允许每行文本使用不同的
      对齐方式和字体特效。}
@@ -356,6 +365,9 @@ type
 
 { TCnAAScrollText }
 
+{$IFDEF SUPPORT_32_AND_64}
+  [ComponentPlatformsAttribute(pidWin32 or pidWin64)]
+{$ENDIF}
   TCnAAScrollText = class(TCnAACustomText)
   {* 平滑滚动文本控件，用于多行文本的动态滚动显示}
   private
@@ -439,6 +451,9 @@ type
   
 { TCnAAMarqueeText }
 
+{$IFDEF SUPPORT_32_AND_64}
+  [ComponentPlatformsAttribute(pidWin32 or pidWin64)]
+{$ENDIF}
   TCnAAMarqueeText = class(TCnAAGraphicControl)
    {* 平滑字幕文本控件，用于文本的水平滚动显示}
   private
@@ -546,6 +561,9 @@ type
 
 { TCnAAFadeText }
 
+{$IFDEF SUPPORT_32_AND_64}
+  [ComponentPlatformsAttribute(pidWin32 or pidWin64)]
+{$ENDIF}
   TCnAAFadeText = class(TCnAACustomText)
   {* 平滑特效渐隐文本控件，用于多行文本的淡入淡出切换显示}
   private
@@ -657,7 +675,7 @@ const
     'liwensong@hotmail.com'#13#10 +
     'http://member.netease.com/~lws'#13#10 +
     'Passion兄帮助制作控件图标'#13#10 +
-    'liuxiao@cnpack.org'#13#10#13#10 +
+    'master@cnpack.org'#13#10#13#10 +
 
   '<Title2>备注'#13#10 +
     '<Text1>该控件为免费控件'#13#10 +

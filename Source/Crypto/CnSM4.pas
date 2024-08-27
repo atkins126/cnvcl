@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2023 CnPack 开发组                       }
+{                   (C)Copyright 2001-2024 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -13,7 +13,7 @@
 {            您应该已经和开发包一起收到一份 CnPack 发布协议的副本。如果        }
 {        还没有，可访问我们的网站：                                            }
 {                                                                              }
-{            网站地址：http://www.cnpack.org                                   }
+{            网站地址：https://www.cnpack.org                                  }
 {            电子邮件：master@cnpack.org                                       }
 {                                                                              }
 {******************************************************************************}
@@ -22,14 +22,21 @@ unit CnSM4;
 {* |<PRE>
 ================================================================================
 * 软件名称：开发包基础库
-* 单元名称：国产分组密码算法 SM4 单元
-* 单元作者：刘啸（liuxiao@cnpack.org)
-* 备    注：参考国密算法公开文档 SM4 Encryption alogrithm
-*           并参考移植 goldboar 的 C 代码*
-*           本单元未处理对齐方式，默认只在末尾补 0，
-*           如需要 PKCS 之类的支持，，请在外部调用CnPemUtils 中的 PKCS 处理函数
+* 单元名称：国家商用密码 SM4 对称加解密算法实现单元
+* 单元作者：CnPack 开发组（master@cnpack.org)
+*           参考并部分移植了 goldboar 的 C 代码
+* 备    注：本单元实现了国家商用密码 SM4 对称加解密算法，分块大小 16 字节，块运算实现了
+*           的对齐方式均在末尾补 0。本单元内部不支持 PKCS 等块对齐方式，如需要，请在外部调用
+*           CnPemUtils.pas 单元中的 PKCS 系列函数对加解密内容进行额外处理。
+*           本单元的实现参考国密算法公开文档《SM4 Encryption alogrithm》。
+*
 *           另外高版本 Delphi 中请尽量避免使用 AnsiString 参数版本的函数（十六进制除外），
 *           避免不可视字符出现乱码影响加解密结果。
+*
+*           ECB/CBC 是块模式，需要处理对齐。CFB/OFB/CTR 是异或明文密文的流模式，无需对齐到块。
+*           另外，本单元中的 CTR 是 8 字节 Nonce 加 8 字节计数器作为内部 16 字节初始化向量的模式，
+*           与有些其他场合用整个 16 字节 Iv 的后 4 或后 8 字节做计数器的不同，使用时需注意。
+*
 * 开发平台：Windows 7 + Delphi 5.0
 * 兼容测试：PWin9X/2000/XP/7 + Delphi 5/6 + MaxOS 64
 * 本 地 化：该单元中的字符串均符合本地化处理方式
@@ -61,10 +68,13 @@ uses
 
 const
   CN_SM4_KEYSIZE = 16;
+  {* SM4 的密码长度 16 字节}
 
   CN_SM4_BLOCKSIZE = 16;
+  {* SM4 的分块长度 16 字节}
 
   CN_SM4_NONCESIZE = 8;
+  {* SM4 的 CTR 模式下的准初始化向量长度 8 字节}
 
 type
   TCnSM4Key    = array[0..CN_SM4_KEYSIZE - 1] of Byte;
@@ -83,6 +93,9 @@ type
     Mode: Integer;                                       {!<  encrypt/decrypt }
     Sk: array[0..CN_SM4_KEYSIZE * 2 - 1] of Cardinal;    {!<  SM4 subkeys     }
   end;
+
+function SM4GetOutputLengthFromInputLength(InputByteLength: Integer): Integer;
+{* 根据输入明文字节长度计算其块对齐的输出长度。如果非块整数倍则向上增长至块整数倍}
 
 procedure SM4Encrypt(Key: PAnsiChar; Input: PAnsiChar; Output: PAnsiChar; Len: Integer);
 {* 原始的 SM4 加密数据块，ECB 模式，将 Input 内的明文内容加密搁到 Output 中
@@ -174,7 +187,7 @@ procedure SM4DecryptOfbStr(Key: AnsiString; Iv: PAnsiChar;
 
 procedure SM4EncryptCtrStr(Key: AnsiString; Nonce: PAnsiChar;
   const Input: AnsiString; Output: PAnsiChar);
-{* SM4-OFB 封装好的针对 AnsiString 的加密方法
+{* SM4-CTR 封装好的针对 AnsiString 的加密方法
  |<PRE>
   Key      16 字节密码，太长则截断，不足则补 #0
   Nonce    不短于 8 字节的初始化向量，太长则超出部分忽略
@@ -184,7 +197,7 @@ procedure SM4EncryptCtrStr(Key: AnsiString; Nonce: PAnsiChar;
 
 procedure SM4DecryptCtrStr(Key: AnsiString; Nonce: PAnsiChar;
   const Input: AnsiString; Output: PAnsiChar);
-{* SM4-OFB 封装好的针对 AnsiString 的解密方法
+{* SM4-CTR 封装好的针对 AnsiString 的解密方法
  |<PRE>
   Key      16 字节密码，太长则截断，不足则补 #0
   Nonce    不短于 8 字节的初始化向量，太长则超出部分忽略
@@ -289,7 +302,7 @@ function SM4EncryptEcbBytesToHex(Key: TBytes; const Input: TBytes): AnsiString;
  |<PRE>
   Key      16 字节密码，太长则截断，不足则补 0
   Input    原始待加密内容，其长度如不是 16 倍数，计算时会被填充 0 至长度达到 16 的倍数
-  返回值   加密内容
+  返回值   加密内容，注意没有处理 PKCS7 之类的对齐，只做补 #0 对齐后加密
  |</PRE>}
 
 function SM4DecryptEcbBytesFromHex(Key: TBytes; const Input: AnsiString): TBytes;
@@ -297,7 +310,7 @@ function SM4DecryptEcbBytesFromHex(Key: TBytes; const Input: AnsiString): TBytes
  |<PRE>
   Key      16 字节密码，太长则截断，不足则补 0
   Input    十六进制密文，其解码后的长度如不是 16 倍数，计算时会被填充 0 至长度达到 16 的倍数
-  返回值   解密内容
+  返回值   解密内容，注意因为没有处理 PKCS7 之类的对齐，因此末尾可能多出 #0 来
  |</PRE>}
 
 function SM4EncryptCbcBytesToHex(Key, Iv: TBytes; const Input: TBytes): AnsiString;
@@ -306,7 +319,7 @@ function SM4EncryptCbcBytesToHex(Key, Iv: TBytes; const Input: TBytes): AnsiStri
   Key      16 字节密码，太长则截断，不足则补 0
   Iv       16 字节初始化向量，太长则超出部分忽略，不足则在 Iv 后补 0
   Input    原始待加密内容
-  返回值   加密内容
+  返回值   加密内容，注意没有处理 PKCS7 之类的对齐，只做补 #0 对齐后加密
  |</PRE>}
 
 function SM4DecryptCbcBytesFromHex(Key, Iv: TBytes; const Input: AnsiString): TBytes;
@@ -315,7 +328,7 @@ function SM4DecryptCbcBytesFromHex(Key, Iv: TBytes; const Input: AnsiString): TB
   Key      16 字节密码，太长则截断，不足则补 0
   Iv       16 字节初始化向量，太长则超出部分忽略，不足则在 Iv 后补 0
   Input    十六进制密文
-  返回值   解密内容
+  返回值   解密内容，注意因为没有处理 PKCS7 之类的对齐，因此末尾可能多出 #0 来
  |</PRE>}
 
 function SM4EncryptCfbBytesToHex(Key, Iv: TBytes; const Input: TBytes): AnsiString;
@@ -429,9 +442,9 @@ procedure SM4OneRound(SK: PCardinal; Input: PAnsiChar; Output: PAnsiChar);
 implementation
 
 resourcestring
-  SCnInvalidInBufSize = 'Invalid Buffer Size for Decryption';
-  SCnReadError = 'Stream Read Error';
-  SCnWriteError = 'Stream Write Error';
+  SCnErrorSM4InvalidInBufSize = 'Invalid Buffer Size for Decryption';
+  SCnErrorSM4ReadError = 'Stream Read Error';
+  SCnErrorSM4WriteError = 'Stream Write Error';
 
 const
   SM4_ENCRYPT = 1;
@@ -468,7 +481,7 @@ const
     $A0A7AEB5, $BCC3CAD1, $D8DFE6ED, $F4FB0209,
     $10171E25, $2C333A41, $484F565D, $646B7279 );
 
-function Min(A, B: Integer): Integer;
+function Min(A, B: Integer): Integer; {$IFDEF SUPPORT_INLINE} inline; {$ENDIF}
 begin
   if A < B then
     Result := A
@@ -498,6 +511,7 @@ begin
   Result := (X and $FFFFFFFF) shl N;
 end;
 
+// 循环左移。注意 N 为 0 或 32 时返回值仍为 X，N 为 33 时返回值等于 N 为 1 时的返回值
 function ROTL(X: Cardinal; N: Integer): Cardinal;
 begin
   Result := SM4Shl(X, N) or (X shr (32 - N));
@@ -1157,7 +1171,7 @@ begin
     Result := nil;
     Exit;
   end;
-  SetLength(Result, (((Len - 1) div 16) + 1) * 16);
+  SetLength(Result, Len); // 注意 CFB 是流模式，输出无需补足块
 
   Len := Length(Key);
   if Len < CN_SM4_KEYSIZE then // Key 长度小于 16 字节补 0
@@ -1200,7 +1214,7 @@ begin
     Result := nil;
     Exit;
   end;
-  SetLength(Result, (((Len - 1) div 16) + 1) * 16);
+  SetLength(Result, Len);  // 注意 OFB 是流模式，输出无需补足块
 
   Len := Length(Key);
   if Len < CN_SM4_KEYSIZE then // Key 长度小于 16 字节补 0
@@ -1397,13 +1411,13 @@ begin
   begin
     Done := Source.Read(TempIn, SizeOf(TempIn));
     if Done < SizeOf(TempIn) then
-      raise EStreamError.Create(SCnReadError);
+      raise EStreamError.Create(SCnErrorSM4ReadError);
 
     SM4OneRound(@(Ctx.Sk[0]), @(TempIn[0]), @(TempOut[0]));
 
     Done := Dest.Write(TempOut, SizeOf(TempOut));
     if Done < SizeOf(TempOut) then
-      raise EStreamError.Create(SCnWriteError);
+      raise EStreamError.Create(SCnErrorSM4WriteError);
 
     Dec(Count, SizeOf(TCnSM4Buffer));
   end;
@@ -1412,14 +1426,14 @@ begin
   begin
     Done := Source.Read(TempIn, Count);
     if Done < Count then
-      raise EStreamError.Create(SCnReadError);
+      raise EStreamError.Create(SCnErrorSM4ReadError);
     FillChar(TempIn[Count], SizeOf(TempIn) - Count, 0);
 
     SM4OneRound(@(Ctx.Sk[0]), @(TempIn[0]), @(TempOut[0]));
 
     Done := Dest.Write(TempOut, SizeOf(TempOut));
     if Done < SizeOf(TempOut) then
-      raise EStreamError.Create(SCnWriteError);
+      raise EStreamError.Create(SCnErrorSM4WriteError);
   end;
 end;
 
@@ -1441,20 +1455,20 @@ begin
   if Count = 0 then
     Exit;
   if (Count mod SizeOf(TCnSM4Buffer)) > 0 then
-    raise Exception.Create(SCnInvalidInBufSize);
+    raise Exception.Create(SCnErrorSM4InvalidInBufSize);
 
   SM4SetKeyDec(Ctx, @(Key[0]));
   while Count >= SizeOf(TCnSM4Buffer) do
   begin
     Done := Source.Read(TempIn, SizeOf(TempIn));
     if Done < SizeOf(TempIn) then
-      raise EStreamError.Create(SCnReadError);
+      raise EStreamError.Create(SCnErrorSM4ReadError);
 
     SM4OneRound(@(Ctx.Sk[0]), @(TempIn[0]), @(TempOut[0]));
 
     Done := Dest.Write(TempOut, SizeOf(TempOut));
     if Done < SizeOf(TempOut) then
-      raise EStreamError.Create(SCnWriteError);
+      raise EStreamError.Create(SCnErrorSM4WriteError);
 
     Dec(Count, SizeOf(TCnSM4Buffer));
   end;
@@ -1486,7 +1500,7 @@ begin
   begin
     Done := Source.Read(TempIn, SizeOf(TempIn));
     if Done < SizeOf(TempIn) then
-      raise EStreamError.Create(SCnReadError);
+      raise EStreamError.Create(SCnErrorSM4ReadError);
 
     PCardinal(@TempIn[0])^ := PCardinal(@TempIn[0])^ xor PCardinal(@Vector[0])^;
     PCardinal(@TempIn[4])^ := PCardinal(@TempIn[4])^ xor PCardinal(@Vector[4])^;
@@ -1497,7 +1511,7 @@ begin
 
     Done := Dest.Write(TempOut, SizeOf(TempOut));
     if Done < SizeOf(TempOut) then
-      raise EStreamError.Create(SCnWriteError);
+      raise EStreamError.Create(SCnErrorSM4WriteError);
 
     Move(TempOut[0], Vector[0], SizeOf(TCnSM4Iv));
     Dec(Count, SizeOf(TCnSM4Buffer));
@@ -1507,7 +1521,7 @@ begin
   begin
     Done := Source.Read(TempIn, Count);
     if Done < Count then
-      raise EStreamError.Create(SCnReadError);
+      raise EStreamError.Create(SCnErrorSM4ReadError);
     FillChar(TempIn[Count], SizeOf(TempIn) - Count, 0);
 
     PCardinal(@TempIn[0])^ := PCardinal(@TempIn[0])^ xor PCardinal(@Vector[0])^;
@@ -1519,7 +1533,7 @@ begin
 
     Done := Dest.Write(TempOut, SizeOf(TempOut));
     if Done < SizeOf(TempOut) then
-      raise EStreamError.Create(SCnWriteError);
+      raise EStreamError.Create(SCnErrorSM4WriteError);
   end;
 end;
 
@@ -1542,7 +1556,7 @@ begin
   if Count = 0 then
     Exit;
   if (Count mod SizeOf(TCnSM4Buffer)) > 0 then
-    raise Exception.Create(SCnInvalidInBufSize);
+    raise Exception.Create(SCnErrorSM4InvalidInBufSize);
 
   Vector1 := InitVector;
   SM4SetKeyDec(Ctx, @(Key[0]));
@@ -1551,7 +1565,7 @@ begin
   begin
     Done := Source.Read(TempIn, SizeOf(TempIn));
     if Done < SizeOf(TempIn) then
-      raise EStreamError(SCnReadError);
+      raise EStreamError(SCnErrorSM4ReadError);
 
     Move(TempIn[0], Vector2[0], SizeOf(TCnSM4Iv));
     SM4OneRound(@(Ctx.Sk[0]), @(TempIn[0]), @(TempOut[0]));
@@ -1563,7 +1577,7 @@ begin
 
     Done := Dest.Write(TempOut, SizeOf(TempOut));
     if Done < SizeOf(TempOut) then
-      raise EStreamError(SCnWriteError);
+      raise EStreamError(SCnErrorSM4WriteError);
 
     Vector1 := Vector2;
     Dec(Count, SizeOf(TCnSM4Buffer));
@@ -1596,7 +1610,7 @@ begin
   begin
     Done := Source.Read(TempIn, SizeOf(TempIn));
     if Done < SizeOf(TempIn) then
-      raise EStreamError.Create(SCnReadError);
+      raise EStreamError.Create(SCnErrorSM4ReadError);
 
     SM4OneRound(@(Ctx.Sk[0]), @(Vector[0]), @(TempOut[0]));     // Key 先加密 Iv
 
@@ -1607,7 +1621,7 @@ begin
 
     Done := Dest.Write(TempOut, SizeOf(TempOut));   // 异或的结果写进密文结果
     if Done < SizeOf(TempOut) then
-      raise EStreamError.Create(SCnWriteError);
+      raise EStreamError.Create(SCnErrorSM4WriteError);
 
     Move(TempOut[0], Vector[0], SizeOf(TCnSM4Iv));    // 密文结果取代 Iv 供下一轮加密
     Dec(Count, SizeOf(TCnSM4Buffer));
@@ -1617,7 +1631,7 @@ begin
   begin
     Done := Source.Read(TempIn, Count);
     if Done < Count then
-      raise EStreamError.Create(SCnReadError);
+      raise EStreamError.Create(SCnErrorSM4ReadError);
     SM4OneRound(@(Ctx.Sk[0]), @(Vector[0]), @(TempOut[0]));
 
     PCardinal(@TempOut[0])^ := PCardinal(@TempIn[0])^ xor PCardinal(@TempOut[0])^;
@@ -1627,7 +1641,7 @@ begin
 
     Done := Dest.Write(TempOut, Count);  // 最后写入的只包括密文长度的部分，无需整个块
     if Done < Count then
-      raise EStreamError.Create(SCnWriteError);
+      raise EStreamError.Create(SCnErrorSM4WriteError);
   end;
 end;
 
@@ -1657,7 +1671,7 @@ begin
   begin
     Done := Source.Read(TempIn, SizeOf(TempIn));             // 密文读入至 TempIn
     if Done < SizeOf(TempIn) then
-      raise EStreamError(SCnReadError);
+      raise EStreamError(SCnErrorSM4ReadError);
     SM4OneRound(@(Ctx.Sk[0]), @(Vector[0]), @(TempOut[0])); // Iv 先加密至 TempOut
 
     // 加密后的内容 TempOut 和密文 TempIn 异或得到明文 TempOut
@@ -1668,7 +1682,7 @@ begin
 
     Done := Dest.Write(TempOut, SizeOf(TempOut));      // 明文 TempOut 写出去
     if Done < SizeOf(TempOut) then
-      raise EStreamError(SCnWriteError);
+      raise EStreamError(SCnErrorSM4WriteError);
     Move(TempIn[0], Vector[0], SizeOf(TCnSM4Iv));       // 保留密文 TempIn 取代 Iv 作为下一次加密再异或的内容
     Dec(Count, SizeOf(TCnSM4Buffer));
   end;
@@ -1677,7 +1691,7 @@ begin
   begin
     Done := Source.Read(TempIn, Count);
     if Done < Count then
-      raise EStreamError.Create(SCnReadError);
+      raise EStreamError.Create(SCnErrorSM4ReadError);
     SM4OneRound(@(Ctx.Sk[0]), @(Vector[0]), @(TempOut[0]));
 
     PCardinal(@TempOut[0])^ := PCardinal(@TempIn[0])^ xor PCardinal(@TempOut[0])^;
@@ -1687,7 +1701,7 @@ begin
 
     Done := Dest.Write(TempOut, Count);  // 最后写入的只包括密文长度的部分，无需整个块
     if Done < Count then
-      raise EStreamError.Create(SCnWriteError);
+      raise EStreamError.Create(SCnErrorSM4WriteError);
   end;
 end;
 
@@ -1717,7 +1731,7 @@ begin
   begin
     Done := Source.Read(TempIn, SizeOf(TempIn));
     if Done < SizeOf(TempIn) then
-      raise EStreamError.Create(SCnReadError);
+      raise EStreamError.Create(SCnErrorSM4ReadError);
 
     SM4OneRound(@(Ctx.Sk[0]), @(Vector[0]), @(TempOut[0]));     // Key 先加密 Iv
 
@@ -1728,7 +1742,7 @@ begin
 
     Done := Dest.Write(TempIn, SizeOf(TempIn));     // 异或的结果写进密文结果
     if Done < SizeOf(TempIn) then
-      raise EStreamError.Create(SCnWriteError);
+      raise EStreamError.Create(SCnErrorSM4WriteError);
 
     Move(TempOut[0], Vector[0], SizeOf(TCnSM4Iv));    // 加密结果取代 Iv 供下一轮加密，注意不是异或结果
     Dec(Count, SizeOf(TCnSM4Buffer));
@@ -1738,7 +1752,7 @@ begin
   begin
     Done := Source.Read(TempIn, Count);
     if Done < Count then
-      raise EStreamError.Create(SCnReadError);
+      raise EStreamError.Create(SCnErrorSM4ReadError);
     SM4OneRound(@(Ctx.Sk[0]), @(Vector[0]), @(TempOut[0]));
 
     PCardinal(@TempIn[0])^ := PCardinal(@TempIn[0])^ xor PCardinal(@TempOut[0])^;
@@ -1748,7 +1762,7 @@ begin
 
     Done := Dest.Write(TempIn, Count);  // 最后写入的只包括密文长度的部分，无需整个块
     if Done < Count then
-      raise EStreamError.Create(SCnWriteError);
+      raise EStreamError.Create(SCnErrorSM4WriteError);
   end;
 end;
 
@@ -1778,7 +1792,7 @@ begin
   begin
     Done := Source.Read(TempIn, SizeOf(TempIn));             // 密文读入至 TempIn
     if Done < SizeOf(TempIn) then
-      raise EStreamError(SCnReadError);
+      raise EStreamError(SCnErrorSM4ReadError);
     SM4OneRound(@(Ctx.Sk[0]), @(Vector[0]), @(TempOut[0]));  // Iv 先加密至 TempOut
 
     // 加密后的内容 TempOut 和密文 TempIn 异或得到明文 TempIn
@@ -1789,7 +1803,7 @@ begin
 
     Done := Dest.Write(TempIn, SizeOf(TempIn));        // 明文 TempIn 写出去
     if Done < SizeOf(TempIn) then
-      raise EStreamError(SCnWriteError);
+      raise EStreamError(SCnErrorSM4WriteError);
     Move(TempOut[0], Vector[0], SizeOf(TCnSM4Iv));       // 保留加密结果 TempOut 取代 Iv 作为下一次加密再异或的内容
     Dec(Count, SizeOf(TCnSM4Buffer));
   end;
@@ -1798,7 +1812,7 @@ begin
   begin
     Done := Source.Read(TempIn, Count);
     if Done < Count then
-      raise EStreamError.Create(SCnReadError);
+      raise EStreamError.Create(SCnErrorSM4ReadError);
     SM4OneRound(@(Ctx.Sk[0]), @(Vector[0]), @(TempOut[0]));
 
     PCardinal(@TempIn[0])^ := PCardinal(@TempIn[0])^ xor PCardinal(@TempOut[0])^;
@@ -1808,7 +1822,7 @@ begin
 
     Done := Dest.Write(TempOut, Count);  // 最后写入的只包括密文长度的部分，无需整个块
     if Done < Count then
-      raise EStreamError.Create(SCnWriteError);
+      raise EStreamError.Create(SCnErrorSM4WriteError);
   end;
 end;
 
@@ -1839,7 +1853,7 @@ begin
   begin
     Done := Source.Read(TempIn, SizeOf(TempIn));
     if Done < SizeOf(TempIn) then
-      raise EStreamError.Create(SCnReadError);
+      raise EStreamError.Create(SCnErrorSM4ReadError);
 
     // Nonce 和计数器拼成 Iv
     T := Int64HostToNetwork(Cnt);
@@ -1855,7 +1869,7 @@ begin
 
     Done := Dest.Write(TempIn, SizeOf(TempIn));   // 异或的结果写进密文结果
     if Done < SizeOf(TempIn) then
-      raise EStreamError.Create(SCnWriteError);
+      raise EStreamError.Create(SCnErrorSM4WriteError);
 
     Inc(Cnt);
     Dec(Count, SizeOf(TCnSM4Buffer));
@@ -1865,7 +1879,7 @@ begin
   begin
     Done := Source.Read(TempIn, Count);
     if Done < Count then
-      raise EStreamError.Create(SCnReadError);
+      raise EStreamError.Create(SCnErrorSM4ReadError);
 
     // Nonce 和计数器拼成 Iv
     T := Int64HostToNetwork(Cnt);
@@ -1881,7 +1895,7 @@ begin
 
     Done := Dest.Write(TempIn, Count);  // 最后写入的只包括密文长度的部分，无需整个块
     if Done < Count then
-      raise EStreamError.Create(SCnWriteError);
+      raise EStreamError.Create(SCnErrorSM4WriteError);
   end;
 end;
 
@@ -1912,7 +1926,7 @@ begin
   begin
     Done := Source.Read(TempIn, SizeOf(TempIn));
     if Done < SizeOf(TempIn) then
-      raise EStreamError.Create(SCnReadError);
+      raise EStreamError.Create(SCnErrorSM4ReadError);
 
     // Nonce 和计数器拼成 Iv
     T := Int64HostToNetwork(Cnt);
@@ -1928,7 +1942,7 @@ begin
 
     Done := Dest.Write(TempIn, SizeOf(TempIn));   // 异或的结果写进明文结果
     if Done < SizeOf(TempIn) then
-      raise EStreamError.Create(SCnWriteError);
+      raise EStreamError.Create(SCnErrorSM4WriteError);
 
     Inc(Cnt);
     Dec(Count, SizeOf(TCnSM4Buffer));
@@ -1938,7 +1952,7 @@ begin
   begin
     Done := Source.Read(TempIn, Count);
     if Done < Count then
-      raise EStreamError.Create(SCnReadError);
+      raise EStreamError.Create(SCnErrorSM4ReadError);
 
     // Nonce 和计数器拼成 Iv
     T := Int64HostToNetwork(Cnt);
@@ -1954,8 +1968,13 @@ begin
 
     Done := Dest.Write(TempIn, Count);  // 最后写入的只包括密文长度的部分，无需整个块
     if Done < Count then
-      raise EStreamError.Create(SCnWriteError);
+      raise EStreamError.Create(SCnErrorSM4WriteError);
   end;
+end;
+
+function SM4GetOutputLengthFromInputLength(InputByteLength: Integer): Integer;
+begin
+  Result := (((InputByteLength - 1) div CN_SM4_BLOCKSIZE) + 1) * CN_SM4_BLOCKSIZE;
 end;
 
 procedure SM4Encrypt(Key: PAnsiChar; Input: PAnsiChar; Output: PAnsiChar; Len: Integer);

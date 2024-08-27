@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2023 CnPack 开发组                       }
+{                   (C)Copyright 2001-2024 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -13,7 +13,7 @@
 {            您应该已经和开发包一起收到一份 CnPack 发布协议的副本。如果        }
 {        还没有，可访问我们的网站：                                            }
 {                                                                              }
-{            网站地址：http://www.cnpack.org                                   }
+{            网站地址：https://www.cnpack.org                                  }
 {            电子邮件：master@cnpack.org                                       }
 {                                                                              }
 {******************************************************************************}
@@ -29,7 +29,9 @@ unit CnZip;
 * 开发平台：PWinXP + Delphi 5
 * 兼容测试：PWinXP/7 + Delphi 5 ~ XE
 * 本 地 化：该单元中的字符串均符合本地化处理方式
-* 修改记录：2022.03.30 V1.4
+* 修改记录：2024.02.17 V1.5
+*                新增流压缩解压缩函数，注意需 SUPPORT_ZLIB_WINDOWBITS 才兼容标准 Deflate
+*           2022.03.30 V1.4
 *                支持删除 Zip 包中的指定文件
 *           2018.08.26 V1.3
 *                存储/Deflate 模式下支持 Zip 传统的密码压缩解压缩算法
@@ -268,6 +270,18 @@ function CnZipExtractTo(const FileName: string; const DirName: string;
   const Password: string = ''): Boolean;
 {* 将指定 Zip 文件解压缩到指定目录}
 
+procedure CnZipCompressStream(InStream, OutZipStream: TStream;
+  CompressionLevel: TCompressionLevel = clDefault);
+{* 将 InStream 中的内容压缩并输出至 OutZipStream
+  注意，如果 Delphi 版本过低导致 CnPack.inc 中未定义 SUPPORT_ZLIB_WINDOWBITS
+  压缩出的内容可能和标准 Deflate 不兼容}
+
+procedure CnZipUncompressStream(InZipStream, OutStream: TStream);
+{* 将 InZipStream 中的压缩的内容解压缩并输出至 OutStream
+  注意，如果 Delphi 版本过低导致 CnPack.inc 中未定义 SUPPORT_ZLIB_WINDOWBITS
+  则可能和标准 Deflate 不兼容，解压内容可能失败
+  另外，解压缩时会从 InZipStream 的 Position 读起，宜按需设为 0}
+
 implementation
 
 {$IFDEF DEBUGZIP}
@@ -327,7 +341,9 @@ type
   private
     FStream: TStream;
   protected
-    function GetSize: Int64; // override;
+{$IFDEF COMPILER7_UP}
+    function GetSize: Int64; override;
+{$ENDIF}
   public
     constructor Create(Stream: TStream);
 
@@ -602,6 +618,63 @@ procedure VerifyWrite(Stream: TStream; var Buffer; Count: Integer);
 begin
   if Stream.Write(Buffer, Count) <> Count then
     raise ECnZipException.CreateRes(@SZipErrorWrite);
+end;
+
+procedure CnZipCompressStream(InStream, OutZipStream: TStream;
+  CompressionLevel: TCompressionLevel);
+var
+  Zip: TCompressionStream;
+begin
+  // 不能 Read 只能 Write，Write 时自动压缩并向创建时指定的关联流里写
+  Zip := TCompressionStream.Create(CompressionLevel, OutZipStream);
+  try
+    Zip.CopyFrom(InStream, 0);
+  finally
+    Zip.Free;
+  end;
+end;
+
+procedure CnZipUncompressStream(InZipStream, OutStream: TStream);
+var
+{$IFDEF ZLIB_STREAM_NOSIZE}
+  InpBuf, OutBuf: Pointer;
+  OutBytes, Cnt: Integer;
+{$ELSE}
+  UnZip: TDecompressionStream;
+{$ENDIF}
+begin
+{$IFDEF ZLIB_STREAM_NOSIZE}
+  InpBuf := nil;
+  OutBuf := nil;
+
+  // 低版本 TDecompressionStream 类不支持内部的 Seek 到 soEnd 操作，无法获取解压后的 Size
+  // 只能全部读入内存后调 ZLIB 的 DecompressBuf 解压
+  Cnt := InZipStream.Size - InZipStream.Position;
+  if Cnt > 0 then
+  begin
+    try
+      GetMem(InpBuf, Cnt);
+      InZipStream.Read(InpBuf^, Cnt);
+      DecompressBuf(InpBuf, Cnt, 0, OutBuf, OutBytes);
+      OutStream.Write(OutBuf^, OutBytes);
+    finally
+      if InpBuf <> nil then
+        FreeMem(InpBuf);
+      if OutBuf <> nil then
+        FreeMem(OutBuf);
+    end;
+  end;
+{$ELSE}
+  // 不能 Write 只能 Read，Read 时读出的是关联流里解压缩了的内容
+  UnZip := TDecompressionStream.Create(InZipStream);
+  try
+    OutStream.CopyFrom(UnZip, 0);
+    // 注意这里会用到 UnZip.Size，高版本 TDecompressionStream 类才可用
+  finally
+    UnZip.Free;
+  end;
+{$ENDIF}
+  OutStream.Position := 0;
 end;
 
 { TCnZipBase }
@@ -1099,10 +1172,12 @@ begin
   FStream := Stream;
 end;
 
+{$IFDEF COMPILER7_UP}
 function TCnStoredStream.GetSize: Int64;
 begin
   Result := FStream.Size;
 end;
+{$ENDIF}
 
 function TCnStoredStream.Read(var Buffer; Count: Integer): Longint;
 begin
