@@ -83,11 +83,12 @@ function Base64Encode(const InputData: AnsiString; var OutputData: string;
   URL: Boolean                 - True 则使用 Base64URL 编码，False 则使用标准 Base64 编码，默认 False
 |</PRE>}
 
-function Base64Encode(InputData: Pointer; DataLen: Integer; var OutputData: string;
+function Base64Encode(InputData: Pointer; DataByteLen: Integer; var OutputData: string;
   URL: Boolean = False): Integer; overload;
 {* 对数据进行 Base64 编码或 Base64URL 编码，如编码成功返回 ECN_BASE64_OK
 |<PRE>
-  InputData: AnsiString        - 要编码的数据
+  InputData: Pointer           - 要编码的数据的地址
+  DataByteLen: Integer         - 数据的字节长度
   var OutputData: AnsiString   - 编码后的数据
   URL: Boolean                 - True 则使用 Base64URL 编码，False 则使用标准 Base64 编码，默认 False
 |</PRE>}
@@ -130,13 +131,12 @@ function Base64Decode(InputData: string; out OutputData: TBytes;
 
 const
   ECN_BASE64_OK                        = ECN_OK; // 转换成功
-  ECN_BASE64_ERROR_BASE                = ECN_CUSTOM_ERROR_BASE + $500; // Base64 错误码基准
+  {* Base64 系列错误码：无错误，值为 0}
+  ECN_BASE64_ERROR_BASE                = ECN_CUSTOM_ERROR_BASE + $500;
+  {* Base64 系列错误码的基准起始值，为 ECN_CUSTOM_ERROR_BASE 加上 $500}
 
-  ECN_BASE64_ERROR                     = ECN_BASE64_ERROR_BASE + 1; // 转换错误（未知错误） (e.g. can't encode octet in input stream) -> error in implementation
-  ECN_BASE64_INVALID                   = ECN_BASE64_ERROR_BASE + 2; // 输入的字符串中有非法字符 (在 FilterDecodeInput=False 时可能出现)
-  ECN_BASE64_LENGTH                    = ECN_BASE64_ERROR_BASE + 3; // 数据长度非法
-  ECN_BASE64_DATALEFT                  = ECN_BASE64_ERROR_BASE + 4; // too much input data left (receveived 'end of encoded data' but not end of input string)
-  ECN_BASE64_PADDING                   = ECN_BASE64_ERROR_BASE + 5; // 输入的数据未能以正确的填充字符结束
+  ECN_BASE64_LENGTH                    = ECN_BASE64_ERROR_BASE + 1;
+  {* Base64 错误码之数据长度非法}
 
 implementation
 
@@ -202,57 +202,57 @@ begin
 end;
 
 // 以下为 wr960204 改进的快速 Base64 编解码算法
-function Base64Encode(InputData: Pointer; DataLen: Integer; var OutputData: string;
+function Base64Encode(InputData: Pointer; DataByteLen: Integer; var OutputData: string;
   URL: Boolean): Integer;
 var
   Times, I: Integer;
-  x1, x2, x3, x4: AnsiChar;
-  Xt: Byte;
+  X1, X2, X3, x4: AnsiChar;
+  XT: Byte;
 begin
-  if (InputData = nil) or (DataLen <= 0) then
+  if (InputData = nil) or (DataByteLen <= 0) then
   begin
     Result := ECN_BASE64_LENGTH;
     Exit;
   end;
 
-  if DataLen mod 3 = 0 then
-    Times := DataLen div 3
+  if DataByteLen mod 3 = 0 then
+    Times := DataByteLen div 3
   else
-    Times := DataLen div 3 + 1;
+    Times := DataByteLen div 3 + 1;
   SetLength(OutputData, Times * 4);   //一次分配整块内存,避免一次次字符串相加,一次次释放分配内存
 
   if URL then
   begin
     for I := 0 to Times - 1 do
     begin
-      if DataLen >= (3 + I * 3) then
+      if DataByteLen >= (3 + I * 3) then
       begin
-        x1 := EnCodeTabURL[(Ord(PAnsiChar(InputData)[I * 3]) shr 2)];
-        Xt := (Ord(PAnsiChar(InputData)[I * 3]) shl 4) and 48;
-        Xt := Xt or (Ord(PAnsiChar(InputData)[1 + I * 3]) shr 4);
-        x2 := EnCodeTabURL[Xt];
-        Xt := (Ord(PAnsiChar(InputData)[1 + I * 3]) shl 2) and 60;
-        Xt := Xt or (Ord(PAnsiChar(InputData)[2 + I * 3]) shr 6);
-        x3 := EnCodeTabURL[Xt];
-        Xt := (Ord(PAnsiChar(InputData)[2 + I * 3]) and 63);
-        x4 := EnCodeTabURL[Xt];
+        X1 := EnCodeTabURL[(Ord(PAnsiChar(InputData)[I * 3]) shr 2)];
+        XT := (Ord(PAnsiChar(InputData)[I * 3]) shl 4) and 48;
+        XT := XT or (Ord(PAnsiChar(InputData)[1 + I * 3]) shr 4);
+        X2 := EnCodeTabURL[XT];
+        XT := (Ord(PAnsiChar(InputData)[1 + I * 3]) shl 2) and 60;
+        XT := XT or (Ord(PAnsiChar(InputData)[2 + I * 3]) shr 6);
+        X3 := EnCodeTabURL[XT];
+        XT := (Ord(PAnsiChar(InputData)[2 + I * 3]) and 63);
+        x4 := EnCodeTabURL[XT];
       end
-      else if DataLen >= (2 + I * 3) then
+      else if DataByteLen >= (2 + I * 3) then
       begin
-        x1 := EnCodeTabURL[(Ord(PAnsiChar(InputData)[I * 3]) shr 2)];
-        Xt := (Ord(PAnsiChar(InputData)[I * 3]) shl 4) and 48;
-        Xt := Xt or (Ord(PAnsiChar(InputData)[1 + I * 3]) shr 4);
-        x2 := EnCodeTabURL[Xt];
-        Xt := (Ord(PAnsiChar(InputData)[1 + I * 3]) shl 2) and 60;
-        x3 := EnCodeTabURL[Xt ];
+        X1 := EnCodeTabURL[(Ord(PAnsiChar(InputData)[I * 3]) shr 2)];
+        XT := (Ord(PAnsiChar(InputData)[I * 3]) shl 4) and 48;
+        XT := XT or (Ord(PAnsiChar(InputData)[1 + I * 3]) shr 4);
+        X2 := EnCodeTabURL[XT];
+        XT := (Ord(PAnsiChar(InputData)[1 + I * 3]) shl 2) and 60;
+        X3 := EnCodeTabURL[XT ];
         x4 := '=';
       end
       else
       begin
-        x1 := EnCodeTabURL[(Ord(PAnsiChar(InputData)[I * 3]) shr 2)];
-        Xt := (Ord(PAnsiChar(InputData)[I * 3]) shl 4) and 48;
-        x2 := EnCodeTabURL[Xt];
-        x3 := '=';
+        X1 := EnCodeTabURL[(Ord(PAnsiChar(InputData)[I * 3]) shr 2)];
+        XT := (Ord(PAnsiChar(InputData)[I * 3]) shl 4) and 48;
+        X2 := EnCodeTabURL[XT];
+        X3 := '=';
         x4 := '=';
       end;
       OutputData[I shl 2 + 1] := Char(X1);
@@ -265,34 +265,34 @@ begin
   begin
     for I := 0 to Times - 1 do
     begin
-      if DataLen >= (3 + I * 3) then
+      if DataByteLen >= (3 + I * 3) then
       begin
-        x1 := EnCodeTab[(Ord(PAnsiChar(InputData)[I * 3]) shr 2)];
-        Xt := (Ord(PAnsiChar(InputData)[I * 3]) shl 4) and 48;
-        Xt := Xt or (Ord(PAnsiChar(InputData)[1 + I * 3]) shr 4);
-        x2 := EnCodeTab[Xt];
-        Xt := (Ord(PAnsiChar(InputData)[1 + I * 3]) shl 2) and 60;
-        Xt := Xt or (Ord(PAnsiChar(InputData)[2 + I * 3]) shr 6);
-        x3 := EnCodeTab[Xt];
-        Xt := (Ord(PAnsiChar(InputData)[2 + I * 3]) and 63);
-        x4 := EnCodeTab[Xt];
+        X1 := EnCodeTab[(Ord(PAnsiChar(InputData)[I * 3]) shr 2)];
+        XT := (Ord(PAnsiChar(InputData)[I * 3]) shl 4) and 48;
+        XT := XT or (Ord(PAnsiChar(InputData)[1 + I * 3]) shr 4);
+        X2 := EnCodeTab[XT];
+        XT := (Ord(PAnsiChar(InputData)[1 + I * 3]) shl 2) and 60;
+        XT := XT or (Ord(PAnsiChar(InputData)[2 + I * 3]) shr 6);
+        X3 := EnCodeTab[XT];
+        XT := (Ord(PAnsiChar(InputData)[2 + I * 3]) and 63);
+        x4 := EnCodeTab[XT];
       end
-      else if DataLen >= (2 + I * 3) then
+      else if DataByteLen >= (2 + I * 3) then
       begin
-        x1 := EnCodeTab[(Ord(PAnsiChar(InputData)[I * 3]) shr 2)];
-        Xt := (Ord(PAnsiChar(InputData)[I * 3]) shl 4) and 48;
-        Xt := Xt or (Ord(PAnsiChar(InputData)[1 + I * 3]) shr 4);
-        x2 := EnCodeTab[Xt];
-        Xt := (Ord(PAnsiChar(InputData)[1 + I * 3]) shl 2) and 60;
-        x3 := EnCodeTab[Xt ];
+        X1 := EnCodeTab[(Ord(PAnsiChar(InputData)[I * 3]) shr 2)];
+        XT := (Ord(PAnsiChar(InputData)[I * 3]) shl 4) and 48;
+        XT := XT or (Ord(PAnsiChar(InputData)[1 + I * 3]) shr 4);
+        X2 := EnCodeTab[XT];
+        XT := (Ord(PAnsiChar(InputData)[1 + I * 3]) shl 2) and 60;
+        X3 := EnCodeTab[XT ];
         x4 := '=';
       end
       else
       begin
-        x1 := EnCodeTab[(Ord(PAnsiChar(InputData)[I * 3]) shr 2)];
-        Xt := (Ord(PAnsiChar(InputData)[I * 3]) shl 4) and 48;
-        x2 := EnCodeTab[Xt];
-        x3 := '=';
+        X1 := EnCodeTab[(Ord(PAnsiChar(InputData)[I * 3]) shr 2)];
+        XT := (Ord(PAnsiChar(InputData)[I * 3]) shl 4) and 48;
+        X2 := EnCodeTab[XT];
+        X3 := '=';
         x4 := '=';
       end;
       OutputData[I shl 2 + 1] := Char(X1);
@@ -353,7 +353,7 @@ function Base64Decode(InputData: string; out OutputData: TBytes;
   FixZero: Boolean): Integer;
 var
   SrcLen, DstLen, Times, I: Integer;
-  x1, x2, x3, x4, xt: Byte;
+  X1, X2, X3, X4, XT: Byte;
   C, ToDec: Integer;
   Data: AnsiString;
 
@@ -379,7 +379,7 @@ var
   end;
 
 begin
-  if (InputData = '') then
+  if InputData = '' then
   begin
     Result := ECN_BASE64_OK;
     Exit;
@@ -414,27 +414,27 @@ begin
 
   for I := 0 to Times - 1 do
   begin
-    x1 := DecodeTable[Data[1 + I shl 2]];
-    x2 := DecodeTable[Data[2 + I shl 2]];
-    x3 := DecodeTable[Data[3 + I shl 2]];
-    x4 := DecodeTable[Data[4 + I shl 2]];
-    x1 := x1 shl 2;
-    xt := x2 shr 4;
-    x1 := x1 or xt;
-    x2 := x2 shl 4;
-    OutputData[C] := x1;
+    X1 := DecodeTable[Data[1 + I shl 2]];
+    X2 := DecodeTable[Data[2 + I shl 2]];
+    X3 := DecodeTable[Data[3 + I shl 2]];
+    X4 := DecodeTable[Data[4 + I shl 2]];
+    X1 := X1 shl 2;
+    XT := X2 shr 4;
+    X1 := X1 or XT;
+    X2 := X2 shl 4;
+    OutputData[C] := X1;
     Inc(C);
-    if x3 = 64 then
+    if X3 = 64 then
       Break;
-    xt := x3 shr 2;
-    x2 := x2 or xt;
-    x3 := x3 shl 6;
-    OutputData[C] := x2;
+    XT := X3 shr 2;
+    X2 := X2 or XT;
+    X3 := X3 shl 6;
+    OutputData[C] := X2;
     Inc(C);
-    if x4 = 64 then
+    if X4 = 64 then
       Break;
-    x3 := x3 or x4;
-    OutputData[C] := x3;
+    X3 := X3 or X4;
+    OutputData[C] := X3;
     Inc(C);
   end;
 

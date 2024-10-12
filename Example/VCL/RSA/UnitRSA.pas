@@ -203,6 +203,7 @@ type
     lblCHNewNumber: TLabel;
     edtCHNewNum: TEdit;
     btnCHVerify: TButton;
+    btnBNVerifyKeys: TButton;
     procedure btnGenerateRSAClick(Sender: TObject);
     procedure btnRSAEnClick(Sender: TObject);
     procedure btnRSADeClick(Sender: TObject);
@@ -251,6 +252,7 @@ type
     procedure btnCalcCHClick(Sender: TObject);
     procedure btnFindRandomClick(Sender: TObject);
     procedure btnCHVerifyClick(Sender: TObject);
+    procedure btnBNVerifyKeysClick(Sender: TObject);
   private
     FPrivKeyProduct, FPrivKeyExponent, FPubKeyProduct, FPubKeyExponent, FR: TUInt64;
     FBNR: TCnBigNumber;
@@ -694,7 +696,9 @@ begin
       ShowMessage('RSA Public Key Encrypt File Success.');
       if Trim(edtFile2.Text) = '' then
         edtFile2.Text := dlgSaveFile.FileName;
-    end;
+    end
+    else
+      ShowMessage('RSA Public Key Encrypt File Fail.');
   end;
 end;
 
@@ -708,8 +712,11 @@ begin
       R := CnRSADecryptFile(edtFile2.Text, dlgSaveFile.FileName, FPrivateKey, cpmOAEP)
     else
       R := CnRSADecryptFile(edtFile2.Text, dlgSaveFile.FileName, FPrivateKey);
+
     if R then
-      ShowMessage('RSA Private Key Decrypt File Success.');
+      ShowMessage('RSA Private Key Decrypt File Success.')
+    else
+      ShowMessage('RSA Private Key Decrypt File Fail.');
   end;
 end;
 
@@ -718,7 +725,9 @@ begin
   if dlgSaveFile.Execute then
   begin
     if CnRSADecryptFile(edtFile2.Text, dlgSaveFile.FileName, FPublicKey) then
-      ShowMessage('RSA Public Key Decrypt File Success.');
+      ShowMessage('RSA Public Key Decrypt File Success.')
+    else
+      ShowMessage('RSA Public Key Decrypt File Fail.')
   end;
 end;
 
@@ -743,7 +752,9 @@ begin
     begin
       ShowMessage('RSA Private Key Sign File Success.');
       edtSigFile.Text := dlgSaveFile.FileName;
-    end;
+    end
+    else
+      ShowMessage('RSA Private Key Sign File Fail.');
   end;
 end;
 
@@ -1072,6 +1083,14 @@ begin
   Hash.Free;
   SecKey.Free;
   Rand.Free;
+end;
+
+procedure TFormRSA.btnBNVerifyKeysClick(Sender: TObject);
+begin
+  if CnRSAVerifyKeys(FPrivateKey, FPublicKey) then
+    ShowMessage('Verify Keys OK')
+  else
+    ShowMessage('Verify Keys Fail');
 end;
 
 end.

@@ -324,7 +324,9 @@ type
 
     procedure MontgomeryLadderField64PointXDouble(var Dbl: TCn25519Field64EccPoint; var P: TCn25519Field64EccPoint);
     {* 多项式形式的蒙哥马利阶梯算法中的仅 X 的射影坐标点的二倍点运算，Y 内部作 Z 用，Dbl 可以是 P}
-    procedure MontgomeryLadderField64PointXAdd(var Sum, P, Q, PMinusQ: TCn25519Field64EccPoint);
+    procedure MontgomeryLadderField64PointXAdd(var Sum: TCn25519Field64EccPoint;
+      var P: TCn25519Field64EccPoint; var Q: TCn25519Field64EccPoint;
+      var PMinusQ: TCn25519Field64EccPoint);
     {* 多项式形式的蒙哥马利阶梯算法中的仅 X 的射影坐标点的点加运算，Y 内部作 Z 用，除了需要两个点值外还需要一个差点值}
 
     procedure MontgomeryLadderField64MultiplePoint(K: Int64; var Point: TCn25519Field64EccPoint); overload;
@@ -395,10 +397,10 @@ type
 
     // ================= 扩展扭曲爱德华坐标（四元）点加速算法 ==================
 
-    procedure ExtendedPointAddPoint(P, Q, Sum: TCnEcc4Point); virtual;
+    procedure ExtendedPointAddPoint(P: TCnEcc4Point; Q: TCnEcc4Point; Sum: TCnEcc4Point); virtual;
     {* 使用扩展扭曲爱德华坐标（四元）的快速点加法计算 P + Q，值放入 Sum 中，Diff 可以是 P、Q 之一，P、Q 可以相同
        该算法来源于 RFC 8032，且要求该扭曲爱德华曲线的 A 得为 -1，因而 Ed25519 曲线符合而 Ed448 曲线不符合}
-    procedure ExtendedPointSubPoint(P, Q, Diff: TCnEcc4Point);
+    procedure ExtendedPointSubPoint(P: TCnEcc4Point; Q: TCnEcc4Point; Diff: TCnEcc4Point);
     {* 使用扩展扭曲爱德华坐标（四元）计算 P - Q，值放入 Diff 中，Diff 可以是 P、Q 之一，P、Q 可以相同}
     procedure ExtendedPointInverse(P: TCnEcc4Point);
     {* 使用扩展扭曲爱德华坐标（四元）计算 P 点的逆元 -P，值重新放入 P，也就是 Y 值取负}
@@ -412,9 +414,11 @@ type
 
     // ============= 扩展扭曲爱德华坐标（四元）点的多项式加速算法 ==============
 
-    function ExtendedField64PointAddPoint(var P, Q, Sum: TCn25519Field64Ecc4Point): Boolean;
+    function ExtendedField64PointAddPoint(var P: TCn25519Field64Ecc4Point;
+      var Q: TCn25519Field64Ecc4Point; var Sum: TCn25519Field64Ecc4Point): Boolean;
     {* 使用扩展扭曲爱德华坐标（四元）有限域多项式的快速点加法计算 P + Q，值放入 Sum 中，Diff 可以是 P、Q 之一，P、Q 可以相同}
-    function ExtendedField64PointSubPoint(var P, Q, Diff: TCn25519Field64Ecc4Point): Boolean;
+    function ExtendedField64PointSubPoint(var P: TCn25519Field64Ecc4Point;
+      var Q: TCn25519Field64Ecc4Point; var Diff: TCn25519Field64Ecc4Point): Boolean;
     {* 使用扩展扭曲爱德华坐标（四元）有限域多项式计算 P - Q，值放入 Diff 中，Diff 可以是 P、Q 之一，P、Q 可以相同}
     procedure ExtendedField64PointInverse(var P: TCn25519Field64Ecc4Point);
     {* 使用扩展扭曲爱德华坐标（四元）有限域多项式计算 P 点的逆元 -P，值重新放入 P，也就是 Y 值取负}
@@ -599,10 +603,10 @@ type
 
     // ================ 扩展非扭曲爱德华坐标（三元）点加速算法 =================
 
-    procedure AffinePointAddPoint(P, Q, Sum: TCnEcc3Point);
+    procedure AffinePointAddPoint(P: TCnEcc3Point; Q: TCnEcc3Point; Sum: TCnEcc3Point);
     {* 使用扩展非扭曲爱德华坐标（三元）的快速点加法计算 P + Q，值放入 Sum 中，Diff 可以是 P、Q 之一，P、Q 可以相同
        该算法来源于 RFC 8032，且要求该非扭曲爱德华曲线的 A 得为 1，Ed448 曲线恰好符合}
-    procedure AffinePointSubPoint(P, Q, Diff: TCnEcc3Point);
+    procedure AffinePointSubPoint(P: TCnEcc3Point; Q: TCnEcc3Point; Diff: TCnEcc3Point);
     {* 使用扩展非扭曲爱德华坐标（三元）计算 P - Q，值放入 Diff 中，Diff 可以是 P、Q 之一，P、Q 可以相同}
     procedure AffinePointInverse(P: TCnEcc3Point);
     {* 使用扩展非扭曲爱德华坐标（三元）计算 P 点的逆元 -P，值重新放入 P，也就是 Y 值取负}
@@ -623,7 +627,8 @@ function CnEcc4PointToString(const P: TCnEcc4Point): string;
 function CnEcc4PointToHex(const P: TCnEcc4Point): string;
 {* 将一个 TCnEcc4Point 点坐标转换为十六进制字符串}
 
-function CnEcc4PointEqual(const P, Q: TCnEcc4Point; Prime: TCnBigNumber): Boolean;
+function CnEcc4PointEqual(const P: TCnEcc4Point; const Q: TCnEcc4Point;
+  Prime: TCnBigNumber): Boolean;
 {* 判断两个 TCnEcc4Point 是否同一个点}
 
 function CnEccPointToEcc4Point(DestPoint: TCnEcc4Point; SourcePoint: TCnEccPoint;
@@ -636,10 +641,10 @@ function CnEcc4PointToEccPoint(DestPoint: TCnEccPoint; SourcePoint: TCnEcc4Point
 
 // ========================= 25519 椭圆曲线辅助函数 ============================
 
-procedure CnCurve25519PointToEd25519Point(DestPoint, SourcePoint: TCnEccPoint);
+procedure CnCurve25519PointToEd25519Point(DestPoint: TCnEccPoint; SourcePoint: TCnEccPoint);
 {* 将 Curve25519 的坐标点转换为 Ed25519 的坐标点，Source 和 Dest 可以相同}
 
-procedure CnEd25519PointToCurve25519Point(DestPoint, SourcePoint: TCnEccPoint);
+procedure CnEd25519PointToCurve25519Point(DestPoint: TCnEccPoint; SourcePoint: TCnEccPoint);
 {* 将 Ed25519 的坐标点转换为 Curve25519 的坐标点，Source 和 Dest 可以相同}
 
 procedure CnCurve25519PointToData(P: TCnEccPoint; var Data: TCnCurve25519Data);
@@ -672,12 +677,12 @@ procedure CnProcess25519ScalarNumber(Num: TCnBigNumber);
 
 // ===================== Ed25519 椭圆曲线数字签名验证算法 ======================
 
-function CnEd25519SignData(PlainData: Pointer; DataLen: Integer; PrivateKey: TCnEd25519PrivateKey;
+function CnEd25519SignData(PlainData: Pointer; DataByteLen: Integer; PrivateKey: TCnEd25519PrivateKey;
   PublicKey: TCnEd25519PublicKey; OutSignature: TCnEd25519Signature; Ed25519: TCnEd25519 = nil): Boolean;
 {* Ed25519 用公私钥对数据块进行签名，不支持 Ed25519ctx 与 Ed25519ph，返回签名是否成功，
    为了提升效率需调用者自行保证公私钥匹配否则签名无效}
 
-function CnEd25519VerifyData(PlainData: Pointer; DataLen: Integer; InSignature: TCnEd25519Signature;
+function CnEd25519VerifyData(PlainData: Pointer; DataByteLen: Integer; InSignature: TCnEd25519Signature;
   PublicKey: TCnEd25519PublicKey; Ed25519: TCnEd25519 = nil): Boolean;
 {* Ed25519 用公钥对数据块与签名进行验证，不支持 Ed25519ctx 与 Ed25519ph，返回验证是否成功}
 
@@ -719,13 +724,13 @@ procedure Cn25519Field64Reduce(var Field: TCn25519Field64);
 function Cn25519Field64ToHex(var Field: TCn25519Field64): string;
 {* 将一个 64 位多项式系数转换为十六进制字符串}
 
-procedure Cn25519Field64Copy(var Dest, Source: TCn25519Field64);
+procedure Cn25519Field64Copy(var Dest: TCn25519Field64; var Source: TCn25519Field64);
 {* 复制一个 2^255-19 有限域范围内的 64 位多项式系数}
 
-function Cn25519Field64Equal(var A, B: TCn25519Field64): Boolean;
+function Cn25519Field64Equal(var A: TCn25519Field64; var B: TCn25519Field64): Boolean;
 {* 判断两个 2^255-19 有限域范围内的 64 位多项式系数是否相等}
 
-procedure Cn25519Field64Swap(var A, B: TCn25519Field64);
+procedure Cn25519Field64Swap(var A: TCn25519Field64; var B: TCn25519Field64);
 {* 交换两个 2^255-19 有限域范围内的 64 位多项式系数}
 
 procedure Cn25519Field64Zero(var Field: TCn25519Field64);
@@ -740,25 +745,25 @@ procedure Cn25519Field64NegOne(var Field: TCn25519Field64);
 procedure Cn25519Field64Negate(var Field: TCn25519Field64);
 {* 将一个 2^255-19 有限域范围内的 64 位多项式系数置为相反数}
 
-procedure Cn25519Field64Add(var Res, A, B: TCn25519Field64);
+procedure Cn25519Field64Add(var Res: TCn25519Field64; var A: TCn25519Field64; var B: TCn25519Field64);
 {* 两个 2^255-19 有限域范围内的 64 位多项式系数相加，A + B => Res，Res 可以是 A 或 B，A、B 可以是同一个}
 
-procedure Cn25519Field64Sub(var Res, A, B: TCn25519Field64);
+procedure Cn25519Field64Sub(var Res: TCn25519Field64; var A: TCn25519Field64; var B: TCn25519Field64);
 {* 两个 2^255-19 有限域范围内的 64 位多项式系数相减，A - B => Res，Res 可以是 A 或 B，A、B 可以是同一个}
 
-procedure Cn25519Field64Mul(var Res, A, B: TCn25519Field64);
+procedure Cn25519Field64Mul(var Res: TCn25519Field64; var A: TCn25519Field64; var B: TCn25519Field64);
 {* 两个 2^255-19 有限域范围内的 64 位多项式系数相乘，A * B => Res，Res 可以是 A 或 B，A、B 可以是同一个}
 
-procedure Cn25519Field64Power(var Res, A: TCn25519Field64; K: Cardinal); overload;
+procedure Cn25519Field64Power(var Res: TCn25519Field64; var A: TCn25519Field64; K: Cardinal); overload;
 {* 计算一个 2^255-19 有限域范围内的 64 位多项式的 K 次方值，A^K) => Res，Res 可以是 A}
 
-procedure Cn25519Field64Power(var Res, A: TCn25519Field64; K: TCnBigNumber); overload;
+procedure Cn25519Field64Power(var Res: TCn25519Field64; var A: TCn25519Field64; K: TCnBigNumber); overload;
 {* 计算一个 2^255-19 有限域范围内的 64 位多项式的 K 次方值，A^K) => Res，Res 可以是 A}
 
-procedure Cn25519Field64Power2K(var Res, A: TCn25519Field64; K: Cardinal);
+procedure Cn25519Field64Power2K(var Res: TCn25519Field64; var A: TCn25519Field64; K: Cardinal);
 {* 计算一个 2^255-19 有限域范围内的 64 位多项式的 2^K 次方值，A^(2^K) => Res，Res 可以是 A}
 
-procedure Cn25519Field64ModularInverse(var Res, A: TCn25519Field64);
+procedure Cn25519Field64ModularInverse(var Res: TCn25519Field64; var A: TCn25519Field64);
 {* 计算一个 2^255-19 有限域范围内的 64 位多项式的模逆元，A * Res mod P = 1，Res 可以是 A}
 
 // =========================== 多项式点处理函数 ================================
@@ -766,25 +771,28 @@ procedure Cn25519Field64ModularInverse(var Res, A: TCn25519Field64);
 procedure Cn25519Field64EccPointZero(var Point: TCn25519Field64EccPoint);
 {* 将一多项式拆项法表示的 25519 椭圆曲线上的点置 0}
 
-procedure Cn25519Field64EccPointCopy(var DestPoint, SourcePoint: TCn25519Field64EccPoint);
+procedure Cn25519Field64EccPointCopy(var DestPoint: TCn25519Field64EccPoint;
+  var SourcePoint: TCn25519Field64EccPoint);
 {* 复制多项式拆项法表示的 25519 椭圆曲线上的点}
 
 function Cn25519Field64EccPointToHex(var Point: TCn25519Field64EccPoint): string;
 {* 将一多项式拆项法表示的 25519 椭圆曲线上的点转换为十六进制字符串}
 
-function Cn25519Field64EccPointEqual(var A, B: TCn25519Field64EccPoint): Boolean;
+function Cn25519Field64EccPointEqual(var A: TCn25519Field64EccPoint; var B: TCn25519Field64EccPoint): Boolean;
 {* 判断两个多项式拆项法表示的 25519 椭圆曲线上的点是否相等}
 
 procedure Cn25519Field64Ecc4PointNeutual(var Point: TCn25519Field64Ecc4Point);
 {* 将一多项式拆项法表示的 25519 椭圆曲线上的四元扩展点置为中性点}
 
-procedure Cn25519Field64Ecc4PointCopy(var DestPoint, SourcePoint: TCn25519Field64Ecc4Point);
+procedure Cn25519Field64Ecc4PointCopy(var DestPoint: TCn25519Field64Ecc4Point;
+  var SourcePoint: TCn25519Field64Ecc4Point);
 {* 复制多项式拆项法表示的 25519 椭圆曲线上的四元扩展点}
 
 function Cn25519Field64Ecc4PointToHex(var Point: TCn25519Field64Ecc4Point): string;
 {* 将一多项式拆项法表示的 25519 椭圆曲线上的四元扩展点转换为十六进制字符串}
 
-function Cn25519Field64Ecc4PointEqual(var A, B: TCn25519Field64Ecc4Point): Boolean;
+function Cn25519Field64Ecc4PointEqual(var A: TCn25519Field64Ecc4Point;
+  var B: TCn25519Field64Ecc4Point): Boolean;
 {* 判断两个多项式拆项法表示的 25519 椭圆曲线上的点是否相等}
 
 function CnEccPointToField64Ecc4Point(var DestPoint: TCn25519Field64Ecc4Point;
@@ -805,11 +813,11 @@ function CnField64Ecc4PointToEcc4Point(DestPoint: TCnEcc4Point;
 
 // ========================== 448 椭圆曲线辅助函数 =============================
 
-procedure CnCurve448PointToEd448Point(DestPoint, SourcePoint: TCnEccPoint);
+procedure CnCurve448PointToEd448Point(DestPoint: TCnEccPoint; SourcePoint: TCnEccPoint);
 {* 将 Curve448 的坐标点转换为 Ed448 的坐标点，Source 和 Dest 可以相同
    注意该方法未验证成功}
 
-procedure CnEd448PointToCurve448Point(DestPoint, SourcePoint: TCnEccPoint);
+procedure CnEd448PointToCurve448Point(DestPoint: TCnEccPoint; SourcePoint: TCnEccPoint);
 {* 将 Ed448 的坐标点转换为 Curve448 的坐标点，Source 和 Dest 可以相同}
 
 procedure CnCurve448PointToData(P: TCnEccPoint; var Data: TCnCurve448Data);
@@ -858,12 +866,12 @@ function CnCurve448KeyExchangeStep2(SelfPrivateKey: TCnEccPrivateKey;
 
 // ===================== Ed448 椭圆曲线数字签名验证算法 ======================
 
-function CnEd448SignData(PlainData: Pointer; DataLen: Integer; PrivateKey: TCnEd448PrivateKey;
+function CnEd448SignData(PlainData: Pointer; DataByteLen: Integer; PrivateKey: TCnEd448PrivateKey;
   PublicKey: TCnEd448PublicKey; OutSignature: TCnEd448Signature;
   const UserContext: TBytes = nil; Ed448: TCnEd448 = nil): Boolean;
 {* Ed448 用公私钥对数据块进行签名，返回签名是否成功，为了提升效率需调用者自行保证公私钥匹配否则签名无效}
 
-function CnEd448VerifyData(PlainData: Pointer; DataLen: Integer; InSignature: TCnEd448Signature;
+function CnEd448VerifyData(PlainData: Pointer; DataByteLen: Integer; InSignature: TCnEd448Signature;
   PublicKey: TCnEd448PublicKey; const UserContext: TBytes = nil; Ed448: TCnEd448 = nil): Boolean;
 {* Ed448 用公钥对数据块与签名进行验证，返回验证是否成功}
 
@@ -879,11 +887,11 @@ function CnEd448VerifyFile(const FileName: string; InSignatureStream: TStream;
 // ======================= Ed25519/448 私钥额外计算函数 ========================
 
 procedure CnCalcKeysFromEd25519PrivateKey(const InPrivateKey: TCnBigNumber;
-  OutMulFactor, OutHashPrefix: TCnBigNumber);
+  OutMulFactor: TCnBigNumber; OutHashPrefix: TCnBigNumber);
 {* 根据随机私钥也叫 Secret Key 生成公钥与 Ed25519 签名使用的 Hash 种子}
 
 procedure CnCalcKeysFromEd448PrivateKey(const InPrivateKey: TCnBigNumber;
-  OutMulFactor, OutHashPrefix: TCnBigNumber);
+  OutMulFactor: TCnBigNumber; OutHashPrefix: TCnBigNumber);
 {* 根据随机私钥也叫 Secret Key 生成公钥与 Ed448 签名使用的 Hash 种子}
 
 implementation
@@ -1321,7 +1329,7 @@ begin
   BigNumberKeepLowBits(Num, (CN_448_EDWARDS_BLOCK_BYTESIZE - 1) * 8);   // 最高字节置 0
 end;
 
-function CnEd448SignData(PlainData: Pointer; DataLen: Integer; PrivateKey: TCnEd448PrivateKey;
+function CnEd448SignData(PlainData: Pointer; DataByteLen: Integer; PrivateKey: TCnEd448PrivateKey;
   PublicKey: TCnEd448PublicKey; OutSignature: TCnEd448Signature;
   const UserContext: TBytes; Ed448: TCnEd448): Boolean;
 var
@@ -1334,7 +1342,7 @@ var
   D: TBytes;
 begin
   Result := False;
-  if (PlainData = nil) or (DataLen <= 0) or (PrivateKey = nil) or (PublicKey = nil)
+  if (PlainData = nil) or (DataByteLen <= 0) or (PrivateKey = nil) or (PublicKey = nil)
     or (OutSignature = nil) then
     Exit;
 
@@ -1371,7 +1379,7 @@ begin
       Stream.Write(UserContext[0], E);   // "SigEd448" || octet(F) || octet(OLEN(C)) || C
 
     BigNumberWriteBinaryToStream(HP, Stream, CN_448_EDWARDS_BLOCK_BYTESIZE);
-    Stream.Write(PlainData^, DataLen);
+    Stream.Write(PlainData^, DataByteLen);
 
     // 计算出 114 字节的 SHAKE256 值作为 r 乘数，准备乘以基点作为 R 点
     D := SHAKE256Buffer(Stream.Memory, Stream.Size, SizeOf(TCnSHAKE256Digest));
@@ -1409,7 +1417,7 @@ begin
     Stream.Write(Data[0], SizeOf(TCnEd448Data));
 
     // 写明文，拼凑完毕
-    Stream.Write(PlainData^, DataLen);
+    Stream.Write(PlainData^, DataByteLen);
 
     // 再次杂凑
     D := SHAKE256Buffer(Stream.Memory, Stream.Size, SizeOf(TCnSHAKE256Digest));
@@ -1439,7 +1447,7 @@ begin
   end;
 end;
 
-function CnEd448VerifyData(PlainData: Pointer; DataLen: Integer; InSignature: TCnEd448Signature;
+function CnEd448VerifyData(PlainData: Pointer; DataByteLen: Integer; InSignature: TCnEd448Signature;
   PublicKey: TCnEd448PublicKey; const UserContext: TBytes; Ed448: TCnEd448): Boolean;
 var
   Is448Nil: Boolean;
@@ -1452,7 +1460,7 @@ var
   E: Byte;
 begin
   Result := False;
-  if (PlainData = nil) or (DataLen <= 0) or (PublicKey = nil) or (InSignature = nil) then
+  if (PlainData = nil) or (DataByteLen <= 0) or (PublicKey = nil) or (InSignature = nil) then
     Exit;
 
   L := nil;
@@ -1492,7 +1500,7 @@ begin
 
     CnEd448PointToData(PublicKey, Data);
     Stream.Write(Data[0], SizeOf(TCnEd448Data));        // 拼公钥点 A
-    Stream.Write(PlainData^, DataLen);                  // 拼明文
+    Stream.Write(PlainData^, DataByteLen);                  // 拼明文
 
     D := SHAKE256Buffer(Stream.Memory, Stream.Size, SizeOf(TCnSHAKE256Digest));
     if Length(D) <> SizeOf(TCnSHAKE256Digest) then      // 计算 Hash 作为 k '值
@@ -3464,7 +3472,7 @@ begin
   CnEd25519DataToBigNumber(TCnEd25519Data(Data), N); // 实现与 Ed25519 等同
 end;
 
-function CnEd25519SignData(PlainData: Pointer; DataLen: Integer; PrivateKey: TCnEd25519PrivateKey;
+function CnEd25519SignData(PlainData: Pointer; DataByteLen: Integer; PrivateKey: TCnEd25519PrivateKey;
   PublicKey: TCnEd25519PublicKey; OutSignature: TCnEd25519Signature; Ed25519: TCnEd25519): Boolean;
 var
   Is25519Nil: Boolean;
@@ -3474,7 +3482,7 @@ var
   Data: TCnEd25519Data;
 begin
   Result := False;
-  if (PlainData = nil) or (DataLen <= 0) or (PrivateKey = nil) or (PublicKey = nil)
+  if (PlainData = nil) or (DataByteLen <= 0) or (PrivateKey = nil) or (PublicKey = nil)
     or (OutSignature = nil) then
     Exit;
 
@@ -3501,7 +3509,7 @@ begin
     // 且 PH 函数为原始函数，因而大大简化了
     Stream := TMemoryStream.Create;
     BigNumberWriteBinaryToStream(HP, Stream, CN_25519_BLOCK_BYTESIZE);
-    Stream.Write(PlainData^, DataLen);
+    Stream.Write(PlainData^, DataByteLen);
 
     // 计算出 64 字节的 SHA512 值作为 r 乘数，准备乘以基点作为 R 点
     Dig := SHA512Buffer(Stream.Memory, Stream.Size);
@@ -3527,7 +3535,7 @@ begin
     Stream.Write(Data[0], SizeOf(TCnEd25519Data));
 
     // 写明文，拼凑完毕
-    Stream.Write(PlainData^, DataLen);
+    Stream.Write(PlainData^, DataByteLen);
 
     // 再次杂凑 R||PublicKey||明文
     Dig := SHA512Buffer(Stream.Memory, Stream.Size);
@@ -3554,7 +3562,7 @@ begin
   end;
 end;
 
-function CnEd25519VerifyData(PlainData: Pointer; DataLen: Integer;
+function CnEd25519VerifyData(PlainData: Pointer; DataByteLen: Integer;
   InSignature: TCnEd25519Signature; PublicKey: TCnEd25519PublicKey; Ed25519: TCnEd25519): Boolean;
 var
   Is25519Nil: Boolean;
@@ -3565,7 +3573,7 @@ var
   Dig: TCnSHA512Digest;
 begin
   Result := False;
-  if (PlainData = nil) or (DataLen <= 0) or (PublicKey = nil) or (InSignature = nil) then
+  if (PlainData = nil) or (DataByteLen <= 0) or (PublicKey = nil) or (InSignature = nil) then
     Exit;
 
   L := nil;
@@ -3596,7 +3604,7 @@ begin
 
     CnEd25519PointToData(PublicKey, Data);
     Stream.Write(Data[0], SizeOf(TCnEd25519Data));        // 拼公钥点
-    Stream.Write(PlainData^, DataLen);                    // 拼明文
+    Stream.Write(PlainData^, DataByteLen);                    // 拼明文
 
     Dig := SHA512Buffer(Stream.Memory, Stream.Size);      // 计算 Hash 作为值
     ReverseMemory(@Dig[0], SizeOf(TCnSHA512Digest));      // 需要倒转一次
@@ -3947,12 +3955,12 @@ begin
     UInt64ToHex(Field[2]) + ' $'+ UInt64ToHex(Field[3]) + ' $' + UInt64ToHex(Field[4]);
 end;
 
-procedure Cn25519Field64Copy(var Dest, Source: TCn25519Field64);
+procedure Cn25519Field64Copy(var Dest: TCn25519Field64; var Source: TCn25519Field64);
 begin
   Move(Source[0], Dest[0], SizeOf(TCn25519Field64));
 end;
 
-function Cn25519Field64Equal(var A, B: TCn25519Field64): Boolean;
+function Cn25519Field64Equal(var A: TCn25519Field64; var B: TCn25519Field64): Boolean;
 begin
   Result := (A[0] = B[0]) and (A[1] = B[1]) and (A[2] = B[2])
     and (A[3] = B[3]) and (A[4] = B[4]);
@@ -3970,7 +3978,7 @@ begin
 //  end;
 end;
 
-procedure Cn25519Field64Swap(var A, B: TCn25519Field64);
+procedure Cn25519Field64Swap(var A: TCn25519Field64; var B: TCn25519Field64);
 var
   I: Integer;
   T: TUInt64;

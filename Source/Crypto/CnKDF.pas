@@ -62,28 +62,28 @@ type
   ECnKDFException = class(Exception);
   {* KDF 相关异常}
 
-function CnGetDeriveKey(const Password, Salt: AnsiString; OutKey: PAnsiChar; KeyLength: Cardinal;
-  KeyHash: TCnKeyDeriveHash = ckdMd5): Boolean;
+function CnGetDeriveKey(const Password: AnsiString; const Salt: AnsiString;
+  OutKey: PAnsiChar; KeyLength: Cardinal; KeyHash: TCnKeyDeriveHash = ckdMd5): Boolean;
 {* 类似于 Openssl 中的 BytesToKey，用密码和盐与指定的杂凑算法生成加密 Key，
   目前的限制是 KeyLength 最多支持两轮 Hash，也就是 MD5 32 字节，SHA256 64 字节}
 
-function CnPBKDF1(const Password, Salt: AnsiString; Count, DerivedKeyByteLength: Integer;
-  KeyHash: TCnPBKDF1KeyHash = cpdfMd5): AnsiString;
+function CnPBKDF1(const Password: AnsiString; const Salt: AnsiString; Count: Integer;
+  DerivedKeyByteLength: Integer; KeyHash: TCnPBKDF1KeyHash = cpdfMd5): AnsiString;
 {* Password Based KDF 1 实现，简单的固定杂凑迭代，只支持 MD5 和 SHA1，参数与返回值均为 AnsiString
    DerivedKeyByteLength 是所需的密钥字节数，长度固定}
 
-function CnPBKDF2(const Password, Salt: AnsiString; Count, DerivedKeyByteLength: Integer;
-  KeyHash: TCnPBKDF2KeyHash = cpdfSha1Hmac): AnsiString;
+function CnPBKDF2(const Password: AnsiString; const Salt: AnsiString; Count: Integer;
+  DerivedKeyByteLength: Integer; KeyHash: TCnPBKDF2KeyHash = cpdfSha1Hmac): AnsiString;
 {* Password Based KDF 2 实现，基于 HMAC-SHA1 或 HMAC-SHA256，参数与返回值均为 AnsiString
    DerivedKeyByteLength 是所需的密钥字节数，长度可变，允许超长}
 
-function CnPBKDF1Bytes(const Password, Salt: TBytes; Count, DerivedKeyByteLength: Integer;
-  KeyHash: TCnPBKDF1KeyHash = cpdfMd5): TBytes;
+function CnPBKDF1Bytes(const Password: TBytes; const Salt: TBytes; Count: Integer;
+  DerivedKeyByteLength: Integer; KeyHash: TCnPBKDF1KeyHash = cpdfMd5): TBytes;
 {* Password Based KDF 1 实现，简单的固定杂凑迭代，只支持 MD5 和 SHA1，参数与返回值均为字节数组
    DerivedKeyByteLength 是所需的密钥字节数，长度固定}
 
-function CnPBKDF2Bytes(const Password, Salt: TBytes; Count, DerivedKeyByteLength: Integer;
-  KeyHash: TCnPBKDF2KeyHash = cpdfSha1Hmac): TBytes;
+function CnPBKDF2Bytes(const Password: TBytes; const Salt: TBytes; Count: Integer;
+  DerivedKeyByteLength: Integer; KeyHash: TCnPBKDF2KeyHash = cpdfSha1Hmac): TBytes;
 {* Password Based KDF 2 实现，基于 HMAC-SHA1 或 HMAC-SHA256，参数与返回值均为字节数组
    DerivedKeyByteLength 是所需的密钥字节数，长度可变，允许超长}
 
@@ -93,21 +93,21 @@ function CnSM2KDF(const Data: AnsiString; DerivedKeyByteLength: Integer): AnsiSt
 {* SM2 椭圆曲线公钥密码算法中规定的密钥派生函数，DerivedKeyLength 是所需的密钥字节数，
   返回 AnsiString，同时似乎也是没有 SharedInfo 的 ANSI-X9.63-KDF}
 
-function CnSM9KDF(Data: Pointer; DataLen: Integer; DerivedKeyByteLength: Integer): AnsiString;
+function CnSM9KDF(Data: Pointer; DataByteLen: Integer; DerivedKeyByteLength: Integer): AnsiString;
 {* SM9 标识密码算法中规定的密钥派生函数，DerivedKeyLength 是所需的密钥字节数，
   返回 AnsiString，同时似乎也是没有 SharedInfo 的 ANSI-X9.63-KDF}
 
 function CnSM2KDFBytes(const Data: TBytes; DerivedKeyByteLength: Integer): TBytes;
 {* 参数为字节数组形式的 SM2 椭圆曲线公钥密码算法中规定的密钥派生函数，DerivedKeyLength 是所需的密钥字节数，返回字节数组}
 
-function CnSM9KDFBytes(Data: Pointer; DataLen: Integer; DerivedKeyByteLength: Integer): TBytes;
+function CnSM9KDFBytes(Data: Pointer; DataByteLen: Integer; DerivedKeyByteLength: Integer): TBytes;
 {* 参数为内存块形式的 SM9 标识密码算法中规定的密钥派生函数，DerivedKeyLength 是所需的密钥字节数，返回字节数组}
 
 function CnSM2SM9KDF(Data: TBytes; DerivedKeyByteLength: Integer): TBytes; overload;
 {* 参数为字节数组形式的 SM2 椭圆曲线公钥密码算法与 SM9 标识密码算法中规定的密钥派生函数，
    DerivedKeyLength 是所需的密钥字节数，返回派生的密钥字节数组}
 
-function CnSM2SM9KDF(Data: Pointer; DataLen: Integer; DerivedKeyByteLength: Integer): TBytes; overload;
+function CnSM2SM9KDF(Data: Pointer; DataByteLen: Integer; DerivedKeyByteLength: Integer): TBytes; overload;
 {* 参数为内存块形式的 SM2 椭圆曲线公钥密码算法与 SM9 标识密码算法中规定的密钥派生函数，
    DerivedKeyLength 是所需的密钥字节数，返回派生的密钥字节数组}
 
@@ -392,11 +392,11 @@ begin
   Result := BytesToAnsi(Res);
 end;
 
-function CnSM9KDF(Data: Pointer; DataLen: Integer; DerivedKeyByteLength: Integer): AnsiString;
+function CnSM9KDF(Data: Pointer; DataByteLen: Integer; DerivedKeyByteLength: Integer): AnsiString;
 var
   Res: TBytes;
 begin
-  Res := CnSM2SM9KDF(Data, DataLen, DerivedKeyByteLength);
+  Res := CnSM2SM9KDF(Data, DataByteLen, DerivedKeyByteLength);
   Result := BytesToAnsi(Res);
 end;
 
@@ -405,9 +405,9 @@ begin
   Result := CnSM2SM9KDF(Data, DerivedKeyByteLength);
 end;
 
-function CnSM9KDFBytes(Data: Pointer; DataLen: Integer; DerivedKeyByteLength: Integer): TBytes;
+function CnSM9KDFBytes(Data: Pointer; DataByteLen: Integer; DerivedKeyByteLength: Integer): TBytes;
 begin
-  Result := CnSM2SM9KDF(Data, DataLen, DerivedKeyByteLength);
+  Result := CnSM2SM9KDF(Data, DataByteLen, DerivedKeyByteLength);
 end;
 
 function CnSM2SM9KDF(Data: TBytes; DerivedKeyByteLength: Integer): TBytes;
@@ -418,7 +418,7 @@ begin
   Result := CnSM2SM9KDF(@Data[0], Length(Data), DerivedKeyByteLength);
 end;
 
-function CnSM2SM9KDF(Data: Pointer; DataLen: Integer; DerivedKeyByteLength: Integer): TBytes; overload;
+function CnSM2SM9KDF(Data: Pointer; DataByteLen: Integer; DerivedKeyByteLength: Integer): TBytes; overload;
 var
   DArr: TBytes;
   CT, SCT: Cardinal;
@@ -427,15 +427,15 @@ var
   SM3D: TCnSM3Digest;
 begin
   Result := nil;
-  if (Data = nil) or (DataLen <= 0) or (DerivedKeyByteLength <= 0) then
+  if (Data = nil) or (DataByteLen <= 0) or (DerivedKeyByteLength <= 0) then
     raise ECnKDFException.Create(SCnErrorKDFParam);
 
   DArr := nil;
   CT := 1;
 
   try
-    SetLength(DArr, DataLen + SizeOf(Cardinal));
-    Move(Data^, DArr[0], DataLen);
+    SetLength(DArr, DataByteLen + SizeOf(Cardinal));
+    Move(Data^, DArr[0], DataByteLen);
 
     IsInt := DerivedKeyByteLength mod SizeOf(TCnSM3Digest) = 0;
     CeilLen := (DerivedKeyByteLength + SizeOf(TCnSM3Digest) - 1) div SizeOf(TCnSM3Digest);
@@ -444,7 +444,7 @@ begin
     for I := 1 to CeilLen do
     begin
       SCT := UInt32HostToNetwork(CT);  // 虽然文档中没说，但要倒序一下
-      Move(SCT, DArr[DataLen], SizeOf(Cardinal));
+      Move(SCT, DArr[DataByteLen], SizeOf(Cardinal));
       SM3D := SM3(@DArr[0], Length(DArr));
 
       if (I = CeilLen) and not IsInt then

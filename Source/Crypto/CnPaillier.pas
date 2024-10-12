@@ -52,13 +52,19 @@ uses
 
 const
   CN_PAILLIER_DEFAULT_PRIMEBITS = 2048;
+  {* Paillier 算法的默认素数位数}
 
   // 错误码
-  ECN_PAILLIER_OK                      = ECN_OK; // 没错
-  ECN_PAILLIER_ERROR_BASE              = ECN_CUSTOM_ERROR_BASE + $300; // Paillier 错误码基准
+  ECN_PAILLIER_OK                      = ECN_OK;
+  {* Paillier 系列错误码：无错误，值为 0}
 
-  ECN_PAILLIER_INVALID_INPUT           = ECN_PAILLIER_ERROR_BASE + 1;  // 输入为空或值不对
-  ECN_PAILLIER_RANDOM_ERROR            = ECN_PAILLIER_ERROR_BASE + 2;  // 随机数相关错误
+  ECN_PAILLIER_ERROR_BASE              = ECN_CUSTOM_ERROR_BASE + $300;
+  {* Paillier 系列错误码的基准起始值，为 ECN_CUSTOM_ERROR_BASE 加上 $300}
+
+  ECN_PAILLIER_INVALID_INPUT           = ECN_PAILLIER_ERROR_BASE + 1;
+  {* Paillier 错误码之输入为空或长度错误}
+  ECN_PAILLIER_RANDOM_ERROR            = ECN_PAILLIER_ERROR_BASE + 2;
+  {* Paillier 错误码之随机数相关错误}
 
 type
   TCnInt64PaillierPrivateKey = packed record
@@ -131,11 +137,11 @@ function CnInt64PaillierDecrypt(var PrivateKey: TCnInt64PaillierPrivateKey;
   var PublicKey: TCnInt64PaillierPublicKey; EnData: Int64; out Res: Int64): Boolean;
 {* Int64 范围内的 Paillier 私钥解密密文数据得到明文，返回解密是否成功}
 
-function CnInt64PaillierAddPlain(Data1, Data2: Int64;
+function CnInt64PaillierAddPlain(Data1: Int64; Data2: Int64;
   var PublicKey: TCnInt64PaillierPublicKey): Int64;
 {* Int64 范围内 Paillier 加法同态的明文加法，内部是模 N 加}
 
-function CnInt64PaillierAddCipher(EnData1, EnData2: Int64;
+function CnInt64PaillierAddCipher(EnData1: Int64; EnData2: Int64;
   var PublicKey: TCnInt64PaillierPublicKey): Int64;
 {* Int64 范围内 Paillier 加法同态的密文加法，内部是模 N^2 乘}
 
@@ -151,11 +157,11 @@ function CnPaillierDecrypt(PrivateKey: TCnPaillierPrivateKey;
   PublicKey: TCnPaillierPublicKey; EnData: TCnBigNumber; Res: TCnBigNumber): Boolean;
 {* 大数范围内的 Paillier 私钥解密密文数据得到明文，返回解密是否成功}
 
-function CnPaillierAddPlain(const Res: TCnBigNumber; Data1, Data2: TCnBigNumber;
+function CnPaillierAddPlain(const Res: TCnBigNumber; Data1: TCnBigNumber; Data2: TCnBigNumber;
   PublicKey: TCnPaillierPublicKey): Boolean;
 {* 大数范围内 Paillier 加法同态的明文加法，内部是模 N 加}
 
-function CnPaillierAddCipher(const Res: TCnBigNumber; EnData1, EnData2: TCnBigNumber;
+function CnPaillierAddCipher(const Res: TCnBigNumber; EnData1: TCnBigNumber; EnData2: TCnBigNumber;
   PublicKey: TCnPaillierPublicKey): Boolean;
 {* 大数范围内 Paillier 加法同态的密文加法，内部是模 N^2 乘}
 

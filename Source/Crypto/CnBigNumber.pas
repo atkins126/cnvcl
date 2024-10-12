@@ -40,7 +40,9 @@ unit CnBigNumber;
 *           注意 D5/D6/CB5/CB6 下可能遇上编译器 Bug 无法修复，
 *           譬如写 Int64(AInt64Var) 这样的强制类型转换时。
 * 本 地 化：该单元无需本地化处理
-* 修改记录：2023.01.12 V2.6
+* 修改记录：2024.10.10 V2.7
+*               部分函数加入的参数检测，以在调用时参数引用重复时抛异常
+*           2023.01.12 V2.6
 *               64 位模式下增加用 64 位存储计算的模式，测试中，默认禁用
 *           2022.06.04 V2.5
 *               增加负模逆元与蒙哥马利约简以及基于此实现的快速模乘算法
@@ -451,7 +453,7 @@ type
       {$IFNDEF CPU64BITS}; Key132, Key232: TObject {$ENDIF}): Boolean; override;
     procedure DoFreeNode(Node: TCnHashNode); override;
   public
-    constructor Create(AOwnsKey, AOwnsValue: Boolean); reintroduce; virtual;
+    constructor Create(AOwnsKey: Boolean; AOwnsValue: Boolean); reintroduce; virtual;
     {* AOwnsKey 为 True 时，Key 作为持有处理，节点删除时会释放这个 Key 对象
       AOwnsValue 为 True 时，Value 也作为持有处理，节点删除时会释放这个 Value 对象
       注意：设为 True 时，Key 和 Value 不允许传 Object 外的内容}
@@ -698,7 +700,7 @@ function BigNumberCopyHigh(const Dst: TCnBigNumber; const Src: TCnBigNumber;
 procedure BigNumberSwap(const Num1: TCnBigNumber; const Num2: TCnBigNumber);
 {* 交换两个大数对象的内容}
 
-procedure BigNumberSwapBit(const Num: TCnBigNumber; BitIndex1, BitIndex2: Integer);
+procedure BigNumberSwapBit(const Num: TCnBigNumber; BitIndex1: Integer; BitIndex2: Integer);
 {* 交换大数中两个指定 Bit 位的内容，BitIndex 均以 0 开始}
 
 function BigNumberRandBytes(const Num: TCnBigNumber; BytesCount: Integer): Boolean;
@@ -814,12 +816,12 @@ function BigNumberMulWordNonNegativeMod(const Res: TCnBigNumber;
 {* 大数对象乘以 32位有符号整型再非负求余，余数放 Res 中，0 <= Remain < |Divisor|
    Res 始终大于零，返回求余计算是否成功}
 
-function BigNumberAddMod(const Res: TCnBigNumber; const Num1, Num2: TCnBigNumber;
-  const Divisor: TCnBigNumber): Boolean;
+function BigNumberAddMod(const Res: TCnBigNumber; const Num1: TCnBigNumber;
+  const Num2: TCnBigNumber; const Divisor: TCnBigNumber): Boolean;
 {* 大数对象求和后非负求余，也就是 Res = (Num1 + Num2) mod Divisor 返回求余计算是否成功}
 
-function BigNumberSubMod(const Res: TCnBigNumber; const Num1, Num2: TCnBigNumber;
-  const Divisor: TCnBigNumber): Boolean;
+function BigNumberSubMod(const Res: TCnBigNumber; const Num1: TCnBigNumber;
+  const Num2: TCnBigNumber; const Divisor: TCnBigNumber): Boolean;
 {* 大数对象求差后非负求余，也就是 Res = (Num1 - Num2) mod Divisor 返回求余计算是否成功}
 
 function BigNumberDivFloat(const Res: TCnBigNumber; Num: TCnBigNumber;
@@ -842,39 +844,47 @@ function BigNumberLcm(const Res: TCnBigNumber; Num1: TCnBigNumber;
   Num2: TCnBigNumber): Boolean;
 {* 求俩大数 Num1 与 Num2 的最小公倍数，Res 可以是 Num1 或 Num2}
 
-function BigNumberUnsignedMulMod(const Res: TCnBigNumber; const A, B, C: TCnBigNumber): Boolean;
+function BigNumberUnsignedMulMod(const Res: TCnBigNumber; const A: TCnBigNumber;
+  const B: TCnBigNumber; const C: TCnBigNumber): Boolean;
 {* 快速计算 (A * B) mod C，返回计算是否成功，Res 不能是 C。A、B、C 保持不变（如果 Res 不是 A、B 的话）
   注意: 三个参数均会忽略负值，也就是均用正值参与计算}
 
-function BigNumberMulMod(const Res: TCnBigNumber; const A, B, C: TCnBigNumber): Boolean; {$IFDEF SUPPORT_DEPRECATED} deprecated; {$ENDIF}
+function BigNumberMulMod(const Res: TCnBigNumber; const A: TCnBigNumber; const B: TCnBigNumber;
+  const C: TCnBigNumber): Boolean; {$IFDEF SUPPORT_DEPRECATED} deprecated; {$ENDIF}
 {* 快速计算 (A * B) mod C，返回计算是否成功，Res 不能是 C。A、B、C 保持不变（如果 Res 不是 A、B 的话）
   注意: A、B 允许是负值，乘积为负时，结果为 C - 乘积为正的余
   另外该方法因为比下面的 BigNumberDirectMulMod 慢，所以不建议使用}
 
-function BigNumberDirectMulMod(const Res: TCnBigNumber; A, B, C: TCnBigNumber): Boolean;
+function BigNumberDirectMulMod(const Res: TCnBigNumber; A: TCnBigNumber;
+  B: TCnBigNumber; C: TCnBigNumber): Boolean;
 {* 普通计算 (A * B) mod C，返回计算是否成功，Res 不能是 C。A、B、C 保持不变（如果 Res 不是 A、B 的话）
   注意：位数较少时，该方法比上面的 BigNumberMulMod 方法要快不少，另外内部执行的是 NonNegativeMod，余数为正}
 
-function BigNumberMontgomeryReduction(const Res: TCnBigNumber;
-  const T, R, N, NNegInv: TCnBigNumber): Boolean;
+function BigNumberMontgomeryReduction(const Res: TCnBigNumber; const T: TCnBigNumber;
+  const R: TCnBigNumber; const N: TCnBigNumber; const NNegInv: TCnBigNumber): Boolean;
 {* 蒙哥马利约简法快速计算 T * R^-1 mod N 其中要求 R 是刚好比 N 大的 2 整数次幂，
   NNegInv 是预先计算好的 N 对 R 的负模逆元，T 不能为负且小于 N * R}
 
-function BigNumberMontgomeryMulMod(const Res: TCnBigNumber;
-  const A, B, R, R2ModN, N, NNegInv: TCnBigNumber): Boolean;
+function BigNumberMontgomeryMulMod(const Res: TCnBigNumber; const A: TCnBigNumber;
+  const B: TCnBigNumber; const R: TCnBigNumber; const R2ModN: TCnBigNumber;
+  const N: TCnBigNumber; const NNegInv: TCnBigNumber): Boolean;
 {* 蒙哥马利模乘法（内部使用四次蒙哥马利约简法）快速计算 A * B mod N，其中要求 R 是刚好比 N 大的 2 整数次幂，
   R2ModN 是预先计算好的 R^2 mod N 的值，NNegInv 是预先计算好的 N 对 R 的负模逆元}
 
-function BigNumberPowerWordMod(const Res: TCnBigNumber; A: TCnBigNumber; B: Cardinal; C: TCnBigNumber): Boolean;
+function BigNumberPowerWordMod(const Res: TCnBigNumber; A: TCnBigNumber;
+  B: Cardinal; C: TCnBigNumber): Boolean;
 {* 快速计算 (A ^ B) mod C，返回计算是否成功，Res 不能是 A、C 之一，内部调用 BigNumberPowerMod}
 
-function BigNumberPowerMod(const Res: TCnBigNumber; A, B, C: TCnBigNumber): Boolean;
+function BigNumberPowerMod(const Res: TCnBigNumber; A: TCnBigNumber; B: TCnBigNumber;
+  C: TCnBigNumber): Boolean;
 {* 滑动窗口法快速计算 (A ^ B) mod C，返回计算是否成功，Res 不能是 A、B、C 之一，性能比下面的蒙哥马利法好大约百分之十}
 
-function BigNumberMontgomeryPowerMod(const Res: TCnBigNumber; A, B, C: TCnBigNumber): Boolean; {$IFDEF SUPPORT_DEPRECATED} deprecated; {$ENDIF}
+function BigNumberMontgomeryPowerMod(const Res: TCnBigNumber; A: TCnBigNumber;
+  B: TCnBigNumber; C: TCnBigNumber): Boolean; {$IFDEF SUPPORT_DEPRECATED} deprecated; {$ENDIF}
 {* 蒙哥马利法快速计算 (A ^ B) mod C，返回计算是否成功，Res 不能是 A、B、C 之一，性能略差，可以不用}
 
-function BigNumberPowerPowerMod(const Res: TCnBigNumber; A, B, C, N: TCnBigNumber): Boolean;
+function BigNumberPowerPowerMod(const Res: TCnBigNumber; A: TCnBigNumber;
+  B: TCnBigNumber; C: TCnBigNumber; N: TCnBigNumber): Boolean;
 {* 快速计算 A ^ (B ^ C) mod N，更不能直接算，更容易溢出。Res 不能是 A、B、C、N 之一}
 
 function BigNumberLog2(const Num: TCnBigNumber): Extended;
@@ -886,7 +896,8 @@ function BigNumberLog10(const Num: TCnBigNumber): Extended;
 function BigNumberLogN(const Num: TCnBigNumber): Extended;
 {* 返回大数的 e 为底的自然对数的扩展精度浮点值，内部用扩展精度浮点实现，超界未处理}
 
-function BigNumberFermatCheckComposite(const A, B, C: TCnBigNumber; T: Integer): Boolean;
+function BigNumberFermatCheckComposite(const A: TCnBigNumber; const B: TCnBigNumber;
+  const C: TCnBigNumber; T: Integer): Boolean;
 {* Miller-Rabin 算法中的单次费尔马测试，返回 True 表示 B 不是素数，
   注意 A B C 并非任意选择，B 是待测试的素数，A 是随机数，C 是 B - 1 右移 T 位后得到的第一个奇数}
 
@@ -901,16 +912,16 @@ function BigNumberGeneratePrimeByBitsCount(const Num: TCnBigNumber; BitsCount: I
   TestCount: Integer = CN_BN_MILLER_RABIN_DEF_COUNT): Boolean;
 {* 生成一个指定二进制位数的大素数，最高位确保为 1。TestCount 指 Miller-Rabin 算法的测试次数，越大越精确也越慢}
 
-function BigNumberNextPrime(Res, Num: TCnBigNumber;
+function BigNumberNextPrime(Res: TCnBigNumber; Num: TCnBigNumber;
   TestCount: Integer = CN_BN_MILLER_RABIN_DEF_COUNT): Boolean;
 {* 生成一个比 Num 大或相等的大素数，结果放 Res，Res 可以是 Num，
   TestCount 指 Miller-Rabin 算法的测试次数，越大越精确也越慢}
 
-function BigNumberCheckPrimitiveRoot(R, Prime: TCnBigNumber; Factors: TCnBigNumberList): Boolean;
+function BigNumberCheckPrimitiveRoot(R: TCnBigNumber; Prime: TCnBigNumber; Factors: TCnBigNumberList): Boolean;
 {* 原根判断辅助函数。判断 R 是否对于 Prime - 1 的每个因子，都有 R ^ (剩余因子的积) mod Prime <> 1
    Factors 必须是 Prime - 1 的不重复的质因数列表，可从 BigNumberFindFactors 获取并去重而来}
 
-function BigNumberGetMinRootFromPrime(Res, Prime: TCnBigNumber): Boolean;
+function BigNumberGetMinRootFromPrime(Res: TCnBigNumber; Prime: TCnBigNumber): Boolean;
 {* 计算一素数的原根，返回计算是否成功}
 
 function BigNumberIsInt32(const Num: TCnBigNumber): Boolean;
@@ -925,13 +936,13 @@ function BigNumberIsInt64(const Num: TCnBigNumber): Boolean;
 function BigNumberIsUInt64(const Num: TCnBigNumber): Boolean;
 {* 大数是否是一个 64 位无符号整型范围内的数}
 
-procedure BigNumberExtendedEuclideanGcd(A, B: TCnBigNumber; X: TCnBigNumber;
+procedure BigNumberExtendedEuclideanGcd(A: TCnBigNumber; B: TCnBigNumber; X: TCnBigNumber;
   Y: TCnBigNumber);
 {* 扩展欧几里得辗转相除法求二元一次不定方程 A * X + B * Y = 1 的整数解
    调用者需自行保证 A B 互素，因为结果只满足 A * X + B * Y = GCD(A, B)
    A, B 是已知大数，X, Y 是解出来的结果，注意 X 有可能小于 0，如需要正数，可以再加上 B}
 
-procedure BigNumberExtendedEuclideanGcd2(A, B: TCnBigNumber; X: TCnBigNumber;
+procedure BigNumberExtendedEuclideanGcd2(A: TCnBigNumber; B: TCnBigNumber; X: TCnBigNumber;
   Y: TCnBigNumber);
 {* 扩展欧几里得辗转相除法求二元一次不定方程 A * X - B * Y = 1 的整数解
    调用者需自行保证 A B 互素，因为结果只满足 A * X + B * Y = GCD(A, B)
@@ -940,19 +951,19 @@ procedure BigNumberExtendedEuclideanGcd2(A, B: TCnBigNumber; X: TCnBigNumber;
    （由于可以视作 -Y，所以本方法与上一方法是等同的）}
 
 function BigNumberModularInverse(const Res: TCnBigNumber;
-  X, Modulus: TCnBigNumber; CheckGcd: Boolean = False): Boolean;
+  X: TCnBigNumber; Modulus: TCnBigNumber; CheckGcd: Boolean = False): Boolean;
 {* 求 X 针对 Modulus 的模反或叫模逆元 Y，满足 (X * Y) mod M = 1，X 可为负值，Y 求出正值。
    CheckGcd 参数为 True 时，内部会检查 X、Modulus 是否互素，不互素则直接返回 False
    调用者须自行保证 X、Modulus 互素，且 Res 不能是 X 或 Modulus}
 
 function BigNumberPrimeModularInverse(const Res: TCnBigNumber;
-  X, Modulus: TCnBigNumber): Boolean;
+  X: TCnBigNumber; Modulus: TCnBigNumber): Boolean;
 {* 求 X 针对素数 Modulus 的模反或叫模逆元 Y，满足 (X * Y) mod M = 1，X 可为负值，Y 求出正值。
    CheckGcd 参数为 True 时，内部会检查 X、Modulus 是否互素，不互素则直接返回 False
    调用者须自行保证 Modulus 为素数，且 Res 不能是 X 或 Modulus，内部用费马小定理求值，略慢}
 
 function BigNumberNegativeModularInverse(const Res: TCnBigNumber;
-  X, Modulus: TCnBigNumber; CheckGcd: Boolean = False): Boolean;
+  X: TCnBigNumber; Modulus: TCnBigNumber; CheckGcd: Boolean = False): Boolean;
 {* 求 X 针对 Modulus 的负模反或叫负模逆元 Y，满足 (X * Y) mod M = -1，X 可为负值，Y 求出正值。
    调用者须自行保证 X、Modulus 互素，且 Res 不能是 X 或 Modulus}
 
@@ -961,21 +972,21 @@ procedure BigNumberModularInverseWord(const Res: TCnBigNumber;
 {* 求 32 位有符号数 X 针对 Modulus 的模反或叫模逆元 Y，满足 (X * Y) mod M = 1，X 可为负值，Y 求出正值。
    调用者须自行保证 X、Modulus 互素，且 Res 不能是 X 或 Modulus}
 
-function BigNumberLegendre(A, P: TCnBigNumber): Integer;
+function BigNumberLegendre(A: TCnBigNumber; P: TCnBigNumber): Integer;
 {* 用二次互反律递归计算勒让德符号 ( A / P) 的值，较快}
 
-function BigNumberLegendre2(A, P: TCnBigNumber): Integer;
+function BigNumberLegendre2(A: TCnBigNumber; P: TCnBigNumber): Integer;
 {* 用欧拉判别法计算勒让德符号 ( A / P) 的值，较慢}
 
-function BigNumberTonelliShanks(const Res: TCnBigNumber; A, P: TCnBigNumber): Boolean;
+function BigNumberTonelliShanks(const Res: TCnBigNumber; A: TCnBigNumber; P: TCnBigNumber): Boolean;
 {* 使用 Tonelli-Shanks 算法进行模素数二次剩余求解，也就是求 Res^2 mod P = A，返回是否有解
    调用者需自行保证 P 为奇素数或奇素数的整数次方，该方法略慢，不推荐使用}
 
-function BigNumberLucas(const Res: TCnBigNumber; A, P: TCnBigNumber): Boolean;
+function BigNumberLucas(const Res: TCnBigNumber; A: TCnBigNumber; P: TCnBigNumber): Boolean;
 {* 使用 IEEE P1363 规范中的 Lucas 序列进行模素数二次剩余求解，也就是求 Res^2 mod P = A，返回是否有解
   似乎 P 应该是模 8 余 1 型素数}
 
-function BigNumberSquareRootModPrime(const Res: TCnBigNumber; A, Prime: TCnBigNumber): Boolean;
+function BigNumberSquareRootModPrime(const Res: TCnBigNumber; A: TCnBigNumber; Prime: TCnBigNumber): Boolean;
 {* 总入口函数，求 X^2 mod P = A 的解，返回是否求解成功，如成功，Res 是其中一个正值的解}
 
 procedure BigNumberFindFactors(Num: TCnBigNumber; Factors: TCnBigNumberList);
@@ -984,18 +995,19 @@ procedure BigNumberFindFactors(Num: TCnBigNumber; Factors: TCnBigNumberList);
 procedure BigNumberEuler(const Res: TCnBigNumber; Num: TCnBigNumber);
 {* 求不大于一 64 位无符号数 Num 的与 Num 互素的正整数的个数，也就是欧拉函数}
 
-function BigNumberLucasSequenceMod(X, Y, K, N: TCnBigNumber; Q, V: TCnBigNumber): Boolean;
+function BigNumberLucasSequenceMod(X: TCnBigNumber; Y: TCnBigNumber; K: TCnBigNumber;
+  N: TCnBigNumber; Q: TCnBigNumber; V: TCnBigNumber): Boolean;
 {* 计算 IEEE P1363 的规范中说明的 Lucas 序列，调用者需自行保证 N 为奇素数
    Lucas 序列递归定义为：V0 = 2, V1 = X, and Vk = X * Vk-1 - Y * Vk-2   for k >= 2
    V 返回 Vk mod N，Q 返回 Y ^ (K div 2) mod N}
 
 function BigNumberChineseRemainderTheorem(Res: TCnBigNumber;
-  Remainers, Factors: TCnBigNumberList): Boolean; overload;
+  Remainers: TCnBigNumberList; Factors: TCnBigNumberList): Boolean; overload;
 {* 用中国剩余定理，根据余数与互素的除数求一元线性同余方程组的最小解，返回求解是否成功
   参数为大数列表。Remainers 支持负余数，调用者须确保 Factors 均为正且两两互素}
 
 function BigNumberChineseRemainderTheorem(Res: TCnBigNumber;
-  Remainers, Factors: TCnInt64List): Boolean; overload;
+  Remainers: TCnInt64List; Factors: TCnInt64List): Boolean; overload;
 {* 用中国剩余定理，根据余数与互素的除数求一元线性同余方程组的最小解，返回求解是否成功
    参数为 Int64 列表}
 
@@ -1015,7 +1027,8 @@ function BigNumberNonAdjanceFormWidth(N: TCnBigNumber; Width: Integer = 1): TSho
 {* 返回大数的 Width 宽度（也就是 2^Width 进制）的 NAF 非零值不相邻形式，Width 为 1 时为普通 NAF 形式
   Width 1 和 2 等价。每个字节是有符号一项，绝对值小于 2^(Width-1)，所以有限制 1 < W <= 7}
 
-function BigNumberBigStepGiantStep(const Res: TCnBigNumber; A, B, M: TCnBigNumber): Boolean;
+function BigNumberBigStepGiantStep(const Res: TCnBigNumber; A: TCnBigNumber;
+  B: TCnBigNumber; M: TCnBigNumber): Boolean;
 {* 大步小步算法求离散对数问题 A^X mod M = B 的解 Res，要求 A 和 M 互素}
 
 function BigNumberDebugDump(const Num: TCnBigNumber): string;
@@ -1029,13 +1042,14 @@ function BigNumberRawDump(const Num: TCnBigNumber; Mem: Pointer = nil): Integer;
 function SparseBigNumberListIsZero(P: TCnSparseBigNumberList): Boolean;
 {* 判断 SparseBigNumberList 是否为 0，注意 nil、0 个项、唯一 1 个项是 0，均作为 0 处理}
 
-function SparseBigNumberListEqual(A, B: TCnSparseBigNumberList): Boolean;
+function SparseBigNumberListEqual(A: TCnSparseBigNumberList; B: TCnSparseBigNumberList): Boolean;
 {* 判断两个 SparseBigNumberList 是否相等，注意 nil、0 个项、唯一 1 个项是 0，均作为 0 处理}
 
-procedure SparseBigNumberListCopy(Dst, Src: TCnSparseBigNumberList);
+procedure SparseBigNumberListCopy(Dst: TCnSparseBigNumberList; Src: TCnSparseBigNumberList);
 {* 将 Src 复制至 Dst}
 
-procedure SparseBigNumberListMerge(Dst, Src1, Src2: TCnSparseBigNumberList; Add: Boolean = True);
+procedure SparseBigNumberListMerge(Dst: TCnSparseBigNumberList; Src1: TCnSparseBigNumberList;
+  Src2: TCnSparseBigNumberList; Add: Boolean = True);
 {* 合并两个 SparseBigNumberList 至目标 List 中，指数相同的系数 Add 为 True 时相加，否则相减
   Dst 可以是 Src1 或 Src2，Src1 和 Src2 可以相等}
 
@@ -1059,7 +1073,8 @@ resourcestring
 {$ENDIF}
   SCnErrorBigNumberLogRange = 'Log Range Error';
   SCnErrorBigNumberLegendre = 'Legendre: A, P Must > 0';
-  CnErrorBigNumberFloatExponentRange = 'Extended Float Exponent Range Error';
+  SCnErrorBigNumberFloatExponentRange = 'Extended Float Exponent Range Error';
+  SCnErrorBigNumberParamDupRef = 'Duplicated References for BigNumber Parameters';
 
 const
   Hex: string = '0123456789ABCDEF';
@@ -4102,7 +4117,7 @@ begin
     E := B - 1;
 
     if E > CN_EXTENDED_MAX_EXPONENT then
-      raise ERangeError.Create(CnErrorBigNumberFloatExponentRange);
+      raise ERangeError.Create(SCnErrorBigNumberFloatExponentRange);
 
     if B <= 64 then
     begin
@@ -5299,6 +5314,9 @@ var
   AA, BB: TCnBigNumber;
 begin
   Result := False;
+  if  Res = C then
+    raise Exception.Create(SCnErrorBigNumberParamDupRef);
+
   AA := nil;
   BB := nil;
 
@@ -5362,6 +5380,9 @@ begin
     if not BigNumberMul(Res, A, B) then
       Exit;
   end;
+
+  if Res = C then
+    raise Exception.Create(SCnErrorBigNumberParamDupRef);
 
   if not BigNumberNonNegativeMod(Res, Res, C) then
     Exit;
@@ -5510,6 +5531,9 @@ var
 
 begin
   Result := False;
+  if (Res = A) or (Res = B) or (Res = C) then
+    raise Exception.Create(SCnErrorBigNumberParamDupRef);
+
   Bits := BigNumberGetBitsCount(B);
 
   if Bits = 0 then
@@ -5628,6 +5652,9 @@ begin
     Exit;
   end;
 
+  if (Res = A) or (Res = B) or (Res = C) then
+    raise Exception.Create(SCnErrorBigNumberParamDupRef);
+
   AA := nil;
   BB := nil;
   T := nil;
@@ -5672,7 +5699,7 @@ end;
 
 function BigNumberPowerPowerMod(const Res: TCnBigNumber; A, B, C, N: TCnBigNumber): Boolean;
 var
-  I: TCnBigNumber;
+  I, T: TCnBigNumber;
 begin
   // A^(B^C) = A^(B*B*B*B...) 共 C 个 = ((A^B)^B)^B)^B 共 C 层 B
   if C.IsZero then
@@ -5681,21 +5708,31 @@ begin
     Result := BigNumberPowerMod(Res, A, B, N)
   else
   begin
-    I := FLocalBigNumberPool.Obtain;
+    if (Res = A) or (Res = B) or (Res = C) or (Res = N) then
+      raise Exception.Create(SCnErrorBigNumberParamDupRef);
+
+    I := nil;
+    T := nil;
+
     try
       Result := False;
+
+      I := FLocalBigNumberPool.Obtain;
       I.SetZero;
       if BigNumberCopy(Res, A) = nil then
         Exit;
 
+      T := FLocalBigNumberPool.Obtain;
       while BigNumberCompare(I, C) < 0 do
       begin
-        if not BigNumberPowerMod(Res, Res, B, N) then
+        if not BigNumberPowerMod(T, Res, B, N) then
           Exit;
+        BigNumberCopy(Res, T);
 
         I.AddWord(1);
       end;
     finally
+      FLocalBigNumberPool.Recycle(T);
       FLocalBigNumberPool.Recycle(I);
     end;
     Result := True;
@@ -6225,8 +6262,10 @@ var
   X1, Y: TCnBigNumber;
 begin
   Result := False;
-  Neg := False;
+  if (Res = X) or (Res = Modulus) then
+    raise Exception.Create(SCnErrorBigNumberParamDupRef);
 
+  Neg := False;
   X1 := nil;
   Y := nil;
 
@@ -6274,6 +6313,9 @@ function BigNumberPrimeModularInverse(const Res: TCnBigNumber; X, Modulus: TCnBi
 var
   P: TCnBigNumber;
 begin
+  if (Res = X) or (Res = Modulus) then
+    raise Exception.Create(SCnErrorBigNumberParamDupRef);
+
   // 由费马小定理知 x^(p-1) = 1 mod p，所以 x 的逆元是 x^(p-2) mod p
   P := FLocalBigNumberPool.Obtain;
   try
