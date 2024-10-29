@@ -120,6 +120,9 @@ type
   PCnBigNumberElementArray = PCnLongWord32Array;
 {$ENDIF}
 
+  ECnBigNumberException = class(Exception);
+  {* 大数相关异常}
+
   TCnBigNumber = class(TObject)
   {* 用来代表一个大数的对象}
   private
@@ -176,6 +179,9 @@ type
 
     function IsOdd: Boolean;
     {* 返回大数是否为奇数}
+
+    function IsEven: Boolean;
+    {* 返回大数是否为偶数}
 
     function GetBitsCount: Integer;
     {* 返回大数有多少个有效 Bits 位}
@@ -489,8 +495,11 @@ function BigNumberIsNegOne(const Num: TCnBigNumber): Boolean;
 function BigNumberSetOne(const Num: TCnBigNumber): Boolean;
 {* 将一个大数对象里的大数设置为 1}
 
-function BigNumberIsOdd(const Num: TCnBigNumber): Boolean;
+function BigNumberIsOdd(const Num: TCnBigNumber): Boolean; {$IFDEF SUPPORT_INLINE} inline; {$ENDIF}
 {* 返回一个大数对象里的大数是否为奇数}
+
+function BigNumberIsEven(const Num: TCnBigNumber): Boolean; {$IFDEF SUPPORT_INLINE} inline; {$ENDIF}
+{* 返回一个大数对象里的大数是否为偶数}
 
 function BigNumberGetBitsCount(const Num: TCnBigNumber): Integer;
 {* 返回一个大数对象里的大数有多少个有效 Bits}
@@ -508,25 +517,25 @@ function BigNumberGetTenPrecision2(const Num: TCnBigNumber): Integer;
 {* 粗略返回一个大数对象里的大数有多少个有效十进制位数，可能有 1 位误差但较快}
 
 function BigNumberGetWord(const Num: TCnBigNumber): Cardinal;
-{* 取一个大数对象的首值，也就是低 32 位无符号值}
+{* 取一个大数对象的首值，也就是低 32 位无符号值。注意如果大数太大则返回 MaxUInt32}
 
 function BigNumberSetWord(const Num: TCnBigNumber; W: Cardinal): Boolean;
 {* 给一个大数对象赋首值，也就是低 32 位无符号值}
 
 function BigNumberGetInteger(const Num: TCnBigNumber): Integer;
-{* 取一个大数对象的首值，也就是低 32 位有符号数}
+{* 取一个大数对象的首值，也就是低 32 位有符号数。注意如果大数太大则返回 MaxInt32}
 
 function BigNumberSetInteger(const Num: TCnBigNumber; W: Integer): Boolean;
 {* 给一个大数对象赋首值，也就是低 32 位有符号数}
 
 function BigNumberGetInt64(const Num: TCnBigNumber): Int64;
-{* 取一个大数对象的首值 Int64}
+{* 取一个大数对象的首值 Int64。注意如果大数太大则返回 MaxInt64}
 
 function BigNumberSetInt64(const Num: TCnBigNumber; W: Int64): Boolean;
 {* 给一个大数对象赋首值 Int64}
 
 function BigNumberGetUInt64UsingInt64(const Num: TCnBigNumber): TUInt64;
-{* 使用 Int64 取一个大数对象的首值 UInt64}
+{* 使用 Int64 取一个大数对象的首值 UInt64。注意如果大数太大则返回 MaxUInt64}
 
 function BigNumberSetUInt64UsingInt64(const Num: TCnBigNumber; W: TUInt64): Boolean;
 {* 使用 Int64 给一个大数对象赋 UInt64 首值}
@@ -534,7 +543,7 @@ function BigNumberSetUInt64UsingInt64(const Num: TCnBigNumber; W: TUInt64): Bool
 {$IFDEF SUPPORT_UINT64}
 
 function BigNumberGetUInt64(const Num: TCnBigNumber): UInt64;
-{* 取一个大数对象的首值 UInt64}
+{* 取一个大数对象的首值 UInt64。注意如果大数太大则返回 MaxUInt64}
 
 function BigNumberSetUInt64(const Num: TCnBigNumber; W: UInt64): Boolean;
 {* 给一个大数对象赋首值 UInt64}
@@ -696,6 +705,12 @@ function BigNumberCopyLow(const Dst: TCnBigNumber; const Src: TCnBigNumber;
 function BigNumberCopyHigh(const Dst: TCnBigNumber; const Src: TCnBigNumber;
   WordCount: Integer): TCnBigNumber;
 {* 复制一个大数对象的高 WordCount 个 LongWord，成功返回 Dst}
+
+function BigNumberGetLow32(const Num: TCnBigNumber): Cardinal;
+{* 取出一个大数的低 32 位，不处理符号}
+
+function BigNumberGetLow64(const Num: TCnBigNumber): TUInt64;
+{* 取出一个大数的低 64 位，不处理符号}
 
 procedure BigNumberSwap(const Num1: TCnBigNumber; const Num2: TCnBigNumber);
 {* 交换两个大数对象的内容}
@@ -898,11 +913,12 @@ function BigNumberLogN(const Num: TCnBigNumber): Extended;
 
 function BigNumberFermatCheckComposite(const A: TCnBigNumber; const B: TCnBigNumber;
   const C: TCnBigNumber; T: Integer): Boolean;
-{* Miller-Rabin 算法中的单次费尔马测试，返回 True 表示 B 不是素数，
+{* Miller-Rabin 算法中的单次费马测试，返回 True 表示 B 不是素数，
   注意 A B C 并非任意选择，B 是待测试的素数，A 是随机数，C 是 B - 1 右移 T 位后得到的第一个奇数}
 
 function BigNumberIsProbablyPrime(const Num: TCnBigNumber; TestCount: Integer = CN_BN_MILLER_RABIN_DEF_COUNT): Boolean;
-{* 概率性判断一个大数是否素数，TestCount 指 Miller-Rabin 算法的测试次数，越大越精确也越慢}
+{* 概率性判断一个大数是否素数，TestCount 指 Miller-Rabin 算法的测试次数，越大越精确也越慢
+  注意不能采用简单的费马小定理判断或 Solovay-Strassen 概率性素性检测，因为对 Carmichael 数无效}
 
 function BigNumberGeneratePrime(const Num: TCnBigNumber; BytesCount: Integer;
   TestCount: Integer = CN_BN_MILLER_RABIN_DEF_COUNT): Boolean;
@@ -973,12 +989,12 @@ procedure BigNumberModularInverseWord(const Res: TCnBigNumber;
    调用者须自行保证 X、Modulus 互素，且 Res 不能是 X 或 Modulus}
 
 function BigNumberLegendre(A: TCnBigNumber; P: TCnBigNumber): Integer;
-{* 用二次互反律递归计算勒让德符号 ( A / P) 的值，较快}
+{* 用二次互反律递归计算勒让德符号 ( A / P) 的值，较快。调用者需自行保证 P 为奇素数}
 
-function BigNumberLegendre2(A: TCnBigNumber; P: TCnBigNumber): Integer;
-{* 用欧拉判别法计算勒让德符号 ( A / P) 的值，较慢}
+function BigNumberLegendre2(A: TCnBigNumber; P: TCnBigNumber): Integer; {$IFDEF SUPPORT_DEPRECATED} deprecated; {$ENDIF}
+{* 用欧拉判别法计算勒让德符号 ( A / P) 的值，较慢，不推荐使用}
 
-function BigNumberTonelliShanks(const Res: TCnBigNumber; A: TCnBigNumber; P: TCnBigNumber): Boolean;
+function BigNumberTonelliShanks(const Res: TCnBigNumber; A: TCnBigNumber; P: TCnBigNumber): Boolean; {$IFDEF SUPPORT_DEPRECATED} deprecated; {$ENDIF}
 {* 使用 Tonelli-Shanks 算法进行模素数二次剩余求解，也就是求 Res^2 mod P = A，返回是否有解
    调用者需自行保证 P 为奇素数或奇素数的整数次方，该方法略慢，不推荐使用}
 
@@ -988,6 +1004,9 @@ function BigNumberLucas(const Res: TCnBigNumber; A: TCnBigNumber; P: TCnBigNumbe
 
 function BigNumberSquareRootModPrime(const Res: TCnBigNumber; A: TCnBigNumber; Prime: TCnBigNumber): Boolean;
 {* 总入口函数，求 X^2 mod P = A 的解，返回是否求解成功，如成功，Res 是其中一个正值的解}
+
+function BigNumberJacobiSymbol(A: TCnBigNumber; N: TCnBigNumber): Integer;
+{* 计算雅可比符号，其中 N 必须是正奇数，A 必须是非负整数。如果 N 是奇素数则等同于勒让德符号}
 
 procedure BigNumberFindFactors(Num: TCnBigNumber; Factors: TCnBigNumberList);
 {* 找出大数的质因数列表}
@@ -1073,8 +1092,10 @@ resourcestring
 {$ENDIF}
   SCnErrorBigNumberLogRange = 'Log Range Error';
   SCnErrorBigNumberLegendre = 'Legendre: A, P Must > 0';
+  SCnErrorBigNumberJacobiSymbol = 'Jacobi Symbol: A, N Must > 0';
   SCnErrorBigNumberFloatExponentRange = 'Extended Float Exponent Range Error';
   SCnErrorBigNumberParamDupRef = 'Duplicated References for BigNumber Parameters';
+  SCnErrorBigNumberFreeFromPool = 'Error. Try to Free a Big Number From Pool';
 
 const
   Hex: string = '0123456789ABCDEF';
@@ -1184,6 +1205,14 @@ end;
 function BigNumberIsOdd(const Num: TCnBigNumber): Boolean; {$IFDEF SUPPORT_INLINE} inline; {$ENDIF}
 begin
   if (Num.Top > 0) and ((PCnBigNumberElementArray(Num.D)^[0] and 1) <> 0) then
+    Result := True
+  else
+    Result := False;
+end;
+
+function BigNumberIsEven(const Num: TCnBigNumber): Boolean; {$IFDEF SUPPORT_INLINE} inline; {$ENDIF}
+begin
+  if (Num.Top = 0) or ((PCnBigNumberElementArray(Num.D)^[0] and 1) = 0) then
     Result := True
   else
     Result := False;
@@ -2389,6 +2418,20 @@ begin
     Dst.Top := WordCount;
     Dst.Neg := Src.Neg;
   end;
+end;
+
+function BigNumberGetLow32(const Num: TCnBigNumber): Cardinal;
+begin
+  Result := 0;
+  if Num.DMax > 0 then
+    Result := Cardinal(Num.D^);
+end;
+
+function BigNumberGetLow64(const Num: TCnBigNumber): TUInt64;
+begin
+  Result := 0;
+  if Num.DMax > 0 then
+    Result := TUInt64(Num.D^);
 end;
 
 procedure BigNumberSwap(const Num1: TCnBigNumber; const Num2: TCnBigNumber);
@@ -3673,7 +3716,7 @@ begin
 
 {$IFDEF BN_DATA_USE_64}
   if W > $FFFFFFFF then
-    raise Exception.Create(SCnErrorBigNumberInvalid64ModRange);
+    raise ECnBigNumberException.Create(SCnErrorBigNumberInvalid64ModRange);
 {$ENDIF}
 
   Result := 0;
@@ -5315,7 +5358,7 @@ var
 begin
   Result := False;
   if  Res = C then
-    raise Exception.Create(SCnErrorBigNumberParamDupRef);
+    raise ECnBigNumberException.Create(SCnErrorBigNumberParamDupRef);
 
   AA := nil;
   BB := nil;
@@ -5382,7 +5425,7 @@ begin
   end;
 
   if Res = C then
-    raise Exception.Create(SCnErrorBigNumberParamDupRef);
+    raise ECnBigNumberException.Create(SCnErrorBigNumberParamDupRef);
 
   if not BigNumberNonNegativeMod(Res, Res, C) then
     Exit;
@@ -5532,7 +5575,7 @@ var
 begin
   Result := False;
   if (Res = A) or (Res = B) or (Res = C) then
-    raise Exception.Create(SCnErrorBigNumberParamDupRef);
+    raise ECnBigNumberException.Create(SCnErrorBigNumberParamDupRef);
 
   Bits := BigNumberGetBitsCount(B);
 
@@ -5653,7 +5696,7 @@ begin
   end;
 
   if (Res = A) or (Res = B) or (Res = C) then
-    raise Exception.Create(SCnErrorBigNumberParamDupRef);
+    raise ECnBigNumberException.Create(SCnErrorBigNumberParamDupRef);
 
   AA := nil;
   BB := nil;
@@ -5709,7 +5752,7 @@ begin
   else
   begin
     if (Res = A) or (Res = B) or (Res = C) or (Res = N) then
-      raise Exception.Create(SCnErrorBigNumberParamDupRef);
+      raise ECnBigNumberException.Create(SCnErrorBigNumberParamDupRef);
 
     I := nil;
     T := nil;
@@ -6263,7 +6306,7 @@ var
 begin
   Result := False;
   if (Res = X) or (Res = Modulus) then
-    raise Exception.Create(SCnErrorBigNumberParamDupRef);
+    raise ECnBigNumberException.Create(SCnErrorBigNumberParamDupRef);
 
   Neg := False;
   X1 := nil;
@@ -6314,7 +6357,7 @@ var
   P: TCnBigNumber;
 begin
   if (Res = X) or (Res = Modulus) then
-    raise Exception.Create(SCnErrorBigNumberParamDupRef);
+    raise ECnBigNumberException.Create(SCnErrorBigNumberParamDupRef);
 
   // 由费马小定理知 x^(p-1) = 1 mod p，所以 x 的逆元是 x^(p-2) mod p
   P := FLocalBigNumberPool.Obtain;
@@ -6357,7 +6400,7 @@ var
   AA, Q: TCnBigNumber;
 begin
   if A.IsZero or A.IsNegative or P.IsZero or P.IsNegative then
-    raise Exception.Create(SCnErrorBigNumberLegendre);
+    raise ECnBigNumberException.Create(SCnErrorBigNumberLegendre);
 
   if A.IsOne then
   begin
@@ -6410,7 +6453,7 @@ var
   R, Res: TCnBigNumber;
 begin
   if A.IsZero or A.IsNegative or P.IsZero or P.IsNegative then
-    raise Exception.Create(SCnErrorBigNumberLegendre);
+    raise ECnBigNumberException.Create(SCnErrorBigNumberLegendre);
 
   R := FLocalBigNumberPool.Obtain;
   Res := FLocalBigNumberPool.Obtain;
@@ -6637,8 +6680,8 @@ begin
     U := FLocalBigNumberPool.Obtain;
     BigNumberCopy(U, Prime);
 
-    // TODO: 优化为直接取低 4 位或 8 位
-    Rem := BigNumberModWord(Prime, 4);  // 64 位模式下 BigNumberModWord 不支持除数大于 UInt32，这里 4 符合要求
+    // Mod 4 或 8 优化为直接取低 2 位或 3 位
+    Rem := BigNumberGetLow32(Prime) and 3;
     if Rem = 3 then
     begin
       PrimeType := pt4U3;
@@ -6646,15 +6689,11 @@ begin
     end
     else
     begin
-      Rem := BigNumberModWord(Prime, 8); // 64 位模式下 BigNumberModWord 不支持除数大于 UInt32，这里 4 符合要求
+      Rem := BigNumberGetLow32(Prime) and 7;
       if Rem = 1 then
-      begin
-        PrimeType := pt8U1;
-      end
+        PrimeType := pt8U1
       else if Rem = 5 then
-      begin
-        PrimeType := pt8U5;
-      end
+        PrimeType := pt8U5
       else
         Exit;
       BigNumberDivWord(U, 8);
@@ -6742,6 +6781,76 @@ begin
     FLocalBigNumberPool.Recycle(X);
     FLocalBigNumberPool.Recycle(OldU);
     FLocalBigNumberPool.Recycle(U);
+  end;
+end;
+
+function BigNumberJacobiSymbol(A: TCnBigNumber; N: TCnBigNumber): Integer;
+var
+  R: Integer;
+  AA, NN: TCnBigNumber;
+begin
+  if A.IsNegative or N.IsNegative or not N.IsOdd then        // 负数，及 N 偶数不支持
+    raise ECnBigNumberException.Create(SCnErrorBigNumberJacobiSymbol);
+
+  if A.IsZero then
+  begin
+    Result := 0;
+    Exit;
+  end
+  else if A.IsOne then
+  begin
+    Result := 1;
+    Exit;
+  end
+  else if A.IsWord(2) then
+  begin
+    R := BigNumberGetLow32(N) and 7;
+    if (R = 1) or (R = 7) then
+      Result := 1
+    else
+      Result := -1;
+    Exit;
+  end;
+
+  AA := nil;
+  NN := nil;
+
+  try
+    AA := FLocalBigNumberPool.Obtain;
+    if BigNumberCompare(A, N) > 0 then
+      BigNumberMod(AA, A, N)
+    else
+      BigNumberCopy(AA, A);
+
+    NN := FLocalBigNumberPool.Obtain;
+    BigNumberCopy(NN, N);
+
+    Result := 1;
+    while not AA.IsZero do
+    begin
+      // A 比 N 小，除二约成奇数
+      R := BigNumberGetLow32(NN) and 7;
+      while not AA.IsOdd do
+      begin
+        BigNumberShiftRightOne(AA, AA);
+        if (R = 3) or (R = 5) then
+          Result := -Result;
+      end;
+      BigNumberSwap(AA, NN);
+
+      // 二次互反
+      if ((BigNumberGetLow32(AA) and 3) = 3) and ((BigNumberGetLow32(NN) and 3) = 3) then // mod 4
+        Result := -Result;
+
+      // 换位，完成本轮二次互反，准备下一轮
+      BigNumberMod(AA, AA, NN);
+    end;
+
+    if not NN.IsOne then // N 不为 1 说明不互素
+      Result := 0;
+  finally
+    FLocalBigNumberPool.Recycle(NN);
+    FLocalBigNumberPool.Recycle(AA);
   end;
 end;
 
@@ -7711,7 +7820,7 @@ destructor TCnBigNumber.Destroy;
 begin
 {$IFDEF DEBUG}
   if FIsFromPool then
-    raise Exception.Create('Error. Try to Free a Big Number From Pool.');
+    raise ECnBigNumberException.Create(SCnErrorBigNumberFreeFromPool);
 {$ENDIF}
 
   if D <> nil then
@@ -7794,6 +7903,11 @@ end;
 function TCnBigNumber.IsOdd: Boolean;
 begin
   Result := BigNumberIsOdd(Self);
+end;
+
+function TCnBigNumber.IsEven: Boolean;
+begin
+  Result := BigNumberIsEven(Self);
 end;
 
 function TCnBigNumber.IsOne: Boolean;

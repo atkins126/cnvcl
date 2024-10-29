@@ -3,44 +3,42 @@ unit UnitDSA;
 interface
 
 uses
-  Windows, Messages, SysUtils, Classes, Graphics, Controls, Forms, Dialogs,
-  ComCtrls, StdCtrls, ExtCtrls, CnNative, CnDSA, CnBigNumber, CnWideStrings;
+  {$IFDEF MSWINDOWS} Windows, Messages, {$ENDIF} SysUtils, Classes, FMX.Graphics, FMX.Controls, FMX.Forms, FMX.Dialogs,
+  FMX.StdCtrls, FMX.ExtCtrls, CnNative, CnDSA, CnBigNumber, FMX.ComboEdit, FMX.Edit, FMX.TabControl, FMX.Types, System.Types, System.UITypes;
 
 type
   TFormDSA = class(TForm)
-    pgcDSA: TPageControl;
-    tsDSA: TTabSheet;
-    btnGenDSAParam: TButton;
+    pgcDSA: TTabControl;
+    tsDSA: TTabItem;
     lblDSAP: TLabel;
-    edtDSAP: TEdit;
     lblDSAQ: TLabel;
-    edtDSAQ: TEdit;
     lblDSAG: TLabel;
+    lblDSAPriv: TLabel;
+    lblDSAPub: TLabel;
+    lblDSAHash: TLabel;
+    lblDSASignS: TLabel;
+    lblDSASignR: TLabel;
+    lblDSAHashType: TLabel;
+    lblPrimeType: TLabel;
+    btnGenDSAParam: TButton;
+    edtDSAP: TEdit;
+    edtDSAQ: TEdit;
     edtDSAG: TEdit;
     btnVerifyDSAParam: TButton;
     btnGenDSAKeys: TButton;
     btnVerifyDSAKeys: TButton;
-    lblDSAPriv: TLabel;
     edtDSAPriv: TEdit;
-    lblDSAPub: TLabel;
     edtDSAPub: TEdit;
-    bvl1: TBevel;
-    bvl2: TBevel;
-    lblDSAHash: TLabel;
     edtDSAText: TEdit;
     btnDSASignHash: TButton;
     btnDSAVerifyHash: TButton;
     edtDSASignS: TEdit;
-    lblDSASignS: TLabel;
-    lblDSASignR: TLabel;
     edtDSASignR: TEdit;
-    lblDSAHashType: TLabel;
-    cbbDSAHashType: TComboBox;
-    lblPrimeType: TLabel;
-    cbbDSAType: TComboBox;
-    procedure btnGenDSAParamClick(Sender: TObject);
+    cbbDSAHashType: TComboEdit;
+    cbbDSAType: TComboEdit;
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
+    procedure btnGenDSAParamClick(Sender: TObject);
     procedure btnVerifyDSAParamClick(Sender: TObject);
     procedure btnGenDSAKeysClick(Sender: TObject);
     procedure btnVerifyDSAKeysClick(Sender: TObject);
@@ -63,7 +61,7 @@ var
 
 implementation
 
-{$R *.DFM}
+{$R *.fmx}
 
 procedure TFormDSA.btnGenDSAParamClick(Sender: TObject);
 begin

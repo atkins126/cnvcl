@@ -860,7 +860,7 @@ function CnInt64MontgomeryMulMod(A: TUInt64; B: TUInt64; RExp: TUInt64; R2ModN: 
    比起 MultipleMod 实现，有一定提速作用}
 
 function CnInt64Legendre(A: Int64; P: Int64): Integer;
-{* 计算勒让德符号 (A / P) 的值，范围为 Int64}
+{* 计算勒让德符号 (A / P) 的值，范围为 Int64，调用者自行保证 P 为奇素数}
 
 procedure CnLucasSequenceMod(X: Int64; Y: Int64; K: Int64; N: Int64; out Q: Int64; out V: Int64);
 {* 计算 IEEE P1363 的规范中说明的 Lucas 序列，范围为 Int64
@@ -869,6 +869,9 @@ procedure CnLucasSequenceMod(X: Int64; Y: Int64; K: Int64; N: Int64; out Q: Int6
 
 function CnInt64SquareRoot(X: Int64; P: Int64): Int64;
 {* 计算平方剩余，也就是返回 Result^2 mod P = X，范围为 Int64，0 与负值暂不支持}
+
+function CnInt64JacobiSymbol(A: Int64; N: Int64): Int64;
+{* 计算雅可比符号 (A / N)，其中 N 必须是正奇数，A 必须是正整数。如果 N 是奇素数则等同于勒让德符号}
 
 function ChineseRemainderTheoremInt64(Remainers: array of TUInt64; Factors: array of TUInt64): TUInt64; overload;
 {* 用中国剩余定理，根据余数与互素的除数求一元线性同余方程组的最小解，只支持 UInt64
@@ -909,6 +912,11 @@ implementation
 
 uses
   CnHashMap, CnPolynomial, CnBigNumber, CnRandom;
+
+resourcestring
+  SCnErrorInvalidKForLucasSequence = 'Invalid K for Lucas Sequence';
+  SCnErrorInvalidPrime = 'Invalid Prime';
+  SCnErrorInvalidParam = 'Invalid Parameter';
 
 // 从 CN_PRIME_NUMBERS_SQRT_UINT32 数组中随机挑选一个素数
 function CnPickRandomSmallPrime: Integer;
@@ -2064,6 +2072,9 @@ end;
 // 计算勒让德符号 ( A / P) 的值
 function CnInt64Legendre(A, P: Int64): Integer;
 begin
+  if (A <= 0) or (P <= 0) then
+    raise ECnPrimeException.Create(SCnErrorInvalidParam);
+
   // 三种情况：P 能整除 A 时返回 0，不能整除时，如果 A 是完全平方数就返回 1，否则返回 -1
   if A mod P = 0 then
     Result := 0
@@ -2082,7 +2093,7 @@ var
   V0, V1, Q0, Q1: Int64;
 begin
   if K < 0 then
-    raise Exception.Create('Invalid K for Lucas Sequence');
+    raise ECnPrimeException.Create(SCnErrorInvalidKForLucasSequence);
 
   if K = 0 then
   begin
@@ -2132,7 +2143,7 @@ var
   V0, V1, Q0, Q1: Int64;
 begin
   if K < 0 then
-    raise Exception.Create('Invalid K for Lucas Sequence');
+    raise ECnPrimeException.Create(SCnErrorInvalidKForLucasSequence);
 
   // V0 = 2, V1 = P, and Vk = P * Vk-1 - Q * Vk-2   for k >= 2
 
@@ -2243,7 +2254,7 @@ begin
       U := P div 8;
     end
     else
-      raise Exception.Create('Invalid Prime');
+      raise ECnPrimeException.Create(SCnErrorInvalidPrime);
   end;
 
   case Pt of
@@ -2277,6 +2288,70 @@ begin
       end;
     end;
   end;
+end;
+
+function CnInt64JacobiSymbol(A: Int64; N: Int64): Int64;
+var
+  R, T: Int64;
+begin
+  if (A < -1) or (N <= 0) or ((N and 1) = 0) then         // 负数，及 N 偶数不支持
+    raise ECnPrimeException.Create(SCnErrorInvalidParam);
+
+  if (A = 0) or (A = 1) then // (0, N) = 0   (1, N) = 1
+  begin
+    Result := A;
+    Exit;
+  end
+  else if A = -1 then // (-1, N) = (-1)^((N - 1)/2)
+  begin
+    Dec(N);
+    N := N shr 1;
+    if (N and 1) = 0 then
+      Result := 1
+    else
+      Result := -1;
+    Exit;
+  end
+  else if A = 2 then // (2, N) = (-1)^((N^2 - 1)/8)
+  begin
+    N := N and 7; // mod 8;
+    if (N = 1) or (N = 7) then
+      Result := 1
+    else
+      Result := -1;
+    Exit;
+
+    // 所以 n mod 8 得到 1、7 时为 1，3、5 时为 -1，注意奇数平方减一一定能被 8 整除
+  end
+  else if A > N then
+    A := A mod N;
+
+  // 再利用同余及二次互反律循环简化计算，并通过除二让 A 变成奇数且 A、N 互素，因为 (A, N) = (A/2, N) * (2, N)
+  Result := 1;
+  while A <> 0 do
+  begin
+    // A 比 N 小，除二约成奇数
+    R := N and 7; // mod 8
+    while (A and 1) = 0 do
+    begin
+      A := A shr 1;
+      if (R = 3) or (R = 5) then
+        Result := -Result;
+    end;
+    T := A;
+    A := N;
+    N := T;
+
+    // 二次互反
+    if ((A and 3) = 3) and ((N and 3) = 3) then // mod 4
+      Result := -Result;
+
+    // 换位，完成本轮二次互反，准备下一轮
+    A := A mod N;
+  end;
+
+  if N <> 1 then // N 不为 1 说明不互素
+    Result := 0;
 end;
 
 function ChineseRemainderTheoremInt64(Remainers, Factors: array of TUInt64): TUInt64;

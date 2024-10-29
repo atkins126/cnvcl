@@ -45,7 +45,7 @@ uses
   CnSM9, CnFNV, CnKDF, CnBase64, CnCRC32, CnMD5, CnSHA1, CnSHA2, CnSHA3, CnChaCha20,
   CnPoly1305, CnTEA, CnZUC, CnFEC, CnPrimeNumber, Cn25519, CnPaillier, CnSecretSharing,
   CnPolynomial, CnBits, CnLattice, CnOTS, CnPemUtils, CnInt128, CnRC4, CnPDFCrypt,
-  CnDSA, CnStrings, CnWideStrings;
+  CnDSA, CnWideStrings;
 
 procedure TestCrypto;
 {* 密码库总测试入口}
@@ -87,6 +87,7 @@ function TestBigNumberShiftRightOne: Boolean;
 function TestBigNumberFermatCheckComposite: Boolean;
 function TestBigNumberIsProbablyPrime: Boolean;
 function TestBigNumberIsPerfectPower: Boolean;
+function TestBigNumberJacobiSymbol: Boolean;
 
 // ================================ Bits =======================================
 
@@ -310,6 +311,7 @@ function TestKDFSM2SM9: Boolean;
 function TestPrimeNumber1: Boolean;
 function TestPrimeNumber2: Boolean;
 function TestPrimeNumber3: Boolean;
+function TestPrimeNumber4: Boolean;
 
 // ================================ 25519 ======================================
 
@@ -431,6 +433,7 @@ begin
   MyAssert(TestBigNumberFermatCheckComposite, 'TestBigNumberFermatCheckComposite');
   MyAssert(TestBigNumberIsProbablyPrime, 'TestBigNumberIsProbablyPrime');
   MyAssert(TestBigNumberIsPerfectPower, 'TestBigNumberIsPerfectPower');
+  MyAssert(TestBigNumberJacobiSymbol, 'TestBigNumberJacobiSymbol');
 
 // ================================ Bits =======================================
 
@@ -654,6 +657,7 @@ begin
   MyAssert(TestPrimeNumber1, 'TestPrimeNumber1');
   MyAssert(TestPrimeNumber2, 'TestPrimeNumber2');
   MyAssert(TestPrimeNumber3, 'TestPrimeNumber3');
+  MyAssert(TestPrimeNumber4, 'TestPrimeNumber4');
 
 // ================================ 25519 ======================================
 
@@ -1329,6 +1333,41 @@ begin
   A := BigNumberNew;
   A.SetDec('9682651996416');
   Result := BigNumberIsPerfectPower(A);
+  BigNumberFree(A);
+end;
+
+function TestBigNumberJacobiSymbol: Boolean;
+var
+  A, N: TCnBigNumber;
+begin
+  A := BigNumberNew;
+  N := BigNumberNew;
+
+  A.SetDec('3');
+  N.SetDec('11');
+
+  Result := BigNumberJacobiSymbol(A, N) = 1;
+  if not Result then Exit;
+
+  A.SetDec('59');
+  N.SetDec('139');
+
+  Result := BigNumberJacobiSymbol(A, N) = -1;
+  if not Result then Exit;
+
+  A.SetDec('8273190');
+  N.SetDec('7143391235');
+
+  Result := BigNumberJacobiSymbol(A, N) = 0;
+  if not Result then Exit;
+
+  A.SetDec('9237512893489267120909234987561230233241');
+  N.SetDec('119872354839100272484348735687564378089401882467674327932479');
+
+  Result := BigNumberJacobiSymbol(A, N) = -1;
+  if not Result then Exit;
+
+  BigNumberFree(N);
   BigNumberFree(A);
 end;
 
@@ -4399,7 +4438,22 @@ end;
 
 function TestPrimeNumber3: Boolean;
 begin
-  Result := CnInt64IsPerfectPower(9682651996416);  // 42 的 8 次方，暂时通不过
+  Result := CnInt64IsPerfectPower(9682651996416);  // 42 的 8 次方
+end;
+
+function TestPrimeNumber4: Boolean;
+begin
+  // 雅可比符号计算
+  Result := CnInt64JacobiSymbol(17, 101) = 1;
+  if not Result then Exit;
+
+  Result := CnInt64JacobiSymbol(15, 21) = 0; // 不互素，0
+  if not Result then Exit;
+
+  Result := CnInt64JacobiSymbol(8419, 68073) = -1;
+  if not Result then Exit;
+
+  Result := CnInt64JacobiSymbol(14147, 68756437) = 1;
 end;
 
 // ================================ 25519 ========================================
